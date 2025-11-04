@@ -1,40 +1,26 @@
 # doce.dev - Self-Hosted AI Website Builder
 
-A doce.dev self-hosted AI website builder that runs in your homelab with AI-powered website generation and automatic deployments.
-
-## Quick Start
-
-1. **Clone and start:**
-   ```bash
-   git clone <your-repo-url>
-   cd doce.dev
-   docker-compose up -d
-   ```
-
-2. **Open http://localhost** and follow the setup wizard:
-   - Create admin account
-   - Add your OpenAI or Anthropic API key
-   - Start building!
-
 ## Features
 
-- 🤖 Chat with AI to generate Next.js websites
-- 👁️ Live preview at `/preview/{project-id}`
-- 🚀 Deploy to `/site/{deployment-id}`
-- 🐳 Fully containerized with Docker
-- 📊 Built-in project management
-
-## Requirements
-
-- Docker & Docker Compose
-- 4GB+ RAM
-- OpenAI or Anthropic API key
-
-## Architecture
-
-- **Next.js 16** - Main application
-- **Traefik** - Reverse proxy for dynamic routing
-- **SQLite** - Lightweight database
-- **Docker** - Container orchestration
-
-For detailed technical documentation, see [AGENTS.md](AGENTS.md).
+- [x] Create admin user
+- [ ] Create a project with one prompt
+- [ ] Create project environment (docker?)
+- [ ] Agentic AI chat
+  - [ ] Can create files
+  - [ ] Can run CLI commands
+  - [ ] Can make web requests
+  - [ ] Scoped to project (docker?)
+  - [ ] Generate an Astro template with React+Typescript+Tailwind
+  - [ ] Use shadcn/ui for all components
+  - [ ] Use Tailwind for styling
+  - [ ] Ability to restore the state of the project from a chat message
+- [ ] Dev server on a project
+  - [ ] Live browser preview
+- [ ] Deployments
+- [ ]   astro build + preview
+- [ ]   Reverse proxy to redirect to to astro preview
+- [ ] Multi-user support with authentication and authorization
+- [ ] Git integration for version control inside projects (useful to rollback)
+- [ ] File tree view in the UI for easier project navigation
+- [ ] Project export/import functionality
+- [ ] Support for additional frameworks like Next.js
