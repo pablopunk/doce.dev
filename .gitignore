@@ -1,0 +1,88 @@
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Output directories
+dist/
+build/
+.output/
+
+# Dependency directories
+.pnp/
+.pnp.js
+
+# Vercel
+.vercel/
+
+# Next.js
+.next/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Docker containers and images
+**/docker-compose.yml
+**/Dockerfile
+
+# SQLite database
+/data/*.db
+/data/*.db-journal
+
+# Generated project files
+/projects/
+
+# Mac system files
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Coverage directories
+coverage/
+
+# IDE directories
+.vscode/
+.idea/
+
+# Misc
+*.bak
+*.swp
+
+# Lock files - managed by pnpm
+pnpm-lock.yaml
+
+# Public assets cache
+/public/.cache/
+
+# Ignore built CSS files if any
+*.css
+
+# Ignore components.json if it is generated
+components.json
+
+# Ignore any local test or debug files
+/debug/
+/tests/local/
+
+# Ignore .next folder used by Next.js
+.next
+
+# Ignore docker-related containers
+**/v0-preview-*
+**/v0-deploy-*
+
+# Ignore environment key files
+.env*
