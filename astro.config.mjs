@@ -1,0 +1,19 @@
+import { defineConfig } from "astro/config";
+import react from "@astrojs/react";
+import node from "@astrojs/node";
+
+export default defineConfig({
+  output: "server",
+  adapter: node({
+    mode: "standalone",
+  }),
+  integrations: [react()],
+  vite: {
+    css: {
+      postcss: "./postcss.config.cjs",
+    },
+    ssr: {
+      external: ["ai", "@ai-sdk/anthropic", "@ai-sdk/openai", "dockerode", "better-sqlite3"],
+    },
+  },
+});

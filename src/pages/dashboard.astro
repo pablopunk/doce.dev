@@ -1,0 +1,34 @@
+---
+import "../styles/global.css";
+import { CreateProjectButton } from "@/components/create-project-button";
+import { ProjectList } from "@/components/project-list";
+import { SystemStats } from "@/components/system-stats";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard | V0 Self-Hosted</title>
+  </head>
+  <body class="bg-background text-foreground">
+    <div class="min-h-screen bg-background">
+      <header class="border-b border-border bg-card">
+        <div class="container mx-auto flex items-center justify-between px-4 py-4">
+          <div>
+            <h1 class="text-2xl font-bold">V0 Self-Hosted</h1>
+            <p class="text-sm text-muted-foreground">AI Website Builder</p>
+          </div>
+          <CreateProjectButton client:load />
+        </div>
+      </header>
+      <main class="container mx-auto space-y-8 px-4 py-8">
+        <SystemStats client:load />
+        <section>
+          <h2 class="mb-4 text-xl font-semibold">Your Projects</h2>
+          <ProjectList client:load />
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

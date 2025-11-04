@@ -49,20 +49,20 @@ This document provides comprehensive guidance for AI agents working with this se
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Main Application                          │
-│                    (Next.js 16)                              │
-│  - Chat Interface                                            │
-│  - Project Management                                        │
+│                (Astro 5 + React Islands)                     │
+│  - Chat Interface (React island)                             │
+│  - Project Management (React components)                     │
 │  - Docker Orchestration                                      │
-│  - Setup Wizard                                              │
+│  - Setup Wizard (React component)                            │
 └─────────────────────────────────────────────────────────────┘
                               │
                     ┌─────────┴─────────┐
                     ▼                   ▼
-        ┌──────────────────┐  ┌──────────────────┐
-        │  Preview         │  │  Deployment      │
-        │  Containers      │  │  Containers      │
-        │  (Temporary)     │  │  (Persistent)    │
-        └──────────────────┘  └──────────────────┘
+         ┌──────────────────┐  ┌──────────────────┐
+         │  Preview         │  │  Deployment      │
+         │  Containers      │  │  Containers      │
+         │  (Temporary)     │  │  (Persistent)    │
+         └──────────────────┘  └──────────────────┘
 \`\`\`
 
 ### Data Flow
@@ -79,10 +79,11 @@ This document provides comprehensive guidance for AI agents working with this se
 
 ### Core Technologies
 
-- **Next.js 16**: App Router, Server Actions, React 19
+- **Astro 5**: Static-first web framework with file-based routing
+- **React 19**: Used as client-side islands for interactive components
 - **TypeScript**: Type safety throughout
-- **Tailwind CSS v4**: Styling with design tokens
-- **shadcn/ui**: Component library
+- **Tailwind CSS v4**: Styling with design tokens and PostCSS integration
+- **shadcn/ui**: Component library (React components)
 - **pnpm**: Package manager
 
 ### Infrastructure
@@ -235,8 +236,68 @@ CREATE TABLE deployments (
 
 ---
 
-## File Structure
-
+\`\`\`
+/
+├── src/
+│   ├── pages/                    # Astro file-based routing
+│   │   ├── api/                  # API endpoints
+│   │   │   ├── admin/
+│   │   │   │   └── cleanup.ts    # Container cleanup endpoint
+│   │   │   ├── chat/
+│   │   │   │   └── [projectId].ts # AI chat streaming
+│   │   │   ├── deployments/
+│   │   │   │   └── [id].ts       # Deployment management
+│   │   │   ├── projects/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   ├── deploy.ts # Create deployment
+│   │   │   │   │   ├── files.ts  # File management
+│   │   │   │   │   ├── generate.ts # Code generation
+│   │   │   │   │   ├── preview.ts # Preview management
+│   │   │   │   │   └── [id].ts   # Project CRUD
+│   │   │   │   └── index.ts      # List/create projects
+│   │   │   ├── setup/            # Setup wizard endpoints
+│   │   │   │   ├── ai.ts         # AI provider config
+│   │   │   │   ├── complete.ts   # Mark setup complete
+│   │   │   │   ├── status.ts     # Check setup status
+│   │   │   │   └── user.ts       # Create admin user
+│   │   │   └── stats.ts          # System statistics
+│   │   ├── dashboard.astro       # Project dashboard page
+│   │   ├── project/[id].astro    # Project detail page
+│   │   ├── setup/index.astro     # Setup wizard page
+│   │   └── index.astro           # Home/redirect page
+│   ├── components/               # React components (islands)
+│   │   ├── ui/                   # shadcn/ui components
+│   │   ├── chat-interface.tsx    # Chat UI
+│   │   ├── code-preview.tsx      # Code preview panel
+│   │   ├── create-project-button.tsx # New project button
+│   │   ├── deployment-list.tsx   # Deployment list
+│   │   ├── project-list.tsx      # Project cards
+│   │   ├── setup-wizard.tsx      # Setup wizard
+│   │   └── system-stats.tsx      # System stats widget
+│   ├── hooks/                    # React hooks
+│   │   ├── use-mobile.ts         # Mobile detection
+│   │   └── use-toast.ts          # Toast notifications
+│   ├── lib/                      # Utility libraries
+│   │   ├── cleanup.ts            # Container cleanup logic
+│   │   ├── code-generator.tsx    # Code extraction/generation
+│   │   ├── db.ts                 # Database functions
+│   │   ├── docker.ts             # Docker orchestration
+│   │   ├── file-system.ts        # File operations
+│   │   └── utils.ts              # General utilities
+│   ├── styles/                   # Global styles
+│   │   └── global.css            # Tailwind directives and theme
+│   └── middleware.ts             # Astro middleware (setup redirect)
+├── public/                       # Static assets
+├── data/                         # SQLite database (created at runtime)
+├── projects/                     # Generated project files (created at runtime)
+├── docker-compose.yml            # Docker Compose config
+├── Dockerfile                    # Main app Dockerfile
+├── astro.config.mjs              # Astro config
+├── tailwind.config.cjs           # Tailwind CSS config
+├── postcss.config.cjs            # PostCSS config
+├── package.json                  # Dependencies
+├── pnpm-lock.yaml                # Lock file
+└── tsconfig.json                 # TypeScript config
 \`\`\`
 /
 ├── app/                          # Next.js App Router

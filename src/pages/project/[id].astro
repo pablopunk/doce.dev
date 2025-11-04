@@ -1,0 +1,58 @@
+---
+import "../../styles/global.css";
+import { ChatInterface } from "@/components/chat-interface";
+import { CodePreview } from "@/components/code-preview";
+import { DeploymentList } from "@/components/deployment-list";
+import { getProject } from "@/lib/db";
+
+const { id } = Astro.params;
+if (!id) {
+  return Astro.redirect("/dashboard");
+}
+
+const project = getProject(id);
+
+if (!project) {
+  return Astro.redirect("/dashboard");
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{project.name} | V0 Self-Hosted</title>
+  </head>
+  <body class="h-screen">
+    <div class="flex h-full flex-col">
+      <header class="flex items-center justify-between border-b border-border px-4 py-3">
+        <div class="flex items-center gap-4">
+          <a href="/dashboard" class="text-muted-foreground transition hover:text-foreground">
+            ← Back
+          </a>
+          <h1 class="font-semibold">{project.name}</h1>
+        </div>
+        {project.deployed_url && (
+          <a
+            href={project.deployed_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-1 text-sm text-green-600 hover:underline"
+          >
+            <span class="h-2 w-2 rounded-full bg-green-600" />
+            Live
+          </a>
+        )}
+      </header>
+      <div class="flex flex-1 overflow-hidden">
+        <div class="flex flex-1">
+          <ChatInterface client:load projectId={id} />
+          <CodePreview client:load projectId={id} />
+        </div>
+        <aside class="w-80 overflow-y-auto border-l border-border p-4">
+          <DeploymentList client:load projectId={id} />
+        </aside>
+      </div>
+    </div>
+  </body>
+</html>
