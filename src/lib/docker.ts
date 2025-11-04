@@ -15,7 +15,7 @@ export interface ContainerConfig {
 export async function createPreviewContainer(
   projectId: string,
 ): Promise<{ containerId: string; url: string; port: number }> {
-  const containerName = `v0-preview-${projectId}`
+  const containerName = `doce-preview-${projectId}`
   const port = await findAvailablePort()
   const subdomain = `preview-${projectId.slice(0, 8)}`
 
@@ -38,7 +38,7 @@ export async function createPreviewContainer(
         PortBindings: {
           "3000/tcp": [{ HostPort: port.toString() }],
         },
-        NetworkMode: "v0-network",
+        NetworkMode: "doce-network",
       },
       Labels: {
         "traefik.enable": "true",
@@ -48,8 +48,8 @@ export async function createPreviewContainer(
         [`traefik.http.middlewares.${subdomain}-strip.stripprefix.prefixes`]: `/preview/${projectId}`,
         [`traefik.http.routers.${subdomain}.middlewares`]: `${subdomain}-strip`,
         [`traefik.http.routers.${subdomain}.priority`]: "10",
-        "v0.project.id": projectId,
-        "v0.container.type": "preview",
+        "doce.project.id": projectId,
+        "doce.container.type": "preview",
       },
     })
 
@@ -67,7 +67,7 @@ export async function createDeploymentContainer(
   projectId: string,
 ): Promise<{ containerId: string; url: string; deploymentId: string }> {
   const deploymentId = nanoid(10)
-  const containerName = `v0-deploy-${deploymentId}`
+  const containerName = `doce-deploy-${deploymentId}`
   const port = await findAvailablePort()
   const subdomain = `deploy-${deploymentId}`
 
@@ -84,7 +84,7 @@ export async function createDeploymentContainer(
         PortBindings: {
           "3000/tcp": [{ HostPort: port.toString() }],
         },
-        NetworkMode: "v0-network",
+        NetworkMode: "doce-network",
         RestartPolicy: {
           Name: "unless-stopped",
         },
@@ -97,9 +97,9 @@ export async function createDeploymentContainer(
         [`traefik.http.middlewares.${subdomain}-strip.stripprefix.prefixes`]: `/site/${deploymentId}`,
         [`traefik.http.routers.${subdomain}.middlewares`]: `${subdomain}-strip`,
         [`traefik.http.routers.${subdomain}.priority`]: "10",
-        "v0.project.id": projectId,
-        "v0.deployment.id": deploymentId,
-        "v0.container.type": "deployment",
+        "doce.project.id": projectId,
+        "doce.deployment.id": deploymentId,
+        "doce.container.type": "deployment",
       },
     })
 
@@ -116,7 +116,7 @@ export async function createDeploymentContainer(
 }
 
 async function buildProjectImage(projectId: string): Promise<string> {
-   const imageName = `v0-project-${projectId}:latest`
+   const imageName = `doce-project-${projectId}:latest`
    const projectPath = `/app/projects/${projectId}`
 
    const dockerfile = `
@@ -237,7 +237,7 @@ async function findAvailablePort(): Promise<number> {
 
 export async function listProjectContainers(projectId: string): Promise<any[]> {
   const containers = await docker.listContainers({ all: true })
-  return containers.filter((c) => c.Labels && c.Labels["v0.project.id"] === projectId)
+  return containers.filter((c) => c.Labels && c.Labels["doce.project.id"] === projectId)
 }
 
 export async function cleanupOldContainers(maxAge: number = 24 * 60 * 60 * 1000): Promise<void> {
@@ -245,7 +245,7 @@ export async function cleanupOldContainers(maxAge: number = 24 * 60 * 60 * 1000)
   const now = Date.now()
 
   for (const containerInfo of containers) {
-    if (containerInfo.Labels && containerInfo.Labels["v0.container.type"] === "preview") {
+    if (containerInfo.Labels && containerInfo.Labels["doce.container.type"] === "preview") {
       const created = containerInfo.Created * 1000
       if (now - created > maxAge) {
         try {

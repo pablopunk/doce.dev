@@ -1,6 +1,6 @@
-# AI Agent Guide for V0 Builder
+# AI Agent Guide for doce.dev
 
-This document provides comprehensive guidance for AI agents working with this self-hosted v0.dev clone project.
+This document provides comprehensive guidance for AI agents working with this self-hosted doce.dev clone project.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ This document provides comprehensive guidance for AI agents working with this se
 
 ## Project Overview
 
-**V0 Builder** is a self-hosted AI website builder that allows users to:
+**doce.dev** is a self-hosted AI website builder that allows users to:
 - Chat with an AI to generate websites
 - Preview generated code in real-time
 - Deploy websites to unique URLs within their homelab
@@ -445,8 +445,8 @@ Labels: {
   "traefik.enable": "true",
   "traefik.http.routers.{subdomain}.rule": "PathPrefix(`/preview/{projectId}`)",
   "traefik.http.middlewares.{subdomain}-strip.stripprefix.prefixes": "/preview/{projectId}",
-  "v0.project.id": projectId,
-  "v0.container.type": "preview"
+  "doce.project.id": projectId,
+  "doce.container.type": "preview"
 }
 \`\`\`
 
@@ -480,8 +480,8 @@ Labels: {
 Labels: {
   "traefik.enable": "true",
   "traefik.http.routers.{subdomain}.rule": "PathPrefix(`/site/{deploymentId}`)",
-  "v0.deployment.id": deploymentId,
-  "v0.container.type": "deployment"
+  "doce.deployment.id": deploymentId,
+  "doce.container.type": "deployment"
 },
 RestartPolicy: {
   Name: "unless-stopped"
@@ -859,13 +859,13 @@ const model = process.env.PROVIDER_API_KEY
 
 **Check container logs:**
 \`\`\`bash
-docker logs v0-preview-{projectId}
-docker logs v0-deploy-{deploymentId}
+docker logs doce-preview-{projectId}
+docker logs doce-deploy-{deploymentId}
 \`\`\`
 
-**List all v0 containers:**
+**List all doce containers:**
 \`\`\`bash
-docker ps -a --filter "label=v0.project.id"
+docker ps -a --filter "label=doce.project.id"
 \`\`\`
 
 **Inspect Traefik routing:**
@@ -875,13 +875,13 @@ docker logs traefik
 
 **Check container labels:**
 \`\`\`bash
-docker inspect v0-preview-{projectId} | jq '.[0].Config.Labels'
+docker inspect doce-preview-{projectId} | jq '.[0].Config.Labels'
 \`\`\`
 
 **Manual cleanup:**
 \`\`\`bash
-docker stop $(docker ps -q --filter "label=v0.container.type=preview")
-docker rm $(docker ps -aq --filter "label=v0.container.type=preview")
+docker stop $(docker ps -q --filter "label=doce.container.type=preview")
+docker rm $(docker ps -aq --filter "label=doce.container.type=preview")
 \`\`\`
 
 ### Modifying Project Templates
@@ -1076,9 +1076,9 @@ try {
 **Problem:** Setup wizard keeps redirecting even after completion.
 
 **Solution:**
-1. Check database: `sqlite3 data/v0builder.db "SELECT * FROM config WHERE key='setup_complete'"`
+1. Check database: `sqlite3 data/doceapp.db "SELECT * FROM config WHERE key='setup_complete'"`
 2. Should return `true`
-3. If not, manually set: `sqlite3 data/v0builder.db "INSERT OR REPLACE INTO config (key, value) VALUES ('setup_complete', 'true')"`
+3. If not, manually set: `sqlite3 data/doceapp.db "INSERT OR REPLACE INTO config (key, value) VALUES ('setup_complete', 'true')"`
 
 **Problem:** API key not working.
 
@@ -1094,7 +1094,7 @@ try {
 **Solution:**
 1. Check project files exist: `ls -la projects/{projectId}/`
 2. Check Dockerfile was generated
-3. Check Docker logs: `docker logs v0-preview-{projectId}`
+3. Check Docker logs: `docker logs doce-preview-{projectId}`
 4. Common issues:
    - Missing package.json
    - Invalid TypeScript syntax
@@ -1103,17 +1103,17 @@ try {
 **Problem:** Preview URL returns 404.
 
 **Solution:**
-1. Check container is running: `docker ps | grep v0-preview`
+1. Check container is running: `docker ps | grep doce-preview`
 2. Check Traefik routing: `docker logs traefik | grep preview`
-3. Check container labels: `docker inspect v0-preview-{projectId}`
+3. Check container labels: `docker inspect doce-preview-{projectId}`
 4. Verify Traefik can reach container network
 
 **Problem:** Deployment stuck in "building" status.
 
 **Solution:**
-1. Check container status: `docker ps -a | grep v0-deploy`
-2. Check container logs: `docker logs v0-deploy-{deploymentId}`
-3. Manually update status: `sqlite3 data/v0builder.db "UPDATE deployments SET status='error' WHERE id='{id}'"`
+1. Check container status: `docker ps -a | grep doce-deploy`
+2. Check container logs: `docker logs doce-deploy-{deploymentId}`
+3. Manually update status: `sqlite3 data/doceapp.db "UPDATE deployments SET status='error' WHERE id='{id}'"`
 
 ### Database Issues
 
@@ -1129,8 +1129,8 @@ try {
 
 **Solution:**
 1. Stop all containers: `docker-compose down`
-2. Backup database: `cp data/v0builder.db data/v0builder.db.backup`
-3. Try recovery: `sqlite3 data/v0builder.db ".recover" | sqlite3 data/v0builder_recovered.db`
+2. Backup database: `cp data/doceapp.db data/doceapp.db.backup`
+3. Try recovery: `sqlite3 data/doceapp.db ".recover" | sqlite3 data/doceapp_recovered.db`
 4. If recovery fails, restore from backup
 
 ### Docker Issues
@@ -1278,7 +1278,7 @@ pnpm install
 
 2. Set environment variables in `.env.local`:
 ```env
-DATABASE_PATH=./data/v0builder.db
+DATABASE_PATH=./data/doceapp.db
 OPENAI_API_KEY=sk-...
 # or
 ANTHROPIC_API_KEY=sk-ant-...
@@ -1305,16 +1305,16 @@ docker-compose pull
 docker-compose up -d --build
 ```
 
-**List all v0 containers:**
+**List all doce containers:**
 ```bash
-docker ps -a --filter "label=v0.project.id"
+docker ps -a --filter "label=doce.project.id"
 ```
 
 ---
 
 ## Conclusion
 
-This guide provides a comprehensive overview of the doce.dev (V0 Builder) project architecture, systems, and patterns. When working with this codebase:
+This guide provides a comprehensive overview of the doce.dev (doce.dev) project architecture, systems, and patterns. When working with this codebase:
 
 1. **Always read existing code** before making changes
 2. **Follow established patterns** for consistency

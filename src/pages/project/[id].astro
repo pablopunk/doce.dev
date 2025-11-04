@@ -7,13 +7,13 @@ import { getProject } from "@/lib/db";
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/dashboard");
+	return Astro.redirect("/dashboard");
 }
 
 const project = getProject(id);
 
 if (!project) {
-  return Astro.redirect("/dashboard");
+	return Astro.redirect("/dashboard");
 }
 ---
 
@@ -21,7 +21,7 @@ if (!project) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{project.name} | V0 Self-Hosted</title>
+    <title>{project.name} | doce.dev</title>
   </head>
   <body class="h-screen">
     <div class="flex h-full flex-col">

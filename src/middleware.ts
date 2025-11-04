@@ -13,7 +13,7 @@ export const onRequest: MiddlewareHandler = async ({ request, redirect }, next) 
       return redirect("/setup");
     }
   } catch (error) {
-    console.error("[v0] Middleware error:", error);
+    console.error("[doce.dev] Middleware error:", error);
   }
 
   return next();

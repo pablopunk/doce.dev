@@ -14,16 +14,14 @@ export const POST: APIRoute = async ({ request }) => {
       return Response.json({ error: "Username and password are required" }, { status: 400 });
     }
 
-    if (password.length < 8) {
-      return Response.json({ error: "Password must be at least 8 characters" }, { status: 400 });
-    }
+
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = createUser(username, passwordHash);
 
     return Response.json({ success: true, userId: user.id });
   } catch (error) {
-    console.error("[v0] Setup user error:", error);
+    console.error("[doce.dev] Setup user error:", error);
     const message = error instanceof Error ? error.message : "Failed to create user";
     return Response.json({ error: message }, { status: 500 });
   }

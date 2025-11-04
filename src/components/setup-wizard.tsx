@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, Sparkles } from "lucide-react";
 
-export function SetupWizard() {
+export default function SetupWizard() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -18,9 +18,10 @@ export function SetupWizard() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [aiProvider, setAiProvider] = useState<"openai" | "anthropic">("openai");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
+const [aiProvider, setAiProvider] = useState<"openai" | "anthropic" | "openrouter">("openai");
+const [openaiKey, setOpenaiKey] = useState("");
+const [anthropicKey, setAnthropicKey] = useState("");
+const [openrouterKey, setOpenrouterKey] = useState("");
 
   const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -31,10 +32,7 @@ export function SetupWizard() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
+
 
     setLoading(true);
 
@@ -62,7 +60,7 @@ export function SetupWizard() {
     event.preventDefault();
     setError("");
 
-    const apiKey = aiProvider === "openai" ? openaiKey : anthropicKey;
+    const apiKey = aiProvider === "openai" ? openaiKey : aiProvider === "anthropic" ? anthropicKey : openrouterKey;
 
     if (!apiKey) {
       setError("Please enter an API key");
@@ -119,7 +117,7 @@ export function SetupWizard() {
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-3xl">Welcome to v0 Builder</CardTitle>
+          <CardTitle className="text-3xl">Welcome to doce.dev</CardTitle>
           <CardDescription>Let's get your self-hosted AI website builder set up</CardDescription>
         </CardHeader>
 
@@ -201,10 +199,11 @@ export function SetupWizard() {
                 <p className="text-sm text-muted-foreground">Choose your AI provider and enter your API key</p>
               </div>
 
-              <Tabs value={aiProvider} onValueChange={(value) => setAiProvider(value as "openai" | "anthropic")}> 
-                <TabsList className="grid w-full grid-cols-2">
+              <Tabs value={aiProvider} onValueChange={(value) => setAiProvider(value as "openai" | "anthropic" | "openrouter")}> 
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="openai">OpenAI</TabsTrigger>
                   <TabsTrigger value="anthropic">Anthropic</TabsTrigger>
+                  <TabsTrigger value="openrouter">OpenRouter.ai</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="openai" className="space-y-4">
@@ -256,6 +255,31 @@ export function SetupWizard() {
                     </p>
                   </div>
                 </TabsContent>
+
+                <TabsContent value="openrouter" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                    <Input
+                      id="openrouterKey"
+                      type="password"
+                      value={openrouterKey}
+                      onChange={(event) => setOpenrouterKey(event.target.value)}
+                      placeholder="or-sk-..."
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from {" "}
+                      <a
+                        href="https://openrouter.ai/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        openrouter.ai
+                      </a>
+                    </p>
+                  </div>
+                </TabsContent>
               </Tabs>
 
               <div className="flex gap-2">
@@ -287,7 +311,7 @@ export function SetupWizard() {
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">All Set!</h3>
                 <p className="text-sm text-muted-foreground">
-                  Your v0 Builder is ready to use. You can now start creating amazing websites with AI.
+                  Your doce.dev is ready to use. You can now start creating amazing websites with AI.
                 </p>
               </div>
 

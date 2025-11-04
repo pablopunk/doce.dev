@@ -1,5 +1,6 @@
 # Node modules
 node_modules/
+data/
 
 # Logs
 logs
@@ -81,8 +82,8 @@ components.json
 .next
 
 # Ignore docker-related containers
-**/v0-preview-*
-**/v0-deploy-*
+**/doce-preview-*
+**/doce-deploy-*
 
 # Ignore environment key files
 .env*

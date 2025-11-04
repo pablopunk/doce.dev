@@ -17,7 +17,7 @@ export const GET: APIRoute = async () => {
     ).count;
 
     const containers = await docker.listContainers();
-    const totalContainers = containers.filter((c) => c.Labels && c.Labels["v0.project.id"]).length;
+    const totalContainers = containers.filter((c) => c.Labels && c.Labels["doce.project.id"]).length;
 
     return Response.json({
       totalProjects,

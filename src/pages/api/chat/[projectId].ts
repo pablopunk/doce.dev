@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { streamText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createConversation, getConversation, saveMessage } from "@/lib/db";
 import { generateCode } from "@/lib/code-generator";
 
@@ -23,7 +24,16 @@ export const POST: APIRoute = async ({ params, request }) => {
   const userMessage = messages[messages.length - 1];
   await saveMessage(conversation.id, "user", userMessage.content);
 
-  const model = process.env.ANTHROPIC_API_KEY ? anthropic("claude-3-5-sonnet-20241022") : openai("gpt-4o");
+  let model;
+
+if (process.env.OPENROUTER_API_KEY) {
+  const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
+  model = openrouter("openrouter-gpt4o");
+} else if (process.env.ANTHROPIC_API_KEY) {
+  model = anthropic("claude-3-5-sonnet-20241022");
+} else {
+  model = openai("gpt-4o");
+}
 
   const result = streamText({
     model,

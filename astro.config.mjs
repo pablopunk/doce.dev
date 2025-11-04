@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 import node from "@astrojs/node";
+import { fileURLToPath } from "url";
 
 export default defineConfig({
   output: "server",
@@ -11,6 +12,11 @@ export default defineConfig({
   vite: {
     css: {
       postcss: "./postcss.config.cjs",
+    },
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+      },
     },
     ssr: {
       external: ["ai", "@ai-sdk/anthropic", "@ai-sdk/openai", "dockerode", "better-sqlite3"],

@@ -1,7 +1,7 @@
 import Database from "better-sqlite3"
 import { randomUUID } from "crypto"
 
-const dbPath = process.env.DATABASE_PATH || "./data/v0builder.db"
+const dbPath = process.env.DATABASE_PATH || "./data/doceapp.db"
 const db = new Database(dbPath)
 
 // Initialize database schema
@@ -88,7 +88,22 @@ export function setConfig(key: string, value: string) {
 }
 
 export function isSetupComplete() {
-  return getConfig("setup_complete") === "true"
+  // Explicit completion flag wins
+  if (getConfig("setup_complete") === "true") return true
+
+  // Consider setup complete if there is at least one user
+  // and an AI key is configured via config or environment
+  const row = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count?: number } | undefined
+  const hasUser = (row?.count ?? 0) > 0
+
+  const provider = getConfig("ai_provider")
+  const hasEnvKey = Boolean(
+    process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY,
+  )
+  const hasConfigKey = provider ? Boolean(getConfig(`${provider}_api_key`)) : false
+  const hasAI = hasEnvKey || (provider && hasConfigKey)
+
+  return hasUser && !!hasAI
 }
 
 // User functions

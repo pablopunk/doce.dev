@@ -58,7 +58,7 @@ export const DELETE: APIRoute = async ({ params }) => {
   }
 
   try {
-    const containerName = `v0-preview-${id}`;
+    const containerName = `doce-preview-${id}`;
     await stopContainer(containerName);
     await removeContainer(containerName);
 

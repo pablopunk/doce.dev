@@ -10,7 +10,7 @@ export const POST: APIRoute = async () => {
     setConfig("setup_complete", "true");
     return Response.json({ success: true });
   } catch (error) {
-    console.error("[v0] Setup complete error:", error);
+    console.error("[doce.dev] Setup complete error:", error);
     const message = error instanceof Error ? error.message : "Failed to complete setup";
     return Response.json({ error: message }, { status: 500 });
   }

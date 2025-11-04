@@ -1,6 +1,6 @@
 # doce.dev - Self-Hosted AI Website Builder
 
-A v0.dev clone that runs in your homelab with AI-powered website generation and automatic deployments.
+A doce.dev self-hosted AI website builder that runs in your homelab with AI-powered website generation and automatic deployments.
 
 ## Quick Start
 

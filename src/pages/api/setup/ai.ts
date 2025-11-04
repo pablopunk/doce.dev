@@ -19,17 +19,24 @@ export const POST: APIRoute = async ({ request }) => {
     setConfig(`${provider}_api_key`, apiKey);
 
     const envPath = join(process.cwd(), ".env.local");
-    const envContent = provider === "openai" ? `OPENAI_API_KEY=${apiKey}\n` : `ANTHROPIC_API_KEY=${apiKey}\n`;
+    let envContent = "";
+    if (provider === "openai") {
+      envContent = `OPENAI_API_KEY=${apiKey}\n`;
+    } else if (provider === "anthropic") {
+      envContent = `ANTHROPIC_API_KEY=${apiKey}\n`;
+    } else if (provider === "openrouter") {
+      envContent = `OPENROUTER_API_KEY=${apiKey}\n`;
+    }
 
     try {
       await appendFile(envPath, envContent);
     } catch (error) {
-      console.error("[v0] Failed to write .env file:", error);
+      console.error("[doce.dev] Failed to write .env file:", error);
     }
 
     return Response.json({ success: true });
   } catch (error) {
-    console.error("[v0] Setup AI error:", error);
+    console.error("[doce.dev] Setup AI error:", error);
     const message = error instanceof Error ? error.message : "Failed to configure AI";
     return Response.json({ error: message }, { status: 500 });
   }

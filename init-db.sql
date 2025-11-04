@@ -1,4 +1,4 @@
--- Initialize database schema for v0 builder
+-- Initialize database schema for doce.dev builder
 
 -- Projects table
 CREATE TABLE IF NOT EXISTS projects (
