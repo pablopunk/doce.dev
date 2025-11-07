@@ -2,6 +2,7 @@
 
 ## To Do
 
+- [x] template: different docker-compose for dev and prod (commands and ports should differ)
 - [ ] Add agent-controlled "Tasks" section to chat interface
 - [ ] Implement CLI command execution in chat
 - [ ] Add web request capability to chat agent

@@ -21,5 +21,11 @@ export default defineConfig({
     ssr: {
       external: ["ai", "@ai-sdk/anthropic", "@ai-sdk/openai", "dockerode", "better-sqlite3"],
     },
+    server: {
+      watch: {
+        // Exclude data directory containing generated projects to avoid "too many open files" error
+        ignored: ["**/data/**", "**/node_modules/**", "**/.git/**"],
+      },
+    },
   },
 });

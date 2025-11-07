@@ -258,7 +258,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		};
 
 		return (
-			<div className="space-y-2 prose prose-sm dark:prose-invert max-w-none">
+			<div className="space-y-2 prose prose-sm dark:prose-invert max-w-none overflow-hidden">
 				{parts.map((part, i) =>
 					part.type === "text" ? (
 						<ReactMarkdown
@@ -270,7 +270,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									const isInline = !className?.includes("language-");
 									return isInline ? (
 										<code
-											className="bg-muted px-1 py-0.5 rounded text-xs font-mono"
+											className="bg-muted px-1 py-0.5 rounded text-xs font-mono break-all"
 											{...props}
 										/>
 									) : (
@@ -279,9 +279,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								},
 								// Handle any remaining code blocks in markdown (shouldn't happen with our regex)
 								pre: ({ children }: any) => (
-									<pre className="bg-muted/30 p-4 rounded-md overflow-x-auto text-xs">
+									<pre className="bg-muted/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
 										{children}
 									</pre>
+								),
+								// Break long words in paragraphs
+								p: ({ children }: any) => (
+									<p className="break-words">{children}</p>
 								),
 							}}
 						>
@@ -293,27 +297,27 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							open={expandedBlocks.has(part.index!)}
 							onOpenChange={() => toggleBlock(part.index!)}
 						>
-							<div className="border border-border rounded-md overflow-hidden bg-background/50 not-prose">
+							<div className="border border-border rounded-md overflow-hidden bg-background/50 not-prose max-w-full">
 								<CollapsibleTrigger asChild>
-									<button className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors">
-										<div className="flex items-center gap-2 text-sm">
-											<FileCode className="h-4 w-4" />
-											<span className="font-mono font-medium">
+									<button className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors min-w-0">
+										<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
+											<FileCode className="h-4 w-4 flex-shrink-0" />
+											<span className="font-mono font-medium truncate">
 												{part.file || `${part.language} code`}
 											</span>
-											<span className="text-xs text-muted-foreground">
+											<span className="text-xs text-muted-foreground flex-shrink-0">
 												{part.content.split("\n").length} lines
 											</span>
 										</div>
 										{expandedBlocks.has(part.index!) ? (
-											<ChevronDown className="h-4 w-4" />
+											<ChevronDown className="h-4 w-4 flex-shrink-0" />
 										) : (
-											<ChevronRight className="h-4 w-4" />
+											<ChevronRight className="h-4 w-4 flex-shrink-0" />
 										)}
 									</button>
 								</CollapsibleTrigger>
 								<CollapsibleContent>
-									<pre className="p-4 overflow-x-auto text-xs bg-muted/30">
+									<pre className="p-4 overflow-x-auto text-xs bg-muted/30 max-w-full">
 										<code>{part.content}</code>
 									</pre>
 								</CollapsibleContent>
@@ -326,8 +330,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex-1 flex flex-col border-r border-border">
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
+		<div className="flex-1 flex flex-col border-r border-border min-w-0">
+			<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 				{messages.length === 0 && (
 					<div className="h-full flex items-center justify-center text-center">
 						<div className="max-w-md space-y-4">
@@ -350,7 +354,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
 						>
 							<div
-								className={`max-w-[80%] rounded-lg px-4 py-2 ${
+								className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden ${
 									message.role === "user"
 										? "bg-primary text-primary-foreground"
 										: "bg-muted text-foreground"
@@ -362,7 +366,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										isStreaming={isStreamingMessage}
 									/>
 								) : (
-									<p className="whitespace-pre-wrap">{message.content}</p>
+									<p className="whitespace-pre-wrap break-words">{message.content}</p>
 								)}
 							</div>
 						</div>

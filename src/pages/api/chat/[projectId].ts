@@ -5,6 +5,8 @@ import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createConversation, getConversation, saveMessage, updateConversationModel, getConfig } from "@/lib/db";
 import { generateCode } from "@/lib/code-generator";
+import { readProjectFile } from "@/lib/file-system";
+import path from "path";
 
 export const maxDuration = 60;
 
@@ -67,6 +69,18 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   const model = getModel(conversation.model || 'openai/gpt-4.1-mini');
 
+  // Try to read AGENTS.md from the project
+  let agentGuidelines = "";
+  try {
+    const agentsMd = await readProjectFile(projectId, "AGENTS.md");
+    if (agentsMd) {
+      agentGuidelines = `\n\n## Project-Specific Guidelines\n\n${agentsMd}`;
+    }
+  } catch (error) {
+    // AGENTS.md doesn't exist yet, use default guidelines
+    console.log(`[Chat] No AGENTS.md found for project ${projectId}`);
+  }
+
   const result = streamText({
     model,
     system: `You are an expert web developer and designer helping users build modern sites with Astro, React islands, and Tailwind CSS.
@@ -86,7 +100,7 @@ export function MyComponent() {
 }
 \`\`\`
 
-Always specify the file path in each code block header and generate multiple files when required to deliver a working feature.`,
+Always specify the file path in each code block header and generate multiple files when required to deliver a working feature.${agentGuidelines}`,
     messages,
     onFinish: async ({ text }) => {
       console.log(`[Chat] onFinish called for project ${projectId}`);
