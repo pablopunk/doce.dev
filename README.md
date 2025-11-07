@@ -3,9 +3,12 @@
 ## Features
 
 - [x] Create admin user
-- [ ] Create a project with one prompt
+- [x] Create a project with one prompt
 - [ ] Create project environment (docker?)
 - [ ] Agentic AI chat
+  - [ ] Chats are saved to the database
+  - [ ] Messages have a nice UI, differenciating messages and tool calls
+  - [ ] There's a "Tasks" section on top of the agent to show the "To do" list controlled by the agent
   - [ ] Can create files
   - [ ] Can run CLI commands
   - [ ] Can make web requests

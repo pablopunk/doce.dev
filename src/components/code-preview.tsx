@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, Code, Rocket, RefreshCw, Loader2 } from "lucide-react"
@@ -11,9 +11,18 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json())
 export function CodePreview({ projectId }: { projectId: string }) {
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview")
   const [isCreatingPreview, setIsCreatingPreview] = useState(false)
+  const [hasAutoStarted, setHasAutoStarted] = useState(false)
   const { data: project, mutate } = useSWR(`/api/projects/${projectId}`, fetcher, {
     refreshInterval: 2000,
   })
+
+  // Auto-start preview when component mounts if not already running
+  useEffect(() => {
+    if (project && !project.preview_url && !hasAutoStarted && !isCreatingPreview) {
+      setHasAutoStarted(true)
+      handleCreatePreview()
+    }
+  }, [project, hasAutoStarted, isCreatingPreview])
 
   const handleCreatePreview = async () => {
     setIsCreatingPreview(true)
@@ -68,6 +77,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
                 src={project.preview_url}
                 className="w-full h-full border-0"
                 title="Preview"
+                sandbox="allow-same-origin allow-scripts allow-forms"
               />
             ) : (
               <div className="h-full flex items-center justify-center">

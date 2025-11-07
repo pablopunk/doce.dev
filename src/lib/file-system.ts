@@ -1,7 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
 
-const PROJECTS_DIR = process.env.PROJECTS_DIR || "/app/projects"
+// Use same data directory as database
+const DATA_DIR = path.dirname(process.env.DATABASE_PATH || "./data/doceapp.db")
+const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(DATA_DIR, "projects")
 
 export async function getProjectPath(projectId: string): Promise<string> {
   return path.join(PROJECTS_DIR, projectId)

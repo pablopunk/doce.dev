@@ -1,5 +1,6 @@
 import { saveFile } from "./db"
 import { writeProjectFiles } from "./file-system"
+import { copyTemplateToProject } from "./template-generator"
 
 interface GeneratedFile {
   path: string
@@ -12,20 +13,31 @@ interface CodeGenerationResult {
 }
 
 export async function generateCode(projectId: string, aiResponse: string) {
+  console.log(`[CodeGen] Processing response for project ${projectId}`);
+  
   try {
     // Try to parse JSON response first
     const parsed = JSON.parse(aiResponse)
 
     if (parsed.files && Array.isArray(parsed.files)) {
+      console.log(`[CodeGen] Found JSON format with ${parsed.files.length} files`);
       await processFiles(projectId, parsed.files)
       return parsed
     }
   } catch (error) {
     // If not JSON, try to extract code blocks with file paths
+    console.log(`[CodeGen] Not JSON, extracting code blocks...`);
     const files = extractCodeBlocks(aiResponse)
+    console.log(`[CodeGen] Extracted ${files.length} code blocks`);
+    
     if (files.length > 0) {
+      files.forEach((f, i) => {
+        console.log(`[CodeGen] File ${i + 1}: ${f.path} (${f.content.length} chars)`);
+      });
       await processFiles(projectId, files)
       return { files }
+    } else {
+      console.log(`[CodeGen] No code blocks found in response`);
     }
   }
 
@@ -52,9 +64,14 @@ function extractCodeBlocks(text: string): GeneratedFile[] {
   let match
   let fileIndex = 0
 
+  console.log(`[CodeGen] Searching for code blocks in text of ${text.length} chars`);
+  console.log(`[CodeGen] First 500 chars:`, text.slice(0, 500));
+
   while ((match = codeBlockRegex.exec(text)) !== null) {
     const filePath = match[1] || `src/pages/generated-${fileIndex}.astro`
     const content = match[2].trim()
+
+    console.log(`[CodeGen] Found code block: path=${filePath}, content length=${content.length}`);
 
     files.push({
       path: filePath,
@@ -64,11 +81,58 @@ function extractCodeBlocks(text: string): GeneratedFile[] {
     fileIndex++
   }
 
+  console.log(`[CodeGen] Total files extracted: ${files.length}`);
+
   return files
 }
 
-export function generateDefaultProjectStructure(): GeneratedFile[] {
+export async function generateDefaultProjectStructure(): Promise<GeneratedFile[]> {
+  // Use the astro template from templates directory
+  try {
+    const files = await copyTemplateToProject("astro")
+    console.log(`Loaded ${files.length} files from astro template`)
+    return files
+  } catch (error) {
+    console.error("Failed to load astro template, using fallback:", error)
+    return generateFallbackStructure()
+  }
+}
+
+function generateFallbackStructure(): GeneratedFile[] {
   return [
+    {
+      path: "docker-compose.yml",
+      content: `version: '3.8'
+
+services:
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "4321:4321"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm run dev --host 0.0.0.0 --port 4321"
+    environment:
+      - NODE_ENV=development
+    networks:
+      - doce-network
+
+networks:
+  doce-network:
+    external: true
+`,
+    },
+    {
+      path: ".dockerignore",
+      content: `node_modules
+.astro
+dist
+.env
+.env.local
+*.log
+`,
+    },
     {
       path: "package.json",
       content: JSON.stringify(

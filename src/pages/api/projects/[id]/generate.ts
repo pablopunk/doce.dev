@@ -12,7 +12,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   await request.json().catch(() => ({}));
 
   try {
-    const files = generateDefaultProjectStructure();
+    const files = await generateDefaultProjectStructure();
     await writeProjectFiles(id, files);
 
     for (const file of files) {

@@ -1,5 +1,6 @@
 import Docker from "dockerode"
 import { nanoid } from "nanoid"
+import path from "path"
 
 const docker = new Docker({
   socketPath: process.env.DOCKER_HOST || "/var/run/docker.sock",
@@ -20,42 +21,81 @@ export async function createPreviewContainer(
   const subdomain = `preview-${projectId.slice(0, 8)}`
 
   try {
+    // Check if container already exists and is running
     const existingContainer = await getContainerByName(containerName)
     if (existingContainer) {
-      await existingContainer.stop()
-      await existingContainer.remove()
+      const info = await existingContainer.inspect()
+      if (info.State.Running) {
+        console.log(`Preview container already running for ${projectId}`)
+        const existingPort = parseInt(info.HostConfig.PortBindings["3000/tcp"]?.[0]?.HostPort || port.toString())
+        return { 
+          containerId: existingContainer.id, 
+          url: `http://localhost:${existingPort}`, 
+          port: existingPort
+        }
+      }
+      await existingContainer.remove({ force: true })
     }
 
-    const imageName = await buildProjectImage(projectId)
+    const DATA_DIR = path.dirname(process.env.DATABASE_PATH || "./data/doceapp.db")
+    const projectPath = path.resolve(path.join(DATA_DIR, "projects", projectId))
 
-    const container = await docker.createContainer({
-      name: containerName,
-      Image: imageName,
-      ExposedPorts: {
-        "3000/tcp": {},
-      },
-      HostConfig: {
-        PortBindings: {
-          "3000/tcp": [{ HostPort: port.toString() }],
-        },
-        NetworkMode: "doce-network",
-      },
-      Labels: {
-        "traefik.enable": "true",
-        [`traefik.http.routers.${subdomain}.rule`]: `PathPrefix(\`/preview/${projectId}\`)`,
-        [`traefik.http.routers.${subdomain}.entrypoints`]: "web",
-        [`traefik.http.services.${subdomain}.loadbalancer.server.port`]: "3000",
-        [`traefik.http.middlewares.${subdomain}-strip.stripprefix.prefixes`]: `/preview/${projectId}`,
-        [`traefik.http.routers.${subdomain}.middlewares`]: `${subdomain}-strip`,
-        [`traefik.http.routers.${subdomain}.priority`]: "10",
-        "doce.project.id": projectId,
-        "doce.container.type": "preview",
-      },
-    })
+    console.log(`Starting preview via docker-compose for ${projectId} at ${projectPath}`)
 
-    await container.start()
+    // Generate docker-compose override for this specific instance with port and labels
+    const composeOverride = `services:
+  app:
+    container_name: ${containerName}
+    ports:
+      - "${port}:3000"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.${subdomain}.rule: "PathPrefix(\`/preview/${projectId}\`)"
+      traefik.http.routers.${subdomain}.entrypoints: "web"
+      traefik.http.services.${subdomain}.loadbalancer.server.port: "3000"
+      traefik.http.middlewares.${subdomain}-strip.stripprefix.prefixes: "/preview/${projectId}"
+      traefik.http.routers.${subdomain}.middlewares: "${subdomain}-strip"
+      traefik.http.routers.${subdomain}.priority: "10"
+      doce.project.id: "${projectId}"
+      doce.container.type: "preview"
+`
 
-    const url = `/preview/${projectId}`
+    const fs = await import("fs/promises")
+    await fs.writeFile(path.join(projectPath, "docker-compose.override.yml"), composeOverride)
+
+    // Use docker-compose via command line (more reliable than docker SDK for compose)
+    const { exec } = await import("child_process")
+    const { promisify } = await import("util")
+    const execAsync = promisify(exec)
+
+    // Start containers with docker-compose
+    await execAsync(`docker-compose up -d`, { cwd: projectPath })
+
+    console.log(`Preview started for ${projectId}, waiting for container...`)
+    
+    // Wait for the container to appear and be running
+    let attempts = 0
+    let container
+    while (attempts < 30) {
+      container = await getContainerByName(containerName)
+      if (container) {
+        const info = await container.inspect()
+        if (info.State.Running) {
+          console.log(`Preview container is running for ${projectId}`)
+          break
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      attempts++
+    }
+
+    if (!container) {
+      throw new Error("Container failed to start within timeout")
+    }
+
+    // For local development, use direct port access
+    // In production with Traefik, this would be the path-based URL
+    const url = `http://localhost:${port}`
     return { containerId: container.id, url, port }
   } catch (error) {
     console.error("Failed to create preview container:", error)
@@ -146,7 +186,7 @@ EXPOSE 3000
 CMD ["http-server", "dist", "-p", "3000", "--cors"]
 `
 
-  const fs = require("fs").promises
+  const fs = await import("fs/promises")
   await fs.writeFile(`${projectPath}/Dockerfile`, dockerfile)
 
   const stream = await docker.buildImage(
@@ -209,6 +249,22 @@ export async function removeContainer(containerId: string): Promise<void> {
   }
 }
 
+export async function stopPreviewForProject(projectId: string): Promise<void> {
+  const DATA_DIR = path.dirname(process.env.DATABASE_PATH || "./data/doceapp.db")
+  const projectPath = path.resolve(path.join(DATA_DIR, "projects", projectId))
+
+  try {
+    const { exec } = await import("child_process")
+    const { promisify } = await import("util")
+    const execAsync = promisify(exec)
+    
+    await execAsync(`docker-compose down`, { cwd: projectPath })
+    console.log(`Stopped preview for project ${projectId}`)
+  } catch (error) {
+    console.error(`Failed to stop preview for project ${projectId}:`, error)
+  }
+}
+
 export async function getContainerStatus(containerId: string): Promise<"running" | "stopped" | "not-found"> {
   try {
     const container = docker.getContainer(containerId)
@@ -235,6 +291,77 @@ async function findAvailablePort(): Promise<number> {
   return basePort + Math.floor(Math.random() * (maxPort - basePort))
 }
 
+/**
+ * Get the actual preview state from Docker (source of truth)
+ * Returns null if container doesn't exist or isn't running
+ */
+export async function getPreviewState(projectId: string): Promise<{ url: string; port: number; containerId: string } | null> {
+  const containerName = `doce-preview-${projectId}`
+  
+  try {
+    const container = await getContainerByName(containerName)
+    if (!container) {
+      return null
+    }
+
+    const info = await container.inspect()
+    if (!info.State.Running) {
+      return null
+    }
+
+    // Extract port from container bindings
+    const portBindings = info.HostConfig.PortBindings["3000/tcp"]
+    if (!portBindings || portBindings.length === 0) {
+      // Fallback: try to read from docker-compose.override.yml
+      const portFromFile = await getPortFromComposeOverride(projectId)
+      if (portFromFile) {
+        return {
+          url: `http://localhost:${portFromFile}`,
+          port: portFromFile,
+          containerId: container.id
+        }
+      }
+      return null
+    }
+
+    const port = parseInt(portBindings[0].HostPort)
+    const url = `http://localhost:${port}`
+
+    return {
+      url,
+      port,
+      containerId: container.id
+    }
+  } catch (error) {
+    console.error(`Failed to get preview state for ${projectId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Read the port from docker-compose.override.yml as fallback
+ */
+async function getPortFromComposeOverride(projectId: string): Promise<number | null> {
+  try {
+    const DATA_DIR = path.dirname(process.env.DATABASE_PATH || "./data/doceapp.db")
+    const projectPath = path.resolve(path.join(DATA_DIR, "projects", projectId))
+    const overridePath = path.join(projectPath, "docker-compose.override.yml")
+    
+    const fs = await import("fs/promises")
+    const content = await fs.readFile(overridePath, "utf-8")
+    
+    // Parse port mapping like "12345:3000"
+    const portMatch = content.match(/"(\d+):3000"/)
+    if (portMatch) {
+      return parseInt(portMatch[1])
+    }
+    
+    return null
+  } catch (error) {
+    return null
+  }
+}
+
 export async function listProjectContainers(projectId: string): Promise<any[]> {
   const containers = await docker.listContainers({ all: true })
   return containers.filter((c) => c.Labels && c.Labels["doce.project.id"] === projectId)
@@ -258,5 +385,29 @@ export async function cleanupOldContainers(maxAge: number = 24 * 60 * 60 * 1000)
         }
       }
     }
+  }
+}
+
+async function ensureDockerImage(imageName: string): Promise<void> {
+  try {
+    // Check if image exists
+    await docker.getImage(imageName).inspect()
+    console.log(`Image ${imageName} already exists`)
+  } catch (error) {
+    // Image doesn't exist, pull it
+    console.log(`Pulling Docker image ${imageName}...`)
+    const stream = await docker.pull(imageName)
+    
+    await new Promise<void>((resolve, reject) => {
+      docker.modem.followProgress(stream, (err: any, res: any) => {
+        if (err) {
+          console.error(`Failed to pull image ${imageName}:`, err)
+          reject(err)
+        } else {
+          console.log(`Successfully pulled image ${imageName}`)
+          resolve()
+        }
+      })
+    })
   }
 }

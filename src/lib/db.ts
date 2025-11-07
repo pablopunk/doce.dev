@@ -34,6 +34,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    model TEXT DEFAULT 'openai/gpt-4.1-mini',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -147,13 +148,23 @@ export function updateProject(id: string, data: any) {
 
 // Conversation functions
 export function getConversation(projectId: string) {
-  return db.prepare("SELECT * FROM conversations WHERE project_id = ?").get(projectId)
+  return db.prepare("SELECT * FROM conversations WHERE project_id = ?").get(projectId) as any
 }
 
-export function createConversation(projectId: string) {
+export function getConversationById(conversationId: string) {
+  return db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as any
+}
+
+export function createConversation(projectId: string, model?: string) {
   const id = randomUUID()
-  db.prepare("INSERT INTO conversations (id, project_id) VALUES (?, ?)").run(id, projectId)
-  return { id, project_id: projectId }
+  const selectedModel = model || 'openai/gpt-4.1-mini'
+  db.prepare("INSERT INTO conversations (id, project_id, model) VALUES (?, ?, ?)").run(id, projectId, selectedModel)
+  return { id, project_id: projectId, model: selectedModel }
+}
+
+export function updateConversationModel(conversationId: string, model: string) {
+  db.prepare("UPDATE conversations SET model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(model, conversationId)
+  return getConversation(conversationId)
 }
 
 export function saveMessage(conversationId: string, role: string, content: string) {

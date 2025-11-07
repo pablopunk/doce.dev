@@ -15,14 +15,16 @@ export function CreateProjectPrompt() {
   const [loading, setLoading] = useState(false)
 
   const create = async () => {
-    const name = value.trim()
-    if (!name) return
+    const prompt = value.trim()
+    if (!prompt) return
     setLoading(true)
     try {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description: name }),
+        body: JSON.stringify({ 
+          prompt: prompt // AI will generate the name and description
+        }),
       })
       if (!res.ok) throw new Error("Failed to create project")
       const project = await res.json()
@@ -45,6 +47,11 @@ export function CreateProjectPrompt() {
 
   return (
     <div className="w-full max-w-3xl">
+      {loading && (
+        <div className="mb-4 text-center text-sm text-muted-foreground animate-pulse">
+          AI is generating your project... This may take a moment.
+        </div>
+      )}
       <InputGroup className="h-14">
         <InputGroupAddon>
           <InputGroupButton aria-label="Add" size="icon-sm" variant="ghost">
@@ -60,6 +67,7 @@ export function CreateProjectPrompt() {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
           className="h-14 text-base"
+          disabled={loading}
         />
         <InputGroupAddon align="inline-end">
           <InputGroupButton
