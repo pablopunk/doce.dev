@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getConversation, getMessages } from "@/lib/db";
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 export const GET: APIRoute = async ({ params }) => {
   const projectId = params.projectId;
@@ -10,7 +11,7 @@ export const GET: APIRoute = async ({ params }) => {
   try {
     const conversation = await getConversation(projectId);
     if (!conversation) {
-      return Response.json({ messages: [], model: 'openai/gpt-4.1-mini' });
+      return Response.json({ messages: [], model: DEFAULT_AI_MODEL });
     }
 
     const messages = await getMessages(conversation.id);
@@ -24,7 +25,7 @@ export const GET: APIRoute = async ({ params }) => {
 
     return Response.json({ 
       messages: formattedMessages,
-      model: conversation.model || 'openai/gpt-4.1-mini'
+      model: conversation.model || DEFAULT_AI_MODEL
     });
   } catch (error) {
     console.error("Failed to load chat history:", error);

@@ -6,6 +6,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createConversation, getConversation, saveMessage, updateConversationModel, getConfig } from "@/lib/db";
 import { generateCode } from "@/lib/code-generator";
 import { readProjectFile, listProjectFiles } from "@/lib/file-system";
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 import { z } from "zod";
 import path from "path";
 import { exec } from "child_process";
@@ -95,7 +96,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const userMessage = messages[messages.length - 1];
   await saveMessage(conversation.id, "user", userMessage.content);
 
-  const model = getModel(conversation.model || 'openai/gpt-4.1-mini');
+  const model = getModel(conversation.model || DEFAULT_AI_MODEL);
 
   // Try to read AGENTS.md from the project
   let agentGuidelines = "";

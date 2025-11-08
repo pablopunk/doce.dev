@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import useSWR from "swr";
 import { TerminalDock } from "@/components/terminal-dock";
+import { useProjectLifecycle } from "@/hooks/use-project-lifecycle";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -29,6 +30,9 @@ export function refreshCodePreview() {
 }
 
 export function CodePreview({ projectId }: { projectId: string }) {
+	// Track project lifecycle for container management
+	useProjectLifecycle(projectId);
+	
 	const [activeTab, setActiveTab] = useState<"preview" | "code" | "env">(
 		"preview",
 	);
@@ -39,6 +43,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [isTerminalExpanded, setIsTerminalExpanded] = useState(false);
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
 	const [iframeError, setIframeError] = useState(false);
+	const [previewReady, setPreviewReady] = useState(false);
 	const { data: project, mutate } = useSWR(
 		`/api/projects/${projectId}`,
 		fetcher,
@@ -68,52 +73,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		}
 	}, [envData]);
 
-	// Auto-start preview when component mounts if not already running
-	useEffect(() => {
-		if (
-			project &&
-			!project.preview_url &&
-			!hasAutoStarted &&
-			!isCreatingPreview
-		) {
-			setHasAutoStarted(true);
-			handleCreatePreview();
-		}
-	}, [project, hasAutoStarted, isCreatingPreview]);
-
-	// Reset loading state when preview URL changes and poll for readiness
-	useEffect(() => {
-		if (project?.preview_url) {
-			setIsIframeLoading(true);
-			setIframeError(false);
-
-			// Poll the preview URL to check if it's ready
-			let attempts = 0;
-			const maxAttempts = 30; // 30 seconds max
-			const pollInterval = setInterval(async () => {
-				attempts++;
-				try {
-					const response = await fetch(project.preview_url, { 
-						method: 'HEAD',
-						mode: 'no-cors' // Avoid CORS issues
-					});
-					// If we get here without error, consider it loaded
-					setIsIframeLoading(false);
-					clearInterval(pollInterval);
-				} catch (error) {
-					// Continue polling
-					if (attempts >= maxAttempts) {
-						setIsIframeLoading(false);
-						clearInterval(pollInterval);
-					}
-				}
-			}, 1000);
-
-			return () => clearInterval(pollInterval);
-		}
-	}, [project?.preview_url]);
-
-	const handleCreatePreview = async () => {
+	// Handler to create/start preview
+	const handleCreatePreview = useCallback(async () => {
 		setIsCreatingPreview(true);
 		try {
 			await fetch(`/api/projects/${projectId}/preview`, { method: "POST" });
@@ -123,7 +84,75 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		} finally {
 			setIsCreatingPreview(false);
 		}
-	};
+	}, [projectId, mutate]);
+
+	// Auto-start preview when component mounts if not already running
+	useEffect(() => {
+		const checkAndStartPreview = async () => {
+			if (!project || hasAutoStarted || isCreatingPreview) return;
+
+			// Check if preview is actually running (not just DB state)
+			try {
+				const statusRes = await fetch(`/api/projects/${projectId}/preview`);
+				const statusData = await statusRes.json();
+				
+				// If preview is not running, start it
+				if (statusData.status === "not-created") {
+					console.log(`Preview not running for ${projectId}, starting...`);
+					setHasAutoStarted(true);
+					await handleCreatePreview();
+				}
+			} catch (error) {
+				console.error("Failed to check preview status:", error);
+			}
+		};
+
+		checkAndStartPreview();
+	}, [project, hasAutoStarted, isCreatingPreview, projectId, handleCreatePreview]);
+
+	// Reset loading state when preview URL changes and poll for readiness
+	useEffect(() => {
+		if (project?.preview_url) {
+			setIsIframeLoading(true);
+			setIframeError(false);
+			setPreviewReady(false);
+
+			// Poll the preview URL to check if it's ready
+			let attempts = 0;
+			const maxAttempts = 60; // 60 seconds max
+			const pollInterval = setInterval(async () => {
+				attempts++;
+				try {
+					// Try to actually fetch the URL to see if it responds
+					const response = await fetch(project.preview_url, { 
+						method: 'GET',
+						cache: 'no-cache'
+					});
+					
+					// If we get any response (even 404), the server is up
+					if (response) {
+						console.log(`Preview server ready at ${project.preview_url}`);
+						setPreviewReady(true);
+						setIsIframeLoading(false);
+						clearInterval(pollInterval);
+					}
+				} catch (error) {
+					// Server not ready yet, continue polling
+					console.log(`Waiting for preview server... (attempt ${attempts}/${maxAttempts})`);
+					if (attempts >= maxAttempts) {
+						console.error('Preview server failed to start within timeout');
+						setIframeError(true);
+						setIsIframeLoading(false);
+						clearInterval(pollInterval);
+					}
+				}
+			}, 1000);
+
+			return () => clearInterval(pollInterval);
+		} else {
+			setPreviewReady(false);
+		}
+	}, [project?.preview_url]);
 
 	const handleDeploy = async () => {
 		await fetch(`/api/projects/${projectId}/deploy`, { method: "POST" });
@@ -210,13 +239,15 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					<div className="h-full min-h-full bg-white relative">
 						{project?.preview_url ? (
 							<>
-								<iframe
-									key={project.preview_url}
-									src={project.preview_url}
-									className="w-full h-full border-0"
-									title="Preview"
-									sandbox="allow-same-origin allow-scripts allow-forms"
-								/>
+								{previewReady && (
+									<iframe
+										key={project.preview_url}
+										src={project.preview_url}
+										className="w-full h-full border-0"
+										title="Preview"
+										sandbox="allow-same-origin allow-scripts allow-forms"
+									/>
+								)}
 								{isIframeLoading && (
 									<div className="absolute inset-0 bg-white flex items-center justify-center">
 										<div className="text-center space-y-4">
@@ -224,7 +255,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											<div>
 												<p className="text-sm font-medium">Starting preview...</p>
 												<p className="text-xs text-muted-foreground mt-1">
-													Container is initializing
+													Waiting for server to respond...
 												</p>
 											</div>
 										</div>

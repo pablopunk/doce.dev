@@ -17,6 +17,8 @@ pnpm run build
 ## Setup Flow
 Navigate to `/setup` → create admin user → configure AI provider. **API keys are stored in DB `config` table**, not env vars.
 
+**AI Model Selection**: Users can select their preferred AI model from the dashboard input prompt. The settings icon shows the currently selected model's provider logo. Available models are centralized in `src/shared/config/ai-models.ts`.
+
 ---
 
 ## 🏗️ Architecture (Clean Architecture + DDD)
@@ -146,6 +148,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 **Database**: Tables: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments` • Access via repositories (new) or `db.ts` (legacy) • **Migrations**: Auto-run on first DB connection (dev/preview/production start, NOT during build)
 
+**Config Table Keys**:
+- `ai_provider` - Provider name (openrouter, openai, anthropic)
+- `{provider}_api_key` - API key for each provider
+- `default_ai_model` - Currently selected AI model ID
+- `setup_complete` - Setup wizard completion flag
+
 **Files**: Mirrored in DB + filesystem • Use `writeProjectFiles` / `listProjectFiles` from `src/lib/file-system.ts`
 
 **Docker**: Preview containers: `doce-preview-{projectId}` on ports 10000-20000 • **Docker is source of truth** — DB `preview_url` is cache
@@ -160,6 +168,26 @@ export function Widget() { return <div /> }
 ```
 
 **Stack**: Astro 5 + React islands + Tailwind v4 + TypeScript • Parser tries JSON `{ files: [...] }` first, then extracts fenced blocks
+
+---
+
+## AI Models & Configuration
+
+**Centralized Model Config**: All AI models are defined in `src/shared/config/ai-models.ts`:
+- `DEFAULT_AI_MODEL` - Default model constant
+- `AVAILABLE_AI_MODELS` - Array of 7 available models (OpenAI, Anthropic, Google, MoonshotAI, xAI)
+- `getModelById()` - Helper to find a model by ID
+- `isValidModel()` - Helper to validate model IDs
+
+**Model Selection UI**: 
+- Dashboard prompt shows selected model's provider icon (replaces settings icon)
+- Popover displays all available models with provider icons and descriptions
+- Selection persisted in DB `config` table under `default_ai_model` key
+
+**Provider Icons**: SVG logos installed from [SVGL](https://svgl.app/) via shadcn/ui registry:
+- Located in `src/components/ui/svgs/`
+- Styled with muted grey colors to match dark theme
+- Registry configured in `components.json` under `registries.@svgl`
 
 ---
 
@@ -185,6 +213,8 @@ export function Widget() { return <div /> }
 - **Schema changes**: Add to `src/lib/migrations.ts` (migrations auto-run on app start)
 - **Test APIs with curl** before UI changes
 - **Check Docker first** when debugging previews
+- **Adding new AI models**: Update `src/shared/config/ai-models.ts` only (single source of truth)
+- **Adding provider icons**: Use `pnpm dlx shadcn@latest add @svgl/{icon-name}` to install from SVGL registry
 
 ---
 

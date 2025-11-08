@@ -13,29 +13,43 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateCode } from "@/lib/code-generator";
 import { copyTemplateToProject } from "@/lib/template-generator";
 import { writeProjectFiles } from "@/lib/file-system";
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 // Helper to get AI model from database config
 function getAIModel() {
 	const provider = getConfig('ai_provider') || 'openrouter';
 	const apiKey = getConfig(`${provider}_api_key`);
+	const defaultModel = getConfig('default_ai_model') || DEFAULT_AI_MODEL;
 	
 	if (!apiKey) {
 		throw new Error(`No API key configured for ${provider}. Please complete setup at /setup`);
 	}
 
-	// Set environment variable temporarily for SDK access
+	// OpenRouter supports all models through their unified API
 	if (provider === 'openrouter') {
 		const openrouter = createOpenRouter({ apiKey });
-		return openrouter("openai/gpt-4.1-mini");
-	} else if (provider === 'anthropic') {
-		process.env.ANTHROPIC_API_KEY = apiKey;
-		return anthropic("claude-3-5-sonnet-20241022");
-	} else if (provider === 'openai') {
-		process.env.OPENAI_API_KEY = apiKey;
-		return openai("gpt-4.1-mini");
+		return openrouter(defaultModel);
 	}
 	
-	throw new Error(`Unknown AI provider: ${provider}`);
+	// For direct providers, extract the model ID and use their SDK
+	const [modelProvider, ...modelParts] = defaultModel.split('/');
+	const modelId = modelParts.join('/');
+	
+	if (modelProvider === 'anthropic' && provider === 'anthropic') {
+		process.env.ANTHROPIC_API_KEY = apiKey;
+		return anthropic(modelId || "claude-3-5-sonnet-20241022");
+	} else if (modelProvider === 'openai' && provider === 'openai') {
+		process.env.OPENAI_API_KEY = apiKey;
+		return openai(modelId || "gpt-4.1-mini");
+	}
+	
+	// Fallback: if provider is openrouter, use it regardless of model format
+	if (provider === 'openrouter') {
+		const openrouter = createOpenRouter({ apiKey });
+		return openrouter(defaultModel);
+	}
+	
+	throw new Error(`Model ${defaultModel} not compatible with provider ${provider}`);
 }
 
 export const GET: APIRoute = async () => {

@@ -32,6 +32,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { refreshCodePreview } from "@/components/code-preview";
+import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 interface Message {
 	id: string;
@@ -39,37 +40,15 @@ interface Message {
 	content: string;
 }
 
-// Curated models for code generation - all support tool calling via AI SDK
-const AVAILABLE_MODELS = [
-	{ 
-		id: "openai/gpt-4.1-mini",
-		name: "GPT-4.1 Mini",
-		provider: "OpenAI",
-	},
-	{ 
-		id: "anthropic/claude-sonnet-4.5",
-		name: "Claude Sonnet 4.5",
-		provider: "Anthropic",
-	},
-	{ 
-		id: "google/gemini-2.5-pro", 
-		name: "Gemini 2.5 Pro", 
-		provider: "Google",
-	},
-	{
-		id: "x-ai/grok-code-fast-1",
-		name: "Grok Code Fast 1",
-		provider: "xAI",
-	},
-];
-
 export function ChatInterface({ projectId }: { projectId: string }) {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [input, setInput] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-	const [selectedModel, setSelectedModel] = useState("openai/gpt-4.1-mini");
-	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+	const [selectedModel, setSelectedModel] = useState(DEFAULT_AI_MODEL);
+	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
+		null,
+	);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -98,31 +77,34 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
-	const handleDeleteMessage = async (messageId: string, deleteFrom: boolean = false) => {
+	const handleDeleteMessage = async (
+		messageId: string,
+		deleteFrom: boolean = false,
+	) => {
 		if (isLoading) return; // Don't allow deletion while generating
-		
+
 		setDeletingMessageId(messageId);
-		
+
 		try {
-			const url = `/api/chat/${projectId}/messages/${messageId}${deleteFrom ? '?deleteFrom=true' : ''}`;
-			const res = await fetch(url, { method: 'DELETE' });
-			
+			const url = `/api/chat/${projectId}/messages/${messageId}${deleteFrom ? "?deleteFrom=true" : ""}`;
+			const res = await fetch(url, { method: "DELETE" });
+
 			if (res.ok) {
 				// Remove messages from UI
 				setMessages((prev) => {
-					const messageIndex = prev.findIndex(m => m.id === messageId);
+					const messageIndex = prev.findIndex((m) => m.id === messageId);
 					if (messageIndex === -1) return prev;
-					
-					return deleteFrom 
-						? prev.slice(0, messageIndex)  // Delete from this message onwards
-						: prev.filter(m => m.id !== messageId);  // Delete only this message
+
+					return deleteFrom
+						? prev.slice(0, messageIndex) // Delete from this message onwards
+						: prev.filter((m) => m.id !== messageId); // Delete only this message
 				});
 			} else {
 				const error = await res.json();
-				console.error('Failed to delete message:', error);
+				console.error("Failed to delete message:", error);
 			}
 		} catch (error) {
-			console.error('Failed to delete message:', error);
+			console.error("Failed to delete message:", error);
 		} finally {
 			setDeletingMessageId(null);
 		}
@@ -216,12 +198,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					// Parse data: prefix from SSE format
 					if (line.startsWith("data: ")) {
 						const jsonStr = line.slice(6); // Remove 'data: ' prefix
-						
+
 						// Skip [DONE] marker
 						if (jsonStr.trim() === "[DONE]") {
 							continue;
 						}
-						
+
 						try {
 							const data = JSON.parse(jsonStr);
 
@@ -233,7 +215,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									assistantMessage += "\n\n";
 									lastEventWasToolResult = false;
 								}
-								
+
 								assistantMessage += data.delta;
 
 								// Update the last message (assistant) with new content
@@ -254,7 +236,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							else if (data.type === "tool-call" && data.toolName) {
 								const toolMessage = `\n\n🔧 **Using tool: ${data.toolName}**\n\`\`\`json\n${JSON.stringify(data.args, null, 2)}\n\`\`\`\n`;
 								assistantMessage += toolMessage;
-								
+
 								setMessages((prev) => {
 									const updated = [...prev];
 									if (updated[updated.length - 1]?.role === "assistant") {
@@ -268,7 +250,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n`;
 								assistantMessage += resultMessage;
 								lastEventWasToolResult = true; // Mark that we just processed a tool result
-								
+
 								setMessages((prev) => {
 									const updated = [...prev];
 									if (updated[updated.length - 1]?.role === "assistant") {
@@ -291,14 +273,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 			// After streaming completes, refresh the code preview and reload messages with real IDs
 			refreshCodePreview();
-			
+
 			// Reload messages from server to get proper database IDs
 			await reloadMessages();
 		} catch (error: any) {
 			console.error("Chat error:", error);
-			
+
 			// Check if the error was due to abort
-			if (error.name === 'AbortError') {
+			if (error.name === "AbortError") {
 				console.log("Request was aborted by user");
 				// Remove the empty assistant message that was added
 				setMessages((prev) => prev.slice(0, -1));
@@ -462,7 +444,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											{part.file || `${part.language} code`}
 										</span>
 										<span className="text-xs text-muted-foreground flex-shrink-0">
-											Generating...
+											{part.content.split("\n").length} lines
 										</span>
 									</div>
 								</div>
@@ -605,7 +587,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							{AVAILABLE_MODELS.map((model) => (
+							{AVAILABLE_AI_MODELS.map((model) => (
 								<SelectItem key={model.id} value={model.id}>
 									<div className="flex items-center gap-2">
 										<span>{model.name}</span>
@@ -644,11 +626,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							<Square className="h-4 w-4" />
 						</Button>
 					) : (
-						<Button
-							type="submit"
-							disabled={!input.trim()}
-							size="icon"
-						>
+						<Button type="submit" disabled={!input.trim()} size="icon">
 							<Send className="h-4 w-4" />
 						</Button>
 					)}

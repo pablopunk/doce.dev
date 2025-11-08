@@ -1,5 +1,6 @@
 import Database from "better-sqlite3"
 import { randomUUID } from "crypto"
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models"
 
 const dbPath = process.env.DATABASE_PATH || "./data/doceapp.db"
 const db = new Database(dbPath)
@@ -157,7 +158,7 @@ export function getConversationById(conversationId: string) {
 
 export function createConversation(projectId: string, model?: string) {
   const id = randomUUID()
-  const selectedModel = model || 'openai/gpt-4.1-mini'
+  const selectedModel = model || DEFAULT_AI_MODEL
   db.prepare("INSERT INTO conversations (id, project_id, model) VALUES (?, ?, ?)").run(id, projectId, selectedModel)
   return { id, project_id: projectId, model: selectedModel }
 }

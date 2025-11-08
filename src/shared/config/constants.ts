@@ -32,7 +32,6 @@ export const PROJECT_CONSTANTS = {
 } as const;
 
 export const AI_CONSTANTS = {
-  DEFAULT_MODEL: "openai/gpt-4.1-mini",
   PROVIDERS: {
     OPENROUTER: "openrouter",
     OPENAI: "openai",
