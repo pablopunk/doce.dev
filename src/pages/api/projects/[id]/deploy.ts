@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { createDeployment, getDeployments, getProject, updateProject } from "@/lib/db";
+import { createDeployment, getDeployments } from "@/lib/db";
+import { projectFacade } from "@/application/facades/project-facade";
 import { createDeploymentContainer } from "@/lib/docker";
 
 export const POST: APIRoute = async ({ params }) => {
@@ -9,7 +10,8 @@ export const POST: APIRoute = async ({ params }) => {
   }
 
   try {
-    const project = await getProject(id);
+    // USE NEW ARCHITECTURE
+    const project = await projectFacade.getProject(id);
     if (!project) {
       return Response.json({ error: "Project not found" }, { status: 404 });
     }
@@ -17,7 +19,8 @@ export const POST: APIRoute = async ({ params }) => {
     const { containerId, url, deploymentId } = await createDeploymentContainer(id);
     const deployment = await createDeployment(id, containerId, url);
 
-    await updateProject(id, {
+    // USE NEW ARCHITECTURE
+    await projectFacade.updateProject(id, {
       deployed_url: url,
       status: "deployed",
     });

@@ -17,137 +17,175 @@ pnpm run build
 ## Setup Flow
 Navigate to `/setup` → create admin user → configure AI provider. **API keys are stored in DB `config` table**, not env vars.
 
-## Key Files
-- **Libs**: `src/lib/{db,docker,file-system,code-generator,migrations}.ts`
-- **API**: `src/pages/api/**` • **UI**: `src/components/ui/**` (shadcn-style Radix primitives)
-- **Middleware**: `src/middleware.ts` (gates `/setup`)
+---
+
+## 🏗️ Architecture (Clean Architecture + DDD)
+
+**Flow**: API Route → Facade → Use Case → Domain Service → Repository → Infrastructure
+
+**Layers**:
+```
+API (src/pages/api/)           → Thin Astro routes
+Application (src/application/) → Use cases + Facades (temp)
+Domain (src/domains/*/domain/) → Business logic, ZERO infrastructure deps
+Infrastructure (src/infrastructure/) → SQLite, Docker, File System, AI providers
+Shared (src/shared/)           → Errors, types, config, logging
+```
+
+**Key Structure**:
+```
+src/
+├── domains/{domain}/
+│   ├── domain/
+│   │   ├── models/           # Aggregate roots (e.g., Project)
+│   │   ├── repositories/     # Interfaces ONLY
+│   │   └── services/         # Business logic
+│   └── application/
+│       └── use-cases/        # Orchestrates domain + infrastructure
+├── infrastructure/
+│   ├── database/sqlite/      # Repository implementations
+│   ├── container-orchestration/docker/  # Docker logic (TODO)
+│   ├── file-system/          # File operations (TODO)
+│   └── ai-providers/         # AI provider logic (TODO)
+├── application/facades/      # Temp adapters during migration
+└── shared/                   # Errors, types, config, logging
+```
+
+**Migration Status**:
+- ✅ **Migrated**: Projects domain + 8 API routes
+- 🔄 **In Progress**: Conversations, files, deployments domains
+- ⏳ **TODO**: Docker/file-system to infrastructure, AI providers, code generation
+
+---
+
+## 💡 Adding a New Feature
+
+**1. Domain Model** (business logic):
+```typescript
+// domains/my-feature/domain/models/my-entity.model.ts
+export class MyEntity extends AggregateRoot<Props> {
+  static create(data: CreateData): MyEntity { /* validation */ }
+}
+```
+
+**2. Repository Interface** (in domain):
+```typescript
+// domains/my-feature/domain/repositories/my-entity.repository.interface.ts
+export interface IMyEntityRepository {
+  findById(id: string): Promise<MyEntity | null>;
+  save(entity: MyEntity): Promise<void>;
+}
+```
+
+**3. Use Case** (orchestration):
+```typescript
+// domains/my-feature/application/use-cases/create.use-case.ts
+export class CreateMyEntityUseCase {
+  constructor(private repo: IMyEntityRepository, private logger: Logger) {}
+  async execute(dto: CreateDto): Promise<ResultDto> {
+    const entity = MyEntity.create(dto);
+    await this.repo.save(entity);
+    return this.toDto(entity);
+  }
+}
+```
+
+**4. Repository Implementation** (infrastructure):
+```typescript
+// infrastructure/database/sqlite/repositories/my-entity.repository.ts
+export class SqliteMyEntityRepository implements IMyEntityRepository {
+  async findById(id: string): Promise<MyEntity | null> {
+    const row = getDatabase().prepare("SELECT * FROM table WHERE id = ?").get(id);
+    return row ? MyEntity.fromPersistence(row) : null;
+  }
+}
+```
+
+**5. Facade** (temp):
+```typescript
+// application/facades/my-entity-facade.ts
+class MyEntityFacade {
+  private repo = new SqliteMyEntityRepository();
+  async create(data) {
+    const useCase = new CreateMyEntityUseCase(this.repo, logger);
+    return useCase.execute(data);
+  }
+}
+export const myEntityFacade = new MyEntityFacade();
+```
+
+**6. API Route**:
+```typescript
+// pages/api/my-endpoint.ts
+import { myEntityFacade } from '@/application/facades/my-entity-facade';
+export const POST: APIRoute = async ({ request }) => {
+  const result = await myEntityFacade.create(await request.json());
+  return Response.json(result);
+};
+```
+
+---
+
+## Rules
+
+**DO**:
+- Keep domain pure (no infrastructure imports)
+- Small functions (< 20 lines)
+- Use proper error types (`ValidationError`, `NotFoundError`, etc.)
+- Define interfaces in domain, implement in infrastructure
+- Type-safe (avoid `any`)
+
+**DON'T**:
+- Import infrastructure in domain layer
+- Put business logic in API routes
+- Directly access database from routes
+
+---
 
 ## Data & Files
-**DB**: Tables: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments`. Migrations auto-run on startup.
-**Files**: Mirrored in DB (`files` table) and filesystem (`PROJECTS_DIR`). Always use `writeProjectFiles` / `listProjectFiles` — never direct FS access.
 
-## API Routes
-**Setup**: `/api/setup/{user,ai,complete}` • **Projects**: `/api/projects` (GET/POST) • `/api/projects/[id]` (GET/DELETE)
-**Build**: `/api/projects/[id]/{preview,deploy,files,generate}` • **Chat**: `/api/chat/[projectId]` (streams, parses code blocks, writes files)
+**Database**: Tables: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments` • Access via repositories (new) or `db.ts` (legacy) • **Migrations**: Auto-run on first DB connection (dev/preview/production start, NOT during build)
 
-## Code Generation (critical)
+**Files**: Mirrored in DB + filesystem • Use `writeProjectFiles` / `listProjectFiles` from `src/lib/file-system.ts`
+
+**Docker**: Preview containers: `doce-preview-{projectId}` on ports 10000-20000 • **Docker is source of truth** — DB `preview_url` is cache
+
+---
+
+## Code Generation
+
 Use fenced blocks with `file="path"`:
 ```tsx file="src/components/Widget.tsx"
 export function Widget() { return <div /> }
 ```
-**Stack**: Astro 5 + React islands + Tailwind v4 + TypeScript. Use `client:load` directives. Parser tries JSON `{ files: [...] }` first, then extracts fenced blocks.
 
-## Docker
-**Preview**: Random ports (10000-20000) → container :3000. Name: `doce-preview-{projectId}`. **Docker is source of truth** — DB `preview_url` is cache.
-**Deploy**: Production images on :3000, labeled for Traefik + `doce-network`. Local dev uses direct ports.
+**Stack**: Astro 5 + React islands + Tailwind v4 + TypeScript • Parser tries JSON `{ files: [...] }` first, then extracts fenced blocks
+
+---
+
+## Debugging
+
+**DB**: `sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"`
+
+**Docker**: `docker ps --filter "name=doce-preview"` • `docker logs doce-preview-{id} --tail 50`
+
+**API**: `curl -s http://localhost:4321/api/projects/{id} | jq`
+
+**Common Issues**:
+- Preview not showing? Check `preview_url` (snake_case) in API response
+- Build errors? Ensure proper imports: `@/domains/...`, `@/infrastructure/...`, `@/shared/...`
+- Type errors? Domain imports only from `@/shared/kernel/`
+
+---
 
 ## Guidelines
-- **TypeScript + ES modules**. Use `@/*` alias. Keep changes minimal.
-- **Use helpers**: `db.ts`, `file-system.ts`, `docker.ts`, `migrations.ts` — no ad-hoc logic.
-- **Schema changes**: Add to `src/lib/migrations.ts` (auto-run on startup).
-- **Secrets**: Read from env or DB `config` table. Never hardcode.
-- **No commits**: `.env*`, `data/`, `projects/` (git-ignored).
 
-## Troubleshooting
-- **Setup loop**: Check user + AI key in DB. **API key error**: Run `/setup`.
-- **Preview not reachable**: Verify Docker running, check `docker ps | grep doce-preview`.
-- **Port conflicts**: App uses :4321, previews use :10000-20000.
+- **Always use pnpm** (not npm)
+- **Run `pnpm build`** frequently to catch errors
+- **Schema changes**: Add to `src/lib/migrations.ts` (migrations auto-run on app start)
+- **Test APIs with curl** before UI changes
+- **Check Docker first** when debugging previews
 
-## Debugging Strategies & Tools
+---
 
-### Database Inspection
-Use `sqlite3` CLI for quick queries:
-```bash
-# Check projects
-sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"
-
-# Check conversations and models
-sqlite3 ./data/doceapp.db "SELECT project_id, model FROM conversations;"
-
-# Update values directly
-sqlite3 ./data/doceapp.db "UPDATE projects SET preview_url = NULL WHERE id = 'xxx';"
-
-# Check table schema
-sqlite3 ./data/doceapp.db ".schema projects"
-```
-
-### Docker Inspection
-```bash
-# List preview containers with ports
-docker ps --filter "name=doce-preview" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-# Check container logs
-docker logs doce-preview-{projectId} --tail 50
-
-# Inspect container details
-docker inspect doce-preview-{projectId}
-
-# Stop and remove container
-docker stop doce-preview-{projectId} && docker rm doce-preview-{projectId}
-
-# Clean up all stopped containers
-docker container prune -f
-```
-
-### API Testing
-Use `curl` with `jq` for formatted JSON:
-```bash
-# Check preview status
-curl -s http://localhost:4321/api/projects/{id}/preview | jq
-
-# Create preview
-curl -X POST http://localhost:4321/api/projects/{id}/preview | jq
-
-# Get project details
-curl -s http://localhost:4321/api/projects/{id} | jq
-
-# Test chat endpoint
-curl -X POST http://localhost:4321/api/chat/{projectId} \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"test"}],"model":"openai/gpt-4.1-mini"}'
-```
-
-### File System Checks
-```bash
-# Check generated project files
-ls -la ./data/projects/{projectId}/
-
-# View docker-compose override
-cat ./data/projects/{projectId}/docker-compose.override.yml
-
-# Check if files were written
-find ./data/projects/{projectId} -name "*.tsx" -o -name "*.astro"
-```
-
-### Development Best Practices
-- **Always use pnpm** for package management (not npm)
-- **Check Docker state first** when debugging preview issues (it's the source of truth)
-- **Use sqlite3 CLI** for quick DB fixes instead of writing migration scripts
-- **Test API endpoints with curl** before changing frontend code
-- **Check container logs** when preview doesn't load
-- **Verify port availability** if preview creation fails (ports 10000-20000)
-- **Clean stale containers** regularly with `docker ps -a` and `docker rm`
-
-### Common Debug Workflows
-
-**Preview not loading:**
-1. Check if container is running: `docker ps | grep doce-preview`
-2. Check container logs: `docker logs doce-preview-{id}`
-3. Verify port in DB matches Docker: `sqlite3` + `docker inspect`
-4. Test direct port access: `curl http://localhost:{port}`
-
-**Database out of sync:**
-1. Query DB: `sqlite3 ./data/doceapp.db "SELECT * FROM projects WHERE id='xxx';"`
-2. Check Docker: `docker ps` and `docker inspect`
-3. Use GET preview endpoint - it auto-syncs DB with Docker state
-4. Or manually fix: `UPDATE projects SET preview_url = NULL`
-
-**Model not working:**
-1. Check conversation: `sqlite3 ./data/doceapp.db "SELECT model FROM conversations WHERE project_id='xxx';"`
-2. Check API key in DB: `sqlite3 ./data/doceapp.db "SELECT key, length(value) as key_length FROM config WHERE key LIKE '%_api_key';"`
-3. Verify provider is set: `sqlite3 ./data/doceapp.db "SELECT value FROM config WHERE key='ai_provider';"`
-4. Check chat endpoint logs in terminal
-5. Test model directly with curl
-6. If key is missing, reconfigure at `/setup`
-
-Scope: This file applies to the entire repository. Prefer these conventions over ad‑hoc patterns; when in doubt, ask before making broad changes.
+Scope: This file defines architecture for the entire repo. New features follow Clean Architecture. Legacy code is gradually migrating.

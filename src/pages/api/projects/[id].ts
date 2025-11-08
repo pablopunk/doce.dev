@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { deleteProject, getFiles, getProject } from "@/lib/db";
+import { getFiles } from "@/lib/db";
+import { projectFacade } from "@/application/facades/project-facade";
 import { deleteProjectFiles } from "@/lib/file-system";
 import { listProjectContainers, removeContainer, stopContainer } from "@/lib/docker";
 
@@ -9,14 +10,15 @@ export const GET: APIRoute = async ({ params }) => {
     return Response.json({ error: "Project id is required" }, { status: 400 });
   }
 
-  const project = await getProject(id);
+  // USE NEW ARCHITECTURE
+  const project = await projectFacade.getProject(id);
 
   if (!project) {
     return Response.json({ error: "Project not found" }, { status: 404 });
   }
 
   const files = await getFiles(id);
-  return Response.json({ ...project, files });
+  return Response.json({ ...project.toJSON(), files });
 };
 
 export const DELETE: APIRoute = async ({ params }) => {
@@ -33,7 +35,9 @@ export const DELETE: APIRoute = async ({ params }) => {
     }
 
     await deleteProjectFiles(id);
-    await deleteProject(id);
+    
+    // USE NEW ARCHITECTURE
+    await projectFacade.deleteProject(id);
 
     return Response.json({ success: true });
   } catch (error) {

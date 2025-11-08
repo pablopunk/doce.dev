@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro";
+import { projectFacade } from "@/application/facades/project-facade";
 import {
-	createProject,
-	getProjects,
 	createConversation,
 	saveMessage,
 	saveFile,
@@ -40,8 +39,13 @@ function getAIModel() {
 }
 
 export const GET: APIRoute = async () => {
-	const projects = await getProjects();
-	return Response.json(projects);
+	// USE NEW ARCHITECTURE
+	const projects = await projectFacade.getProjects();
+	
+	// Convert domain models to API response
+	const response = projects.map(p => p.toJSON());
+	
+	return Response.json(response);
 };
 
 export const POST: APIRoute = async ({ request }) => {
@@ -76,7 +80,8 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 	}
 
-	const project = await createProject(projectName, projectDescription);
+	// USE NEW ARCHITECTURE
+	const project = await projectFacade.createProject(projectName, projectDescription);
 
 	// If a prompt is provided, generate a minimal starter and let AI build from there
 	if (prompt) {

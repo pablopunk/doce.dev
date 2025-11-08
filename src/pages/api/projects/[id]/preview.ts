@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { createPreviewContainer, stopPreviewForProject, getPreviewState } from "@/lib/docker";
-import { getProject, updateProject } from "@/lib/db";
+import { projectFacade } from "@/application/facades/project-facade";
 
 export const POST: APIRoute = async ({ params }) => {
   const id = params.id;
@@ -9,7 +9,8 @@ export const POST: APIRoute = async ({ params }) => {
   }
 
   try {
-    const project = await getProject(id);
+    // USE NEW ARCHITECTURE
+    const project = await projectFacade.getProject(id);
     if (!project) {
       return Response.json({ error: "Project not found" }, { status: 404 });
     }
@@ -19,8 +20,8 @@ export const POST: APIRoute = async ({ params }) => {
     if (existingState) {
       console.log(`Preview already running for ${id}, syncing DB with Docker state`);
       
-      // Sync DB with Docker reality
-      await updateProject(id, {
+      // USE NEW ARCHITECTURE - Sync DB with Docker reality
+      await projectFacade.updateProject(id, {
         preview_url: existingState.url,
         status: "preview",
       });
@@ -37,7 +38,8 @@ export const POST: APIRoute = async ({ params }) => {
     // Create new preview container
     const { containerId, url, port } = await createPreviewContainer(id);
 
-    await updateProject(id, {
+    // USE NEW ARCHITECTURE
+    await projectFacade.updateProject(id, {
       preview_url: url,
       status: "preview",
     });
@@ -56,7 +58,8 @@ export const GET: APIRoute = async ({ params }) => {
   }
 
   try {
-    const project = await getProject(id);
+    // USE NEW ARCHITECTURE
+    const project = await projectFacade.getProject(id);
     if (!project) {
       return Response.json({ error: "Project not found" }, { status: 404 });
     }
@@ -66,9 +69,10 @@ export const GET: APIRoute = async ({ params }) => {
     
     if (dockerState) {
       // Sync DB if out of sync
-      if (project.preview_url !== dockerState.url) {
-        console.log(`Syncing DB for ${id}: ${project.preview_url} -> ${dockerState.url}`);
-        await updateProject(id, {
+      if (project.previewUrl !== dockerState.url) {
+        console.log(`Syncing DB for ${id}: ${project.previewUrl} -> ${dockerState.url}`);
+        // USE NEW ARCHITECTURE
+        await projectFacade.updateProject(id, {
           preview_url: dockerState.url,
           status: "preview",
         });
@@ -78,9 +82,10 @@ export const GET: APIRoute = async ({ params }) => {
     }
 
     // No container running - clear stale DB data
-    if (project.preview_url) {
+    if (project.previewUrl) {
       console.log(`Clearing stale preview URL for ${id}`);
-      await updateProject(id, {
+      // USE NEW ARCHITECTURE
+      await projectFacade.updateProject(id, {
         preview_url: null,
         status: "draft",
       });
@@ -102,7 +107,8 @@ export const DELETE: APIRoute = async ({ params }) => {
   try {
     await stopPreviewForProject(id);
 
-    await updateProject(id, {
+    // USE NEW ARCHITECTURE
+    await projectFacade.updateProject(id, {
       preview_url: null,
       status: "draft",
     });
