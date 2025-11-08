@@ -13,8 +13,8 @@ import {
 	ChevronDown,
 	ChevronRight,
 	FileCode,
-	AlertCircle,
-	Wrench,
+	Trash2,
+	Square,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -22,6 +22,13 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+	ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { refreshCodePreview } from "@/components/code-preview";
@@ -32,46 +39,27 @@ interface Message {
 	content: string;
 }
 
-// Popular models for code generation
+// Curated models for code generation - all support tool calling via AI SDK
 const AVAILABLE_MODELS = [
 	{ 
-		id: "anthropic/claude-3.5-sonnet",
-		name: "Claude 3.5 Sonnet",
-		provider: "Anthropic",
-		supportsTools: true,
+		id: "openai/gpt-4.1-mini",
+		name: "GPT-4.1 Mini",
+		provider: "OpenAI",
 	},
 	{ 
-		id: "openai/gpt-4-turbo",
-		name: "GPT-4 Turbo",
-		provider: "OpenAI",
-		supportsTools: true,
-	},
-	{ id: "openai/gpt-5", name: "GPT 5", provider: "OpenAI", supportsTools: true },
-	{
-		id: "anthropic/claude-3-opus",
-		name: "Claude 3 Opus",
+		id: "anthropic/claude-sonnet-4.5",
+		name: "Claude Sonnet 4.5",
 		provider: "Anthropic",
-		supportsTools: true,
 	},
-	{ id: "google/gemini-pro-1.5", name: "Gemini 1.5 Pro", provider: "Google", supportsTools: true },
-	{ id: "openai/gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "OpenAI", supportsTools: false },
-	{
-		id: "meta-llama/llama-3.1-70b-instruct",
-		name: "Llama 3.1 70B",
-		provider: "Meta",
-		supportsTools: false,
+	{ 
+		id: "google/gemini-2.5-pro", 
+		name: "Gemini 2.5 Pro", 
+		provider: "Google",
 	},
 	{
-		id: "qwen/qwen-2.5-coder-32b-instruct",
-		name: "Qwen 2.5 Coder 32B",
-		provider: "Alibaba",
-		supportsTools: false,
-	},
-	{
-		id: "deepseek/deepseek-coder",
-		name: "DeepSeek Coder",
-		provider: "DeepSeek",
-		supportsTools: false,
+		id: "x-ai/grok-code-fast-1",
+		name: "Grok Code Fast 1",
+		provider: "xAI",
 	},
 ];
 
@@ -80,12 +68,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	const [input, setInput] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-	const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
+	const [selectedModel, setSelectedModel] = useState("openai/gpt-4.1-mini");
+	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
-
-	// Check if current model supports tools
-	const currentModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
-	const supportsTools = currentModelInfo?.supportsTools ?? false;
+	const abortControllerRef = useRef<AbortController | null>(null);
 
 	// Load chat history on mount
 	useEffect(() => {
@@ -112,12 +98,62 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
+	const handleDeleteMessage = async (messageId: string, deleteFrom: boolean = false) => {
+		if (isLoading) return; // Don't allow deletion while generating
+		
+		setDeletingMessageId(messageId);
+		
+		try {
+			const url = `/api/chat/${projectId}/messages/${messageId}${deleteFrom ? '?deleteFrom=true' : ''}`;
+			const res = await fetch(url, { method: 'DELETE' });
+			
+			if (res.ok) {
+				// Remove messages from UI
+				setMessages((prev) => {
+					const messageIndex = prev.findIndex(m => m.id === messageId);
+					if (messageIndex === -1) return prev;
+					
+					return deleteFrom 
+						? prev.slice(0, messageIndex)  // Delete from this message onwards
+						: prev.filter(m => m.id !== messageId);  // Delete only this message
+				});
+			} else {
+				const error = await res.json();
+				console.error('Failed to delete message:', error);
+			}
+		} catch (error) {
+			console.error('Failed to delete message:', error);
+		} finally {
+			setDeletingMessageId(null);
+		}
+	};
+
+	const reloadMessages = async () => {
+		try {
+			const res = await fetch(`/api/chat/${projectId}/history`);
+			if (res.ok) {
+				const data = await res.json();
+				setMessages(data.messages || []);
+			}
+		} catch (error) {
+			console.error("Failed to reload messages:", error);
+		}
+	};
+
+	const handleStop = () => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+			abortControllerRef.current = null;
+			setIsLoading(false);
+		}
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!input.trim() || isLoading) return;
 
 		const userMessage: Message = {
-			id: Math.random().toString(),
+			id: `temp-user-${Date.now()}`,
 			role: "user",
 			content: input,
 		};
@@ -125,6 +161,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setMessages((prev) => [...prev, userMessage]);
 		setInput("");
 		setIsLoading(true);
+
+		// Create new AbortController for this request
+		const abortController = new AbortController();
+		abortControllerRef.current = abortController;
 
 		try {
 			const response = await fetch(`/api/chat/${projectId}`, {
@@ -137,6 +177,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					})),
 					model: selectedModel,
 				}),
+				signal: abortController.signal,
 			});
 
 			if (!response.ok) throw new Error("Failed to get response");
@@ -147,6 +188,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			const decoder = new TextDecoder();
 			let buffer = "";
 			let assistantMessage = "";
+			let lastEventWasToolResult = false;
 
 			// Add empty assistant message immediately
 			setMessages((prev) => [
@@ -185,6 +227,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 							// Handle different message types from AI SDK
 							if (data.type === "text-delta" && data.delta) {
+								// Add spacing if this is the first text after a tool result
+								if (lastEventWasToolResult) {
+									// Add two line breaks to separate from tool results
+									assistantMessage += "\n\n";
+									lastEventWasToolResult = false;
+								}
+								
 								assistantMessage += data.delta;
 
 								// Update the last message (assistant) with new content
@@ -195,6 +244,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									}
 									return updated;
 								});
+							}
+							// Handle step transitions to add spacing between thinking steps
+							else if (data.type === "finish-step") {
+								// Mark that a step just finished so we can add spacing before next text
+								lastEventWasToolResult = true;
 							}
 							// Handle tool call events
 							else if (data.type === "tool-call" && data.toolName) {
@@ -211,8 +265,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							}
 							// Handle tool result events
 							else if (data.type === "tool-result" && data.toolName) {
-								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n\n`;
+								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n`;
 								assistantMessage += resultMessage;
+								lastEventWasToolResult = true; // Mark that we just processed a tool result
 								
 								setMessages((prev) => {
 									const updated = [...prev];
@@ -222,6 +277,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									return updated;
 								});
 							}
+							// Handle step finish to ensure spacing between steps
+							else if (data.type === "finish-step") {
+								// Mark that a step just finished
+								lastEventWasToolResult = true;
+							}
 						} catch (e) {
 							console.error("Failed to parse stream data:", e, line);
 						}
@@ -229,19 +289,31 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				}
 			}
 
-			// After streaming completes, refresh the code preview to show new files
+			// After streaming completes, refresh the code preview and reload messages with real IDs
 			refreshCodePreview();
-		} catch (error) {
+			
+			// Reload messages from server to get proper database IDs
+			await reloadMessages();
+		} catch (error: any) {
 			console.error("Chat error:", error);
-			setMessages((prev) => [
-				...prev.slice(0, -1), // Remove the empty assistant message
-				{
-					id: Math.random().toString(),
-					role: "assistant",
-					content: "Error: Failed to generate response. Please try again.",
-				},
-			]);
+			
+			// Check if the error was due to abort
+			if (error.name === 'AbortError') {
+				console.log("Request was aborted by user");
+				// Remove the empty assistant message that was added
+				setMessages((prev) => prev.slice(0, -1));
+			} else {
+				setMessages((prev) => [
+					...prev.slice(0, -1), // Remove the empty assistant message
+					{
+						id: `temp-error-${Date.now()}`,
+						role: "assistant",
+						content: "Error: Failed to generate response. Please try again.",
+					},
+				]);
+			}
 		} finally {
+			abortControllerRef.current = null;
 			setIsLoading(false);
 		}
 	};
@@ -455,31 +527,59 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					const isLastMessage = idx === messages.length - 1;
 					const isStreamingMessage =
 						isLastMessage && isLoading && message.role === "assistant";
+					const isDeleting = deletingMessageId === message.id;
 
 					return (
-						<div
-							key={message.id}
-							className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-						>
-							<div
-								className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden ${
-									message.role === "user"
-										? "bg-primary text-primary-foreground"
-										: "bg-muted text-foreground"
-								}`}
-							>
-								{message.role === "assistant" ? (
-									<MessageContent
-										content={message.content}
-										isStreaming={isStreamingMessage}
-									/>
-								) : (
-									<p className="whitespace-pre-wrap break-words">
-										{message.content}
-									</p>
+						<ContextMenu key={message.id}>
+							<ContextMenuTrigger asChild>
+								<div
+									className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+								>
+									<div
+										className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden cursor-context-menu ${
+											message.role === "user"
+												? "bg-primary text-primary-foreground"
+												: "bg-muted text-foreground"
+										} ${isDeleting ? "opacity-50" : ""}`}
+									>
+										{message.role === "assistant" ? (
+											<MessageContent
+												content={message.content}
+												isStreaming={isStreamingMessage}
+											/>
+										) : (
+											<div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words">
+												{message.content}
+											</div>
+										)}
+									</div>
+								</div>
+							</ContextMenuTrigger>
+							<ContextMenuContent className="w-72">
+								<ContextMenuItem
+									onClick={() => handleDeleteMessage(message.id, false)}
+									disabled={isLoading || isDeleting}
+									className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+								>
+									<Trash2 className="mr-2 h-4 w-4" />
+									Delete this message only
+								</ContextMenuItem>
+								{idx > 0 && (
+									<>
+										<ContextMenuSeparator />
+										<ContextMenuItem
+											onClick={() => handleDeleteMessage(message.id, true)}
+											disabled={isLoading || isDeleting}
+											className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+										>
+											<Trash2 className="mr-2 h-4 w-4" />
+											<ChevronDown className="mr-2 h-4 w-4" />
+											Delete from here onwards
+										</ContextMenuItem>
+									</>
 								)}
-							</div>
-						</div>
+							</ContextMenuContent>
+						</ContextMenu>
 					);
 				})}
 				{isLoading && (
@@ -498,15 +598,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				onSubmit={handleSubmit}
 				className="border-t border-border p-4 space-y-3"
 			>
-				{!supportsTools && (
-					<div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-						<AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-						<div className="text-sm text-yellow-600 dark:text-yellow-400">
-							<strong>Limited capabilities:</strong> This model doesn't support advanced tools (file reading, terminal commands, web fetching). 
-							For best results, use Claude 3.5 Sonnet or GPT-4 Turbo.
-						</div>
-					</div>
-				)}
 				<div className="flex items-center gap-2">
 					<span className="text-sm text-muted-foreground">Model:</span>
 					<Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -521,11 +612,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<span className="text-xs text-muted-foreground">
 											({model.provider})
 										</span>
-										{model.supportsTools && (
-											<span title="Supports tools (file reading, terminal, web fetch)">
-												<Wrench className="h-3 w-3 text-green-500" />
-											</span>
-										)}
 									</div>
 								</SelectItem>
 							))}
@@ -538,20 +624,34 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						onChange={(e) => setInput(e.target.value)}
 						placeholder="Enter your prompt here..."
 						className="flex-1 min-h-[60px] max-h-[200px] resize-none"
+						disabled={isLoading}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
-								handleSubmit(e);
+								if (!isLoading) {
+									handleSubmit(e);
+								}
 							}
 						}}
 					/>
-					<Button
-						type="submit"
-						disabled={isLoading || !input.trim()}
-						size="icon"
-					>
-						<Send className="h-4 w-4" />
-					</Button>
+					{isLoading ? (
+						<Button
+							type="button"
+							onClick={handleStop}
+							size="icon"
+							variant="destructive"
+						>
+							<Square className="h-4 w-4" />
+						</Button>
+					) : (
+						<Button
+							type="submit"
+							disabled={!input.trim()}
+							size="icon"
+						>
+							<Send className="h-4 w-4" />
+						</Button>
+					)}
 				</div>
 			</form>
 		</div>

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { streamText } from "ai";
+import { streamText, tool, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
@@ -33,41 +33,46 @@ async function execInContainer(projectId: string, command: string): Promise<stri
   }
 }
 
-// Helper to get API key from database
-function getApiKey(provider: string): string {
-  const key = getConfig(`${provider}_api_key`)
-  if (!key) {
-    throw new Error(`No API key found for ${provider}. Configure it in /setup`)
-  }
-  return key
+// Helper to get API key from database (returns null if not configured)
+function getApiKey(provider: string): string | null {
+  return getConfig(`${provider}_api_key`)
 }
 
-// Helper to get model provider and instance
+// Helper to get model provider and instance (provider-agnostic)
 function getModel(modelId: string) {
-  // OpenRouter models (can route to any provider)
-  if (modelId.includes('/')) {
-    const apiKey = getApiKey('openrouter')
-    const openrouter = createOpenRouter({ apiKey });
-    return openrouter(modelId);
-  }
-
-  // Direct provider models (legacy support)
-  if (modelId.startsWith('claude-')) {
-    const apiKey = getApiKey('anthropic')
-    process.env.ANTHROPIC_API_KEY = apiKey; // Set for SDK
-    return anthropic(modelId);
+  // Extract provider from model ID (e.g., "openai/gpt-4.1-mini" -> "openai")
+  const [provider] = modelId.split('/');
+  
+  // Try direct provider first for potentially better performance/features
+  if (provider === 'openai') {
+    const apiKey = getApiKey('openai');
+    if (apiKey) {
+      process.env.OPENAI_API_KEY = apiKey;
+      return openai(modelId.replace('openai/', ''));
+    }
   }
   
-  if (modelId.startsWith('gpt-')) {
-    const apiKey = getApiKey('openai')
-    process.env.OPENAI_API_KEY = apiKey; // Set for SDK
-    return openai(modelId);
+  if (provider === 'anthropic') {
+    const apiKey = getApiKey('anthropic');
+    if (apiKey) {
+      process.env.ANTHROPIC_API_KEY = apiKey;
+      return anthropic(modelId.replace('anthropic/', ''));
+    }
   }
-
-  // Default to OpenRouter
-  const apiKey = getApiKey('openrouter')
-  const openrouter = createOpenRouter({ apiKey });
-  return openrouter(modelId);
+  
+  // OpenRouter can route to ANY provider (OpenAI, Anthropic, Google, xAI, etc.)
+  const openrouterKey = getApiKey('openrouter');
+  if (openrouterKey) {
+    const openrouter = createOpenRouter({ apiKey: openrouterKey });
+    return openrouter(modelId);
+  }
+  
+  // No API keys configured - provide helpful error
+  throw new Error(
+    `No API key configured. Please configure at least one: ` +
+    `openrouter_api_key (supports 400+ models), ` +
+    `${provider}_api_key (direct to ${provider}), or another provider in /setup`
+  );
 }
 
 export const POST: APIRoute = async ({ params, request }) => {
@@ -90,7 +95,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const userMessage = messages[messages.length - 1];
   await saveMessage(conversation.id, "user", userMessage.content);
 
-  const model = getModel(conversation.model || 'anthropic/claude-3.5-sonnet');
+  const model = getModel(conversation.model || 'openai/gpt-4.1-mini');
 
   // Try to read AGENTS.md from the project
   let agentGuidelines = "";
@@ -104,118 +109,158 @@ export const POST: APIRoute = async ({ params, request }) => {
     console.log(`[Chat] No AGENTS.md found for project ${projectId}`);
   }
 
-  // Check if model supports tools (some models may not support function calling)
-  const modelSupportsTools = !conversation.model?.includes('gpt-4.1-mini') && 
-                              !conversation.model?.includes('llama') && 
-                              !conversation.model?.includes('qwen') &&
-                              !conversation.model?.includes('deepseek');
+  // AI SDK supports tool calling for most modern models
+  const modelSupportsTools = true;
 
   const toolDefinitions = {
-    readFile: {
-        description: "Read the contents of a file from the project. Use this to inspect existing code before making changes.",
-        parameters: z.object({
-          filePath: z.string().describe("Relative path from project root (e.g. 'src/components/Hero.tsx')"),
-        }),
+    readFile: tool({
+      description: "Read the contents of a file from the project. Use this to inspect existing code before making changes.",
+      inputSchema: z.object({
+        filePath: z.string().describe("Relative path from project root (e.g. 'src/components/Hero.tsx')"),
+      }),
       execute: async ({ filePath }) => {
         console.log(`[Tool] readFile called with: ${filePath}`);
         try {
           const content = await readProjectFile(projectId, filePath);
           if (!content) {
             console.log(`[Tool] readFile: file not found`);
-            return { success: false, error: `File not found: ${filePath}` };
+            return `Error: File not found: ${filePath}`;
           }
           console.log(`[Tool] readFile: success, ${content.length} chars`);
-          return { success: true, filePath, content };
+          // Return the content directly with a header showing the file path
+          return `File: ${filePath}\n${'='.repeat(50)}\n${content}`;
         } catch (error: any) {
           console.log(`[Tool] readFile error: ${error.message}`);
-          return { success: false, error: error.message };
+          return `Error reading ${filePath}: ${error.message}`;
         }
       },
-    },
-    listFiles: {
-      description: "List all files in the project directory. Use this to explore the project structure.",
-      parameters: z.object({
-        _: z.literal("").optional().describe("No parameters needed"),
-      }),
+    }),
+    listFiles: tool({
+      description: "List files in the project directory. Returns a tree structure showing the project organization.",
+      inputSchema: z.object({}),
       execute: async () => {
         console.log(`[Tool] listFiles called for project ${projectId}`);
         try {
-          const files = await listProjectFiles(projectId);
-          console.log(`[Tool] listFiles: found ${files.length} files`);
-          return { success: true, files };
+          const allFiles = await listProjectFiles(projectId);
+          console.log(`[Tool] listFiles: found ${allFiles.length} files`);
+          
+          // Group files by top-level directory and filter out massive node_modules-like directories
+          const filesByDir: Record<string, string[]> = {};
+          const rootFiles: string[] = [];
+          
+          for (const file of allFiles) {
+            const parts = file.split('/');
+            if (parts.length === 1) {
+              rootFiles.push(file);
+            } else {
+              const topDir = parts[0];
+              if (!filesByDir[topDir]) {
+                filesByDir[topDir] = [];
+              }
+              // Only include files from source directories, skip build artifacts
+              if (!topDir.includes('node_modules') && !topDir.includes('.next') && !topDir.includes('dist')) {
+                filesByDir[topDir].push(file);
+              }
+            }
+          }
+          
+          // Build a concise summary
+          const summary: string[] = ['Project Structure:'];
+          summary.push(`Root files: ${rootFiles.join(', ')}`);
+          
+          for (const [dir, files] of Object.entries(filesByDir)) {
+            if (files.length > 50) {
+              // For large directories, just show count and some examples
+              summary.push(`${dir}/ (${files.length} files) - examples: ${files.slice(0, 10).join(', ')}`);
+            } else if (files.length > 0) {
+              // For smaller directories, show all files
+              summary.push(`${dir}/: ${files.join(', ')}`);
+            }
+          }
+          
+          const result = summary.join('\n');
+          console.log(`[Tool] listFiles: returning summary of ${result.length} chars`);
+          console.log(`[Tool] listFiles: first 200 chars:`, result.substring(0, 200));
+          return result;
         } catch (error: any) {
           console.log(`[Tool] listFiles error: ${error.message}`);
-          return { success: false, error: error.message };
+          return `Error listing files: ${error.message}`;
         }
       },
-    },
-    runCommand: {
+    }),
+    runCommand: tool({
       description: "Execute a command in the preview container. Use this to run npm scripts, tests, linting, or check build errors. The container must be running.",
-      parameters: z.object({
+      inputSchema: z.object({
         command: z.string().describe("Shell command to execute (e.g. 'npm run build', 'npm test')"),
       }),
       execute: async ({ command }) => {
+        console.log(`[Tool] runCommand called: ${command}`);
         try {
           const output = await execInContainer(projectId, command);
-          return { success: true, output };
+          console.log(`[Tool] runCommand: success, ${output.length} chars`);
+          return `Command: ${command}\n${'='.repeat(50)}\n${output}`;
         } catch (error: any) {
-          return { success: false, error: error.message };
+          console.log(`[Tool] runCommand error: ${error.message}`);
+          return `Error executing "${command}": ${error.message}`;
         }
       },
-    },
-    fetchUrl: {
+    }),
+    fetchUrl: tool({
       description: "Fetch content from a URL. Use this to read documentation, API references, or other web resources.",
-      parameters: z.object({
+      inputSchema: z.object({
         url: z.string().url().describe("URL to fetch"),
       }),
       execute: async ({ url }) => {
-          try {
-            // Only allow https URLs and common documentation sites
-            if (!url.startsWith('https://')) {
-              return { success: false, error: 'Only HTTPS URLs are allowed' };
-            }
-            
-            const response = await fetch(url, {
-              headers: { 'User-Agent': 'doce.dev-bot' },
-              signal: AbortSignal.timeout(10000), // 10s timeout
-            });
-            
-            if (!response.ok) {
-              return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
-            }
-            
-            const text = await response.text();
-            // Limit response size
-            const truncated = text.slice(0, 50000);
-            return { 
-              success: true, 
-              url, 
-              content: truncated,
-              truncated: text.length > 50000 
-            };
-          } catch (error: any) {
-            return { success: false, error: error.message };
+        console.log(`[Tool] fetchUrl called: ${url}`);
+        try {
+          // Only allow https URLs and common documentation sites
+          if (!url.startsWith('https://')) {
+            return `Error: Only HTTPS URLs are allowed`;
           }
+          
+          const response = await fetch(url, {
+            headers: { 'User-Agent': 'doce.dev-bot' },
+            signal: AbortSignal.timeout(10000), // 10s timeout
+          });
+          
+          if (!response.ok) {
+            return `Error: HTTP ${response.status}: ${response.statusText}`;
+          }
+          
+          const text = await response.text();
+          // Limit response size
+          const truncated = text.slice(0, 50000);
+          const wasTruncated = text.length > 50000;
+          
+          console.log(`[Tool] fetchUrl: success, ${truncated.length} chars${wasTruncated ? ' (truncated)' : ''}`);
+          return `URL: ${url}\n${'='.repeat(50)}\n${truncated}${wasTruncated ? '\n\n[Content truncated at 50,000 characters]' : ''}`;
+        } catch (error: any) {
+          console.log(`[Tool] fetchUrl error: ${error.message}`);
+          return `Error fetching ${url}: ${error.message}`;
+        }
       },
-    },
+    }),
   };
 
   console.log(`[Chat] Model supports tools: ${modelSupportsTools}`);
   console.log(`[Chat] Tools enabled: ${modelSupportsTools ? 'YES' : 'NO'}`);
+  console.log(`[Chat] Tool names:`, Object.keys(toolDefinitions));
   
   const result = streamText({
     model,
-    maxSteps: modelSupportsTools ? 10 : 1,
-    ...(modelSupportsTools && { tools: toolDefinitions }),
+    ...(modelSupportsTools && { 
+      tools: toolDefinitions,
+      stopWhen: stepCountIs(10), // Allow up to 10 steps for tool calling
+    }),
     onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {
       console.log(`[Chat] Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`);
       if (toolResults.length > 0) {
-        console.log(`[Chat] Tool results:`, toolResults.map(r => ({ name: r.toolName, result: r.result })));
+        console.log(`[Chat] Tool results (full):`, JSON.stringify(toolResults, null, 2));
       }
     },
     system: `You are an expert web developer with access to tools for inspecting projects.
 
-You build modern sites with Astro 5, React islands, and Tailwind CSS v4.
+You build modern sites with Astro 5, React islands, Tailwind CSS v4, and shadcn/ui components.
 
 Available tools:
 - listFiles() - Lists all project files
@@ -223,20 +268,49 @@ Available tools:
 - runCommand(command) - Executes shell commands
 - fetchUrl(url) - Fetches web content
 
-When using tools, follow this pattern:
-1. Call the tool (no explanation needed)
-2. Wait for the results
-3. Then explain what you found to the user
+When using tools:
+1. Call the tool to get data
+2. After receiving the tool result, ALWAYS provide a clear text response explaining what you found
+3. When moving to a new action or thought, start a new paragraph with a blank line
+4. Never end your response immediately after a tool call - always explain the results
 
-You have access to multi-step execution - after calling a tool and receiving results, you will automatically continue to explain them.
+IMPORTANT: 
+- You MUST generate a text response after each tool call
+- Use proper paragraph breaks between different thoughts or actions
+- Write in clear, well-structured prose with natural sentence flow
 
 When generating code:
 - Use Astro 5 with the \`src/\` directory structure.
 - Use React components for interactive islands and mark them with client directives when necessary.
 - Prefer TypeScript for all .astro and .tsx files.
-- Use Tailwind CSS v4 utility classes for styling.
+- **Use shadcn/ui components from \`@/components/ui/\` whenever possible** for buttons, forms, dialogs, cards, etc.
+- Use Tailwind CSS v4 utility classes for custom styling.
 - Provide complete, working examples that integrate with the existing project architecture (Astro + React + Tailwind + TypeScript).
 - Never reference Next.js APIs or components.
+
+**Available shadcn/ui components** (all ready to import from \`@/components/ui/\`):
+accordion, alert-dialog, alert, avatar, badge, breadcrumb, button, calendar, card, carousel, chart, checkbox, collapsible, command, context-menu, dialog, drawer, dropdown-menu, empty, field, form, hover-card, input-group, input-otp, input, kbd, label, menubar, navigation-menu, pagination, popover, progress, radio-group, resizable, scroll-area, select, separator, sheet, sidebar, skeleton, slider, sonner, spinner, switch, table, tabs, textarea, toast, toggle-group, toggle, tooltip
+
+**Example shadcn/ui usage:**
+\`\`\`tsx file="src/components/LoginForm.tsx"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export function LoginForm() {
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Login</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Input placeholder="Email" />
+        <Button className="w-full mt-4">Sign In</Button>
+      </CardContent>
+    </Card>
+  )
+}
+\`\`\`
 
 **CRITICAL: When generating package.json, always include these required dependencies:**
 \`\`\`json
@@ -291,22 +365,27 @@ export function MyComponent() {
 
 Always specify the file path in each code block header and generate multiple files when required to deliver a working feature.${agentGuidelines}`,
     messages,
-    onFinish: async ({ text }) => {
+    onFinish: async ({ text, finishReason }) => {
       console.log(`[Chat] onFinish called for project ${projectId}`);
-      console.log(`[Chat] Response length: ${text.length} chars`);
+      console.log(`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`);
       
-      await saveMessage(conversation.id, "assistant", text);
+      // Only save non-empty messages
+      if (text.trim().length > 0) {
+        await saveMessage(conversation.id, "assistant", text);
 
-      try {
-        console.log(`[Chat] Attempting to generate code from response...`);
-        const generation = await generateCode(projectId, text);
-        if (generation) {
-          console.log(`[Chat] Generated ${generation.files?.length || 0} files for project ${projectId}`);
-        } else {
-          console.log(`[Chat] No code blocks found in response`);
+        try {
+          console.log(`[Chat] Attempting to generate code from response...`);
+          const generation = await generateCode(projectId, text);
+          if (generation) {
+            console.log(`[Chat] Generated ${generation.files?.length || 0} files for project ${projectId}`);
+          } else {
+            console.log(`[Chat] No code blocks found in response`);
+          }
+        } catch (error) {
+          console.error("[Chat] Failed to generate code:", error);
         }
-      } catch (error) {
-        console.error("[Chat] Failed to generate code:", error);
+      } else {
+        console.warn(`[Chat] WARNING: Empty response from model, not saving. This may indicate a tool calling issue.`);
       }
     },
   });

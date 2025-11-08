@@ -182,6 +182,30 @@ export function getMessages(conversationId: string) {
   return db.prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC").all(conversationId)
 }
 
+export function deleteMessage(messageId: string) {
+  const result = db.prepare("DELETE FROM messages WHERE id = ?").run(messageId)
+  return result.changes > 0
+}
+
+export function deleteMessagesFromIndex(conversationId: string, messageIndex: number) {
+  // Get all messages for the conversation ordered by creation time
+  const allMessages = db.prepare("SELECT id FROM messages WHERE conversation_id = ? ORDER BY created_at ASC").all(conversationId) as { id: string }[]
+  
+  // Delete messages from the specified index onwards
+  if (messageIndex < allMessages.length) {
+    const messagesToDelete = allMessages.slice(messageIndex)
+    const placeholders = messagesToDelete.map(() => '?').join(',')
+    const ids = messagesToDelete.map(m => m.id)
+    
+    if (ids.length > 0) {
+      db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...ids)
+      return ids.length
+    }
+  }
+  
+  return 0
+}
+
 // File functions
 export function getFiles(projectId: string) {
   return db.prepare("SELECT * FROM files WHERE project_id = ? ORDER BY file_path").all(projectId)
