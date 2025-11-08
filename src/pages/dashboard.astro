@@ -12,13 +12,13 @@ import { ProjectList } from "@/components/project-list";
   </head>
   <body class="bg-background text-foreground">
     <div class="min-h-screen bg-background">
-      <main class="container mx-auto px-4 py-12 min-h-screen flex flex-col">
-        <section class="flex flex-col items-center text-center gap-4">
-          <h1 class="text-4xl md:text-5xl font-bold">What do you want to create?</h1>
-          <p class="text-muted-foreground">Start building with a single prompt. No coding needed.</p>
+      <main class="container mx-auto px-4 min-h-screen flex flex-col">
+        <section class="flex-1 flex flex-col items-center justify-center text-center gap-4">
+          <h1 class="text-4xl md:text-5xl font-bold">Your next idea starts here</h1>
+          <p class="text-muted-foreground">Use AI to build your next project.</p>
           <CreateProjectPrompt client:load />
         </section>
-        <section class="mt-auto pt-12">
+        <section class="py-12">
           <h2 class="mb-4 text-xl font-semibold">Recent Projects</h2>
           <ProjectList client:load />
         </section>

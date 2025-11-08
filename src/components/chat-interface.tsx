@@ -13,6 +13,8 @@ import {
 	ChevronDown,
 	ChevronRight,
 	FileCode,
+	AlertCircle,
+	Wrench,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/collapsible";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { refreshCodePreview } from "@/components/code-preview";
 
 interface Message {
 	id: string;
@@ -31,33 +34,44 @@ interface Message {
 
 // Popular models for code generation
 const AVAILABLE_MODELS = [
-	{ id: "openai/gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "OpenAI" },
-	{ id: "openai/gpt-5", name: "GPT 5", provider: "OpenAI" },
-	{
+	{ 
 		id: "anthropic/claude-3.5-sonnet",
 		name: "Claude 3.5 Sonnet",
 		provider: "Anthropic",
+		supportsTools: true,
 	},
+	{ 
+		id: "openai/gpt-4-turbo",
+		name: "GPT-4 Turbo",
+		provider: "OpenAI",
+		supportsTools: true,
+	},
+	{ id: "openai/gpt-5", name: "GPT 5", provider: "OpenAI", supportsTools: true },
 	{
 		id: "anthropic/claude-3-opus",
 		name: "Claude 3 Opus",
 		provider: "Anthropic",
+		supportsTools: true,
 	},
-	{ id: "google/gemini-pro-1.5", name: "Gemini 1.5 Pro", provider: "Google" },
+	{ id: "google/gemini-pro-1.5", name: "Gemini 1.5 Pro", provider: "Google", supportsTools: true },
+	{ id: "openai/gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "OpenAI", supportsTools: false },
 	{
 		id: "meta-llama/llama-3.1-70b-instruct",
 		name: "Llama 3.1 70B",
 		provider: "Meta",
+		supportsTools: false,
 	},
 	{
 		id: "qwen/qwen-2.5-coder-32b-instruct",
 		name: "Qwen 2.5 Coder 32B",
 		provider: "Alibaba",
+		supportsTools: false,
 	},
 	{
 		id: "deepseek/deepseek-coder",
 		name: "DeepSeek Coder",
 		provider: "DeepSeek",
+		supportsTools: false,
 	},
 ];
 
@@ -66,8 +80,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	const [input, setInput] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-	const [selectedModel, setSelectedModel] = useState("openai/gpt-4.1-mini");
+	const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+
+	// Check if current model supports tools
+	const currentModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
+	const supportsTools = currentModelInfo?.supportsTools ?? false;
 
 	// Load chat history on mount
 	useEffect(() => {
@@ -155,8 +173,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 					// Parse data: prefix from SSE format
 					if (line.startsWith("data: ")) {
+						const jsonStr = line.slice(6); // Remove 'data: ' prefix
+						
+						// Skip [DONE] marker
+						if (jsonStr.trim() === "[DONE]") {
+							continue;
+						}
+						
 						try {
-							const jsonStr = line.slice(6); // Remove 'data: ' prefix
 							const data = JSON.parse(jsonStr);
 
 							// Handle different message types from AI SDK
@@ -172,12 +196,41 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									return updated;
 								});
 							}
+							// Handle tool call events
+							else if (data.type === "tool-call" && data.toolName) {
+								const toolMessage = `\n\n🔧 **Using tool: ${data.toolName}**\n\`\`\`json\n${JSON.stringify(data.args, null, 2)}\n\`\`\`\n`;
+								assistantMessage += toolMessage;
+								
+								setMessages((prev) => {
+									const updated = [...prev];
+									if (updated[updated.length - 1]?.role === "assistant") {
+										updated[updated.length - 1].content = assistantMessage;
+									}
+									return updated;
+								});
+							}
+							// Handle tool result events
+							else if (data.type === "tool-result" && data.toolName) {
+								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n\n`;
+								assistantMessage += resultMessage;
+								
+								setMessages((prev) => {
+									const updated = [...prev];
+									if (updated[updated.length - 1]?.role === "assistant") {
+										updated[updated.length - 1].content = assistantMessage;
+									}
+									return updated;
+								});
+							}
 						} catch (e) {
 							console.error("Failed to parse stream data:", e, line);
 						}
 					}
 				}
 			}
+
+			// After streaming completes, refresh the code preview to show new files
+			refreshCodePreview();
 		} catch (error) {
 			console.error("Chat error:", error);
 			setMessages((prev) => [
@@ -242,7 +295,35 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		// Add remaining text (including incomplete code blocks during streaming)
 		if (lastIndex < content.length) {
-			parts.push({ type: "text", content: content.slice(lastIndex) });
+			const remaining = content.slice(lastIndex);
+
+			// Check if there's an incomplete code block being streamed
+			const incompleteCodeMatch = remaining.match(
+				/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*)/,
+			);
+
+			if (
+				incompleteCodeMatch &&
+				isStreaming &&
+				incompleteCodeMatch.index !== undefined
+			) {
+				// Add text before the incomplete code block
+				const textBefore = remaining.slice(0, incompleteCodeMatch.index);
+				if (textBefore.trim()) {
+					parts.push({ type: "text", content: textBefore });
+				}
+
+				// Add the incomplete code block as a loading state
+				parts.push({
+					type: "code",
+					language: incompleteCodeMatch[1] || "plaintext",
+					file: incompleteCodeMatch[2],
+					content: "streaming",
+					index: blockIndex++,
+				});
+			} else {
+				parts.push({ type: "text", content: remaining });
+			}
 		}
 
 		const toggleBlock = (index: number) => {
@@ -259,39 +340,66 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		return (
 			<div className="space-y-2 prose prose-sm dark:prose-invert max-w-none overflow-hidden">
-				{parts.map((part, i) =>
-					part.type === "text" ? (
-						<ReactMarkdown
-							key={i}
-							remarkPlugins={[remarkGfm]}
-							components={{
-								// Render inline code differently from code blocks
-								code: ({ node, className, ...props }: any) => {
-									const isInline = !className?.includes("language-");
-									return isInline ? (
-										<code
-											className="bg-muted px-1 py-0.5 rounded text-xs font-mono break-all"
-											{...props}
-										/>
-									) : (
-										<code className={className} {...props} />
-									);
-								},
-								// Handle any remaining code blocks in markdown (shouldn't happen with our regex)
-								pre: ({ children }: any) => (
-									<pre className="bg-muted/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
-										{children}
-									</pre>
-								),
-								// Break long words in paragraphs
-								p: ({ children }: any) => (
-									<p className="break-words">{children}</p>
-								),
-							}}
-						>
-							{part.content}
-						</ReactMarkdown>
-					) : (
+				{parts.map((part, i) => {
+					if (part.type === "text") {
+						return (
+							<ReactMarkdown
+								key={i}
+								remarkPlugins={[remarkGfm]}
+								components={{
+									// Render inline code differently from code blocks
+									code: ({ node, className, ...props }: any) => {
+										const isInline = !className?.includes("language-");
+										return isInline ? (
+											<code
+												className="bg-muted px-1 py-0.5 rounded text-xs font-mono break-all"
+												{...props}
+											/>
+										) : (
+											<code className={className} {...props} />
+										);
+									},
+									// Handle any remaining code blocks in markdown (shouldn't happen with our regex)
+									pre: ({ children }: any) => (
+										<pre className="bg-muted/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
+											{children}
+										</pre>
+									),
+									// Break long words in paragraphs
+									p: ({ children }: any) => (
+										<p className="break-words">{children}</p>
+									),
+								}}
+							>
+								{part.content}
+							</ReactMarkdown>
+						);
+					}
+
+					// Show loading state for incomplete code blocks
+					if (part.content === "streaming") {
+						return (
+							<div
+								key={i}
+								className="border border-border rounded-md overflow-hidden bg-background/50 not-prose max-w-full"
+							>
+								<div className="w-full flex items-center justify-between p-3 min-w-0">
+									<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
+										<Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+										<span className="font-mono font-medium truncate">
+											{part.file || `${part.language} code`}
+										</span>
+										<span className="text-xs text-muted-foreground flex-shrink-0">
+											Generating...
+										</span>
+									</div>
+								</div>
+							</div>
+						);
+					}
+
+					// Show complete code block with collapsible content
+					return (
 						<Collapsible
 							key={i}
 							open={expandedBlocks.has(part.index!)}
@@ -323,8 +431,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								</CollapsibleContent>
 							</div>
 						</Collapsible>
-					),
-				)}
+					);
+				})}
 			</div>
 		);
 	}
@@ -366,7 +474,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										isStreaming={isStreamingMessage}
 									/>
 								) : (
-									<p className="whitespace-pre-wrap break-words">{message.content}</p>
+									<p className="whitespace-pre-wrap break-words">
+										{message.content}
+									</p>
 								)}
 							</div>
 						</div>
@@ -388,6 +498,15 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				onSubmit={handleSubmit}
 				className="border-t border-border p-4 space-y-3"
 			>
+				{!supportsTools && (
+					<div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+						<AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+						<div className="text-sm text-yellow-600 dark:text-yellow-400">
+							<strong>Limited capabilities:</strong> This model doesn't support advanced tools (file reading, terminal commands, web fetching). 
+							For best results, use Claude 3.5 Sonnet or GPT-4 Turbo.
+						</div>
+					</div>
+				)}
 				<div className="flex items-center gap-2">
 					<span className="text-sm text-muted-foreground">Model:</span>
 					<Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -402,6 +521,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<span className="text-xs text-muted-foreground">
 											({model.provider})
 										</span>
+										{model.supportsTools && (
+											<span title="Supports tools (file reading, terminal, web fetch)">
+												<Wrench className="h-3 w-3 text-green-500" />
+											</span>
+										)}
 									</div>
 								</SelectItem>
 							))}
@@ -412,7 +536,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					<Textarea
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
-						placeholder="Describe your website..."
+						placeholder="Enter your prompt here..."
 						className="flex-1 min-h-[60px] max-h-[200px] resize-none"
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) {

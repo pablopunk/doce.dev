@@ -45,6 +45,84 @@ export async function generateCode(projectId: string, aiResponse: string) {
 }
 
 async function processFiles(projectId: string, files: GeneratedFile[]) {
+  // Validate and fix package.json to ensure required dependencies
+  const packageJsonIndex = files.findIndex(f => f.path === "package.json")
+  if (packageJsonIndex >= 0) {
+    try {
+      const pkg = JSON.parse(files[packageJsonIndex].content)
+      const requiredDeps = {
+        "astro": "^5.1.0",
+        "@astrojs/react": "^4.4.1",
+        "react": "19.2.0",
+        "react-dom": "19.2.0",
+        "tailwindcss": "^4.1.9",
+        "@tailwindcss/postcss": "^4.1.9",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.5.0"
+      }
+      
+      // Ensure dependencies object exists
+      if (!pkg.dependencies) {
+        pkg.dependencies = {}
+      }
+      
+      // Merge required dependencies (don't override if user specified different version)
+      for (const [dep, version] of Object.entries(requiredDeps)) {
+        if (!pkg.dependencies[dep]) {
+          console.log(`[CodeGen] Adding missing dependency: ${dep}@${version}`)
+          pkg.dependencies[dep] = version
+        }
+      }
+      
+      files[packageJsonIndex].content = JSON.stringify(pkg, null, 2)
+    } catch (error) {
+      console.error(`[CodeGen] Failed to parse/fix package.json:`, error)
+    }
+  }
+  
+  // Validate and fix postcss.config.cjs for Tailwind v4
+  const postcssConfigIndex = files.findIndex(f => f.path === "postcss.config.cjs" || f.path === "postcss.config.js")
+  if (postcssConfigIndex >= 0) {
+    const content = files[postcssConfigIndex].content
+    // Check if using old Tailwind v3 syntax
+    if (content.includes('tailwindcss: {}') || (content.includes('tailwindcss') && !content.includes('@tailwindcss/postcss'))) {
+      console.log(`[CodeGen] Fixing postcss.config.cjs to use Tailwind v4 syntax`)
+      files[postcssConfigIndex].content = `module.exports = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+    autoprefixer: {}
+  }
+};
+`
+    }
+  }
+  
+  // Validate and fix global.css for Tailwind v4
+  const globalCssIndex = files.findIndex(f => 
+    f.path.includes('global.css') || 
+    f.path.includes('globals.css') ||
+    f.path.includes('styles.css')
+  )
+  if (globalCssIndex >= 0) {
+    const content = files[globalCssIndex].content
+    // Check if using old Tailwind v3 syntax
+    if (content.includes('@tailwind base') || content.includes('@tailwind components') || content.includes('@tailwind utilities')) {
+      console.log(`[CodeGen] Fixing ${files[globalCssIndex].path} to use Tailwind v4 syntax`)
+      // Replace old syntax with new
+      let newContent = content
+        .replace(/@tailwind base;\s*/g, '')
+        .replace(/@tailwind components;\s*/g, '')
+        .replace(/@tailwind utilities;\s*/g, '')
+      
+      // Add import at the top if not already there
+      if (!newContent.includes('@import "tailwindcss"')) {
+        newContent = `@import "tailwindcss";\n\n` + newContent.trim()
+      }
+      
+      files[globalCssIndex].content = newContent
+    }
+  }
+  
   // Save to database
   for (const file of files) {
     if (file.path && file.content) {
@@ -68,8 +146,14 @@ function extractCodeBlocks(text: string): GeneratedFile[] {
   console.log(`[CodeGen] First 500 chars:`, text.slice(0, 500));
 
   while ((match = codeBlockRegex.exec(text)) !== null) {
-    const filePath = match[1] || `src/pages/generated-${fileIndex}.astro`
+    const filePath = match[1]
     const content = match[2].trim()
+
+    // Skip code blocks without a file path specified - they're probably examples or explanations
+    if (!filePath) {
+      console.log(`[CodeGen] Skipping code block without file path (${content.length} chars)`);
+      continue;
+    }
 
     console.log(`[CodeGen] Found code block: path=${filePath}, content length=${content.length}`);
 
