@@ -87,3 +87,6 @@ components.json
 
 # Ignore environment key files
 .env*
+
+# Astro
+.astro
