@@ -3,309 +3,101 @@
 ## Overview
 Self‑hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
 
-**Stack**: Astro (Node adapter) • better‑sqlite3 (`./data/doceapp.db`) • `ai` SDK with OpenRouter • Docker + Traefik (optional for local dev)
+**Stack**: Astro (Node adapter) • better‑sqlite3 (`./data/doceapp.db`) • `ai` SDK with OpenRouter • Docker
 
-## Run Locally
-```bash
-pnpm install       # Use pnpm, not npm
-pnpm run dev       # http://localhost:4321
-pnpm run build
-```
+**Run**: `pnpm install && pnpm run dev` → http://localhost:4321
 
 **Environment**: `DATABASE_PATH` (default `./data/doceapp.db`) • `PROJECTS_DIR` (default `./data/projects/`) • `DOCKER_HOST` (default `/var/run/docker.sock`)
 
-## Setup Flow
-Navigate to `/setup` → create admin user → configure AI provider. **API keys are stored in DB `config` table**, not env vars.
-
-**AI Model Selection**: Users can select their preferred AI model from the dashboard input prompt. The settings icon shows the currently selected model's provider logo. Available models are centralized in `src/shared/config/ai-models.ts`.
+**Setup**: `/setup` → create admin user → configure AI provider (keys in DB, not env vars)
 
 ## 🎨 Design System
 
-**Pure B&W System**: Monochromatic design using only black, white, and grays. No accent colors. Light mode is literally the inverse of dark mode.
+**Pure B&W**: Monochromatic design with inverted light/dark modes. Light/Dark/System toggle in TopNav (localStorage + system preference).
 
-**Theme Modes**: Light/Dark/System theme switching via toggle in TopNav. Theme stored in localStorage, defaults to system preference.
+**Color Tokens** (HSL S=0%):
+- Neutrals: `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--border-strong`
+- Primary: White (#fcfcfc) in dark, black (#050505) in light
+- Semantic (OKLCH): `--success`, `--warning`, `--danger` (alerts only)
+- Shadows: `--shadow-1` (short/dark) + `--shadow-2` (long/light)
 
-**Color Tokens**:
-- **Neutrals** (HSL with S=0%): `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--border-strong`, `--highlight`
-- **Primary**: Pure white (#fcfcfc) in dark mode, pure black (#050505) in light mode for buttons/CTAs
-- **Semantic** (OKLCH): `--success`, `--warning`, `--danger` (only for alerts/notifications)
-- **Shadows**: Two-layer system using `--shadow-1` (short/darker) + `--shadow-2` (long/lighter) - stronger shadows for depth
+**Dark Mode** (default): Base 3%L → Surface 5%L → Raised 8%L | Text 98%L | Borders 15%L/25%L
+**Light Mode** (inverse): Base 97%L → Surface 95%L → Raised 92%L | Text 2%L | Borders 85%L/75%L
 
-**Dark Mode** (default):
-- Base: 3% L (deep black #080808)
-- Surface: 5% L (cards)
-- Raised: 8% L (elevated)
-- Text: 98% L (near-white)
-- Borders: 15% L subtle, 25% L strong
-- Primary: 98% L (white buttons)
+**Elements**: 2px borders, no rounded corners (except specified), scale-on-press buttons, shadow-on-hover cards
 
-**Light Mode** (inverted):
-- Base: 97% L (near-white)
-- Surface: 95% L (cards)
-- Raised: 92% L (elevated)
-- Text: 2% L (near-black)
-- Borders: 85% L subtle, 75% L strong
-- Primary: 2% L (black buttons)
+**Tailwind**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `border-strong`, `shadow-elevation`
 
-**Visual Elements**:
-- **Cards**: 2px borders with subtle top highlight, hover state with shadow increase
-- **Buttons**: B&W with 2px borders, font-semibold, scale-on-press animation
-- **Inputs**: 2px borders, focus ring, hover state
-- **All elements**: 2px borders for definition, no rounded corners except where specified
-
-**Tailwind Extensions**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `border-strong`, `shadow-elevation`, `shadow-elevation-lg`
-
-**Theme Hook**: `src/hooks/use-theme.ts` - Manages light/dark/system theme switching
-
----
+**Theme Hook**: `src/hooks/use-theme.ts`
 
 ## 🏗️ Architecture (Clean Architecture + DDD)
 
 **Flow**: API Route → Facade → Use Case → Domain Service → Repository → Infrastructure
 
-**Layers**:
+**Layers**: API (thin routes) → Application (use cases, facades) → Domain (pure business logic) → Infrastructure (SQLite, Docker, FS, AI) → Shared (errors, types, config)
+
+**Structure**:
 ```
-API (src/pages/api/)           → Thin Astro routes
-Application (src/application/) → Use cases + Facades (temp)
-Domain (src/domains/*/domain/) → Business logic, ZERO infrastructure deps
-Infrastructure (src/infrastructure/) → SQLite, Docker, File System, AI providers
-Shared (src/shared/)           → Errors, types, config, logging
+domains/{domain}/domain/      → models/, repositories/ (interfaces), services/
+domains/{domain}/application/ → use-cases/
+infrastructure/               → database/sqlite/, container-orchestration/, file-system/, ai-providers/
+application/facades/          → temp adapters (migration in progress)
+shared/                       → kernel/, logging/, config/
 ```
 
-**Key Structure**:
-```
-src/
-├── domains/{domain}/
-│   ├── domain/
-│   │   ├── models/           # Aggregate roots (e.g., Project)
-│   │   ├── repositories/     # Interfaces ONLY
-│   │   └── services/         # Business logic
-│   └── application/
-│       └── use-cases/        # Orchestrates domain + infrastructure
-├── infrastructure/
-│   ├── database/sqlite/      # Repository implementations
-│   ├── container-orchestration/docker/  # Docker logic (TODO)
-│   ├── file-system/          # File operations (TODO)
-│   └── ai-providers/         # AI provider logic (TODO)
-├── application/facades/      # Temp adapters during migration
-└── shared/                   # Errors, types, config, logging
-```
+**Migration**: ✅ Projects domain + 8 routes | 🔄 Conversations, files, deployments | ⏳ Docker/FS/AI to infrastructure
 
-**Migration Status**:
-- ✅ **Migrated**: Projects domain + 8 API routes
-- 🔄 **In Progress**: Conversations, files, deployments domains
-- ⏳ **TODO**: Docker/file-system to infrastructure, AI providers, code generation
-
-**Frontend Structure**:
-```
-src/
-├── layouts/
-│   └── BaseLayout.astro        # Shared HTML boilerplate
-├── pages/
-│   ├── *.astro                 # Routes (use BaseLayout)
-│   └── api/                    # API endpoints
-└── components/
-    ├── *.tsx                   # React components (interactive UI)
-    └── ui/                     # shadcn/ui components
-```
-
----
+**Frontend**: `layouts/` (BaseLayout.astro) → `pages/` (.astro routes + api/) → `components/` (.tsx React + ui/ shadcn)
 
 ## 💡 Adding a New Feature
 
-**1. Domain Model** (business logic):
-```typescript
-// domains/my-feature/domain/models/my-entity.model.ts
-export class MyEntity extends AggregateRoot<Props> {
-  static create(data: CreateData): MyEntity { /* validation */ }
-}
-```
+**Flow**: Domain Model → Repository Interface (domain) → Use Case (application) → Repository Impl (infrastructure) → Facade (temp) → API Route → UI Page → React Component
 
-**2. Repository Interface** (in domain):
-```typescript
-// domains/my-feature/domain/repositories/my-entity.repository.interface.ts
-export interface IMyEntityRepository {
-  findById(id: string): Promise<MyEntity | null>;
-  save(entity: MyEntity): Promise<void>;
-}
-```
-
-**3. Use Case** (orchestration):
-```typescript
-// domains/my-feature/application/use-cases/create.use-case.ts
-export class CreateMyEntityUseCase {
-  constructor(private repo: IMyEntityRepository, private logger: Logger) {}
-  async execute(dto: CreateDto): Promise<ResultDto> {
-    const entity = MyEntity.create(dto);
-    await this.repo.save(entity);
-    return this.toDto(entity);
-  }
-}
-```
-
-**4. Repository Implementation** (infrastructure):
-```typescript
-// infrastructure/database/sqlite/repositories/my-entity.repository.ts
-export class SqliteMyEntityRepository implements IMyEntityRepository {
-  async findById(id: string): Promise<MyEntity | null> {
-    const row = getDatabase().prepare("SELECT * FROM table WHERE id = ?").get(id);
-    return row ? MyEntity.fromPersistence(row) : null;
-  }
-}
-```
-
-**5. Facade** (temp):
-```typescript
-// application/facades/my-entity-facade.ts
-class MyEntityFacade {
-  private repo = new SqliteMyEntityRepository();
-  async create(data) {
-    const useCase = new CreateMyEntityUseCase(this.repo, logger);
-    return useCase.execute(data);
-  }
-}
-export const myEntityFacade = new MyEntityFacade();
-```
-
-**6. API Route**:
-```typescript
-// pages/api/my-endpoint.ts
-import { myEntityFacade } from '@/application/facades/my-entity-facade';
-export const POST: APIRoute = async ({ request }) => {
-  const result = await myEntityFacade.create(await request.json());
-  return Response.json(result);
-};
-```
-
-**7. UI Page** (if needed):
-```astro
----
-// pages/my-page.astro
-import BaseLayout from "@/layouts/BaseLayout.astro";
-import { MyComponent } from "@/components/my-component";
----
-
-<BaseLayout title="My Page">
-  <div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold">My Page</h1>
-    <MyComponent client:load />
-  </div>
-</BaseLayout>
-```
-
-**8. React Component** (for interactive UI):
-```tsx
-// components/my-component.tsx
-"use client";
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-
-export function MyComponent() {
-  const [data, setData] = useState([]);
-
-  // Fetch data, handle events, etc.
-
-  return <div>{/* Proper React JSX */}</div>;
-}
-```
-
----
+**1. Domain**: `domains/my-feature/domain/models/` - Aggregate root extending `AggregateRoot<Props>`
+**2. Repo Interface**: `domains/my-feature/domain/repositories/` - `IMyEntityRepository` interface
+**3. Use Case**: `domains/my-feature/application/use-cases/` - Orchestrates domain + repo
+**4. Repo Impl**: `infrastructure/database/sqlite/repositories/` - Implements interface with `getDatabase()`
+**5. Facade**: `application/facades/` - Instantiates repo + use case (temp during migration)
+**6. API**: `pages/api/my-endpoint.ts` - Import facade, call methods
+**7. Page**: `pages/my-page.astro` - Use `BaseLayout`, import React component with `client:load`
+**8. Component**: `components/my-component.tsx` - React with `"use client"`, shadcn/ui imports
 
 ## Rules
 
-**DO**:
-- Keep domain pure (no infrastructure imports)
-- Small functions (< 20 lines)
-- Use proper error types (`ValidationError`, `NotFoundError`, etc.)
-- Define interfaces in domain, implement in infrastructure
-- Type-safe (avoid `any`)
-- **Use shared layouts** for all pages (`src/layouts/BaseLayout.astro`)
-- **Create proper React components** for interactive UI (in `src/components/`)
-- **Use Astro islands** with `client:load` for React components in `.astro` pages
+**DO**: Keep domain pure • Small functions (<20 lines) • Proper error types • Type-safe • Use BaseLayout • React components for UI • Astro islands with `client:load`
 
-**DON'T**:
-- Import infrastructure in domain layer
-- Put business logic in API routes
-- Directly access database from routes
-- **NEVER use `innerHTML` or string-based DOM manipulation** - use React components
-- **NEVER duplicate HTML boilerplate** across pages - use layouts
-- **NEVER create full HTML pages in `.astro` files** - use layouts with slots
-
----
+**DON'T**: Infrastructure in domain • Business logic in routes • Direct DB access from routes • `innerHTML` or string DOM manipulation • Duplicate HTML • Full pages in `.astro` without layouts
 
 ## Data & Files
 
-**Database**: Tables: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments` • Access via repositories (new) or `db.ts` (legacy) • **Migrations**: Auto-run on first DB connection (dev/preview/production start, NOT during build)
+**DB**: Tables `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments` • Repositories (new) or `db.ts` (legacy) • Migrations auto-run on first connection (NOT build)
 
-**Config Table Keys**:
-- `ai_provider` - Provider name (openrouter, openai, anthropic)
-- `{provider}_api_key` - API key for each provider
-- `default_ai_model` - Currently selected AI model ID
-- `setup_complete` - Setup wizard completion flag
+**Config**: `ai_provider`, `{provider}_api_key`, `default_ai_model`, `setup_complete`
 
-**Files**: Mirrored in DB + filesystem • Use `writeProjectFiles` / `listProjectFiles` from `src/lib/file-system.ts`
+**Files**: Mirrored in DB + FS • Use `writeProjectFiles`/`listProjectFiles` (`src/lib/file-system.ts`)
 
-**Docker**: Preview containers: `doce-preview-{projectId}` on ports 10000-20000 • **Docker is source of truth** — DB `preview_url` is cache
+**Docker**: Preview `doce-preview-{projectId}` on ports 10000-20000 • Docker is source of truth, DB `preview_url` is cache
 
----
+**AI Models**: `src/shared/config/ai-models.ts` (7 models) • `DEFAULT_AI_MODEL`, `AVAILABLE_AI_MODELS`, `getModelById()`, `isValidModel()` • Provider icons in `src/components/ui/svgs/` (SVGL via shadcn)
 
-## Code Generation
-
-Use fenced blocks with `file="path"`:
-```tsx file="src/components/Widget.tsx"
-export function Widget() { return <div /> }
-```
-
-**Stack**: Astro 5 + React islands + Tailwind v4 + TypeScript • Parser tries JSON `{ files: [...] }` first, then extracts fenced blocks
-
----
-
-## AI Models & Configuration
-
-**Centralized Model Config**: All AI models are defined in `src/shared/config/ai-models.ts`:
-- `DEFAULT_AI_MODEL` - Default model constant
-- `AVAILABLE_AI_MODELS` - Array of 7 available models (OpenAI, Anthropic, Google, MoonshotAI, xAI)
-- `getModelById()` - Helper to find a model by ID
-- `isValidModel()` - Helper to validate model IDs
-
-**Model Selection UI**:
-- Dashboard prompt shows selected model's provider icon (replaces settings icon)
-- Popover displays all available models with provider icons and descriptions
-- Selection persisted in DB `config` table under `default_ai_model` key
-
-**Provider Icons**: SVG logos installed from [SVGL](https://svgl.app/) via shadcn/ui registry:
-- Located in `src/components/ui/svgs/`
-- Styled with muted grey colors to match dark theme
-- Registry configured in `components.json` under `registries.@svgl`
-
----
+**Code Gen**: Fenced blocks with `file="path"` • Parser tries JSON first, then extracts blocks
 
 ## Debugging
 
 **DB**: `sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"`
-
 **Docker**: `docker ps --filter "name=doce-preview"` • `docker logs doce-preview-{id} --tail 50`
-
 **API**: `curl -s http://localhost:4321/api/projects/{id} | jq`
 
-**Common Issues**:
-- Preview not showing? Check `preview_url` (snake_case) in API response
-- Build errors? Ensure proper imports: `@/domains/...`, `@/infrastructure/...`, `@/shared/...`
-- Type errors? Domain imports only from `@/shared/kernel/`
-
----
+**Issues**: Preview → check `preview_url` • Build → check imports • Types → domain only imports `@/shared/kernel/`
 
 ## Guidelines
 
-- **Always use pnpm** (not npm)
-- **Run `pnpm build`** frequently to catch errors
-- **Schema changes**: Add to `src/lib/migrations.ts` (migrations auto-run on app start)
-- **Test APIs with curl** before UI changes
-- **Check Docker first** when debugging previews
-- **Adding new AI models**: Update `src/shared/config/ai-models.ts` only (single source of truth)
-- **Adding provider icons**: Use `pnpm dlx shadcn@latest add @svgl/{icon-name}` to install from SVGL registry
+- Use **pnpm** • Run `pnpm build` frequently
+- Schema → `src/lib/migrations.ts` • Test APIs with curl first
+- Docker first for preview debugging
+- New models → `src/shared/config/ai-models.ts`
+- Icons → `pnpm dlx shadcn@latest add @svgl/{icon-name}`
 
 ---
 
-Scope: This file defines architecture for the entire repo. New features follow Clean Architecture. Legacy code is gradually migrating.
+**Scope**: Architecture for entire repo. New features follow Clean Architecture. Legacy migrating.
