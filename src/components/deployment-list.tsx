@@ -1,20 +1,41 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ExternalLink, Trash2, CheckCircle, XCircle } from "lucide-react"
 import useSWR from "swr"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { cn } from "@/lib/utils"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function DeploymentList({ projectId }: { projectId: string }) {
   const { data, mutate } = useSWR(`/api/projects/${projectId}/deploy`, fetcher, { refreshInterval: 5000 })
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deploymentToDelete, setDeploymentToDelete] = useState<string | null>(null)
 
-  const handleDelete = async (deploymentId: string) => {
-    if (confirm("Are you sure you want to stop this deployment?")) {
-      await fetch(`/api/deployments/${deploymentId}`, { method: "DELETE" })
+  const handleDeleteClick = (deploymentId: string) => {
+    setDeploymentToDelete(deploymentId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (deploymentToDelete) {
+      await fetch(`/api/deployments/${deploymentToDelete}`, { method: "DELETE" })
       mutate()
     }
+    setDeleteDialogOpen(false)
+    setDeploymentToDelete(null)
   }
 
   if (!data?.deployments) {
@@ -50,7 +71,7 @@ export function DeploymentList({ projectId }: { projectId: string }) {
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(deployment.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(deployment.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -59,6 +80,23 @@ export function DeploymentList({ projectId }: { projectId: string }) {
           ))}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Deployment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop this deployment? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={handleDeleteConfirm}>
+              Stop
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

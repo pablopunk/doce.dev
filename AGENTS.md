@@ -21,27 +21,39 @@ Navigate to `/setup` → create admin user → configure AI provider. **API keys
 
 ## 🎨 Design System
 
-**Color System**: Neutral-first approach using HSL for neutrals (0% saturation) + OKLCH for brand/semantic colors.
+**Pure B&W System**: Monochromatic design using only black, white, and grays. No accent colors. Light mode is literally the inverse of dark mode.
 
 **Theme Modes**: Light/Dark/System theme switching via toggle in TopNav. Theme stored in localStorage, defaults to system preference.
 
 **Color Tokens**:
-- **Neutrals** (HSL with S=0%): `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--highlight`
-- **Primary** (OKLCH): Black & white buttons (no brand color) - **darkest buttons on dark**, **lightest buttons on light**
+- **Neutrals** (HSL with S=0%): `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--border-strong`, `--highlight`
+- **Primary**: Pure white (#fcfcfc) in dark mode, pure black (#050505) in light mode for buttons/CTAs
 - **Semantic** (OKLCH): `--success`, `--warning`, `--danger` (only for alerts/notifications)
-- **Shadows**: Two-layer system using `--shadow-1` (short/darker) + `--shadow-2` (long/lighter)
+- **Shadows**: Two-layer system using `--shadow-1` (short/darker) + `--shadow-2` (long/lighter) - stronger shadows for depth
 
-**Dark Mode**: Base at 0% L (darkest), surfaces at 8% L, raised at 14% L (lightest) - more depth with lighter cards
+**Dark Mode** (default):
+- Base: 3% L (deep black #080808)
+- Surface: 5% L (cards)
+- Raised: 8% L (elevated)
+- Text: 98% L (near-white)
+- Borders: 15% L subtle, 25% L strong
+- Primary: 98% L (white buttons)
 
-**Light Mode**: Base at 94% L (darker), surfaces at 98% L, raised at 100% L (brightest) - creates depth with darker backgrounds and lighter elevated elements
+**Light Mode** (inverted):
+- Base: 97% L (near-white)
+- Surface: 95% L (cards)
+- Raised: 92% L (elevated)
+- Text: 2% L (near-black)
+- Borders: 85% L subtle, 75% L strong
+- Primary: 2% L (black buttons)
 
-**Micro-interactions**:
-- Cards: Border + top highlight (`--highlight`) + two-layer shadow (`shadow-elevation`)
-- Buttons: Elevation shadows + hover brightness + active states
-- Inputs: Border + shadow + focus ring
-- Nav: Elevated with subtle backdrop blur + top highlight
+**Visual Elements**:
+- **Cards**: 2px borders with subtle top highlight, hover state with shadow increase
+- **Buttons**: B&W with 2px borders, font-semibold, scale-on-press animation
+- **Inputs**: 2px borders, focus ring, hover state
+- **All elements**: 2px borders for definition, no rounded corners except where specified
 
-**Tailwind Extensions**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `shadow-elevation`, `shadow-elevation-lg`, `gradient-subtle`
+**Tailwind Extensions**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `border-strong`, `shadow-elevation`, `shadow-elevation-lg`
 
 **Theme Hook**: `src/hooks/use-theme.ts` - Manages light/dark/system theme switching
 

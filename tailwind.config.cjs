@@ -5,17 +5,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // New neutral system
+        // Pure B&W system
         'bg-base': 'var(--bg-base)',
         'bg-surface': 'var(--bg-surface)',
         'bg-raised': 'var(--bg-raised)',
         'text-strong': 'var(--text-strong)',
         'text-muted': 'var(--text-muted)',
         'highlight': 'var(--highlight)',
+        'border-strong': 'var(--border-strong)',
       },
       boxShadow: {
-        'elevation': '0 1px 3px var(--shadow-1), 0 8px 16px var(--shadow-2)',
-        'elevation-lg': '0 4px 6px var(--shadow-1), 0 12px 32px var(--shadow-2)',
+        'elevation': '0 2px 4px var(--shadow-1), 0 8px 16px var(--shadow-2)',
+        'elevation-lg': '0 4px 8px var(--shadow-1), 0 16px 32px var(--shadow-2)',
       },
       backgroundImage: {
         'gradient-conic': 'conic-gradient(var(--tw-gradient-stops))',

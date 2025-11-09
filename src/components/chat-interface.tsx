@@ -56,9 +56,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	useEffect(() => {
 		async function loadHistory() {
 			try {
+				console.log(`[ChatInterface] Loading history for project ${projectId}`);
 				const res = await fetch(`/api/chat/${projectId}/history`);
+				console.log(`[ChatInterface] History response status: ${res.status}`);
 				if (res.ok) {
 					const data = await res.json();
+					console.log(`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`);
 					setMessages(data.messages || []);
 					if (data.model) {
 						setSelectedModel(data.model);
@@ -584,17 +587,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					<span className="text-sm text-muted-foreground">Model:</span>
 					<Select value={selectedModel} onValueChange={setSelectedModel}>
 						<SelectTrigger className="w-[240px]">
-							<SelectValue />
+							<SelectValue placeholder="Select a model" />
 						</SelectTrigger>
 						<SelectContent>
 							{AVAILABLE_AI_MODELS.map((model) => (
 								<SelectItem key={model.id} value={model.id}>
-									<div className="flex items-center gap-2">
-										<span>{model.name}</span>
-										<span className="text-xs text-muted-foreground">
-											({model.provider})
-										</span>
-									</div>
+									{model.name} ({model.provider})
 								</SelectItem>
 							))}
 						</SelectContent>

@@ -5,13 +5,13 @@ import { ProjectList } from "@/components/project-list";
 ---
 
 <BaseLayout title="Dashboard">
-  <div class="min-h-screen bg-background">
+  <div class="bg-background">
     <main class="container mx-auto px-4 min-h-[calc(100vh-3.5rem)] flex flex-col">
       <!-- Hero section with subtle gradient -->
       <section class="flex-1 flex flex-col items-center justify-center text-center gap-4 relative">
         <div class="absolute inset-0 bg-gradient-subtle opacity-50 pointer-events-none" />
         <div class="relative z-10 flex flex-col gap-4">
-          <h1 class="text-4xl md:text-5xl font-bold text-text-strong">Your next idea starts here</h1>
+          <h1 class="text-4xl md:text-5xl font-bold text-text-strong my-5">Your next idea starts here</h1>
           <p class="text-text-muted">Use AI to build your next project.</p>
           <CreateProjectPrompt client:load />
         </div>

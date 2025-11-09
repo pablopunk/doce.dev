@@ -16,3 +16,5 @@
 - [ ] Project export/import functionality
 - [ ] Support for multiple frameworks (Next.js, etc.) and infra
 - [ ] Add agent-controlled "Tasks" section to chat interface
+- [ ] Make design system have semantic colors. There should be zero "dark:" classes in the codebase, since there's no reason to differentiate between light and dark mode with semantic colors.
+- [ ] URL bar in the preview window
