@@ -1,11 +1,8 @@
 "use client";
 
+import { ArrowUpRight, ExternalLink, Eye, Rocket, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { Card } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Trash2, Eye, Rocket, ArrowUpRight } from "lucide-react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,6 +13,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());

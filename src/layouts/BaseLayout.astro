@@ -3,12 +3,16 @@ import "../styles/global.css";
 import { TopNav } from "@/components/top-nav";
 
 interface Props {
-  title: string;
-  bodyClass?: string;
-  showNav?: boolean;
+	title: string;
+	bodyClass?: string;
+	showNav?: boolean;
 }
 
-const { title, bodyClass = "bg-bg-base text-text-strong", showNav = true } = Astro.props;
+const {
+	title,
+	bodyClass = "bg-bg-base text-text-strong",
+	showNav = true,
+} = Astro.props;
 ---
 
 <!DOCTYPE html>

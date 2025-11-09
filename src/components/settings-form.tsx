@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Check, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { Openai } from "@/components/ui/svgs/openai";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { Google } from "@/components/ui/svgs/google";
 import { GrokDark } from "@/components/ui/svgs/grokDark";
 import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
+import { Openai } from "@/components/ui/svgs/openai";
 
 interface AIModel {
 	id: string;
@@ -52,7 +52,7 @@ export function SettingsForm() {
 	const handleModelChange = async (modelId: string) => {
 		setSaveStatus({ message: "", type: "" });
 		setPopoverOpen(false);
-		
+
 		try {
 			const res = await fetch("/api/config/model", {
 				method: "POST",
@@ -78,7 +78,8 @@ export function SettingsForm() {
 	};
 
 	const getProviderIcon = (provider: string) => {
-		const iconClass = "h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+		const iconClass =
+			"h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -119,7 +120,10 @@ export function SettingsForm() {
 								{currentModelInfo ? (
 									<>
 										<span className="font-medium">{currentModelInfo.name}</span>
-										<span className="text-muted-foreground"> — {currentModelInfo.provider}</span>
+										<span className="text-muted-foreground">
+											{" "}
+											— {currentModelInfo.provider}
+										</span>
 									</>
 								) : (
 									"Select a model"
@@ -145,9 +149,7 @@ export function SettingsForm() {
 										{currentModel === model.id && (
 											<Check className="h-3.5 w-3.5 text-primary" />
 										)}
-										<span className="text-sm font-medium">
-											{model.name}
-										</span>
+										<span className="text-sm font-medium">{model.name}</span>
 										<span className="text-xs text-muted-foreground">
 											{model.provider}
 										</span>

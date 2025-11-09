@@ -18,10 +18,13 @@ export function useTheme() {
 		// Function to apply theme
 		const applyTheme = (currentTheme: Theme) => {
 			const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-			const effectiveTheme = currentTheme === "system" 
-				? (mediaQuery.matches ? "dark" : "light") 
-				: currentTheme;
-			
+			const effectiveTheme =
+				currentTheme === "system"
+					? mediaQuery.matches
+						? "dark"
+						: "light"
+					: currentTheme;
+
 			setResolvedTheme(effectiveTheme as "light" | "dark");
 
 			// Apply theme class to html element
@@ -39,9 +42,10 @@ export function useTheme() {
 				applyTheme("system");
 			}
 		};
-		
+
 		mediaQuery.addEventListener("change", handleSystemThemeChange);
-		return () => mediaQuery.removeEventListener("change", handleSystemThemeChange);
+		return () =>
+			mediaQuery.removeEventListener("change", handleSystemThemeChange);
 	}, [theme]);
 
 	const changeTheme = (newTheme: Theme) => {
@@ -50,10 +54,13 @@ export function useTheme() {
 
 		// Apply immediately
 		const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-		const effectiveTheme = newTheme === "system" 
-			? (mediaQuery.matches ? "dark" : "light") 
-			: newTheme;
-		
+		const effectiveTheme =
+			newTheme === "system"
+				? mediaQuery.matches
+					? "dark"
+					: "light"
+				: newTheme;
+
 		setResolvedTheme(effectiveTheme as "light" | "dark");
 
 		document.documentElement.classList.remove("light", "dark");

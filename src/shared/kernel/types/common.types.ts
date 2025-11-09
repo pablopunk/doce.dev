@@ -11,14 +11,14 @@ export type ID = string;
 export type Timestamp = Date;
 
 export interface WithId {
-  id: ID;
+	id: ID;
 }
 
 export interface WithTimestamps {
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
 }
 
 export interface WithSoftDelete {
-  deletedAt: Nullable<Timestamp>;
+	deletedAt: Nullable<Timestamp>;
 }

@@ -1,17 +1,17 @@
 {
-  "extends": "astro/tsconfigs/strict",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "moduleResolution": "bundler",
-    "allowJs": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "noEmit": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": [".astro/types.d.ts", "src/**/*"],
-  "exclude": ["dist", "node_modules"]
+	"extends": "astro/tsconfigs/strict",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"jsxImportSource": "react",
+		"moduleResolution": "bundler",
+		"allowJs": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"noEmit": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": [".astro/types.d.ts", "src/**/*"],
+	"exclude": ["dist", "node_modules"]
 }

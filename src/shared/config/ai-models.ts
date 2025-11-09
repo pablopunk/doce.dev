@@ -27,19 +27,22 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
 		id: "openai/gpt-5-codex",
 		name: "GPT-5 Codex",
 		provider: "OpenAI",
-		description: "Specialized for software engineering. Agentic coding with adjustable reasoning.",
+		description:
+			"Specialized for software engineering. Agentic coding with adjustable reasoning.",
 	},
 	{
 		id: "anthropic/claude-sonnet-4.5",
 		name: "Claude Sonnet 4.5",
 		provider: "Anthropic",
-		description: "Most advanced for coding and autonomous agents. Top SWE-bench scores.",
+		description:
+			"Most advanced for coding and autonomous agents. Top SWE-bench scores.",
 	},
 	{
 		id: "google/gemini-2.5-flash",
 		name: "Gemini 2.5 Flash",
 		provider: "Google",
-		description: "Fast workhorse with thinking mode. Great for coding and math.",
+		description:
+			"Fast workhorse with thinking mode. Great for coding and math.",
 	},
 	{
 		id: "google/gemini-2.5-pro",
@@ -51,7 +54,8 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
 		id: "moonshotai/kimi-k2-thinking",
 		name: "Kimi K2 Thinking",
 		provider: "MoonshotAI",
-		description: "Deep reasoning with 256k context. Long-horizon coding workflows.",
+		description:
+			"Deep reasoning with 256k context. Long-horizon coding workflows.",
 	},
 	{
 		id: "x-ai/grok-code-fast-1",

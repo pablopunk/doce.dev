@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		// Note: In production with Node adapter, we need to handle WebSocket differently
 		// For now, we'll use Server-Sent Events (SSE) which works better with Astro
 		const encoder = new TextEncoder();
-		
+
 		// Send keepalive comments every 15 seconds to prevent connection timeout
 		let keepaliveInterval: NodeJS.Timeout | null = null;
 
@@ -29,7 +29,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 			async start(controller) {
 				// Send initial connection message
 				controller.enqueue(
-					encoder.encode(`data: ${JSON.stringify({ log: "✓ Connected to container\n" })}\n\n`),
+					encoder.encode(
+						`data: ${JSON.stringify({ log: "✓ Connected to container\n" })}\n\n`,
+					),
 				);
 
 				// Setup keepalive
@@ -54,7 +56,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 						let offset = 0;
 
 						// Check if this looks like multiplexed format (starts with 0,1,2 as stream type)
-						if (chunk.length >= 8 && (chunk[0] === 0 || chunk[0] === 1 || chunk[0] === 2)) {
+						if (
+							chunk.length >= 8 &&
+							(chunk[0] === 0 || chunk[0] === 1 || chunk[0] === 2)
+						) {
 							while (offset < chunk.length) {
 								// Docker multiplexes stdout/stderr with 8-byte headers
 								// [stream_type(1)][padding(3)][size(4)]

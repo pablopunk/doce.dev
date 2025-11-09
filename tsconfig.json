@@ -1,23 +1,19 @@
 {
-  "extends": "astro/tsconfigs/strict",
-  "compilerOptions": {
-    "allowJs": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "noEmit": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    },
-    "skipLibCheck": true
-  },
-  "include": [
-    ".astro/types.d.ts",
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": ["dist", "node_modules", ".next"]
+	"extends": "astro/tsconfigs/strict",
+	"compilerOptions": {
+		"allowJs": true,
+		"esModuleInterop": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "react",
+		"noEmit": true,
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"skipLibCheck": true
+	},
+	"include": [".astro/types.d.ts", "**/*.ts", "**/*.tsx"],
+	"exclude": ["dist", "node_modules", ".next"]
 }

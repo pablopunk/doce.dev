@@ -1,5 +1,5 @@
-import type { Project } from "../models/project.model";
 import type { Nullable } from "@/shared/kernel/types/common.types";
+import type { Project } from "../models/project.model";
 
 /**
  * Project Repository Interface
@@ -7,8 +7,8 @@ import type { Nullable } from "@/shared/kernel/types/common.types";
  * Infrastructure layer will implement this
  */
 export interface IProjectRepository {
-  findById(id: string): Promise<Nullable<Project>>;
-  findAll(): Promise<Project[]>;
-  save(project: Project): Promise<void>;
-  delete(id: string): Promise<void>;
+	findById(id: string): Promise<Nullable<Project>>;
+	findAll(): Promise<Project[]>;
+	save(project: Project): Promise<void>;
+	delete(id: string): Promise<void>;
 }

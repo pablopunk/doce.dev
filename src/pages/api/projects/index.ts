@@ -1,64 +1,63 @@
-import type { APIRoute } from "astro";
-import { projectFacade } from "@/application/facades/project-facade";
-import {
-	createConversation,
-	saveMessage,
-	saveFile,
-	getConfig,
-} from "@/lib/db";
-import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
+import type { APIRoute } from "astro";
+import { projectFacade } from "@/application/facades/project-facade";
 import { generateCode } from "@/lib/code-generator";
-import { copyTemplateToProject } from "@/lib/template-generator";
+import { createConversation, getConfig, saveFile, saveMessage } from "@/lib/db";
 import { writeProjectFiles } from "@/lib/file-system";
+import { copyTemplateToProject } from "@/lib/template-generator";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 // Helper to get AI model from database config
 function getAIModel() {
-	const provider = getConfig('ai_provider') || 'openrouter';
+	const provider = getConfig("ai_provider") || "openrouter";
 	const apiKey = getConfig(`${provider}_api_key`);
-	const defaultModel = getConfig('default_ai_model') || DEFAULT_AI_MODEL;
-	
+	const defaultModel = getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+
 	if (!apiKey) {
-		throw new Error(`No API key configured for ${provider}. Please complete setup at /setup`);
+		throw new Error(
+			`No API key configured for ${provider}. Please complete setup at /setup`,
+		);
 	}
 
 	// OpenRouter supports all models through their unified API
-	if (provider === 'openrouter') {
+	if (provider === "openrouter") {
 		const openrouter = createOpenRouter({ apiKey });
 		return openrouter(defaultModel);
 	}
-	
+
 	// For direct providers, extract the model ID and use their SDK
-	const [modelProvider, ...modelParts] = defaultModel.split('/');
-	const modelId = modelParts.join('/');
-	
-	if (modelProvider === 'anthropic' && provider === 'anthropic') {
+	const [modelProvider, ...modelParts] = defaultModel.split("/");
+	const modelId = modelParts.join("/");
+
+	if (modelProvider === "anthropic" && provider === "anthropic") {
 		process.env.ANTHROPIC_API_KEY = apiKey;
 		return anthropic(modelId || "claude-3-5-sonnet-20241022");
-	} else if (modelProvider === 'openai' && provider === 'openai') {
+	} else if (modelProvider === "openai" && provider === "openai") {
 		process.env.OPENAI_API_KEY = apiKey;
 		return openai(modelId || "gpt-4.1-mini");
 	}
-	
+
 	// Fallback: if provider is openrouter, use it regardless of model format
-	if (provider === 'openrouter') {
+	if (provider === "openrouter") {
 		const openrouter = createOpenRouter({ apiKey });
 		return openrouter(defaultModel);
 	}
-	
-	throw new Error(`Model ${defaultModel} not compatible with provider ${provider}`);
+
+	throw new Error(
+		`Model ${defaultModel} not compatible with provider ${provider}`,
+	);
 }
 
 export const GET: APIRoute = async () => {
 	// USE NEW ARCHITECTURE
 	const projects = await projectFacade.getProjects();
-	
+
 	// Convert domain models to API response
-	const response = projects.map(p => p.toJSON());
-	
+	const response = projects.map((p) => p.toJSON());
+
 	return Response.json(response);
 };
 
@@ -66,7 +65,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const { name, description, prompt } = await request.json();
 
 	let projectName = name;
-	let projectDescription = description || prompt;
+	const projectDescription = description || prompt;
 
 	// If a prompt is provided, generate project name with AI first
 	if (prompt && !name) {
@@ -95,7 +94,10 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	// USE NEW ARCHITECTURE
-	const project = await projectFacade.createProject(projectName, projectDescription);
+	const project = await projectFacade.createProject(
+		projectName,
+		projectDescription,
+	);
 
 	// If a prompt is provided, generate a minimal starter and let AI build from there
 	if (prompt) {
@@ -103,24 +105,24 @@ export const POST: APIRoute = async ({ request }) => {
 			// Copy minimal template files (config only, no example components)
 			console.log(`Copying minimal template for project ${project.id}`);
 			const templateFiles = await copyTemplateToProject("astro");
-			
+
 			// Filter out example files - keep only config and essential structure
-			const minimalFiles = templateFiles.filter(file => {
+			const minimalFiles = templateFiles.filter((file) => {
 				// Keep config files, package.json, and base layouts
-				if (file.path.includes('package.json')) return true;
-				if (file.path.includes('astro.config.mjs')) return true;
-				if (file.path.includes('tsconfig.json')) return true;
-				if (file.path.includes('tailwind.config.cjs')) return true;
-				if (file.path.includes('postcss.config.cjs')) return true;
-				if (file.path.includes('.npmrc')) return true;
-				if (file.path.includes('.dockerignore')) return true;
-				if (file.path.includes('docker-compose')) return true;
-				if (file.path.includes('global.css')) return true;
-				if (file.path.includes('BaseLayout.astro')) return true;
+				if (file.path.includes("package.json")) return true;
+				if (file.path.includes("astro.config.mjs")) return true;
+				if (file.path.includes("tsconfig.json")) return true;
+				if (file.path.includes("tailwind.config.cjs")) return true;
+				if (file.path.includes("postcss.config.cjs")) return true;
+				if (file.path.includes(".npmrc")) return true;
+				if (file.path.includes(".dockerignore")) return true;
+				if (file.path.includes("docker-compose")) return true;
+				if (file.path.includes("global.css")) return true;
+				if (file.path.includes("BaseLayout.astro")) return true;
 				// Skip example components and pages - let AI generate fresh ones
 				return false;
 			});
-			
+
 			await writeProjectFiles(project.id, minimalFiles);
 			for (const file of minimalFiles) {
 				await saveFile(project.id, file.path, file.content);
@@ -175,7 +177,7 @@ Generate the necessary pages and components. Focus on creating a functional, wel
 
 			await saveMessage(conversation.id, "assistant", result.text);
 			await generateCode(project.id, result.text);
-			
+
 			console.log(`Initial project generation completed for ${project.id}`);
 		} catch (error) {
 			console.error("Failed to generate initial project structure:", error);

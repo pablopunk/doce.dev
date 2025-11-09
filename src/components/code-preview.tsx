@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import {
-	Eye,
 	Code,
-	Rocket,
-	RefreshCw,
+	Eye,
 	Loader2,
-	Settings,
 	Plus,
+	RefreshCw,
+	Rocket,
+	Settings,
 	Trash2,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { TerminalDock } from "@/components/terminal-dock";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectLifecycle } from "@/hooks/use-project-lifecycle";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -32,7 +32,7 @@ export function refreshCodePreview() {
 export function CodePreview({ projectId }: { projectId: string }) {
 	// Track project lifecycle for container management
 	useProjectLifecycle(projectId);
-	
+
 	const [activeTab, setActiveTab] = useState<"preview" | "code" | "env">(
 		"preview",
 	);
@@ -95,7 +95,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			try {
 				const statusRes = await fetch(`/api/projects/${projectId}/preview`);
 				const statusData = await statusRes.json();
-				
+
 				// If preview is not running, start it
 				if (statusData.status === "not-created") {
 					console.log(`Preview not running for ${projectId}, starting...`);
@@ -108,7 +108,13 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		};
 
 		checkAndStartPreview();
-	}, [project, hasAutoStarted, isCreatingPreview, projectId, handleCreatePreview]);
+	}, [
+		project,
+		hasAutoStarted,
+		isCreatingPreview,
+		projectId,
+		handleCreatePreview,
+	]);
 
 	// Reset loading state when preview URL changes and poll for readiness
 	useEffect(() => {
@@ -124,11 +130,11 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				attempts++;
 				try {
 					// Try to actually fetch the URL to see if it responds
-					const response = await fetch(project.preview_url, { 
-						method: 'GET',
-						cache: 'no-cache'
+					const response = await fetch(project.preview_url, {
+						method: "GET",
+						cache: "no-cache",
 					});
-					
+
 					// If we get any response (even 404), the server is up
 					if (response) {
 						console.log(`Preview server ready at ${project.preview_url}`);
@@ -138,9 +144,11 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					}
 				} catch (error) {
 					// Server not ready yet, continue polling
-					console.log(`Waiting for preview server... (attempt ${attempts}/${maxAttempts})`);
+					console.log(
+						`Waiting for preview server... (attempt ${attempts}/${maxAttempts})`,
+					);
 					if (attempts >= maxAttempts) {
-						console.error('Preview server failed to start within timeout');
+						console.error("Preview server failed to start within timeout");
 						setIframeError(true);
 						setIsIframeLoading(false);
 						clearInterval(pollInterval);
@@ -253,7 +261,9 @@ export function CodePreview({ projectId }: { projectId: string }) {
 										<div className="text-center space-y-4">
 											<Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
 											<div>
-												<p className="text-sm font-medium">Starting preview...</p>
+												<p className="text-sm font-medium">
+													Starting preview...
+												</p>
 												<p className="text-xs text-muted-foreground mt-1">
 													Waiting for server to respond...
 												</p>

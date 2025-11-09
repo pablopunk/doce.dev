@@ -1,9 +1,9 @@
-import Database from "better-sqlite3"
-import { randomUUID } from "crypto"
-import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models"
+import Database from "better-sqlite3";
+import { randomUUID } from "crypto";
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
-const dbPath = process.env.DATABASE_PATH || "./data/doceapp.db"
-const db = new Database(dbPath)
+const dbPath = process.env.DATABASE_PATH || "./data/doceapp.db";
+const db = new Database(dbPath);
 
 // Initialize database schema
 db.exec(`
@@ -77,189 +77,247 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
   CREATE INDEX IF NOT EXISTS idx_files_project_id ON files(project_id);
   CREATE INDEX IF NOT EXISTS idx_deployments_project_id ON deployments(project_id);
-`)
+`);
 
 // Config functions
 export function getConfig(key: string) {
-  const row = db.prepare("SELECT value FROM config WHERE key = ?").get(key) as { value: string } | undefined
-  return row?.value
+	const row = db.prepare("SELECT value FROM config WHERE key = ?").get(key) as
+		| { value: string }
+		| undefined;
+	return row?.value;
 }
 
 export function setConfig(key: string, value: string) {
-  db.prepare("INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run(key, value)
+	db.prepare(
+		"INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+	).run(key, value);
 }
 
 export function isSetupComplete() {
-  // Explicit completion flag wins
-  if (getConfig("setup_complete") === "true") return true
+	// Explicit completion flag wins
+	if (getConfig("setup_complete") === "true") return true;
 
-  // Consider setup complete if there is at least one user
-  // and an AI key is configured via config or environment
-  const row = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count?: number } | undefined
-  const hasUser = (row?.count ?? 0) > 0
+	// Consider setup complete if there is at least one user
+	// and an AI key is configured via config or environment
+	const row = db.prepare("SELECT COUNT(*) as count FROM users").get() as
+		| { count?: number }
+		| undefined;
+	const hasUser = (row?.count ?? 0) > 0;
 
-  const provider = getConfig("ai_provider")
-  const hasEnvKey = Boolean(
-    process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY,
-  )
-  const hasConfigKey = provider ? Boolean(getConfig(`${provider}_api_key`)) : false
-  const hasAI = hasEnvKey || (provider && hasConfigKey)
+	const provider = getConfig("ai_provider");
+	const hasEnvKey = Boolean(
+		process.env.OPENAI_API_KEY ||
+			process.env.ANTHROPIC_API_KEY ||
+			process.env.OPENROUTER_API_KEY,
+	);
+	const hasConfigKey = provider
+		? Boolean(getConfig(`${provider}_api_key`))
+		: false;
+	const hasAI = hasEnvKey || (provider && hasConfigKey);
 
-  return hasUser && !!hasAI
+	return hasUser && !!hasAI;
 }
 
 // User functions
 export function createUser(username: string, passwordHash: string) {
-  const id = randomUUID()
-  db.prepare("INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)").run(id, username, passwordHash)
-  return { id, username }
+	const id = randomUUID();
+	db.prepare(
+		"INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)",
+	).run(id, username, passwordHash);
+	return { id, username };
 }
 
 export function getUserByUsername(username: string) {
-  return db.prepare("SELECT * FROM users WHERE username = ?").get(username) as any
+	return db
+		.prepare("SELECT * FROM users WHERE username = ?")
+		.get(username) as any;
 }
 
 // Project functions
 export function getProjects() {
-  return db.prepare("SELECT * FROM projects ORDER BY updated_at DESC").all()
+	return db.prepare("SELECT * FROM projects ORDER BY updated_at DESC").all();
 }
 
 export function getProject(id: string) {
-  return db.prepare("SELECT * FROM projects WHERE id = ?").get(id)
+	return db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
 }
 
 export function createProject(name: string, description?: string) {
-  const id = randomUUID()
-  db.prepare("INSERT INTO projects (id, name, description) VALUES (?, ?, ?)").run(id, name, description || null)
-  return { id, name, description }
+	const id = randomUUID();
+	db.prepare(
+		"INSERT INTO projects (id, name, description) VALUES (?, ?, ?)",
+	).run(id, name, description || null);
+	return { id, name, description };
 }
 
 export function deleteProject(id: string) {
-  db.prepare("DELETE FROM projects WHERE id = ?").run(id)
+	db.prepare("DELETE FROM projects WHERE id = ?").run(id);
 }
 
 export function updateProject(id: string, data: any) {
-  const fields = Object.keys(data)
-    .map((key) => `${key} = ?`)
-    .join(", ")
-  const values = Object.values(data)
-  db.prepare(`UPDATE projects SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values, id)
-  return getProject(id)
+	const fields = Object.keys(data)
+		.map((key) => `${key} = ?`)
+		.join(", ");
+	const values = Object.values(data);
+	db.prepare(
+		`UPDATE projects SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+	).run(...values, id);
+	return getProject(id);
 }
 
 // Conversation functions
 export function getConversation(projectId: string) {
-  return db.prepare("SELECT * FROM conversations WHERE project_id = ?").get(projectId) as any
+	return db
+		.prepare("SELECT * FROM conversations WHERE project_id = ?")
+		.get(projectId) as any;
 }
 
 export function getConversationById(conversationId: string) {
-  return db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as any
+	return db
+		.prepare("SELECT * FROM conversations WHERE id = ?")
+		.get(conversationId) as any;
 }
 
 export function createConversation(projectId: string, model?: string) {
-  const id = randomUUID()
-  const selectedModel = model || DEFAULT_AI_MODEL
-  db.prepare("INSERT INTO conversations (id, project_id, model) VALUES (?, ?, ?)").run(id, projectId, selectedModel)
-  return { id, project_id: projectId, model: selectedModel }
+	const id = randomUUID();
+	const selectedModel = model || DEFAULT_AI_MODEL;
+	db.prepare(
+		"INSERT INTO conversations (id, project_id, model) VALUES (?, ?, ?)",
+	).run(id, projectId, selectedModel);
+	return { id, project_id: projectId, model: selectedModel };
 }
 
 export function updateConversationModel(conversationId: string, model: string) {
-  db.prepare("UPDATE conversations SET model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(model, conversationId)
-  return getConversation(conversationId)
+	db.prepare(
+		"UPDATE conversations SET model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+	).run(model, conversationId);
+	return getConversation(conversationId);
 }
 
-export function saveMessage(conversationId: string, role: string, content: string) {
-  const id = randomUUID()
-  db.prepare("INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)").run(
-    id,
-    conversationId,
-    role,
-    content,
-  )
-  return { id, conversation_id: conversationId, role, content }
+export function saveMessage(
+	conversationId: string,
+	role: string,
+	content: string,
+) {
+	const id = randomUUID();
+	db.prepare(
+		"INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)",
+	).run(id, conversationId, role, content);
+	return { id, conversation_id: conversationId, role, content };
 }
 
 export function getMessages(conversationId: string) {
-  return db.prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC").all(conversationId)
+	return db
+		.prepare(
+			"SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+		)
+		.all(conversationId);
 }
 
 export function deleteMessage(messageId: string) {
-  const result = db.prepare("DELETE FROM messages WHERE id = ?").run(messageId)
-  return result.changes > 0
+	const result = db.prepare("DELETE FROM messages WHERE id = ?").run(messageId);
+	return result.changes > 0;
 }
 
-export function deleteMessagesFromIndex(conversationId: string, messageIndex: number) {
-  // Get all messages for the conversation ordered by creation time
-  const allMessages = db.prepare("SELECT id FROM messages WHERE conversation_id = ? ORDER BY created_at ASC").all(conversationId) as { id: string }[]
-  
-  // Delete messages from the specified index onwards
-  if (messageIndex < allMessages.length) {
-    const messagesToDelete = allMessages.slice(messageIndex)
-    const placeholders = messagesToDelete.map(() => '?').join(',')
-    const ids = messagesToDelete.map(m => m.id)
-    
-    if (ids.length > 0) {
-      db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...ids)
-      return ids.length
-    }
-  }
-  
-  return 0
+export function deleteMessagesFromIndex(
+	conversationId: string,
+	messageIndex: number,
+) {
+	// Get all messages for the conversation ordered by creation time
+	const allMessages = db
+		.prepare(
+			"SELECT id FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
+		)
+		.all(conversationId) as { id: string }[];
+
+	// Delete messages from the specified index onwards
+	if (messageIndex < allMessages.length) {
+		const messagesToDelete = allMessages.slice(messageIndex);
+		const placeholders = messagesToDelete.map(() => "?").join(",");
+		const ids = messagesToDelete.map((m) => m.id);
+
+		if (ids.length > 0) {
+			db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(
+				...ids,
+			);
+			return ids.length;
+		}
+	}
+
+	return 0;
 }
 
 // File functions
 export function getFiles(projectId: string) {
-  return db.prepare("SELECT * FROM files WHERE project_id = ? ORDER BY file_path").all(projectId)
+	return db
+		.prepare("SELECT * FROM files WHERE project_id = ? ORDER BY file_path")
+		.all(projectId);
 }
 
 export function saveFile(projectId: string, filePath: string, content: string) {
-  const existing = db
-    .prepare("SELECT id FROM files WHERE project_id = ? AND file_path = ?")
-    .get(projectId, filePath) as any
+	const existing = db
+		.prepare("SELECT id FROM files WHERE project_id = ? AND file_path = ?")
+		.get(projectId, filePath) as any;
 
-  if (existing) {
-    db.prepare("UPDATE files SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, existing.id)
-    return { id: existing.id, project_id: projectId, file_path: filePath, content }
-  } else {
-    const id = randomUUID()
-    db.prepare("INSERT INTO files (id, project_id, file_path, content) VALUES (?, ?, ?, ?)").run(
-      id,
-      projectId,
-      filePath,
-      content,
-    )
-    return { id, project_id: projectId, file_path: filePath, content }
-  }
+	if (existing) {
+		db.prepare(
+			"UPDATE files SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		).run(content, existing.id);
+		return {
+			id: existing.id,
+			project_id: projectId,
+			file_path: filePath,
+			content,
+		};
+	} else {
+		const id = randomUUID();
+		db.prepare(
+			"INSERT INTO files (id, project_id, file_path, content) VALUES (?, ?, ?, ?)",
+		).run(id, projectId, filePath, content);
+		return { id, project_id: projectId, file_path: filePath, content };
+	}
 }
 
 // Deployment functions
-export function createDeployment(projectId: string, containerId: string, url: string) {
-  const id = randomUUID()
-  db.prepare("INSERT INTO deployments (id, project_id, container_id, url, status) VALUES (?, ?, ?, ?, ?)").run(
-    id,
-    projectId,
-    containerId,
-    url,
-    "building",
-  )
-  return { id, project_id: projectId, container_id: containerId, url, status: "building" }
+export function createDeployment(
+	projectId: string,
+	containerId: string,
+	url: string,
+) {
+	const id = randomUUID();
+	db.prepare(
+		"INSERT INTO deployments (id, project_id, container_id, url, status) VALUES (?, ?, ?, ?, ?)",
+	).run(id, projectId, containerId, url, "building");
+	return {
+		id,
+		project_id: projectId,
+		container_id: containerId,
+		url,
+		status: "building",
+	};
 }
 
 export function updateDeployment(id: string, data: any) {
-  const fields = Object.keys(data)
-    .map((key) => `${key} = ?`)
-    .join(", ")
-  const values = Object.values(data)
-  db.prepare(`UPDATE deployments SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values, id)
-  return db.prepare("SELECT * FROM deployments WHERE id = ?").get(id)
+	const fields = Object.keys(data)
+		.map((key) => `${key} = ?`)
+		.join(", ");
+	const values = Object.values(data);
+	db.prepare(
+		`UPDATE deployments SET ${fields}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+	).run(...values, id);
+	return db.prepare("SELECT * FROM deployments WHERE id = ?").get(id);
 }
 
 export function getDeployment(id: string) {
-  return db.prepare("SELECT * FROM deployments WHERE id = ?").get(id)
+	return db.prepare("SELECT * FROM deployments WHERE id = ?").get(id);
 }
 
 export function getDeployments(projectId: string) {
-  return db.prepare("SELECT * FROM deployments WHERE project_id = ? ORDER BY created_at DESC").all(projectId)
+	return db
+		.prepare(
+			"SELECT * FROM deployments WHERE project_id = ? ORDER BY created_at DESC",
+		)
+		.all(projectId);
 }
 
-export default db
+export default db;

@@ -1,6 +1,6 @@
-import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -9,8 +9,8 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
-default:
-"bg-[color:var(--bg-button)] text-[color:var(--text-strong)] font-semibold transition-shadow transition-filter transition-colors duration-200 ease-in-out active:scale-[0.98]",
+				default:
+					"bg-[color:var(--bg-button)] text-[color:var(--text-strong)] font-semibold transition-shadow transition-filter transition-colors duration-200 ease-in-out active:scale-[0.98]",
 
 				destructive:
 					"bg-destructive text-white font-semibold shadow-elevation hover:shadow-elevation-lg hover:brightness-110 active:scale-[0.98] transition-shadow transition-filter transition-colors duration-200 ease-in-out",

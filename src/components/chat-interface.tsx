@@ -1,22 +1,17 @@
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
-	Send,
-	Loader2,
 	ChevronDown,
 	ChevronRight,
 	FileCode,
-	Trash2,
+	Loader2,
+	Send,
 	Square,
+	Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { refreshCodePreview } from "@/components/code-preview";
+import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -26,13 +21,21 @@ import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
-	ContextMenuTrigger,
 	ContextMenuSeparator,
+	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { refreshCodePreview } from "@/components/code-preview";
-import { AVAILABLE_AI_MODELS, DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+	AVAILABLE_AI_MODELS,
+	DEFAULT_AI_MODEL,
+} from "@/shared/config/ai-models";
 
 interface Message {
 	id: string;
@@ -61,7 +64,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				console.log(`[ChatInterface] History response status: ${res.status}`);
 				if (res.ok) {
 					const data = await res.json();
-					console.log(`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`);
+					console.log(
+						`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`,
+					);
 					setMessages(data.messages || []);
 					if (data.model) {
 						setSelectedModel(data.model);
@@ -307,7 +312,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	function MessageContent({
 		content,
 		isStreaming = false,
-	}: { content: string; isStreaming?: boolean }) {
+	}: {
+		content: string;
+		isStreaming?: boolean;
+	}) {
 		const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(
 			new Set(),
 		);

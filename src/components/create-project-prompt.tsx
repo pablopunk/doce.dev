@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Settings2, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check, Plus, Settings2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
 	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
 	InputGroupInput,
 } from "@/components/ui/input-group";
+import { Label } from "@/components/ui/label";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Check } from "lucide-react";
-import { Openai } from "@/components/ui/svgs/openai";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { Google } from "@/components/ui/svgs/google";
 import { GrokDark } from "@/components/ui/svgs/grokDark";
 import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
+import { Openai } from "@/components/ui/svgs/openai";
 
 interface ModelInfo {
 	id: string;
