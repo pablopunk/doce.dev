@@ -174,9 +174,6 @@ export function CreateProjectPrompt() {
 			)}
 			<InputGroup className="h-14">
 				<InputGroupAddon>
-					<InputGroupButton aria-label="Add" size="icon-sm" variant="ghost">
-						<Plus className="size-4" />
-					</InputGroupButton>
 					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
 						<PopoverTrigger asChild>
 							<InputGroupButton

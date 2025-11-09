@@ -58,6 +58,19 @@ src/
 - 🔄 **In Progress**: Conversations, files, deployments domains
 - ⏳ **TODO**: Docker/file-system to infrastructure, AI providers, code generation
 
+**Frontend Structure**:
+```
+src/
+├── layouts/
+│   └── BaseLayout.astro        # Shared HTML boilerplate
+├── pages/
+│   ├── *.astro                 # Routes (use BaseLayout)
+│   └── api/                    # API endpoints
+└── components/
+    ├── *.tsx                   # React components (interactive UI)
+    └── ui/                     # shadcn/ui components
+```
+
 ---
 
 ## 💡 Adding a New Feature
@@ -126,6 +139,39 @@ export const POST: APIRoute = async ({ request }) => {
 };
 ```
 
+**7. UI Page** (if needed):
+```astro
+---
+// pages/my-page.astro
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { MyComponent } from "@/components/my-component";
+---
+
+<BaseLayout title="My Page">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold">My Page</h1>
+    <MyComponent client:load />
+  </div>
+</BaseLayout>
+```
+
+**8. React Component** (for interactive UI):
+```tsx
+// components/my-component.tsx
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+
+export function MyComponent() {
+  const [data, setData] = useState([]);
+
+  // Fetch data, handle events, etc.
+
+  return <div>{/* Proper React JSX */}</div>;
+}
+```
+
 ---
 
 ## Rules
@@ -136,11 +182,17 @@ export const POST: APIRoute = async ({ request }) => {
 - Use proper error types (`ValidationError`, `NotFoundError`, etc.)
 - Define interfaces in domain, implement in infrastructure
 - Type-safe (avoid `any`)
+- **Use shared layouts** for all pages (`src/layouts/BaseLayout.astro`)
+- **Create proper React components** for interactive UI (in `src/components/`)
+- **Use Astro islands** with `client:load` for React components in `.astro` pages
 
 **DON'T**:
 - Import infrastructure in domain layer
 - Put business logic in API routes
 - Directly access database from routes
+- **NEVER use `innerHTML` or string-based DOM manipulation** - use React components
+- **NEVER duplicate HTML boilerplate** across pages - use layouts
+- **NEVER create full HTML pages in `.astro` files** - use layouts with slots
 
 ---
 
@@ -179,7 +231,7 @@ export function Widget() { return <div /> }
 - `getModelById()` - Helper to find a model by ID
 - `isValidModel()` - Helper to validate model IDs
 
-**Model Selection UI**: 
+**Model Selection UI**:
 - Dashboard prompt shows selected model's provider icon (replaces settings icon)
 - Popover displays all available models with provider icons and descriptions
 - Selection persisted in DB `config` table under `default_ai_model` key

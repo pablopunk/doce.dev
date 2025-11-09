@@ -1,0 +1,25 @@
+---
+import "../styles/global.css";
+import { TopNav } from "@/components/top-nav";
+
+interface Props {
+  title: string;
+  bodyClass?: string;
+  showNav?: boolean;
+}
+
+const { title, bodyClass = "bg-background text-foreground", showNav = true } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} | doce.dev</title>
+  </head>
+  <body class={bodyClass}>
+    {showNav && <TopNav client:load />}
+    <slot />
+  </body>
+</html>
