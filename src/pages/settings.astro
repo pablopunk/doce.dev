@@ -13,9 +13,12 @@ import { SettingsForm } from "@/components/settings-form";
       
       <div class="space-y-6">
         <!-- AI Model Settings -->
-        <div class="rounded-lg border bg-card p-6">
+        <div class="relative rounded-lg border border-border bg-card p-6 shadow-elevation overflow-hidden">
+          <!-- Top highlight -->
+          <div class="absolute inset-x-0 top-0 h-px bg-highlight" />
+          
           <div class="mb-4">
-            <h2 class="text-xl font-semibold">AI Model</h2>
+            <h2 class="text-xl font-semibold text-text-strong">AI Model</h2>
             <p class="text-sm text-muted-foreground mt-1">
               Choose the default AI model for new projects
             </p>

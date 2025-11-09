@@ -19,6 +19,32 @@ Navigate to `/setup` → create admin user → configure AI provider. **API keys
 
 **AI Model Selection**: Users can select their preferred AI model from the dashboard input prompt. The settings icon shows the currently selected model's provider logo. Available models are centralized in `src/shared/config/ai-models.ts`.
 
+## 🎨 Design System
+
+**Color System**: Neutral-first approach using HSL for neutrals (0% saturation) + OKLCH for brand/semantic colors.
+
+**Theme Modes**: Light/Dark/System theme switching via toggle in TopNav. Theme stored in localStorage, defaults to system preference.
+
+**Color Tokens**:
+- **Neutrals** (HSL with S=0%): `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--highlight`
+- **Primary** (OKLCH): Black & white buttons (no brand color) - **darkest buttons on dark**, **lightest buttons on light**
+- **Semantic** (OKLCH): `--success`, `--warning`, `--danger` (only for alerts/notifications)
+- **Shadows**: Two-layer system using `--shadow-1` (short/darker) + `--shadow-2` (long/lighter)
+
+**Dark Mode**: Base at 0% L (darkest), surfaces at 8% L, raised at 14% L (lightest) - more depth with lighter cards
+
+**Light Mode**: Base at 94% L (darker), surfaces at 98% L, raised at 100% L (brightest) - creates depth with darker backgrounds and lighter elevated elements
+
+**Micro-interactions**:
+- Cards: Border + top highlight (`--highlight`) + two-layer shadow (`shadow-elevation`)
+- Buttons: Elevation shadows + hover brightness + active states
+- Inputs: Border + shadow + focus ring
+- Nav: Elevated with subtle backdrop blur + top highlight
+
+**Tailwind Extensions**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `shadow-elevation`, `shadow-elevation-lg`, `gradient-subtle`
+
+**Theme Hook**: `src/hooks/use-theme.ts` - Manages light/dark/system theme switching
+
 ---
 
 ## 🏗️ Architecture (Clean Architecture + DDD)

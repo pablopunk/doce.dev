@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Check, ChevronDown } from "lucide-react";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import { Openai } from "@/components/ui/svgs/openai";
+import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
+import { Google } from "@/components/ui/svgs/google";
+import { GrokDark } from "@/components/ui/svgs/grokDark";
+import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
 
 interface AIModel {
 	id: string;
@@ -22,7 +26,7 @@ export function SettingsForm() {
 	const [currentModel, setCurrentModel] = useState<string>("");
 	const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [saving, setSaving] = useState(false);
+	const [popoverOpen, setPopoverOpen] = useState(false);
 	const [saveStatus, setSaveStatus] = useState<{
 		message: string;
 		type: "success" | "error" | "";
@@ -45,18 +49,19 @@ export function SettingsForm() {
 		}
 	};
 
-	const handleSave = async () => {
-		setSaving(true);
+	const handleModelChange = async (modelId: string) => {
 		setSaveStatus({ message: "", type: "" });
-
+		setPopoverOpen(false);
+		
 		try {
 			const res = await fetch("/api/config/model", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ model: currentModel }),
+				body: JSON.stringify({ model: modelId }),
 			});
 
 			if (res.ok) {
+				setCurrentModel(modelId);
 				setSaveStatus({ message: "Saved!", type: "success" });
 				setTimeout(() => {
 					setSaveStatus({ message: "", type: "" });
@@ -69,8 +74,24 @@ export function SettingsForm() {
 			setTimeout(() => {
 				setSaveStatus({ message: "", type: "" });
 			}, 2000);
-		} finally {
-			setSaving(false);
+		}
+	};
+
+	const getProviderIcon = (provider: string) => {
+		const iconClass = "h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+		switch (provider) {
+			case "OpenAI":
+				return <Openai className={iconClass} />;
+			case "Anthropic":
+				return <AnthropicBlack className={iconClass} />;
+			case "Google":
+				return <Google className={iconClass} />;
+			case "xAI":
+				return <GrokDark className={iconClass} />;
+			case "MoonshotAI":
+				return <KimiIcon className={iconClass} />;
+			default:
+				return null;
 		}
 	};
 
@@ -85,43 +106,79 @@ export function SettingsForm() {
 	}
 
 	return (
-		<div className="space-y-4">
-			<div className="max-w-md space-y-2">
-				<Label htmlFor="model-select">Default Model</Label>
-				<Select value={currentModel} onValueChange={setCurrentModel}>
-					<SelectTrigger id="model-select" className="w-full">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{availableModels.map((model) => (
-							<SelectItem key={model.id} value={model.id}>
-								{model.name} - {model.provider}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{currentModelInfo && (
-					<p className="text-xs text-muted-foreground">
-						{currentModelInfo.description}
-					</p>
-				)}
-			</div>
-			<div className="flex items-center gap-3">
-				<Button onClick={handleSave} disabled={saving}>
-					{saving ? "Saving..." : "Save Changes"}
-				</Button>
-				{saveStatus.message && (
-					<p
-						className={`text-sm ${
-							saveStatus.type === "success"
-								? "text-green-600"
-								: "text-destructive"
-						}`}
+		<div className="space-y-3">
+			<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						variant="outline"
+						className="w-full justify-between h-auto py-3"
 					>
-						{saveStatus.message}
-					</p>
-				)}
-			</div>
+						<div className="flex items-center gap-3">
+							{currentModelInfo && getProviderIcon(currentModelInfo.provider)}
+							<span className="text-left">
+								{currentModelInfo ? (
+									<>
+										<span className="font-medium">{currentModelInfo.name}</span>
+										<span className="text-muted-foreground"> — {currentModelInfo.provider}</span>
+									</>
+								) : (
+									"Select a model"
+								)}
+							</span>
+						</div>
+						<ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent className="w-[32rem] p-3" align="start">
+					<div className="space-y-1">
+						{availableModels.map((model) => (
+							<button
+								key={model.id}
+								onClick={() => handleModelChange(model.id)}
+								className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
+							>
+								<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+									{getProviderIcon(model.provider)}
+								</div>
+								<div className="flex-1 space-y-0.5">
+									<div className="flex items-center gap-2">
+										{currentModel === model.id && (
+											<Check className="h-3.5 w-3.5 text-primary" />
+										)}
+										<span className="text-sm font-medium">
+											{model.name}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											{model.provider}
+										</span>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										{model.description}
+									</p>
+								</div>
+							</button>
+						))}
+					</div>
+				</PopoverContent>
+			</Popover>
+
+			{currentModelInfo && (
+				<p className="text-xs text-muted-foreground">
+					{currentModelInfo.description}
+				</p>
+			)}
+
+			{saveStatus.message && (
+				<p
+					className={`text-sm ${
+						saveStatus.type === "success"
+							? "text-green-600 dark:text-green-400"
+							: "text-destructive"
+					}`}
+				>
+					{saveStatus.message}
+				</p>
+			)}
 		</div>
 	);
 }
