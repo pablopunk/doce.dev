@@ -96,6 +96,166 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setPopoverOpen(false);
 	};
 
+	// Trigger generation for initial project prompt
+	const triggerInitialGeneration = async (
+		userPrompt: string,
+		model: string,
+	) => {
+		setIsLoading(true);
+
+		// Create new AbortController for this request
+		const abortController = new AbortController();
+		abortControllerRef.current = abortController;
+
+		try {
+			const response = await fetch(`/api/chat/${projectId}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					messages: [{ role: "user", content: userPrompt }],
+					model: model,
+				}),
+				signal: abortController.signal,
+			});
+
+			if (!response.ok) throw new Error("Failed to get response");
+
+			const reader = response.body?.getReader();
+			if (!reader) throw new Error("No response body");
+
+			const decoder = new TextDecoder();
+			let buffer = "";
+			let assistantMessage = "";
+			let lastEventWasToolResult = false;
+
+			// Add empty assistant message immediately
+			setMessages((prev) => [
+				...prev,
+				{
+					id: Math.random().toString(),
+					role: "assistant",
+					content: "",
+				},
+			]);
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split("\n");
+
+				// Keep the last incomplete line in the buffer
+				buffer = lines.pop() || "";
+
+				for (const line of lines) {
+					if (!line.trim() || line.startsWith(":")) continue;
+
+					// Parse data: prefix from SSE format
+					if (line.startsWith("data: ")) {
+						const jsonStr = line.slice(6); // Remove 'data: ' prefix
+
+						// Skip [DONE] marker
+						if (jsonStr.trim() === "[DONE]") {
+							continue;
+						}
+
+						try {
+							const data = JSON.parse(jsonStr);
+
+							// Handle different message types from AI SDK
+							if (data.type === "text-delta" && data.delta) {
+								// Add spacing if this is the first text after a tool result
+								if (lastEventWasToolResult) {
+									// Add two line breaks to separate from tool results
+									assistantMessage += "\n\n";
+									lastEventWasToolResult = false;
+								}
+
+								assistantMessage += data.delta;
+
+								// Update the last message (assistant) with new content
+								setMessages((prev) => {
+									const updated = [...prev];
+									if (updated[updated.length - 1]?.role === "assistant") {
+										updated[updated.length - 1].content = assistantMessage;
+									}
+									return updated;
+								});
+							}
+							// Handle step transitions to add spacing between thinking steps
+							else if (data.type === "finish-step") {
+								// Mark that a step just finished so we can add spacing before next text
+								lastEventWasToolResult = true;
+							}
+							// Handle tool call events
+							else if (data.type === "tool-call" && data.toolName) {
+								const toolMessage = `\n\n🔧 **Using tool: ${data.toolName}**\n\`\`\`json\n${JSON.stringify(data.args, null, 2)}\n\`\`\`\n`;
+								assistantMessage += toolMessage;
+
+								setMessages((prev) => {
+									const updated = [...prev];
+									if (updated[updated.length - 1]?.role === "assistant") {
+										updated[updated.length - 1].content = assistantMessage;
+									}
+									return updated;
+								});
+							}
+							// Handle tool result events
+							else if (data.type === "tool-result" && data.toolName) {
+								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n`;
+								assistantMessage += resultMessage;
+								lastEventWasToolResult = true; // Mark that we just processed a tool result
+
+								setMessages((prev) => {
+									const updated = [...prev];
+									if (updated[updated.length - 1]?.role === "assistant") {
+										updated[updated.length - 1].content = assistantMessage;
+									}
+									return updated;
+								});
+							}
+							// Handle step finish to ensure spacing between steps
+							else if (data.type === "finish-step") {
+								// Mark that a step just finished
+								lastEventWasToolResult = true;
+							}
+						} catch (e) {
+							console.error("Failed to parse stream data:", e, line);
+						}
+					}
+				}
+			}
+
+			// After streaming completes, refresh the code preview and reload messages with real IDs
+			refreshCodePreview();
+
+			// Reload messages from server to get proper database IDs
+			await reloadMessages();
+		} catch (error: any) {
+			console.error("Chat error:", error);
+
+			// Check if the error was due to abort
+			if (error.name === "AbortError") {
+				console.log("Request was aborted by user");
+				// Remove the empty assistant message that was added
+				setMessages((prev) => prev.slice(0, -1));
+			} else {
+				setMessages((prev) => [
+					...prev.slice(0, -1), // Remove the empty assistant message
+					{
+						id: `temp-error-${Date.now()}`,
+						role: "assistant",
+						content: "Error: Failed to generate response. Please try again.",
+					},
+				]);
+			}
+		} finally {
+			abortControllerRef.current = null;
+			setIsLoading(false);
+		}
+	};
+
 	// Load chat history on mount
 	useEffect(() => {
 		async function loadHistory() {
@@ -110,6 +270,16 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					setMessages(data.messages || []);
 					if (data.model) {
 						setSelectedModel(data.model);
+					}
+
+					// Check if we have a single user message without a response
+					// This indicates a newly created project that needs generation
+					if (data.messages?.length === 1 && data.messages[0].role === "user") {
+						console.log(
+							"[ChatInterface] Found initial prompt without response, triggering generation",
+						);
+						// Trigger generation for the initial prompt
+						triggerInitialGeneration(data.messages[0].content, data.model);
 					}
 				}
 			} catch (error) {
@@ -558,7 +728,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex-1 flex flex-col border-r border-border-border min-w-0">
 			<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
-				{messages.length === 0 && (
+				{messages.length === 0 && !isLoadingHistory && (
 					<div className="h-full flex items-center justify-center text-center">
 						<div className="max-w-md space-y-4">
 							<h2 className="text-2xl font-bold">Start Building</h2>
@@ -566,6 +736,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								Describe the website you want to build, and I'll generate the
 								code for you.
 							</p>
+						</div>
+					</div>
+				)}
+				{isLoadingHistory && (
+					<div className="h-full flex items-center justify-center">
+						<div className="flex items-center gap-2">
+							<Loader2 className="h-5 w-5 animate-spin" />
+							<span className="text-sm text-muted">Loading chat...</span>
 						</div>
 					</div>
 				)}

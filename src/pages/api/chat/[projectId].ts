@@ -14,6 +14,7 @@ import {
 	getConversation,
 	saveMessage,
 	updateConversationModel,
+	updateMessage,
 } from "@/lib/db";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
@@ -30,14 +31,15 @@ async function execInContainer(
 	const containerName = `doce-preview-${projectId}`;
 
 	// Validate command - block dangerous operations
-	const blockedCommands = [
-		"rm -rf /",
-		"dd",
-		"mkfs",
-		":(){:|:&};:",
-		"fork bomb",
-	];
-	if (blockedCommands.some((blocked) => command.includes(blocked))) {
+	// Use word boundaries or specific patterns to avoid false positives
+	const isDangerous =
+		command.includes("rm -rf /") ||
+		/\bdd\b/.test(command) || // 'dd' as standalone word, not in 'add'
+		/\bmkfs\b/.test(command) ||
+		command.includes(":(){:|:&};:") ||
+		command.includes("fork bomb");
+
+	if (isDangerous) {
 		throw new Error("Command blocked for security reasons");
 	}
 
@@ -289,6 +291,27 @@ export const POST: APIRoute = async ({ params, request }) => {
 	console.log(`[Chat] Tools enabled: ${modelSupportsTools ? "YES" : "NO"}`);
 	console.log(`[Chat] Tool names:`, Object.keys(toolDefinitions));
 
+	// Create assistant message immediately for resilience
+	let assistantMessageId: string | null = null;
+	let lastSavedText = "";
+	let saveTimeout: NodeJS.Timeout | null = null;
+
+	// Debounced save function - saves after 500ms of no updates
+	const debouncedSave = (text: string) => {
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+		}
+		saveTimeout = setTimeout(() => {
+			if (assistantMessageId && text !== lastSavedText) {
+				updateMessage(assistantMessageId, text);
+				lastSavedText = text;
+				console.log(
+					`[Chat] Auto-saved partial response (${text.length} chars)`,
+				);
+			}
+		}, 500);
+	};
+
 	const result = streamText({
 		model,
 		...(modelSupportsTools && {
@@ -305,113 +328,20 @@ export const POST: APIRoute = async ({ params, request }) => {
 					JSON.stringify(toolResults, null, 2),
 				);
 			}
+
+			// Save incrementally after each step
+			if (!assistantMessageId && text.trim().length > 0) {
+				// Create initial message
+				const msg = await saveMessage(conversation.id, "assistant", text);
+				assistantMessageId = msg.id;
+				lastSavedText = text;
+				console.log(`[Chat] Created assistant message: ${assistantMessageId}`);
+			} else if (assistantMessageId && text !== lastSavedText) {
+				// Update existing message with debounce
+				debouncedSave(text);
+			}
 		},
-		system: `You are an expert web developer with access to tools for inspecting projects.
-
-You build modern sites with Astro 5, React islands, Tailwind CSS v4, and shadcn/ui components.
-
-Available tools:
-- listFiles() - Lists all project files
-- readFile(filePath) - Reads a specific file  
-- runCommand(command) - Executes shell commands
-- fetchUrl(url) - Fetches web content
-
-When using tools:
-1. Call the tool to get data
-2. After receiving the tool result, ALWAYS provide a clear text response explaining what you found
-3. When moving to a new action or thought, start a new paragraph with a blank line
-4. Never end your response immediately after a tool call - always explain the results
-
-IMPORTANT: 
-- You MUST generate a text response after each tool call
-- Use proper paragraph breaks between different thoughts or actions
-- Write in clear, well-structured prose with natural sentence flow
-
-When generating code:
-- Use Astro 5 with the \`src/\` directory structure.
-- Use React components for interactive islands and mark them with client directives when necessary.
-- Prefer TypeScript for all .astro and .tsx files.
-- **Use shadcn/ui components from \`@/components/ui/\` whenever possible** for buttons, forms, dialogs, cards, etc.
-- Use Tailwind CSS v4 utility classes for custom styling.
-- Provide complete, working examples that integrate with the existing project architecture (Astro + React + Tailwind + TypeScript).
-- Never reference Next.js APIs or components.
-
-**Available shadcn/ui components** (all ready to import from \`@/components/ui/\`):
-accordion, alert-dialog, alert, avatar, badge, breadcrumb, button, calendar, card, carousel, chart, checkbox, collapsible, command, context-menu, dialog, drawer, dropdown-menu, empty, field, form, hover-card, input-group, input-otp, input, kbd, label, menubar, navigation-menu, pagination, popover, progress, radio-group, resizable, scroll-area, select, separator, sheet, sidebar, skeleton, slider, sonner, spinner, switch, table, tabs, textarea, toast, toggle-group, toggle, tooltip
-
-**Example shadcn/ui usage:**
-\`\`\`tsx file="src/components/LoginForm.tsx"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-export function LoginForm() {
-  return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Login</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Input placeholder="Email" />
-        <Button className="w-full mt-4">Sign In</Button>
-      </CardContent>
-    </Card>
-  )
-}
-\`\`\`
-
-**CRITICAL: When generating package.json, always include these required dependencies:**
-\`\`\`json
-{
-  "dependencies": {
-    "astro": "^5.1.0",
-    "@astrojs/react": "^4.4.1",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "tailwindcss": "^4.1.9",
-    "@tailwindcss/postcss": "^4.1.9",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.0"
-  }
-}
-\`\`\`
-
-**CRITICAL: When generating postcss.config.cjs, use this exact format for Tailwind v4:**
-\`\`\`js
-module.exports = {
-  plugins: {
-    "@tailwindcss/postcss": {},
-    autoprefixer: {}
-  }
-};
-\`\`\`
-
-**CRITICAL: For global CSS files, use this Tailwind v4 syntax:**
-\`\`\`css
-@import "tailwindcss";
-\`\`\`
-
-**DO NOT use the old Tailwind v3 syntax** (@tailwind base/components/utilities) or the old PostCSS plugin (tailwindcss: {}).
-
-**CRITICAL: Always specify file paths in code blocks:**
-Every code block MUST include a file="..." attribute. Code blocks without file paths will be ignored.
-
-\`\`\`tsx file="src/components/MyComponent.tsx"
-export function MyComponent() {
-  return <div>Hello!</div>
-}
-\`\`\`
-
-**Good examples:**
-- \`\`\`tsx file="src/components/Button.tsx"\`
-- \`\`\`astro file="src/pages/index.astro"\`
-- \`\`\`css file="src/styles/custom.css"\`
-
-**Bad examples (will be ignored):**
-- \`\`\`tsx\` (missing file attribute)
-- \`\`\`javascript\` (missing file attribute)
-
-Always specify the file path in each code block header and generate multiple files when required to deliver a working feature.${agentGuidelines}`,
+		system: `You are an expert web developer with access to tools for inspecting projects.\n${agentGuidelines}`,
 		messages,
 		onFinish: async ({ text, finishReason }) => {
 			console.log(`[Chat] onFinish called for project ${projectId}`);
@@ -419,9 +349,22 @@ Always specify the file path in each code block header and generate multiple fil
 				`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
 			);
 
-			// Only save non-empty messages
+			// Clear any pending save timeout
+			if (saveTimeout) {
+				clearTimeout(saveTimeout);
+			}
+
+			// Final save
 			if (text.trim().length > 0) {
-				await saveMessage(conversation.id, "assistant", text);
+				if (assistantMessageId) {
+					// Update the existing message with final content
+					updateMessage(assistantMessageId, text);
+					console.log(`[Chat] Final update to message ${assistantMessageId}`);
+				} else {
+					// Fallback: create message if somehow it wasn't created yet
+					await saveMessage(conversation.id, "assistant", text);
+					console.log(`[Chat] Created message in onFinish (fallback)`);
+				}
 
 				try {
 					console.log(`[Chat] Attempting to generate code from response...`);

@@ -161,7 +161,7 @@ export const server = {
 
 					const nameResult = await generateText({
 						model,
-						system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (2-4 words)`,
+						system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (1-4 words) and SEO friendly.`,
 						prompt: `Generate a project name for the following description: ${prompt}`,
 					});
 
@@ -185,35 +185,21 @@ export const server = {
 				projectDescription,
 			);
 
-			// If a prompt is provided, generate initial structure
+			// If a prompt is provided, copy full template and save initial user message
+			// The chat interface will handle the generation after redirect
 			if (prompt) {
 				try {
-					console.log(
-						`Copying minimal template for project ${projectResult.id}`,
-					);
+					console.log(`Copying full template for project ${projectResult.id}`);
 					const templateFiles = await copyTemplateToProject("astro");
 
-					// Filter to keep only config files
-					const minimalFiles = templateFiles.filter((file) => {
-						if (file.path.includes("package.json")) return true;
-						if (file.path.includes("astro.config.mjs")) return true;
-						if (file.path.includes("tsconfig.json")) return true;
-						if (file.path.includes("tailwind.config.cjs")) return true;
-						if (file.path.includes("postcss.config.cjs")) return true;
-						if (file.path.includes(".npmrc")) return true;
-						if (file.path.includes(".dockerignore")) return true;
-						if (file.path.includes("docker-compose")) return true;
-						if (file.path.includes("global.css")) return true;
-						if (file.path.includes("BaseLayout.astro")) return true;
-						return false;
-					});
-
-					await writeProjectFiles(projectResult.id, minimalFiles);
-					for (const file of minimalFiles) {
+					// Write all template files - AI will modify as needed
+					await writeProjectFiles(projectResult.id, templateFiles);
+					for (const file of templateFiles) {
 						await saveFile(projectResult.id, file.path, file.content);
 					}
-					console.log(`Minimal template copied: ${minimalFiles.length} files`);
+					console.log(`Full template copied: ${templateFiles.length} files`);
 
+					// Create conversation and save initial user prompt
 					const aiModelId = getAIModelId();
 					const conversation = await createConversation(
 						projectResult.id,
@@ -221,27 +207,11 @@ export const server = {
 					);
 					await saveMessage(conversation.id, "user", prompt);
 
-					const model = getAIModel();
-					const agentsContent = getTemplateAgentsContent();
-
-					const result = await generateText({
-						model,
-						system: `You are an expert web developer and designer helping users build modern sites with Astro, React islands, and Tailwind CSS.
-
-${agentsContent}`,
-						prompt: `Create a working Astro + React + Tailwind application for: ${prompt}
-
-Generate the necessary pages and components. Focus on creating a functional, well-designed implementation with good UX.`,
-					});
-
-					await saveMessage(conversation.id, "assistant", result.text);
-					await generateCode(projectResult.id, result.text);
-
 					console.log(
-						`Initial project generation completed for ${projectResult.id}`,
+						`Project ${projectResult.id} created with initial prompt ready for chat interface`,
 					);
 				} catch (error) {
-					console.error("Failed to generate initial project structure:", error);
+					console.error("Failed to setup initial project structure:", error);
 				}
 			}
 

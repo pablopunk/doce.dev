@@ -1,7 +1,7 @@
 "use client";
 
 import { actions } from "astro:actions";
-import { Sparkles, Check, Settings2 } from "lucide-react";
+import { Sparkles, Check, Settings2, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	InputGroup,
@@ -71,13 +71,14 @@ export function CreateProjectPrompt() {
 			});
 			if (error) throw error;
 			if (typeof window !== "undefined" && project) {
+				// Redirect immediately - chat interface will handle generation
 				window.location.assign(`/project/${project.id}`);
 			}
 		} catch (err) {
 			console.error(err);
-		} finally {
 			setLoading(false);
 		}
+		// Don't set loading to false on success since we're redirecting
 	};
 
 	const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -220,26 +221,22 @@ export function CreateProjectPrompt() {
 						size="sm"
 						onClick={create}
 						disabled={loading || !value.trim() || !hasApiKey}
+						className="bg-gradient-to-r from-purple-400 via-pink-400 via-blue-400 to-cyan-400 bg-clip-text font-medium text-transparent"
 					>
-						<Sparkles className="size-5" />
-						Create
+						{loading ? (
+							<>
+								<Loader2 className="h-4 w-4 animate-spin text-fg text-yellow-500 dark:text-yellow-300" />
+								Creating...
+							</>
+						) : (
+							<>
+								<Sparkles className="h-4 w-4 text-yellow-500 dark:text-yellow-300" />
+								Create
+							</>
+						)}
 					</InputGroupButton>
 				</InputGroupAddon>
 			</InputGroup>
-			<motion.div
-				className="mb-8 mt-4 flex flex-col items-center justify-center gap-6"
-				style={{ opacity: loading ? 1 : 0 }}
-			>
-				<AIBlob />
-				<div className="space-y-2 text-center">
-					<div className="relative">
-						<div className="bg-gradient-to-r from-purple-400 via-pink-400 via-blue-400 to-cyan-400 bg-clip-text text-lg font-medium text-transparent animate-[pulse_2s_ease-in-out_infinite]">
-							AI is generating your project...
-						</div>
-					</div>
-					<div className="text-sm text-muted/60">This may take a moment</div>
-				</div>
-			</motion.div>
 		</div>
 	);
 }

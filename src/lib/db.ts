@@ -221,6 +221,14 @@ export function getMessages(conversationId: string) {
 		.all(conversationId);
 }
 
+export function updateMessage(messageId: string, content: string) {
+	db.prepare("UPDATE messages SET content = ? WHERE id = ?").run(
+		content,
+		messageId,
+	);
+	return { id: messageId, content };
+}
+
 export function deleteMessage(messageId: string) {
 	const result = db.prepare("DELETE FROM messages WHERE id = ?").run(messageId);
 	return result.changes > 0;

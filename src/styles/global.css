@@ -38,7 +38,7 @@
   --danger: hsla(359, 100%, 50%, 0.8);
 
   --shadow-sm: inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
-  --shadow-md: inset 0 1px 0 0 hsl(0 0% 100% / 0.1);
+  --shadow-md: inset 0 1px 2px 0 hsl(0 0% 100% / 0.1);
   --shadow-lg: inset 0 2px 4px 0 hsl(0 0% 100% / 0.15);
 }
 

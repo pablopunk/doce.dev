@@ -16,14 +16,31 @@ A minimal Astro project template has been set up with:
 - `src/components/*.tsx` - React components for interactive features
 - Additional pages/components as needed
 
-**CRITICAL**: Always generate `src/pages/index.astro` as a complete, valid Astro page with full HTML structure.
-
 **Code Format**: Use markdown code blocks with file paths:
 ```tsx file="src/components/MyComponent.tsx"
 export function MyComponent() {
   return <div>Hello!</div>
 }
 ```
+
+## Development Environment (Docker)
+
+**⚠️ IMPORTANT - This project runs in a Docker container managed by doce.dev:**
+
+- **Dev server is ALREADY RUNNING** via docker-compose (`pnpm run dev --host 0.0.0.0`)
+- **DO NOT run `pnpm run dev`** - the container is already serving on port 4321
+- **Preview URL is automatically exposed** and refreshes on file changes
+- **Package installation**: When you modify `package.json` dependencies, run `pnpm install` to update node_modules
+- **Environment variables**: Managed via Environment tab, auto-restarts container
+
+**Available Commands** (via `runCommand` tool):
+- `pnpm install` - Install/update dependencies after package.json changes
+- `pnpm add <package>` - Add new dependencies if needed (e.g., `pnpm add recharts`)
+
+**What NOT to do**:
+- ❌ Don't run `pnpm run dev` (already running in Docker)
+- ❌ Don't try to start/stop the dev server
+- ❌ Don't worry about port configuration (handled by Docker)
 
 ## Rules
 
@@ -46,6 +63,30 @@ export function MyComponent() {
 - No full pages in `.astro` without layouts
 - No `fetch()` for internal APIs (use Actions instead) if possible (CRUD, forms, etc.)
 - No API routes for CRUD operations (use Actions)
+
+## CRITICAL: .astro vs .tsx Syntax
+
+**⚠️ DIFFERENT SYNTAX FOR DIFFERENT FILES:**
+
+**.astro files** → Use `class` (HTML syntax):
+```astro
+<div class="max-w-4xl mx-auto p-6">
+  <h1 class="text-2xl font-bold">Hello</h1>
+</div>
+```
+
+**.tsx files** → Use `className` (JSX syntax):
+```tsx
+export function MyComponent() {
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold">Hello</h1>
+    </div>
+  );
+}
+```
+
+**Rule**: ALWAYS use `class` in `.astro` files, ALWAYS use `className` in `.tsx` files. Mixing them causes build errors.
 
 ## Stack
 
@@ -202,8 +243,10 @@ curl -X POST http://localhost:4321/_actions/myAction \
 ## Guidelines
 
 - Use **pnpm** exclusively for all package operations
-- Run `pnpm build` frequently to catch errors early
+- Run `pnpm build` or `pnpm run dev` to test changes
+- Install packages with `pnpm add <package>` if needed (template includes most common ones)
 - Test actions with curl before integrating into UI
+- Add shadcn components: `pnpm dlx shadcn@latest add [component]`
 - Add icons: `pnpm dlx shadcn@latest add @svgl/{icon-name}`
 - **Use Actions, not fetch**: `actions.myAction()` not `fetch('/api/endpoint')`
 
