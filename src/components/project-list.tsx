@@ -47,7 +47,7 @@ export function ProjectList() {
 		return (
 			<div className="text-center py-12">
 				<h2 className="text-xl font-semibold mb-2">No projects yet</h2>
-				<p className="text-secondary-foreground">
+				<p className="text-foreground-tertiary">
 					Create your first project to get started
 				</p>
 			</div>
@@ -64,13 +64,13 @@ export function ProjectList() {
 						onClick={() => (window.location.href = `/project/${project.id}`)}
 					>
 						{/* Arrow in top right */}
-						<ArrowUpRight className="h-4 w-4 text-secondary-foreground absolute top-4 right-4" />
+						<ArrowUpRight className="h-4 w-4 text-foreground-tertiary absolute top-4 right-4" />
 
 						{/* Title and description */}
 						<div className="pr-8 mb-4">
 							<h3 className="font-semibold text-xl mb-1">{project.name}</h3>
 							{project.description && (
-								<p className="text-xs text-secondary-foreground line-clamp-2">
+								<p className="text-xs text-foreground-tertiary line-clamp-2">
 									{project.description}
 								</p>
 							)}
@@ -78,7 +78,7 @@ export function ProjectList() {
 
 						{/* Bottom row: date and action buttons */}
 						<div className="flex items-center justify-between">
-							<div className="text-xs text-secondary-foreground">
+							<div className="text-xs text-foreground-tertiary">
 								Updated {new Date(project.updated_at).toLocaleDateString()}
 							</div>
 							<div className="flex items-center gap-1">

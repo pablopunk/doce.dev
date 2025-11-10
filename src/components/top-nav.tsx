@@ -25,7 +25,7 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 				<div className="flex h-14 items-center justify-between">
 					<a
 						href="/"
-						className="flex items-center gap-2 font-semibold text-foreground hover:text-foreground/80 transition-colors"
+						className="flex items-center gap-2 font-semibold text-foreground-primary hover:text-foreground/80 transition-colors"
 					>
 						<Zap className="h-5 w-5 text-yellow-500" />
 						<span>doce.dev</span>
@@ -40,24 +40,15 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									onClick={() => setTheme("light")}
-									className="cursor-pointer"
-								>
+								<DropdownMenuItem onClick={() => setTheme("light")}>
 									<Sun className="h-4 w-4 mr-2" />
 									Light
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => setTheme("dark")}
-									className="cursor-pointer"
-								>
+								<DropdownMenuItem onClick={() => setTheme("dark")}>
 									<Moon className="h-4 w-4 mr-2" />
 									Dark
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => setTheme("system")}
-									className="cursor-pointer"
-								>
+								<DropdownMenuItem onClick={() => setTheme("system")}>
 									<Monitor className="h-4 w-4 mr-2" />
 									System
 								</DropdownMenuItem>

@@ -10,11 +10,16 @@ import { writeProjectFiles } from "@/lib/file-system";
 import { copyTemplateToProject } from "@/lib/template-generator";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
+// Helper to get current AI model ID
+function getAIModelId() {
+	return getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+}
+
 // Helper to get AI model from database config
 function getAIModel() {
 	const provider = getConfig("ai_provider") || "openrouter";
 	const apiKey = getConfig(`${provider}_api_key`);
-	const defaultModel = getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+	const defaultModel = getAIModelId();
 
 	if (!apiKey) {
 		throw new Error(
@@ -129,7 +134,8 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 			console.log(`Minimal template copied: ${minimalFiles.length} files`);
 
-			const conversation = await createConversation(project.id);
+			const aiModelId = getAIModelId();
+			const conversation = await createConversation(project.id, aiModelId);
 			await saveMessage(conversation.id, "user", prompt);
 
 			const model = getAIModel();

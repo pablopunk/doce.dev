@@ -264,7 +264,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 												<p className="text-sm font-medium">
 													Starting preview...
 												</p>
-												<p className="text-xs text-secondary-foreground mt-1">
+												<p className="text-xs text-foreground-tertiary mt-1">
 													Waiting for server to respond...
 												</p>
 											</div>
@@ -274,7 +274,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{iframeError && !isIframeLoading && (
 									<div className="absolute inset-0 bg-white flex items-center justify-center">
 										<div className="text-center space-y-4">
-											<p className="text-secondary-foreground">
+											<p className="text-foreground-tertiary">
 												Preview failed to load
 											</p>
 											<Button
@@ -295,7 +295,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						) : (
 							<div className="h-full flex items-center justify-center">
 								<div className="text-center space-y-4">
-									<p className="text-secondary-foreground">
+									<p className="text-foreground-tertiary">
 										No preview available yet
 									</p>
 									<Button
@@ -335,7 +335,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								))}
 							</div>
 						) : (
-							<div className="h-full flex items-center justify-center text-secondary-foreground">
+							<div className="h-full flex items-center justify-center text-foreground-tertiary">
 								No code generated yet
 							</div>
 						)}
@@ -349,7 +349,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 									<h3 className="text-lg font-semibold">
 										Environment Variables
 									</h3>
-									<p className="text-sm text-secondary-foreground">
+									<p className="text-sm text-foreground-tertiary">
 										Variables for development and production
 									</p>
 								</div>
@@ -371,7 +371,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											onChange={(e) => updateEnvVar(key, e.target.value, value)}
 											className="flex-1 font-mono text-sm"
 										/>
-										<span className="text-secondary-foreground">=</span>
+										<span className="text-foreground-tertiary">=</span>
 										<Input
 											placeholder="value"
 											value={value}
@@ -391,7 +391,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								))}
 
 								{Object.keys(envVars).length === 0 && (
-									<div className="text-center py-8 text-secondary-foreground">
+									<div className="text-center py-8 text-foreground-tertiary">
 										No environment variables yet. Click "Add Variable" to create
 										one.
 									</div>

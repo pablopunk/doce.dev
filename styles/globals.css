@@ -45,13 +45,6 @@
   --input: var(--bg-surface);
   --ring: var(--primary);
 
-  /* Chart colors */
-  --chart-1: oklch(0.65 0.18 250);
-  --chart-2: oklch(0.62 0.14 140);
-  --chart-3: oklch(0.74 0.18 80);
-  --chart-4: oklch(0.61 0.16 20);
-  --chart-5: oklch(0.68 0.15 300);
-
   /* Sidebar */
   --sidebar: var(--bg-surface);
   --sidebar-foreground: var(--text-strong);
@@ -100,23 +93,6 @@
   /* B&W buttons in dark mode - DARKEST */
   --primary: oklch(0.05 0 0);        /* Darkest/black buttons */
   --primary-contrast: oklch(0.98 0 0); /* Light text */
-}
-
-/* System preference fallback when no class is set */
-@media (prefers-color-scheme: light) {
-  :root:not(.light):not(.dark) {
-    --bg-base: hsl(0 0% 92%);
-    --bg-surface: hsl(0 0% 99%);
-    --bg-raised: hsl(0 0% 100%);
-    --text-strong: hsl(0 0% 9%);
-    --text-muted: hsl(0 0% 42%);
-    --highlight: hsl(0 0% 100%);
-    --border: hsl(0 0% 85%);
-    --shadow-1: hsla(0 0% 0% / 0.08);
-    --shadow-2: hsla(0 0% 0% / 0.04);
-    --primary: oklch(0.98 0 0);
-    --primary-contrast: oklch(0.10 0 0);
-  }
 }
 
 @theme inline {

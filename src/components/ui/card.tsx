@@ -10,6 +10,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
 				"p-4",
 				"bg-bg-surface text-card-foreground flex flex-col rounded-xl",
 				"relative overflow-hidden shadow-elevation",
+				"highlight-top",
 				className,
 			)}
 			{...props}

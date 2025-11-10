@@ -78,7 +78,7 @@ export function SettingsForm() {
 
 	const getProviderIcon = (provider: string) => {
 		const iconClass =
-			"h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+			"h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -119,7 +119,7 @@ export function SettingsForm() {
 								{currentModelInfo ? (
 									<>
 										<span className="font-medium">{currentModelInfo.name}</span>
-										<span className="text-secondary-foreground">
+										<span className="text-foreground-tertiary">
 											{" "}
 											— {currentModelInfo.provider}
 										</span>
@@ -149,11 +149,11 @@ export function SettingsForm() {
 											<Check className="h-3.5 w-3.5 text-primary" />
 										)}
 										<span className="text-sm font-medium">{model.name}</span>
-										<span className="text-xs text-secondary-foreground">
+										<span className="text-xs text-foreground-tertiary">
 											{model.provider}
 										</span>
 									</div>
-									<p className="text-xs text-secondary-foreground">
+									<p className="text-xs text-foreground-tertiary">
 										{model.description}
 									</p>
 								</div>
@@ -164,7 +164,7 @@ export function SettingsForm() {
 			</Popover>
 
 			{currentModelInfo && (
-				<p className="text-xs text-secondary-foreground">
+				<p className="text-xs text-foreground-tertiary">
 					{currentModelInfo.description}
 				</p>
 			)}

@@ -67,7 +67,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		const iconClass =
 			size === "sm"
 				? "h-4 w-4 [&_*]:!fill-foreground [&_path]:!fill-foreground"
-				: "h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+				: "h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -488,7 +488,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<span className="font-mono font-medium truncate">
 											{part.file || `${part.language} code`}
 										</span>
-										<span className="text-xs text-secondary-foreground flex-shrink-0">
+										<span className="text-xs text-foreground-tertiary flex-shrink-0">
 											{part.content.split("\n").length} lines
 										</span>
 									</div>
@@ -512,7 +512,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											<span className="font-mono font-medium truncate">
 												{part.file || `${part.language} code`}
 											</span>
-											<span className="text-xs text-secondary-foreground flex-shrink-0">
+											<span className="text-xs text-foreground-tertiary flex-shrink-0">
 												{part.content.split("\n").length} lines
 											</span>
 										</div>
@@ -543,7 +543,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					<div className="h-full flex items-center justify-center text-center">
 						<div className="max-w-md space-y-4">
 							<h2 className="text-2xl font-bold">Start Building</h2>
-							<p className="text-secondary-foreground">
+							<p className="text-foreground-tertiary">
 								Describe the website you want to build, and I'll generate the
 								code for you.
 							</p>
@@ -566,7 +566,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden cursor-context-menu ${
 											message.role === "user"
 												? "bg-primary text-primary-foreground"
-												: "bg-muted text-foreground"
+												: "bg-muted text-foreground-primary"
 										} ${isDeleting ? "opacity-50" : ""}`}
 									>
 										{message.role === "assistant" ? (
@@ -613,7 +613,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					<div className="flex justify-start">
 						<div className="bg-muted rounded-lg px-4 py-2 flex items-center gap-2">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							<span className="text-sm text-secondary-foreground">
+							<span className="text-sm text-foreground-tertiary">
 								Generating...
 							</span>
 						</div>
@@ -655,11 +655,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-secondary-foreground">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-foreground-tertiary">
 										AI Model
 									</Label>
 									{AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel) && (
-										<p className="mt-1 text-xs text-secondary-foreground">
+										<p className="mt-1 text-xs text-foreground-tertiary">
 											Currently using:{" "}
 											{
 												AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
@@ -688,11 +688,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-secondary-foreground">
+													<span className="text-xs text-foreground-tertiary">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-secondary-foreground">
+												<p className="text-xs text-foreground-tertiary">
 													{model.description}
 												</p>
 											</div>

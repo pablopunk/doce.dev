@@ -54,7 +54,7 @@ export function DeploymentList({ projectId }: { projectId: string }) {
 		<div className="space-y-4">
 			<h3 className="text-lg font-semibold">Deployments</h3>
 			{data.deployments.length === 0 ? (
-				<p className="text-sm text-secondary-foreground">No deployments yet</p>
+				<p className="text-sm text-foreground-tertiary">No deployments yet</p>
 			) : (
 				<div className="space-y-2">
 					{data.deployments.map((deployment: any) => (
@@ -64,11 +64,11 @@ export function DeploymentList({ projectId }: { projectId: string }) {
 									{deployment.status === "running" ? (
 										<CheckCircle className="h-5 w-5 text-green-500" />
 									) : (
-										<XCircle className="h-5 w-5 text-secondary-foreground" />
+										<XCircle className="h-5 w-5 text-foreground-tertiary" />
 									)}
 									<div>
 										<div className="font-mono text-sm">{deployment.url}</div>
-										<div className="text-xs text-secondary-foreground">
+										<div className="text-xs text-foreground-tertiary">
 											{new Date(deployment.created_at).toLocaleString()}
 										</div>
 									</div>

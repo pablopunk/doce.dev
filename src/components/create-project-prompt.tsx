@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Check, Settings2 } from "lucide-react";
+import { Sparkles, Check, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	InputGroup,
@@ -108,8 +108,8 @@ export function CreateProjectPrompt() {
 	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
 		const iconClass =
 			size === "sm"
-				? "h-4 w-4 [&_*]:!fill-muted-foreground [&_path]:!fill-muted-foreground"
-				: "h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+				? "h-4 w-4 [&_*]:!fill-foreground-secondary [&_path]:!fill-foreground-secondary"
+				: "h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -152,7 +152,7 @@ export function CreateProjectPrompt() {
 								AI is generating your project...
 							</div>
 						</div>
-						<div className="text-sm text-secondary-foreground/60">
+						<div className="text-sm text-foreground-tertiary/60">
 							This may take a moment
 						</div>
 					</div>
@@ -177,11 +177,11 @@ export function CreateProjectPrompt() {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-secondary-foreground">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-foreground-tertiary">
 										AI Model
 									</Label>
 									{currentModelInfo && (
-										<p className="mt-1 text-xs text-secondary-foreground">
+										<p className="mt-1 text-xs text-foreground-tertiary">
 											Currently using: {currentModelInfo.name}
 										</p>
 									)}
@@ -193,7 +193,7 @@ export function CreateProjectPrompt() {
 											key={model.id}
 											type="button"
 											onClick={() => handleModelChange(model.id)}
-											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
+											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-bg-cta cursor-pointer"
 										>
 											<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
 												{getProviderIcon(model.provider)}
@@ -206,11 +206,11 @@ export function CreateProjectPrompt() {
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-secondary-foreground">
+													<span className="text-xs text-foreground-tertiary">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-secondary-foreground">
+												<p className="text-xs text-foreground-tertiary">
 													{model.description}
 												</p>
 											</div>
@@ -236,12 +236,13 @@ export function CreateProjectPrompt() {
 				<InputGroupAddon align="inline-end">
 					<InputGroupButton
 						aria-label="Create"
-						size="icon-sm"
-						variant="ghost"
+						variant="default"
+						size="sm"
 						onClick={create}
 						disabled={loading || !value.trim() || !hasApiKey}
 					>
-						<ArrowUpRight className="size-5" />
+						<Sparkles className="size-5" />
+						Create
 					</InputGroupButton>
 				</InputGroupAddon>
 			</InputGroup>

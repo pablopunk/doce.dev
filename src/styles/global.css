@@ -4,33 +4,38 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* === Background Layers (back to front) === */
-  --bg-base: hsl(0 0% 3%);          /* Page background */
-  --bg-surface: hsl(0 0% 8%);       /* Cards, panels */
-  --bg-raised: hsl(0 0% 12%);       /* Popovers, inputs, elevated UI */
-  
+  /* === 4-Layer Depth System (darkest → lightest) === */
+  --bg-base: hsl(0 0% 3%);          /* Layer 1: Page background (darkest) */
+  --bg-surface: hsl(0 0% 8%);       /* Layer 2: Cards, panels */
+  --bg-raised: hsl(0 0% 12%);       /* Layer 3: Popovers, inputs, elevated UI */
+  --bg-cta: hsl(0 0% 20%);          /* Layer 4: Primary buttons (lightest/highest) */
+
+  /* Aliases for common use cases */
+  --bg-muted: var(--bg-surface);    /* Alias for surface */
+
   /* === Interactive States === */
   --bg-hover: hsl(0 0% 16%);        /* Hover on interactive elements */
   --bg-active: hsl(0 0% 14%);       /* Pressed state */
-  
-  /* === CTA/Primary Actions === */
-  --bg-cta: hsl(0 0% 20%);          /* Primary buttons */
   --bg-cta-hover: hsl(0 0% 24%);    /* CTA hover state */
-  
-  /* === Text Hierarchy === */
-  --text-primary: hsl(0 0% 88%);    /* Body text, headings */
-  --text-secondary: hsl(0 0% 70%);  /* Less important text */
-  --text-tertiary: hsl(0 0% 50%);   /* Even lighter text */
-  --text-disabled: hsl(0 0% 35%);   /* Disabled state */
+
+  /* === 4-Level Foreground Hierarchy (highest → lowest contrast) === */
+  --foreground-primary: hsl(0 0% 88%);    /* Level 1: Body text, headings */
+  --foreground-secondary: hsl(0 0% 70%);  /* Level 2: Descriptions, labels */
+  --foreground-tertiary: hsl(0 0% 50%);   /* Level 3: Captions, metadata */
+  --foreground-disabled: hsl(0 0% 35%);   /* Level 4: Disabled/inactive */
+
+  /* Aliases for common use cases */
+  --foreground-muted: var(--foreground-secondary);     /* Alias for secondary */
+  --foreground-subtle: var(--foreground-tertiary);     /* Alias for tertiary */
 
   /* === Borders === */
   --border-subtle: hsl(0 0% 18%);   /* Faint dividers */
-  --border-default: hsl(0 0% 28%);  /* Standard borders */
+  --border-default: hsl(0 0% 20%);  /* Standard borders */
   --border-focus: hsl(0 0% 88%);    /* Focus rings */
-  
+
   /* === Overlays === */
   --overlay: rgba(0, 0, 0, 0.5);    /* Modal backdrops */
-  
+
   /* === Primary (buttons, CTAs) === */
   --primary: hsl(0 0% 88%);         /* Light gray for dark mode */
   --primary-contrast: hsl(0 0% 8%); /* Dark text on light buttons */
@@ -41,24 +46,24 @@
   --danger: oklch(0.65 0.20 25);     /* Red */
 
   /* === Effects === */
-  --highlight: hsl(0 0% 16%);       /* Top highlight on cards */
+  --highlight: hsl(0 0% 34%);       /* Top highlight on cards */
   --shadow-1: hsla(0 0% 0% / 0.5);  /* Stronger shadows */
   --shadow-2: hsla(0 0% 0% / 0.25);
 
-  /* === shadcn/ui Compatibility (DO NOT REMOVE) === */
+  /* === shadcn/ui Compatibility (maps to YOUR system) === */
   --background: var(--bg-base);
-  --foreground: var(--text-primary);
+  --foreground: var(--foreground-primary);
   --card: var(--bg-surface);
-  --card-foreground: var(--text-primary);
+  --card-foreground: var(--foreground-primary);
   --popover: var(--bg-raised);
-  --popover-foreground: var(--text-primary);
+  --popover-foreground: var(--foreground-primary);
   --primary-foreground: var(--primary-contrast);
-  --secondary: var(--text-secondary);
-  --secondary-foreground: var(--text-tertiary);
+  --secondary: var(--foreground-secondary);
+  --secondary-foreground: var(--foreground-tertiary);
   --muted: var(--bg-surface);
-  --muted-foreground: var(--text-secondary);
+  --muted-foreground: var(--foreground-secondary);
   --accent: var(--bg-raised);
-  --accent-foreground: var(--text-primary);
+  --accent-foreground: var(--foreground-primary);
   --destructive: var(--danger);
   --destructive-foreground: oklch(0.95 0.02 20);
   --input: var(--bg-raised);
@@ -73,11 +78,11 @@
 
   /* Sidebar */
   --sidebar: var(--bg-surface);
-  --sidebar-foreground: var(--text-primary);
+  --sidebar-foreground: var(--foreground-primary);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-contrast);
   --sidebar-accent: var(--bg-raised);
-  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-accent-foreground: var(--foreground-primary);
   --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--primary);
 
@@ -85,64 +90,46 @@
 }
 
 .light {
-  /* === Background Layers (back to front) === */
-  --bg-base: hsl(0 0% 88%);         /* Page background (grey-ish) */
-  --bg-surface: hsl(0 0% 92%);      /* Cards, panels */
-  --bg-raised: hsl(0 0% 95%);       /* Popovers, inputs, elevated UI */
-  
+  /* === 4-Layer Depth System (grey → white) === */
+  --bg-base: hsl(0 0% 88%);         /* Layer 1: Page background (grey-ish) */
+  --bg-surface: hsl(0 0% 92%);      /* Layer 2: Cards, panels */
+  --bg-raised: hsl(0 0% 95%);       /* Layer 3: Popovers, inputs, elevated UI */
+  --bg-cta: hsl(0 0% 99%);          /* Layer 4: Primary buttons (almost white/highest) */
+
+  /* Aliases for common use cases */
+  --bg-muted: var(--bg-surface);    /* Alias for surface */
+
   /* === Interactive States === */
   --bg-hover: hsl(0 0% 97%);        /* Hover on interactive elements */
   --bg-active: hsl(0 0% 96%);       /* Pressed state */
-  
-  /* === CTA/Primary Actions === */
-  --bg-cta: hsl(0 0% 99%);          /* Primary buttons (almost white) */
   --bg-cta-hover: hsl(0 0% 98%);    /* CTA hover state */
-  
-  /* === Text Hierarchy === */
-  --text-primary: hsl(0 0% 5%);     /* Body text, headings */
-  --text-secondary: hsl(0 0% 15%);  /* Less important text */
-  --text-tertiary: hsl(0 0% 35%);   /* Even lighter text */
-  --text-disabled: hsl(0 0% 55%);   /* Disabled state */
+
+  /* === 4-Level Foreground Hierarchy (highest → lowest contrast) === */
+  --foreground-primary: hsl(0 0% 5%);     /* Level 1: Body text, headings */
+  --foreground-secondary: hsl(0 0% 15%);  /* Level 2: Descriptions, labels */
+  --foreground-tertiary: hsl(0 0% 35%);   /* Level 3: Captions, metadata */
+  --foreground-disabled: hsl(0 0% 55%);   /* Level 4: Disabled/inactive */
+
+  /* Aliases for common use cases */
+  --foreground-muted: var(--foreground-secondary);     /* Alias for secondary */
+  --foreground-subtle: var(--foreground-tertiary);     /* Alias for tertiary */
 
   /* === Borders === */
-  --border-subtle: hsl(0 0% 82%);   /* Faint dividers */
-  --border-default: hsl(0 0% 72%);  /* Standard borders */
-  --border-focus: hsl(0 0% 12%);    /* Focus rings */
+  --border-subtle: hsl(0 0% 90%);   /* Faint dividers */
+  --border-default: hsl(0 0% 83%);  /* Standard borders */
+  --border-focus: hsl(0 0% 70%);    /* Focus rings */
 
   /* === Primary (buttons, CTAs) === */
   --primary: hsl(0 0% 5%);          /* Dark gray for light mode */
   --primary-contrast: hsl(0 0% 92%); /* Light text on dark buttons */
 
   /* === Effects === */
-  --highlight: hsl(0 0% 84%);       /* Subtle highlight */
+  --highlight: hsl(0 0% 87%);       /* Subtle highlight */
   --shadow-1: hsla(0 0% 0% / 0.08);
   --shadow-2: hsla(0 0% 0% / 0.04);
 }
 
-/* System preference fallback when no class is set */
-@media (prefers-color-scheme: light) {
-  :root:not(.light):not(.dark) {
-    --bg-base: hsl(0 0% 88%);
-    --bg-surface: hsl(0 0% 92%);
-    --bg-raised: hsl(0 0% 95%);
-    --bg-hover: hsl(0 0% 97%);
-    --bg-active: hsl(0 0% 96%);
-    --bg-cta: hsl(0 0% 99%);
-    --bg-cta-hover: hsl(0 0% 98%);
-    --text-primary: hsl(0 0% 5%);
-    --text-secondary: hsl(0 0% 15%);
-    --text-tertiary: hsl(0 0% 35%);
-    --text-disabled: hsl(0 0% 55%);
-    --border-subtle: hsl(0 0% 82%);
-    --border-default: hsl(0 0% 72%);
-    --border-focus: hsl(0 0% 5%);
-    --highlight: hsl(0 0% 84%);
-    --shadow-1: hsla(0 0% 0% / 0.08);
-    --shadow-2: hsla(0 0% 0% / 0.04);
-    --primary: hsl(0 0% 5%);
-    --primary-contrast: hsl(0 0% 92%);
-  }
-}
+
 
 @theme inline {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
@@ -156,10 +143,13 @@
   --color-bg-active: var(--bg-active);
   --color-bg-cta: var(--bg-cta);
   --color-bg-cta-hover: var(--bg-cta-hover);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-tertiary: var(--text-tertiary);
-  --color-text-disabled: var(--text-disabled);
+  --color-bg-muted: var(--bg-muted);
+  --color-foreground-primary: var(--foreground-primary);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-disabled: var(--foreground-disabled);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
   --color-border-subtle: var(--border-subtle);
   --color-border-default: var(--border-default);
   --color-border-focus: var(--border-focus);
@@ -211,4 +201,9 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.highlight-top {
+  border: 1px solid var(--border-default);
+  border-top-color: var(--highlight);
 }

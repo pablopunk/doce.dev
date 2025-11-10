@@ -156,7 +156,7 @@ export function ApiKeysForm() {
 							<button
 								type="button"
 								onClick={() => toggleShow(provider.id)}
-								className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-foreground hover:text-foreground"
+								className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground-tertiary hover:text-foreground-primary"
 							>
 								{showKeys[provider.id] ? (
 									<EyeOff className="h-4 w-4" />
@@ -185,7 +185,7 @@ export function ApiKeysForm() {
 					)}
 				</div>
 			))}
-			<p className="text-xs text-secondary-foreground">
+			<p className="text-xs text-foreground-tertiary">
 				Note: OpenRouter supports 400+ models from all providers. You only need
 				one API key.
 			</p>

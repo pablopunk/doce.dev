@@ -163,7 +163,7 @@ export default function SetupWizard() {
 						<form onSubmit={handleCreateUser} className="space-y-4">
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">Create Admin Account</h3>
-								<p className="text-sm text-secondary-foreground">
+								<p className="text-sm text-foreground-tertiary">
 									This will be your login to access the builder
 								</p>
 							</div>
@@ -221,7 +221,7 @@ export default function SetupWizard() {
 						<form onSubmit={handleConfigureAI} className="space-y-4">
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">Configure AI Provider</h3>
-								<p className="text-sm text-secondary-foreground">
+								<p className="text-sm text-foreground-tertiary">
 									Choose your AI provider and enter your API key
 								</p>
 							</div>
@@ -249,7 +249,7 @@ export default function SetupWizard() {
 											placeholder="sk-..."
 											required
 										/>
-										<p className="text-xs text-secondary-foreground">
+										<p className="text-xs text-foreground-tertiary">
 											Get your API key from{" "}
 											<a
 												href="https://platform.openai.com/api-keys"
@@ -274,7 +274,7 @@ export default function SetupWizard() {
 											placeholder="sk-ant-..."
 											required
 										/>
-										<p className="text-xs text-secondary-foreground">
+										<p className="text-xs text-foreground-tertiary">
 											Get your API key from{" "}
 											<a
 												href="https://console.anthropic.com/"
@@ -299,7 +299,7 @@ export default function SetupWizard() {
 											placeholder="or-sk-..."
 											required
 										/>
-										<p className="text-xs text-secondary-foreground">
+										<p className="text-xs text-foreground-tertiary">
 											Get your API key from{" "}
 											<a
 												href="https://openrouter.ai/"
@@ -347,7 +347,7 @@ export default function SetupWizard() {
 
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">All Set!</h3>
-								<p className="text-sm text-secondary-foreground">
+								<p className="text-sm text-foreground-tertiary">
 									Your doce.dev is ready to use. You can now start creating
 									amazing websites with AI.
 								</p>
@@ -355,7 +355,7 @@ export default function SetupWizard() {
 
 							<div className="space-y-2 rounded-lg bg-muted p-4 text-left">
 								<p className="text-sm font-medium">What's next?</p>
-								<ul className="list-inside list-disc space-y-1 text-sm text-secondary-foreground">
+								<ul className="list-inside list-disc space-y-1 text-sm text-foreground-tertiary">
 									<li>Create your first project</li>
 									<li>Chat with AI to generate code</li>
 									<li>Preview your site instantly</li>
