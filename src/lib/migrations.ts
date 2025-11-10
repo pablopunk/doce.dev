@@ -22,6 +22,27 @@ const migrations: Migration[] = [
       `);
 		},
 	},
+	{
+		id: 2,
+		name: "add_build_logs_to_projects",
+		up: (db) => {
+			// Add build_logs column to projects table to store docker-compose output
+			db.exec(`
+        ALTER TABLE projects ADD COLUMN build_logs TEXT;
+      `);
+		},
+	},
+	{
+		id: 3,
+		name: "add_streaming_status_to_messages",
+		up: (db) => {
+			// Add streaming_status column to messages table
+			// Possible values: 'streaming', 'complete', 'error'
+			db.exec(`
+        ALTER TABLE messages ADD COLUMN streaming_status TEXT DEFAULT 'complete';
+      `);
+		},
+	},
 ];
 
 export function runMigrations(db: Database.Database) {

@@ -21,12 +21,19 @@ export async function createPreviewContainer(
 	const subdomain = `preview-${projectId.slice(0, 8)}`;
 
 	try {
+		// Import DB functions for logging
+		const { clearBuildLogs, appendBuildLog } = await import("@/lib/db");
+
+		// Clear previous build logs
+		clearBuildLogs(projectId);
+
 		// Check if container already exists and is running
 		const existingContainer = await getContainerByName(containerName);
 		if (existingContainer) {
 			const info = await existingContainer.inspect();
 			if (info.State.Running) {
 				console.log(`Preview container already running for ${projectId}`);
+				appendBuildLog(projectId, `✓ Preview container already running\n`);
 				const existingPort = parseInt(
 					info.HostConfig.PortBindings["3000/tcp"]?.[0]?.HostPort ||
 						port.toString(),
@@ -37,6 +44,7 @@ export async function createPreviewContainer(
 					port: existingPort,
 				};
 			}
+			appendBuildLog(projectId, `⟳ Removing existing stopped container\n`);
 			await existingContainer.remove({ force: true });
 		}
 
@@ -50,6 +58,8 @@ export async function createPreviewContainer(
 		console.log(
 			`Starting preview via docker-compose for ${projectId} at ${projectPath}`,
 		);
+		appendBuildLog(projectId, `⟳ Starting preview container...\n`);
+		appendBuildLog(projectId, `📂 Project path: ${projectPath}\n`);
 
 		// Generate docker-compose override for this specific instance with port and labels
 		const composeOverride = `services:
@@ -74,19 +84,61 @@ export async function createPreviewContainer(
 			path.join(projectPath, "docker-compose.override.yml"),
 			composeOverride,
 		);
+		appendBuildLog(projectId, `✓ Generated docker-compose override\n`);
 
 		// Use docker-compose via command line (more reliable than docker SDK for compose)
-		const { exec } = await import("child_process");
-		const { promisify } = await import("util");
-		const execAsync = promisify(exec);
+		const { spawn } = await import("child_process");
 
 		// Start containers with docker-compose (use dev config for preview)
-		await execAsync(
-			`docker-compose -f docker-compose.dev.yml -f docker-compose.override.yml up -d`,
+		appendBuildLog(projectId, `⟳ Running docker-compose up...\n\n`);
+
+		const composeProcess = spawn(
+			"docker-compose",
+			[
+				"-f",
+				"docker-compose.dev.yml",
+				"-f",
+				"docker-compose.override.yml",
+				"up",
+				"-d",
+			],
 			{ cwd: projectPath },
 		);
 
+		// Capture stdout and stderr
+		composeProcess.stdout.on("data", (data) => {
+			const log = data.toString();
+			console.log(log);
+			appendBuildLog(projectId, log);
+		});
+
+		composeProcess.stderr.on("data", (data) => {
+			const log = data.toString();
+			console.error(log);
+			appendBuildLog(projectId, log);
+		});
+
+		// Wait for the process to complete
+		await new Promise<void>((resolve, reject) => {
+			composeProcess.on("close", (code) => {
+				if (code === 0) {
+					appendBuildLog(
+						projectId,
+						`\n✓ docker-compose up completed successfully\n`,
+					);
+					resolve();
+				} else {
+					appendBuildLog(
+						projectId,
+						`\n✗ docker-compose up failed with exit code ${code}\n`,
+					);
+					reject(new Error(`docker-compose up failed with exit code ${code}`));
+				}
+			});
+		});
+
 		console.log(`Preview started for ${projectId}, waiting for container...`);
+		appendBuildLog(projectId, `⟳ Waiting for container to be ready...\n`);
 
 		// Wait for the container to appear and be running
 		let attempts = 0;
@@ -97,6 +149,12 @@ export async function createPreviewContainer(
 				const info = await container.inspect();
 				if (info.State.Running) {
 					console.log(`Preview container is running for ${projectId}`);
+					const { appendBuildLog } = await import("@/lib/db");
+					appendBuildLog(projectId, `✓ Container is running\n`);
+					appendBuildLog(
+						projectId,
+						`🚀 Preview available at http://localhost:${port}\n`,
+					);
 					break;
 				}
 			}
@@ -105,6 +163,8 @@ export async function createPreviewContainer(
 		}
 
 		if (!container) {
+			const { appendBuildLog } = await import("@/lib/db");
+			appendBuildLog(projectId, `✗ Container failed to start within timeout\n`);
 			throw new Error("Container failed to start within timeout");
 		}
 
@@ -114,6 +174,11 @@ export async function createPreviewContainer(
 		return { containerId: container.id, url, port };
 	} catch (error) {
 		console.error("Failed to create preview container:", error);
+		const { appendBuildLog } = await import("@/lib/db");
+		appendBuildLog(
+			projectId,
+			`\n✗ ERROR: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
 		throw error;
 	}
 }

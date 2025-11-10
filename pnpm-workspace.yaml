@@ -1,0 +1,9 @@
+ignoredBuiltDependencies:
+  - cpu-features
+  - esbuild
+  - protobufjs
+  - sharp
+  - ssh2
+
+onlyBuiltDependencies:
+  - better-sqlite3

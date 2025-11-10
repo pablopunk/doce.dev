@@ -172,6 +172,21 @@ export function updateProject(id: string, data: any) {
 	return getProject(id);
 }
 
+export function appendBuildLog(projectId: string, logLine: string) {
+	const project = getProject(projectId) as any;
+	const currentLogs = project?.build_logs || "";
+	const newLogs = currentLogs + logLine;
+	db.prepare(
+		"UPDATE projects SET build_logs = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+	).run(newLogs, projectId);
+}
+
+export function clearBuildLogs(projectId: string) {
+	db.prepare(
+		"UPDATE projects SET build_logs = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+	).run(projectId);
+}
+
 // Conversation functions
 export function getConversation(projectId: string) {
 	return db
@@ -205,12 +220,19 @@ export function saveMessage(
 	conversationId: string,
 	role: string,
 	content: string,
+	streamingStatus: "streaming" | "complete" | "error" = "complete",
 ) {
 	const id = randomUUID();
 	db.prepare(
-		"INSERT INTO messages (id, conversation_id, role, content) VALUES (?, ?, ?, ?)",
-	).run(id, conversationId, role, content);
-	return { id, conversation_id: conversationId, role, content };
+		"INSERT INTO messages (id, conversation_id, role, content, streaming_status) VALUES (?, ?, ?, ?, ?)",
+	).run(id, conversationId, role, content, streamingStatus);
+	return {
+		id,
+		conversation_id: conversationId,
+		role,
+		content,
+		streaming_status: streamingStatus,
+	};
 }
 
 export function getMessages(conversationId: string) {
@@ -221,12 +243,22 @@ export function getMessages(conversationId: string) {
 		.all(conversationId);
 }
 
-export function updateMessage(messageId: string, content: string) {
-	db.prepare("UPDATE messages SET content = ? WHERE id = ?").run(
-		content,
-		messageId,
-	);
-	return { id: messageId, content };
+export function updateMessage(
+	messageId: string,
+	content: string,
+	streamingStatus?: "streaming" | "complete" | "error",
+) {
+	if (streamingStatus) {
+		db.prepare(
+			"UPDATE messages SET content = ?, streaming_status = ? WHERE id = ?",
+		).run(content, streamingStatus, messageId);
+	} else {
+		db.prepare("UPDATE messages SET content = ? WHERE id = ?").run(
+			content,
+			messageId,
+		);
+	}
+	return { id: messageId, content, streaming_status: streamingStatus };
 }
 
 export function deleteMessage(messageId: string) {

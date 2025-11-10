@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Terminal, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Terminal, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ export function TerminalDock({
 }: TerminalDockProps) {
 	const [logs, setLogs] = useState<string[]>([]);
 	const [isConnected, setIsConnected] = useState(false);
+	const [isCopied, setIsCopied] = useState(false);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -48,12 +49,16 @@ export function TerminalDock({
 			return;
 		}
 
+		// Clear logs on reconnect (component remount means restart happened)
+		setLogs([]);
+
 		// Connect to SSE endpoint
 		const eventSource = new EventSource(`/api/projects/${projectId}/logs`);
 		eventSourceRef.current = eventSource;
 
 		eventSource.onopen = () => {
 			setIsConnected(true);
+			setLogs((prev) => [...prev, "✓ Connected to container logs\n"]);
 		};
 
 		eventSource.onmessage = (event) => {
@@ -74,7 +79,6 @@ export function TerminalDock({
 		eventSource.onerror = (error) => {
 			console.error("EventSource error:", error);
 			setIsConnected(false);
-			setLogs((prev) => [...prev, "✗ Connection lost\n"]);
 			eventSource.close();
 		};
 
@@ -86,6 +90,17 @@ export function TerminalDock({
 
 	const handleClear = () => {
 		setLogs([]);
+	};
+
+	const handleCopy = async () => {
+		const logText = logs.join("");
+		try {
+			await navigator.clipboard.writeText(logText);
+			setIsCopied(true);
+			setTimeout(() => setIsCopied(false), 2000);
+		} catch (error) {
+			console.error("Failed to copy logs:", error);
+		}
 	};
 
 	const handleToggle = () => {
@@ -112,13 +127,22 @@ export function TerminalDock({
 					<Terminal className="h-4 w-4" />
 					<span className="text-sm font-medium">Terminal</span>
 					{isConnected && (
-						<span className="text-xs text-muted">
-							({logs.length} lines)
-						</span>
+						<span className="text-xs text-muted">({logs.length} lines)</span>
 					)}
 				</button>
 
 				<div className="flex items-center gap-1">
+					{isExpanded && logs.length > 0 && (
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={handleCopy}
+							className="h-8 w-8"
+							title={isCopied ? "Copied!" : "Copy logs"}
+						>
+							<Copy className={cn("h-4 w-4", isCopied && "text-warning")} />
+						</Button>
+					)}
 					{isExpanded && (
 						<Button
 							variant="ghost"

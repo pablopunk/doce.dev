@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { streamContainerLogs } from "@/lib/docker";
+import { getProject } from "@/lib/db";
 
 export const GET: APIRoute = async ({ params, request }) => {
 	const projectId = params.id;
@@ -8,12 +9,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
+		// Get project to check for stored build logs
+		const project = getProject(projectId) as any;
+
 		// Get the log stream from Docker
 		const logStream = await streamContainerLogs(projectId);
-		if (!logStream) {
-			console.log(`No log stream available for project ${projectId}`);
-			return new Response("Container not running", { status: 404 });
-		}
 
 		console.log(`Starting log stream for project ${projectId}`);
 
@@ -27,7 +27,40 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 		const stream = new ReadableStream({
 			async start(controller) {
-				// Send initial connection message
+				// First, send stored build logs if available
+				if (project?.build_logs) {
+					controller.enqueue(
+						encoder.encode(
+							`data: ${JSON.stringify({ log: "=== Build/Deployment Logs ===\n" })}\n\n`,
+						),
+					);
+					controller.enqueue(
+						encoder.encode(
+							`data: ${JSON.stringify({ log: project.build_logs })}\n\n`,
+						),
+					);
+					controller.enqueue(
+						encoder.encode(
+							`data: ${JSON.stringify({ log: "\n=== Container Logs ===\n" })}\n\n`,
+						),
+					);
+				}
+
+				// If container is not running, only show build logs
+				if (!logStream) {
+					if (!project?.build_logs) {
+						controller.enqueue(
+							encoder.encode(
+								`data: ${JSON.stringify({ log: "No logs available (container not running)\n" })}\n\n`,
+							),
+						);
+					}
+					// Keep connection open for a bit then close
+					setTimeout(() => controller.close(), 1000);
+					return;
+				}
+
+				// Send connection message for container logs
 				controller.enqueue(
 					encoder.encode(
 						`data: ${JSON.stringify({ log: "✓ Connected to container\n" })}\n\n`,

@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
 
-export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
+export function TopNav({
+	fullWidth,
+	projectName,
+}: {
+	fullWidth?: boolean;
+	projectName?: string;
+}) {
 	const { setTheme } = useTheme();
 
 	return (
@@ -29,6 +35,11 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 						<Zap className="h-5 w-5 text-warning" />
 						<span>doce.dev</span>
 					</a>
+					{projectName && (
+						<div className="absolute left-1/2 -translate-x-1/2 font-semibold text-strong">
+							{projectName}
+						</div>
+					)}
 					<div className="flex items-center gap-2">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>

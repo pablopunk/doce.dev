@@ -4,7 +4,6 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { stepCountIs, streamText, tool } from "ai";
 import type { APIRoute } from "astro";
 import { exec } from "child_process";
-import path from "path";
 import { promisify } from "util";
 import { z } from "zod";
 import { generateCode } from "@/lib/code-generator";
@@ -12,11 +11,13 @@ import {
 	createConversation,
 	getConfig,
 	getConversation,
+	getMessages,
 	saveMessage,
 	updateConversationModel,
 	updateMessage,
 } from "@/lib/db";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
+import { chatEvents } from "@/lib/chat-events";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 const execAsync = promisify(exec);
@@ -55,7 +56,8 @@ async function execInContainer(
 
 // Helper to get API key from database (returns null if not configured)
 function getApiKey(provider: string): string | null {
-	return getConfig(`${provider}_api_key`);
+	const value = getConfig(`${provider}_api_key`);
+	return value || null;
 }
 
 // Helper to get model provider and instance (provider-agnostic)
@@ -113,7 +115,43 @@ export const POST: APIRoute = async ({ params, request }) => {
 	}
 
 	const userMessage = messages[messages.length - 1];
-	await saveMessage(conversation.id, "user", userMessage.content);
+
+	// Check if this exact user message already exists (prevent duplicates)
+	const existingMessages = await getMessages(conversation.id);
+	const lastUserMessage = existingMessages
+		.filter((msg: any) => msg.role === "user")
+		.pop();
+
+	const isDuplicate =
+		lastUserMessage && lastUserMessage.content === userMessage.content;
+
+	if (!isDuplicate) {
+		await saveMessage(conversation.id, "user", userMessage.content);
+		console.log("[Chat] Saved new user message");
+	} else {
+		console.log(
+			"[Chat] User message already exists (duplicate detected), skipping save",
+		);
+	}
+
+	// Check if there's a stuck streaming message and mark it as error
+	const stuckStreamingMessage = existingMessages.find(
+		(msg: any) =>
+			msg.role === "assistant" &&
+			msg.streaming_status === "streaming" &&
+			new Date(msg.created_at).getTime() < Date.now() - 30000, // Stuck for >30s
+	);
+	if (stuckStreamingMessage) {
+		console.log(
+			`[Chat] Found stuck streaming message ${stuckStreamingMessage.id}, marking as error`,
+		);
+		updateMessage(
+			stuckStreamingMessage.id,
+			"Error: Previous response timed out",
+			"error",
+		);
+		chatEvents.notifyMessageUpdate(projectId, conversation.id);
+	}
 
 	const model = getModel(conversation.model || DEFAULT_AI_MODEL);
 
@@ -291,103 +329,187 @@ export const POST: APIRoute = async ({ params, request }) => {
 	console.log(`[Chat] Tools enabled: ${modelSupportsTools ? "YES" : "NO"}`);
 	console.log(`[Chat] Tool names:`, Object.keys(toolDefinitions));
 
-	// Create assistant message immediately for resilience
+	// Create assistant message immediately for resilience - backend-first approach
 	let assistantMessageId: string | null = null;
 	let lastSavedText = "";
-	let saveTimeout: NodeJS.Timeout | null = null;
+	let lastSaveTime = 0;
+	const SAVE_INTERVAL_MS = 300; // Save every 300ms during streaming
 
-	// Debounced save function - saves after 500ms of no updates
-	const debouncedSave = (text: string) => {
-		if (saveTimeout) {
-			clearTimeout(saveTimeout);
+	// Immediate save function - saves to DB and emits event for SSE
+	const saveToDatabase = (
+		text: string,
+		status: "streaming" | "complete" | "error",
+	) => {
+		const now = Date.now();
+		const timeSinceLastSave = now - lastSaveTime;
+
+		// Skip save if text hasn't changed
+		if (text === lastSavedText) return;
+
+		// Throttle saves during streaming (but always save on complete/error)
+		if (status === "streaming" && timeSinceLastSave < SAVE_INTERVAL_MS) {
+			return;
 		}
-		saveTimeout = setTimeout(() => {
-			if (assistantMessageId && text !== lastSavedText) {
-				updateMessage(assistantMessageId, text);
-				lastSavedText = text;
-				console.log(
-					`[Chat] Auto-saved partial response (${text.length} chars)`,
-				);
-			}
-		}, 500);
+
+		if (assistantMessageId) {
+			updateMessage(assistantMessageId, text, status);
+			lastSavedText = text;
+			lastSaveTime = now;
+			console.log(
+				`[Chat] Saved to DB: ${text.length} chars, status: ${status}`,
+			);
+
+			// Emit event to notify SSE listeners (no polling!)
+			chatEvents.notifyMessageUpdate(projectId, conversation.id);
+		}
 	};
 
-	const result = streamText({
-		model,
-		...(modelSupportsTools && {
-			tools: toolDefinitions,
-			stopWhen: stepCountIs(10), // Allow up to 10 steps for tool calling
-		}),
-		onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {
-			console.log(
-				`[Chat] Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
-			);
-			if (toolResults.length > 0) {
+	// Create assistant message immediately in DB with streaming status
+	const initialMsg = await saveMessage(
+		conversation.id,
+		"assistant",
+		"",
+		"streaming",
+	);
+	assistantMessageId = initialMsg.id;
+	console.log(
+		`[Chat] Created streaming assistant message: ${assistantMessageId}`,
+	);
+
+	console.log(
+		`[Chat] Starting AI stream with model ${conversation.model || DEFAULT_AI_MODEL}`,
+	);
+	console.log(
+		`[Chat] Message count: ${messages.length}, last message: "${messages[messages.length - 1]?.content?.substring(0, 50)}..."`,
+	);
+
+	let result;
+	try {
+		result = streamText({
+			model,
+			...(modelSupportsTools && {
+				tools: toolDefinitions,
+				stopWhen: stepCountIs(10), // Allow up to 10 steps for tool calling
+				maxSteps: 10, // Explicit max steps
+			}),
+			onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {
 				console.log(
-					`[Chat] Tool results (full):`,
-					JSON.stringify(toolResults, null, 2),
+					`[Chat] Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
 				);
-			}
 
-			// Save incrementally after each step
-			if (!assistantMessageId && text.trim().length > 0) {
-				// Create initial message
-				const msg = await saveMessage(conversation.id, "assistant", text);
-				assistantMessageId = msg.id;
-				lastSavedText = text;
-				console.log(`[Chat] Created assistant message: ${assistantMessageId}`);
-			} else if (assistantMessageId && text !== lastSavedText) {
-				// Update existing message with debounce
-				debouncedSave(text);
-			}
-		},
-		system: `You are an expert web developer with access to tools for inspecting projects.\n${agentGuidelines}`,
-		messages,
-		onFinish: async ({ text, finishReason }) => {
-			console.log(`[Chat] onFinish called for project ${projectId}`);
-			console.log(
-				`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
-			);
+				// Save to database with streaming status
+				saveToDatabase(text, "streaming");
 
-			// Clear any pending save timeout
-			if (saveTimeout) {
-				clearTimeout(saveTimeout);
-			}
-
-			// Final save
-			if (text.trim().length > 0) {
-				if (assistantMessageId) {
-					// Update the existing message with final content
-					updateMessage(assistantMessageId, text);
-					console.log(`[Chat] Final update to message ${assistantMessageId}`);
-				} else {
-					// Fallback: create message if somehow it wasn't created yet
-					await saveMessage(conversation.id, "assistant", text);
-					console.log(`[Chat] Created message in onFinish (fallback)`);
+				if (toolResults.length > 0) {
+					console.log(
+						`[Chat] Tool results (full):`,
+						JSON.stringify(toolResults, null, 2),
+					);
 				}
 
-				try {
-					console.log(`[Chat] Attempting to generate code from response...`);
-					const generation = await generateCode(projectId, text);
-					if (generation) {
+				// Warning: If finish reason is tool-calls and no text, we have a problem
+				if (
+					finishReason === "tool-calls" &&
+					text.trim().length === 0 &&
+					toolCalls.length > 0
+				) {
+					console.warn(
+						`[Chat] WARNING: Step ended with tool-calls but no text generated. This will result in empty response.`,
+					);
+					console.warn(
+						`[Chat] Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`,
+					);
+				}
+			},
+			system: `You are an expert web developer building Astro applications.
+
+CRITICAL RULES:
+1. ALWAYS generate code in fenced blocks with file="path" attribute
+2. ALWAYS close code blocks with \`\`\` - incomplete code blocks will fail to save
+3. NEVER end responses with only tool call results - always include code
+4. Tools are for INSPECTION only - don't check if directories exist, just generate files
+5. If a tool fails, continue with code generation anyway
+6. Complete ALL files before finishing - don't stop mid-file
+
+Available tools: readFile (inspect existing code), listFiles (see structure), runCommand (run shell commands), fetchUrl (get external docs)
+
+${agentGuidelines}`,
+			messages,
+			onFinish: async ({ text, finishReason }) => {
+				console.log(`[Chat] onFinish called for project ${projectId}`);
+				console.log(
+					`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
+				);
+
+				// Final save to DB with complete status
+				if (text.trim().length > 0) {
+					if (assistantMessageId) {
+						// Mark message as complete in database
+						updateMessage(assistantMessageId, text, "complete");
 						console.log(
-							`[Chat] Generated ${generation.files?.length || 0} files for project ${projectId}`,
+							`[Chat] Marked message ${assistantMessageId} as complete`,
 						);
-					} else {
-						console.log(`[Chat] No code blocks found in response`);
-					}
-				} catch (error) {
-					console.error("[Chat] Failed to generate code:", error);
-				}
-			} else {
-				console.warn(
-					`[Chat] WARNING: Empty response from model, not saving. This may indicate a tool calling issue.`,
-				);
-			}
-		},
-	});
 
-	// For tool calls, we need to return the full result including tool outputs
-	// toTextStreamResponse() only returns text, not tool results
+						// Emit final update
+						chatEvents.notifyMessageUpdate(projectId, conversation.id);
+					} else {
+						// Fallback: create message if somehow it wasn't created yet
+						await saveMessage(conversation.id, "assistant", text, "complete");
+						console.log(`[Chat] Created message in onFinish (fallback)`);
+
+						// Emit final update
+						chatEvents.notifyMessageUpdate(projectId, conversation.id);
+					}
+
+					try {
+						console.log(`[Chat] Attempting to generate code from response...`);
+						const generation = await generateCode(projectId, text);
+						if (generation) {
+							console.log(
+								`[Chat] Generated ${generation.files?.length || 0} files for project ${projectId}`,
+							);
+						} else {
+							console.log(`[Chat] No code blocks found in response`);
+						}
+					} catch (error) {
+						console.error("[Chat] Failed to generate code:", error);
+					}
+				} else {
+					console.warn(
+						`[Chat] WARNING: Empty response from model, marking as error`,
+					);
+					if (assistantMessageId) {
+						updateMessage(
+							assistantMessageId,
+							"Error: Empty response from model",
+							"error",
+						);
+
+						// Emit error update
+						chatEvents.notifyMessageUpdate(projectId, conversation.id);
+					}
+				}
+			},
+		});
+
+		console.log(`[Chat] streamText created successfully, returning response`);
+	} catch (error) {
+		console.error(`[Chat] FATAL ERROR creating streamText:`, error);
+		if (assistantMessageId) {
+			updateMessage(assistantMessageId, `Error: ${error}`, "error");
+			chatEvents.notifyMessageUpdate(projectId, conversation.id);
+		}
+		return new Response(
+			JSON.stringify({ error: "Failed to start AI stream" }),
+			{
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
+	}
+
+	// Backend-first: We save everything to DB during streaming
+	// Frontend subscribes to SSE endpoint for updates
+	// But we still stream the response for backwards compatibility and to keep connection alive
 	return result.toUIMessageStreamResponse();
 };

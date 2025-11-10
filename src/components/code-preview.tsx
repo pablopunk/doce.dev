@@ -56,6 +56,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
 	const [iframeError, setIframeError] = useState(false);
 	const [previewReady, setPreviewReady] = useState(false);
+	const [iframeKey, setIframeKey] = useState(0);
+	const [isRestarting, setIsRestarting] = useState(false);
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
@@ -149,7 +151,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				attempts++;
 				try {
 					// Try to actually fetch the URL to see if it responds
-					const response = await fetch(project.preview_url, {
+					const response = await fetch(project.preview_url as string, {
 						method: "GET",
 						cache: "no-cache",
 					});
@@ -185,6 +187,23 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		const { actions } = await import("astro:actions");
 		await actions.projects.deployProject({ id: projectId });
 		mutate();
+	};
+
+	const handleRefresh = async () => {
+		setIsRestarting(true);
+		setPreviewReady(false);
+		setIsIframeLoading(true);
+		try {
+			const { actions } = await import("astro:actions");
+			await actions.projects.restartPreview({ id: projectId });
+			setIframeKey((prev) => prev + 1);
+			await mutate();
+		} catch (error) {
+			console.error("Failed to restart preview:", error);
+			setIframeError(true);
+		} finally {
+			setIsRestarting(false);
+		}
 	};
 
 	const handleSaveEnv = async () => {
@@ -249,10 +268,13 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => mutate()}
-						title="Refresh files and preview status"
+						onClick={handleRefresh}
+						disabled={isRestarting}
+						title="Restart preview container and reload"
 					>
-						<RefreshCw className="h-4 w-4" />
+						<RefreshCw
+							className={`h-4 w-4 ${isRestarting ? "animate-spin" : ""}`}
+						/>
 					</Button>
 					<Button onClick={handleDeploy} className="flex items-center gap-2">
 						<Rocket className="h-4 w-4" />
@@ -269,7 +291,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 							<>
 								{previewReady && (
 									<iframe
-										key={project.preview_url}
+										key={`${project.preview_url}-${iframeKey}`}
 										src={project.preview_url}
 										className="w-full h-full border-0"
 										title="Preview"
@@ -448,6 +470,7 @@ const apiKey = import.meta.env.PUBLIC_YOUR_API_KEY
 				)}
 			</div>
 			<TerminalDock
+				key={iframeKey}
 				projectId={projectId}
 				isPreviewRunning={!!project?.preview_url}
 				isExpanded={isTerminalExpanded}

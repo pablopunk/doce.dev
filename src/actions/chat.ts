@@ -27,6 +27,8 @@ export const server = {
 					id: msg.id,
 					role: msg.role,
 					content: msg.content,
+					streaming_status: msg.streaming_status || "complete",
+					created_at: msg.created_at,
 				}));
 
 				return {

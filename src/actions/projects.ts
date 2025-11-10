@@ -208,7 +208,7 @@ export const server = {
 					await saveMessage(conversation.id, "user", prompt);
 
 					console.log(
-						`Project ${projectResult.id} created with initial prompt ready for chat interface`,
+						`Project ${projectResult.id} created with initial prompt. Generation will start when user visits project page.`,
 					);
 				} catch (error) {
 					console.error("Failed to setup initial project structure:", error);
@@ -442,6 +442,53 @@ export const server = {
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to delete preview",
+				});
+			}
+		},
+	}),
+
+	// POST /api/projects/[id]/preview/restart
+	restartPreview: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const project = await projectFacade.getProject(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				// Stop the preview first
+				console.log(`Restarting preview for ${id}: stopping container...`);
+				await stopPreviewForProject(id);
+
+				// Wait a bit for Docker cleanup
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+
+				// Start the preview again
+				console.log(`Restarting preview for ${id}: starting container...`);
+				const { containerId, url, port } = await createPreviewContainer(id);
+
+				await projectFacade.updateProject(id, {
+					preview_url: url,
+					status: "preview",
+				});
+
+				return {
+					success: true,
+					containerId,
+					url,
+					port,
+				};
+			} catch (error) {
+				console.error("Failed to restart preview:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to restart preview",
 				});
 			}
 		},
