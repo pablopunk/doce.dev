@@ -9,14 +9,19 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
+import clsx from "clsx";
 
-export function TopNav() {
+export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 	const { theme, setTheme } = useTheme();
 
 	return (
 		<nav className="relative border-b border-border bg-bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-bg-surface/80 shadow-elevation">
 			<div className="absolute inset-x-0 top-0 h-px bg-highlight" />
-			<div className="container mx-auto px-4">
+			<div
+				className={clsx("px-4", {
+					"container mx-auto": !fullWidth,
+				})}
+			>
 				<div className="flex h-14 items-center justify-between">
 					<a
 						href="/"

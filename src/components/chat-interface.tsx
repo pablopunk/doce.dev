@@ -1,9 +1,11 @@
 import {
+	Check,
 	ChevronDown,
 	ChevronRight,
 	FileCode,
 	Loader2,
 	Send,
+	Settings2,
 	Square,
 	Trash2,
 } from "lucide-react";
@@ -24,13 +26,18 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Label } from "@/components/ui/label";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
+import { Google } from "@/components/ui/svgs/google";
+import { GrokDark } from "@/components/ui/svgs/grokDark";
+import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
+import { Openai } from "@/components/ui/svgs/openai";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	AVAILABLE_AI_MODELS,
@@ -52,8 +59,35 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
 		null,
 	);
+	const [popoverOpen, setPopoverOpen] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
+		const iconClass =
+			size === "sm"
+				? "h-4 w-4 [&_*]:!fill-foreground [&_path]:!fill-foreground"
+				: "h-5 w-5 [&_*]:!fill-muted-foreground/60 [&_path]:!fill-muted-foreground/60";
+		switch (provider) {
+			case "OpenAI":
+				return <Openai className={iconClass} />;
+			case "Anthropic":
+				return <AnthropicBlack className={iconClass} />;
+			case "Google":
+				return <Google className={iconClass} />;
+			case "xAI":
+				return <GrokDark className={iconClass} />;
+			case "MoonshotAI":
+				return <KimiIcon className={iconClass} />;
+			default:
+				return null;
+		}
+	};
+
+	const handleModelChange = (modelId: string) => {
+		setSelectedModel(modelId);
+		setPopoverOpen(false);
+	};
 
 	// Load chat history on mount
 	useEffect(() => {
@@ -592,19 +626,82 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				className="border-t border-border p-4 space-y-3"
 			>
 				<div className="flex items-center gap-2">
-					<span className="text-sm text-muted-foreground">Model:</span>
-					<Select value={selectedModel} onValueChange={setSelectedModel}>
-						<SelectTrigger className="w-[240px]">
-							<SelectValue placeholder="Select a model" />
-						</SelectTrigger>
-						<SelectContent>
-							{AVAILABLE_AI_MODELS.map((model) => (
-								<SelectItem key={model.id} value={model.id}>
-									{model.name} ({model.provider})
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+						<PopoverTrigger asChild>
+							<Button variant="outline" size="sm" className="gap-2">
+								{AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel) ? (
+									<>
+										{getProviderIcon(
+											AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
+												.provider,
+											"sm",
+										)}
+										<span className="text-sm">
+											{
+												AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
+													.name
+											}
+										</span>
+									</>
+								) : (
+									<>
+										<Settings2 className="h-4 w-4" />
+										<span className="text-sm">Select Model</span>
+									</>
+								)}
+								<ChevronDown className="h-3 w-3 opacity-50" />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent className="w-[32rem] p-3" align="start">
+							<div className="space-y-3">
+								<div>
+									<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+										AI Model
+									</Label>
+									{AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel) && (
+										<p className="mt-1 text-xs text-muted-foreground">
+											Currently using:{" "}
+											{
+												AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
+													.name
+											}
+										</p>
+									)}
+								</div>
+								<Separator />
+								<div className="space-y-1">
+									{AVAILABLE_AI_MODELS.map((model) => (
+										<button
+											key={model.id}
+											onClick={() => handleModelChange(model.id)}
+											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
+											type="button"
+										>
+											<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+												{getProviderIcon(model.provider)}
+											</div>
+											<div className="flex-1 space-y-0.5">
+												<div className="flex items-center gap-2">
+													{selectedModel === model.id && (
+														<Check className="h-3.5 w-3.5 text-primary" />
+													)}
+													<span className="text-sm font-medium">
+														{model.name}
+													</span>
+													<span className="text-xs text-muted-foreground">
+														{model.provider}
+													</span>
+												</div>
+												<p className="text-xs text-muted-foreground">
+													{model.description}
+												</p>
+											</div>
+										</button>
+									))}
+								</div>
+							</div>
+						</PopoverContent>
+					</Popover>
 				</div>
 				<div className="flex gap-2">
 					<Textarea
