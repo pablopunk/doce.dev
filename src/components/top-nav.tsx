@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import { Monitor, Moon, Settings, Sun, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +10,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/hooks/use-theme";
-import clsx from "clsx";
 
 export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 	const { theme, setTheme } = useTheme();
