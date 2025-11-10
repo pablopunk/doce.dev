@@ -152,9 +152,7 @@ export function CreateProjectPrompt() {
 								AI is generating your project...
 							</div>
 						</div>
-						<div className="text-sm text-muted/60">
-							This may take a moment
-						</div>
+						<div className="text-sm text-muted/60">This may take a moment</div>
 					</div>
 				</div>
 			)}
@@ -230,7 +228,7 @@ export function CreateProjectPrompt() {
 					value={value}
 					onChange={(e) => setValue(e.target.value)}
 					onKeyDown={onKeyDown}
-					className="h-14 text-base outline-none"
+					className="text-base outline-none"
 					disabled={loading || !hasApiKey}
 				/>
 				<InputGroupAddon align="inline-end">

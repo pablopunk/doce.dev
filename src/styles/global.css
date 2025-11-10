@@ -24,39 +24,41 @@
 }
 
 .dark {
-  --bg-bg: hsl(0 0% 0%);          /* 0% L - deepest background */
-  --bg-surface: hsl(0 0% 5%);       /* 5% L - cards, panels */
-  --bg-raised: hsl(0 0% 10%);       /* 10% L - elevated surfaces */
-  --bg-cta: hsl(0 0% 0%);         /* 10% L - buttons */
+  --bg-bg: hsl(0 0% 0%);
+  --bg-surface: hsl(0 0% 5%);
+  --bg-raised: hsl(0 0% 10%);
+  --bg-cta: hsl(0 0% 0%);
 
-  --text-strong: hsl(0 0% 92%);     /* High contrast for headings */
-  --text-fg: hsl(0 0% 80);      /* Default text color */
-  --text-muted: hsl(0 0% 68%);      /* Muted for body text */
+  --text-strong: hsl(0 0% 92%);
+  --text-fg: hsl(0 0% 80);
+  --text-muted: hsl(0 0% 68%);
 
-  --border: hsl(0 0% 20%);          /* Visible but subtle borders */
-  --shadow-1: hsla(0 0% 0% / 0.25); /* Short, darker shadow */
-  --shadow-2: hsla(0 0% 0% / 0.12); /* Longer, lighter shadow */
+  --border: hsl(0 0% 20%);
+  --warning: hsla(40, 100%, 50%, 0.8);
+  --danger: hsla(359, 100%, 50%, 0.8);
 
-  --warning: hsla(40, 100%, 50%, 0.8); /* Yellow */
-  --danger: hsla(359, 100%, 50%, 0.8); /* Red */
+  --shadow-sm: inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
+  --shadow-md: inset 0 1px 0 0 hsl(0 0% 100% / 0.1);
+  --shadow-lg: inset 0 2px 4px 0 hsl(0 0% 100% / 0.15);
 }
 
 .light {
-  --bg-bg: hsl(0 0% 90%);         /* 90% L - deepest background */
-  --bg-surface: hsl(0 0% 93%);     /* 92% L - cards, panels */
-  --bg-raised: hsl(0 0% 95%);      /* 95% L - elevated surfaces */
-  --bg-cta: hsl(0 0% 100%);        /* 95% L - buttons */
+  --bg-bg: hsl(0 0% 90%);
+  --bg-surface: hsl(0 0% 93%);
+  --bg-raised: hsl(0 0% 95%);
+  --bg-cta: hsl(0 0% 100%);
 
-  --text-strong: hsl(0 0% 8%);     /* High contrast for headings */
-  --text-fg: hsl(0 0% 20%);        /* Default text color */
-  --text-muted: hsl(0 0% 32%);     /* Muted for body text */
+  --text-strong: hsl(0 0% 8%);
+  --text-fg: hsl(0 0% 20%);
+  --text-muted: hsl(0 0% 32%);
 
-  --border: hsl(0 0% 80%);         /* Visible but subtle borders */
-  --shadow-1: hsla(0 0% 0% / 0.1); /* Short, lighter shadow */
-  --shadow-2: hsla(0 0% 0% / 0.05);/* Longer, very light shadow */
+  --border: hsl(0 0% 80%);
+  --warning: hsla(40, 100%, 50%, 0.8);
+  --danger: hsla(359, 100%, 50%, 0.8);
 
-  --warning: hsla(40, 100%, 50%, 0.8); /* Yellow */
-  --danger: hsla(359, 100%, 50%, 0.8); /* Red */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.1), 0 1px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 /* These variables will expose this theme as tailwind classes:
@@ -81,9 +83,9 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
 @layer base {

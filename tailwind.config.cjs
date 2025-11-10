@@ -4,11 +4,6 @@ module.exports = {
 	darkMode: ["class"],
 	theme: {
 		extend: {
-			boxShadow: {
-				elevation: "0 2px 4px var(--shadow-1), 0 8px 16px var(--shadow-2)",
-				"elevation-lg":
-					"0 4px 8px var(--shadow-1), 0 16px 32px var(--shadow-2)",
-			},
 			backgroundImage: {
 				"gradient-conic": "conic-gradient(var(--tw-gradient-stops))",
 				"gradient-subtle":

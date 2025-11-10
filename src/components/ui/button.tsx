@@ -13,7 +13,7 @@ const buttonVariants = cva(
 					"bg-cta text-strong border border-border font-semibold hover:brightness-110 transition-shadow transition-filter transition-colors duration-200 ease-in-out active:scale-[0.98]",
 
 				destructive:
-					"bg-danger text-bg font-semibold shadow-elevation hover:shadow-elevation-lg hover:brightness-110 active:scale-[0.98] transition-shadow transition-filter transition-colors duration-200 ease-in-out",
+					"bg-danger text-bg font-semibold shadow-md hover:shadow-elevation-lg hover:brightness-110 active:scale-[0.98] transition-shadow transition-filter transition-colors duration-200 ease-in-out",
 				outline:
 					"bg-surface text-strong border border-border font-medium hover:bg-raised hover:brightness-105 transition-shadow transition-filter transition-colors duration-200 ease-in-out",
 				secondary:

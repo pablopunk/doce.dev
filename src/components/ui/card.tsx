@@ -9,8 +9,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
 			className={cn(
 				"p-4",
 				"bg-surface text-fg flex flex-col rounded-xl",
-				"relative overflow-hidden shadow-elevation",
-				"highlight-top",
+				"relative overflow-hidden shadow-md",
 				className,
 			)}
 			{...props}
