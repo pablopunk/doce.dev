@@ -232,7 +232,7 @@ export function CreateProjectPrompt() {
 				</InputGroupAddon>
 			</InputGroup>
 			<motion.div
-				className="mb-8 flex flex-col items-center justify-center gap-6"
+				className="mb-8 mt-4 flex flex-col items-center justify-center gap-6"
 				style={{ opacity: loading ? 1 : 0 }}
 			>
 				<AIBlob />

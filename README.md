@@ -19,4 +19,4 @@
 - [x] Make design system have semantic colors. There should be zero "dark:" classes in the codebase, since there's no reason to differentiate between light and dark mode with semantic colors.
 - [ ] URL bar in the preview window
 - [x] Remove all semantic colors from shadcn/ui and add the ones from our design system
-- [ ] Add guidelines for databases. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.
+- [x] Add guidelines for persistance in templates/. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.

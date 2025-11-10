@@ -3,12 +3,25 @@ import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import type { APIRoute } from "astro";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { projectFacade } from "@/application/facades/project-facade";
 import { generateCode } from "@/lib/code-generator";
 import { createConversation, getConfig, saveFile, saveMessage } from "@/lib/db";
 import { writeProjectFiles } from "@/lib/file-system";
 import { copyTemplateToProject } from "@/lib/template-generator";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
+
+// Load the AGENTS.md file from the template
+function getTemplateAgentsContent(): string {
+	try {
+		const agentsPath = join(process.cwd(), "templates", "astro", "AGENTS.md");
+		return readFileSync(agentsPath, "utf-8");
+	} catch (error) {
+		console.error("Failed to read AGENTS.md:", error);
+		throw new Error("Template AGENTS.md file not found");
+	}
+}
 
 // Helper to get current AI model ID
 function getAIModelId() {
@@ -79,8 +92,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 			const nameResult = await generateText({
 				model,
-				system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (2-4 words), lowercase with hyphens, suitable for a folder name.`,
-				prompt: `Generate a project name for: ${prompt}`,
+				system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (2-4 words)`,
+				prompt: `Generate a project name the following description: ${prompt}`,
 			});
 
 			projectName = nameResult.text
@@ -139,65 +152,13 @@ export const POST: APIRoute = async ({ request }) => {
 			await saveMessage(conversation.id, "user", prompt);
 
 			const model = getAIModel();
+			const agentsContent = getTemplateAgentsContent();
 
 			const result = await generateText({
 				model,
 				system: `You are an expert web developer and designer helping users build modern sites with Astro, React islands, and Tailwind CSS.
 
-A minimal Astro project template has been set up with the following files:
-- package.json (with Astro, React, Tailwind v4 dependencies)
-- astro.config.mjs (with React integration)
-- tsconfig.json
-- tailwind.config.cjs
-- postcss.config.cjs (configured for Tailwind v4)
-- src/styles/global.css (with @import "tailwindcss")
-- src/layouts/BaseLayout.astro (imports global.css)
-
-Your job is to generate ONLY the application-specific files needed for the user's request:
-- src/pages/index.astro - The main landing page (REQUIRED - must always be generated)
-- src/components/*.tsx - React components for interactive features
-- Any additional pages or components needed
-
-**CRITICAL: You MUST always generate src/pages/index.astro as a complete, valid Astro page.**
-
-Example structure for src/pages/index.astro:
-\`\`\`astro
----
-import "../styles/global.css";
-import { YourComponent } from "@/components/YourComponent";
----
-
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Your App Title</title>
-  </head>
-  <body>
-    <YourComponent client:load />
-  </body>
-</html>
-\`\`\`
-
-When generating code:
-- Use Astro 5 with the \`src/\` directory structure.
-- Use React components for interactive islands and mark them with client directives (client:load, client:visible, etc.).
-- Import BaseLayout or use it as a layout for pages.
-- Prefer TypeScript for all .astro and .tsx files.
-- Use Tailwind CSS v4 utility classes for styling.
-- Provide complete, working examples.
-- Never reference Next.js APIs or components.
-- DO NOT regenerate config files (package.json, astro.config.mjs, etc.) unless specifically needed for the feature.
-- **ALWAYS generate src/pages/index.astro with a complete HTML structure** - never skip this file.
-
-Format code responses with markdown code blocks including file paths:
-\`\`\`tsx file="src/components/MyComponent.tsx"
-export function MyComponent() {
-  return <div>Hello!</div>
-}
-\`\`\`
-
-Always specify the file path in each code block header and generate multiple files when required to deliver a working feature.`,
+${agentsContent}`,
 				prompt: `Create a working Astro + React + Tailwind application for: ${prompt}
 
 Generate the necessary pages and components. Focus on creating a functional, well-designed implementation with good UX.`,

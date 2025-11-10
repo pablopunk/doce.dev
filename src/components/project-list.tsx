@@ -32,11 +32,27 @@ export function ProjectList() {
 
 	const handleDeleteConfirm = async () => {
 		if (projectToDelete) {
-			await fetch(`/api/projects/${projectToDelete}`, { method: "DELETE" });
-			mutate();
+			// Optimistically update UI immediately
+			mutate(
+				projects.filter((p: any) => p.id !== projectToDelete),
+				false, // Don't revalidate yet
+			);
+
+			// Close dialog immediately
+			setDeleteDialogOpen(false);
+			setProjectToDelete(null);
+
+			// Perform actual deletion in background
+			try {
+				await fetch(`/api/projects/${projectToDelete}`, { method: "DELETE" });
+				// Revalidate to ensure consistency
+				mutate();
+			} catch (error) {
+				// On error, revert by revalidating
+				console.error("Failed to delete project:", error);
+				mutate();
+			}
 		}
-		setDeleteDialogOpen(false);
-		setProjectToDelete(null);
 	};
 
 	if (!projects) {
