@@ -5,22 +5,10 @@ This file contains rules and guidelines that AI agents should follow when modify
 ## Stack & Architecture
 
 - **Framework**: Astro 5 with React 19 islands architecture
-- **Styling**: Tailwind CSS v4 (configured via PostCSS)
+- **Styling**: Tailwind CSS v4 (configured via PostCSS) + shadcn/ui components
 - **TypeScript**: Strict mode enabled
-- **Components**: Use React functional components with TypeScript
-- **Layouts**: Use Astro layouts in `src/layouts/`
-
-## ⚠️ CRITICAL: Do NOT Modify Package.json
-
-**NEVER generate or modify `package.json` unless explicitly asked.**
-
-The project already has all required dependencies configured:
-- Astro 5.1.0+
-- React 19.2.0
-- @astrojs/react (required for React integration)
-- Tailwind CSS 4.1.9+
-- @tailwindcss/postcss (required for Tailwind)
-- TypeScript 5.x
+- **Components**: React functional components with TypeScript + shadcn/ui primitives
+- **Layouts**: Use Astro layouts in `src/layouts/` (BaseLayout.astro)
 
 ### Package Manager: pnpm Only
 
@@ -35,22 +23,64 @@ Correct commands:
 - ✅ `pnpm install` (install dependencies)
 - ✅ `pnpm add package-name` (add new package)
 - ✅ `pnpm run dev` (start dev server)
+- ✅ `pnpm dlx shadcn@latest add component-name` (add shadcn component)
 - ❌ `npm install` (wrong - don't use npm)
 - ❌ `yarn add` (wrong - don't use yarn)
 
 Modifying package.json can break the build system. The existing dependencies cover 99% of use cases.
 
+## 🎨 Design System
+
+Light/Dark/System toggle available via `useTheme()` hook (localStorage + system preference).
+
+### Tailwind v4 with shadcn/ui:
+
+**Use Tailwind's default color palette** for your components:
+- Primary actions: `bg-blue-600`, `text-white`, `hover:bg-blue-700`
+- Backgrounds: `bg-white`, `bg-gray-50`, `bg-gray-100` (light mode), `bg-gray-900`, `bg-gray-800` (dark mode)
+- Text: `text-gray-900`, `text-gray-600`, `text-gray-500` (light mode), `text-white`, `text-gray-300` (dark mode)
+- Borders: `border-gray-200` (light), `border-gray-700` (dark)
+
+**Semantic Colors** (use Tailwind's built-in):
+- Success: `text-green-600`, `bg-green-500`
+- Warning: `text-yellow-600`, `bg-yellow-500`
+- Danger/Destructive: `text-red-600`, `bg-red-500`
+
+### Design Elements:
+
+- **Borders**: Standard borders with `rounded-lg`, `rounded-md`
+- **Buttons**: Use shadcn `<Button>` component with variants
+- **Cards**: Use shadcn `<Card>` component with rounded corners and shadows
+- **Interactive states**: Hover, focus, and active states included in shadcn components
+
+### Theme Hook:
+
+```tsx
+import { useTheme } from "@/hooks/use-theme";
+
+function MyComponent() {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  // theme: "light" | "dark" | "system"
+  // resolvedTheme: "light" | "dark"
+  return <button onClick={() => setTheme("dark")}>Dark</button>;
+}
+```
+
 ## Styling Rules (CRITICAL)
 
-### Always Use Tailwind CSS
+### Use shadcn/ui Components + Tailwind
 
-**NEVER generate unstyled components.** Every component must use Tailwind utility classes for styling.
+**NEVER generate unstyled components.** Use shadcn/ui components from `@/components/ui/` + Tailwind utility classes.
+
+#### Available shadcn/ui Components:
+
+`Button`, `Card`, `Input`, `Label`, `Textarea`, `Select`, `Dialog`, `Sheet`, `Popover`, `Dropdown Menu`, `Tabs`, `Accordion`, `Alert`, `Badge`, `Avatar`, `Checkbox`, `Switch`, `Radio Group`, `Slider`, `Progress`, `Skeleton`, `Spinner`, `Toast`, `Tooltip`, `Separator`, `Table`, `Form`, `Command`, and more.
 
 #### Required Styling Patterns:
 
 1. **Typography**:
-   - Headings: `text-2xl font-bold`, `text-xl font-semibold`, etc.
-   - Body text: `text-base`, `text-sm`, `text-gray-700`
+   - Headings: `text-2xl font-bold text-gray-900`, `text-xl font-semibold text-gray-900`
+   - Body text: `text-base text-gray-700`, `text-sm text-gray-600`
    - Use semantic HTML (`h1`, `h2`, `p`, etc.)
 
 2. **Layout**:
@@ -61,18 +91,29 @@ Modifying package.json can break the build system. The existing dependencies cov
 
 3. **Colors**:
    - Primary actions: `bg-blue-600 text-white hover:bg-blue-700`
-   - Secondary: `bg-gray-100 text-gray-900 hover:bg-gray-200`
-   - Borders: `border border-gray-200`
+   - Backgrounds: `bg-white`, `bg-gray-50`, `bg-gray-100`
    - Text: `text-gray-900`, `text-gray-600`, `text-gray-500`
+   - Borders: `border border-gray-200`
+   - Semantic: `text-red-600` (errors), `text-green-600` (success)
 
 4. **Interactive Elements**:
-   - Buttons: `px-4 py-2 rounded-lg font-medium transition-colors`
-   - Links: `text-blue-600 hover:text-blue-800 underline`
-   - Hover states: Always include `hover:` variants
-   - Focus states: `focus:outline-none focus:ring-2 focus:ring-blue-500`
+   - Use `<Button>` from shadcn: `<Button variant="default">Click</Button>`
+   - Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`
+   - Links: `text-blue-600 hover:text-blue-800 hover:underline`
+   - Hover states: `hover:shadow-lg` (for cards)
+   - Focus states: Already handled by shadcn components
 
 5. **Cards & Containers**:
-   - Cards: `bg-white rounded-lg shadow-md p-6 border border-gray-100`
+   - Use shadcn `<Card>`: 
+     ```tsx
+     <Card className="hover:shadow-lg transition-shadow">
+       <CardHeader>
+         <CardTitle>Title</CardTitle>
+         <CardDescription>Description</CardDescription>
+       </CardHeader>
+       <CardContent>Content</CardContent>
+     </Card>
+     ```
    - Sections: `py-12 md:py-16 lg:py-20`
 
 6. **Responsive Design**:
@@ -83,17 +124,29 @@ Modifying package.json can break the build system. The existing dependencies cov
 ### Example Component Structure:
 
 ```tsx
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+interface Props {
+  city: string;
+  temp: number;
+}
+
 export function WeatherCard({ city, temp }: Props) {
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">{city}</h2>
-      <div className="flex items-center justify-between">
-        <span className="text-4xl font-bold text-blue-600">{temp}°</span>
-        <div className="text-gray-600">
-          <p className="text-sm">Partly Cloudy</p>
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardHeader>
+        <CardTitle className="text-2xl text-gray-900">{city}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <span className="text-4xl font-bold text-blue-600">{temp}°</span>
+          <div className="text-gray-600">
+            <p className="text-sm">Partly Cloudy</p>
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 ```
@@ -108,18 +161,26 @@ export function WeatherCard({ city, temp }: Props) {
      title: string;
      count: number;
    }
-   
+
    export function MyComponent({ title, count }: Props) {
      // ...
    }
    ```
 
-2. **Use proper client directives in Astro files**:
+2. **Use shadcn/ui components** from `@/components/ui/`:
+   ```tsx
+   import { Button } from "@/components/ui/button";
+   import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+   import { Input } from "@/components/ui/input";
+   import { Label } from "@/components/ui/label";
+   ```
+
+3. **Use proper client directives in Astro files**:
    - `client:load` - Load immediately
    - `client:idle` - Load when browser is idle
    - `client:visible` - Load when visible in viewport
 
-3. **File naming**:
+4. **File naming**:
    - React components: PascalCase (`WeatherWidget.tsx`)
    - Astro pages: kebab-case or index (`about.astro`, `index.astro`)
    - Layouts: PascalCase (`BaseLayout.astro`)
@@ -129,15 +190,19 @@ export function WeatherCard({ city, temp }: Props) {
 - Use React hooks (`useState`, `useEffect`, `useRef`, etc.)
 - Keep state local to components when possible
 - For shared state, consider React Context or props drilling
+- Use `useTheme()` hook for theme-aware components
 
 ## File Structure
 
 ```
 src/
-├── components/      # React components (.tsx)
-├── layouts/         # Astro layouts (.astro)
+├── components/
+│   ├── ui/          # shadcn/ui components (Button, Card, Input, etc.)
+│   └── *.tsx        # Custom React components
+├── layouts/         # Astro layouts (BaseLayout.astro)
 ├── pages/          # Astro pages and API routes
-└── styles/         # Global styles (minimal - prefer Tailwind)
+├── hooks/          # React hooks (use-theme.ts)
+└── lib/            # Utilities (utils.ts with cn() helper)
 ```
 
 ## API & Data Fetching
@@ -148,7 +213,7 @@ src/
   ```tsx
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     fetch('/api/data')
       .then(res => res.json())
@@ -220,10 +285,10 @@ To use this weather app:
    ```tsx
    // React imports
    import { useState } from 'react';
-   
+
    // Component imports
    import { Button } from './Button';
-   
+
    // Types
    import type { User } from '../types';
    ```
@@ -239,61 +304,132 @@ To use this weather app:
 
 ### Hero Section
 ```tsx
-<section className="py-20 bg-gradient-to-br from-blue-50 to-indigo-100">
-  <div className="max-w-7xl mx-auto px-4">
-    <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-      Your Hero Title
-    </h1>
-    <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl">
-      Your hero description
-    </p>
-    <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-      Call to Action
-    </button>
-  </div>
-</section>
+import { Button } from "@/components/ui/button";
+
+export function Hero() {
+  return (
+    <section className="py-20 bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="max-w-7xl mx-auto px-4">
+        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
+          Your Hero Title
+        </h1>
+        <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl">
+          Your hero description
+        </p>
+        <Button size="lg">Call to Action</Button>
+      </div>
+    </section>
+  );
+}
 ```
 
-### Feature Grid
+### Feature Grid with Cards
 ```tsx
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-  {features.map((feature) => (
-    <div key={feature.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
-      <h3 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
-      <p className="text-gray-600">{feature.description}</p>
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+
+export function Features() {
+  const features = [
+    { id: 1, title: "Fast", description: "Lightning fast performance" },
+    { id: 2, title: "Modern", description: "Built with latest tech" },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {features.map((feature) => (
+        <Card key={feature.id} className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <CardTitle className="text-gray-900">{feature.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">{feature.description}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
-  ))}
-</div>
+  );
+}
 ```
+
+### Form with shadcn
+```tsx
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+
+export function ContactForm() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Contact Us</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4">
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" placeholder="you@example.com" />
+          </div>
+          <Button type="submit" className="w-full">Submit</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
 
 ## Important Reminders
 
-1. **ALWAYS use Tailwind classes** - Never write components without styling
-2. **Mobile-first** - Start with mobile layout, add responsive classes
-3. **Consistent spacing** - Use Tailwind's spacing scale consistently
+1. **Use shadcn/ui components** - Import from `@/components/ui/` before building custom UI
+2. **Use Tailwind colors** - Standard palette: `bg-blue-600`, `text-gray-900`, `border-gray-200`, etc.
+3. **Mobile-first** - Start with mobile layout, add responsive classes
 4. **Type everything** - Use TypeScript interfaces and types
 5. **Semantic HTML** - Use proper HTML5 elements
 6. **Test responsive** - Consider all screen sizes
+7. **Theme-aware** - Use `useTheme()` hook when needed for dark/light mode support
 
 ## What NOT to Do
 
-❌ Don't create unstyled components  
-❌ Don't use inline styles (style={{...}})  
-❌ Don't write custom CSS files (use Tailwind)  
-❌ Don't ignore TypeScript errors  
-❌ Don't forget responsive design  
-❌ Don't skip accessibility attributes  
-❌ Don't use class components (use functional)  
+❌ Don't create unstyled components
+❌ Don't use inline styles (style={{...}})
+❌ Don't write custom CSS files (use Tailwind + shadcn)
+❌ Don't reinvent UI components (use shadcn first)
+❌ Don't ignore TypeScript errors
+❌ Don't forget responsive design
+❌ Don't skip accessibility attributes
+❌ Don't use class components (use functional)
 
 ## When Making Changes
 
 1. Understand the existing structure
-2. Follow established patterns
-3. Use Tailwind utilities extensively
-4. Ensure responsive design
-5. Test that components render properly
-6. Maintain consistent styling throughout
+2. Check if shadcn/ui has the component you need
+3. Use Tailwind's standard color palette
+4. Use shadcn components + Tailwind utilities
+5. Ensure responsive design
+6. Test that components render properly in both light and dark modes
+7. Maintain consistent styling throughout
+
+## Adding New shadcn Components
+
+If you need a shadcn component not yet in the project:
+
+```bash
+pnpm dlx shadcn@latest add button
+pnpm dlx shadcn@latest add card
+pnpm dlx shadcn@latest add dialog
+```
+
+Available components: https://ui.shadcn.com/docs/components
+
+## Adding Icons
+
+For provider icons or other SVG assets:
+
+```bash
+pnpm dlx shadcn@latest add @svgl/anthropic
+pnpm dlx shadcn@latest add @svgl/openai
+```
+
+Icons will be added to `src/components/ui/svgs/`
 
 ---
 
-**Remember**: This is a Tailwind-first project. Every UI element should be styled with utility classes. Beautiful, responsive design is expected by default.
+**Remember**: This is a shadcn/ui + Tailwind project. Use shadcn components for UI primitives, Tailwind's standard color palette for styling, and ensure responsive, accessible design.

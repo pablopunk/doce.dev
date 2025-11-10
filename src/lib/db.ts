@@ -1,8 +1,15 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
+import { mkdirSync } from "fs";
+import { dirname } from "path";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
 const dbPath = process.env.DATABASE_PATH || "./data/doceapp.db";
+mkdirSync(dirname(dbPath), { recursive: true });
+
+const projectsDir = process.env.PROJECTS_DIR || "./data/projects/";
+mkdirSync(projectsDir, { recursive: true });
+
 const db = new Database(dbPath);
 
 // Initialize database schema
