@@ -101,10 +101,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		async function loadHistory() {
 			try {
 				console.log(`[ChatInterface] Loading history for project ${projectId}`);
-				const res = await fetch(`/api/chat/${projectId}/history`);
-				console.log(`[ChatInterface] History response status: ${res.status}`);
-				if (res.ok) {
-					const data = await res.json();
+				const { actions } = await import("astro:actions");
+				const { data, error } = await actions.chat.getHistory({ projectId });
+				if (!error && data) {
 					console.log(
 						`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`,
 					);
@@ -142,10 +141,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setDeletingMessageId(messageId);
 
 		try {
-			const url = `/api/chat/${projectId}/messages/${messageId}${deleteFrom ? "?deleteFrom=true" : ""}`;
-			const res = await fetch(url, { method: "DELETE" });
+			const { actions } = await import("astro:actions");
+			const { error } = await actions.chat.deleteMessage({
+				projectId,
+				messageId,
+			});
 
-			if (res.ok) {
+			if (!error) {
 				// Remove messages from UI
 				setMessages((prev) => {
 					const messageIndex = prev.findIndex((m) => m.id === messageId);
@@ -156,7 +158,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						: prev.filter((m) => m.id !== messageId); // Delete only this message
 				});
 			} else {
-				const error = await res.json();
 				console.error("Failed to delete message:", error);
 			}
 		} catch (error) {
@@ -168,9 +169,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 	const reloadMessages = async () => {
 		try {
-			const res = await fetch(`/api/chat/${projectId}/history`);
-			if (res.ok) {
-				const data = await res.json();
+			const { actions } = await import("astro:actions");
+			const { data, error } = await actions.chat.getHistory({ projectId });
+			if (!error && data) {
 				setMessages(data.messages || []);
 			}
 		} catch (error) {

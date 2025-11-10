@@ -25,16 +25,27 @@ export function MyComponent() {
 }
 ```
 
-**Rules**:
+## Rules
+
+**DO**:
 - Use Astro 5 with `src/` directory structure
 - React components for interactive islands with client directives (`client:load`, `client:visible`)
 - Import or use BaseLayout for pages
 - TypeScript for all `.astro` and `.tsx` files
 - Tailwind CSS v4 utility classes only
 - Complete, working examples
+- Always generate multiple files when required for a working feature
+- Keep functions small (<20 lines) for readability
+- Use Astro Actions for server functions with Zod validation
+- Import actions with `import { actions } from "astro:actions"`
+
+**DON'T**:
 - Never reference Next.js APIs
 - DO NOT regenerate config files unless specifically needed
-- Always generate multiple files when required for a working feature
+- No duplicate HTML across pages
+- No full pages in `.astro` without layouts
+- No `fetch()` for internal APIs (use Actions instead) if possible (CRUD, forms, etc.)
+- No API routes for CRUD operations (use Actions)
 
 ## Stack
 
@@ -62,6 +73,89 @@ Astro 5 + React 19 islands + Tailwind v4 + TypeScript strict + shadcn/ui + `useT
 
 **TypeScript always** - PascalCase for React (`.tsx`), kebab-case for Astro pages (`.astro`) • Client directives: `client:load`, `client:idle`, `client:visible` • State: React hooks, keep local, use Context for shared • File structure: `src/components/ui/` (shadcn), `src/components/` (custom), `src/layouts/`, `src/pages/`, `src/hooks/`, `src/lib/`
 
+## Server-Side Logic (Astro Actions)
+
+**Use Astro Actions** for server-side operations: forms, mutations, validation, API calls. Actions = type-safe server functions.
+
+**See complete working examples:**
+- **`src/actions/index.ts`** - Example actions with validation and error handling
+- **`src/components/NewsletterForm.example.tsx`** - React component with loading states, error handling, and shadcn/ui integration
+
+### Quick Example
+
+Actions are defined in `src/actions/index.ts`:
+
+```typescript
+import { defineAction, ActionError } from 'astro:actions';
+import { z } from 'astro:schema';
+
+export const server = {
+  subscribe: defineAction({
+    input: z.object({ email: z.string().email() }),
+    handler: async ({ email }) => {
+      // Your logic: DB save, API call, etc.
+      return { success: true, message: "Subscribed!" };
+    },
+  }),
+};
+```
+
+Called from React components:
+
+```tsx
+import { actions } from 'astro:actions';
+
+const { data, error } = await actions.subscribe({ email });
+if (error) {
+  console.error(error.code, error.message);
+}
+```
+
+### Form Actions (Zero-JS)
+
+```astro
+---
+import { actions } from 'astro:actions';
+const result = Astro.getActionResult(actions.subscribe);
+---
+{result?.error && <p class="text-red-600">{result.error.message}</p>}
+{result?.data && <p class="text-green-600">Success!</p>}
+
+<form method="POST" action={actions.subscribe}>
+  <input name="email" type="email" required />
+  <button type="submit">Subscribe</button>
+</form>
+```
+
+### When to Use
+
+✅ **Use Actions for:**
+- Form submissions (contact, subscribe, auth)
+- Data mutations (create, update, delete)
+- Server-side validation
+- API integrations
+- File uploads
+
+❌ **DON'T Use Actions for:**
+- Static content (render in .astro)
+- Client-only state (useState)
+- Streaming (use API routes: `src/pages/api/stream.ts`)
+
+### Error Codes
+
+Standard codes: `NOT_FOUND`, `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `INTERNAL_SERVER_ERROR`, `TOO_MANY_REQUESTS`
+
+### Why Actions?
+
+- ✅ **Type-safe**: Full TypeScript from server to client
+- ✅ **Validated**: Automatic Zod validation on all inputs
+- ✅ **Standardized**: ActionError with codes (NOT_FOUND, BAD_REQUEST, UNAUTHORIZED, etc.)
+- ✅ **Debuggable**: HTTP access at `/_actions/{module}.{action}` for testing with curl
+- ✅ **Simple**: No manual JSON parsing, no fetch boilerplate
+
+**Streaming Endpoints** (use API routes, not Actions):
+Actions don't support streaming responses - use traditional API routes (`src/pages/api/stream.ts`) for SSE/streaming.
+
 ## Data Persistence
 
 **Assess first**: Static sites, calculators, demos → no persistence needed. Only implement if explicitly requested OR core functionality requires it (todo app, blog, expense tracker).
@@ -72,13 +166,13 @@ const [count, setCount] = useState(() => parseInt(localStorage.getItem('counter'
 useEffect(() => localStorage.setItem('counter', count.toString()), [count]);
 ```
 
-**SQLite**: Structured server-side (queries, relationships, multi-user, CMS)
+**SQLite with Actions**: Structured server-side (queries, relationships, multi-user, CMS)
 1. `pnpm add better-sqlite3 && pnpm add -D @types/better-sqlite3`
-2. Create `src/lib/db.ts` with `Database('../../data/app.db')`
-3. API routes use `db.prepare(sql).run/get/all()`
-4. React fetches `/api/...`
+2. Create `src/lib/db.ts` with `Database('./data.db')`
+3. Define actions in `src/actions/index.ts` that use the database
+4. React components call actions: `await actions.myAction()`
 
-**Decision**: UI state/preferences → localStorage • Server access/queries/relationships → SQLite
+**Decision**: UI state/preferences → localStorage • Server access/queries/relationships → Actions + SQLite
 
 ## Environment Variables
 
@@ -86,10 +180,55 @@ Variables managed via Environment tab (auto-restarts preview). Server-side: `imp
 
 ## Best Practices
 
-✅ Semantic HTML, ARIA labels, keyboard nav • Astro islands for interactivity • Mobile-first responsive • TypeScript types • Group imports logically • 2-space indent • shadcn first, then Tailwind • Handle loading/error states
+✅ Semantic HTML, ARIA labels, keyboard nav • Astro islands for interactivity • Mobile-first responsive • TypeScript types • Group imports logically • 2-space indent • shadcn first, then Tailwind • Handle loading/error states • Use Actions for server logic, not fetch
 
-❌ No unstyled components • No inline styles • No custom CSS • No class components • No npm/yarn
+❌ No unstyled components • No inline styles • No custom CSS • No class components • No npm/yarn • No fetch for internal APIs (use Actions)
+
+## Debugging
+
+**Actions**: Test with curl:
+```bash
+curl -X POST http://localhost:4321/_actions/myAction \
+  -H "Content-Type: application/json" \
+  -d '{"key":"value"}'
+```
+
+**Common Issues**:
+- Build errors → check imports, verify all files exist
+- Type errors → ensure proper TypeScript configuration
+- Actions not working → check `src/actions/index.ts` exports all action modules
+- Preview not updating → check browser console for errors, verify action is called correctly
+
+## Guidelines
+
+- Use **pnpm** exclusively for all package operations
+- Run `pnpm build` frequently to catch errors early
+- Test actions with curl before integrating into UI
+- Add icons: `pnpm dlx shadcn@latest add @svgl/{icon-name}`
+- **Use Actions, not fetch**: `actions.myAction()` not `fetch('/api/endpoint')`
 
 ## Quick Reference
 
-Add shadcn: `pnpm dlx shadcn@latest add [component]` • Add icons: `pnpm dlx shadcn@latest add @svgl/[icon]` • Theme: `const { theme, setTheme } = useTheme()` • API: `fetch('/api/endpoint')` • Utils: `cn()` from `@/lib/utils`
+**Actions**: `import { actions } from 'astro:actions'` → `await actions.myAction({ input })` • Add shadcn: `pnpm dlx shadcn@latest add [component]` • Add icons: `pnpm dlx shadcn@latest add @svgl/[icon]` • Theme: `const { theme, setTheme } = useTheme()` • Utils: `cn()` from `@/lib/utils`
+
+## Error Handling
+
+Actions use `ActionError` for standardized errors:
+```typescript
+import { ActionError } from 'astro:actions';
+
+throw new ActionError({
+  code: "NOT_FOUND",        // NOT_FOUND, BAD_REQUEST, UNAUTHORIZED, etc.
+  message: "Item not found"
+});
+```
+
+Check for errors in components:
+```typescript
+const { data, error } = await actions.myAction({ id });
+if (error) {
+  console.error(error.code, error.message);
+  return;
+}
+// Use data safely
+```

@@ -9,9 +9,8 @@ export function useProjectLifecycle(projectId: string) {
 		// Send heartbeat to keep container alive
 		const sendHeartbeat = async () => {
 			try {
-				await fetch(`/api/projects/${projectId}/lifecycle`, {
-					method: "POST",
-				});
+				const { actions } = await import("astro:actions");
+				await actions.projects.sendHeartbeat({ id: projectId });
 			} catch (error) {
 				console.error("[Lifecycle] Failed to send heartbeat:", error);
 			}

@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -72,9 +73,10 @@ export function ApiKeysForm() {
 
 	const loadKeys = async () => {
 		try {
-			const res = await fetch("/api/config/api-keys");
-			const data = await res.json();
-			setHasKeys(data.keys);
+			const { data, error } = await actions.config.getApiKeys();
+			if (!error && data) {
+				setHasKeys(data.keys);
+			}
 		} catch (err) {
 			console.error("Failed to load API keys:", err);
 		} finally {
@@ -87,13 +89,12 @@ export function ApiKeysForm() {
 		setSaveStatus(null);
 
 		try {
-			const res = await fetch("/api/config/api-keys", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ provider, apiKey: keys[provider] || "" }),
+			const { error } = await actions.config.setApiKey({
+				provider: provider as any,
+				apiKey: keys[provider] || "",
 			});
 
-			if (res.ok) {
+			if (!error) {
 				setHasKeys((prev) => ({
 					...prev,
 					[provider]: Boolean(keys[provider]),

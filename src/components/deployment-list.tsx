@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { CheckCircle, ExternalLink, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
@@ -17,12 +18,18 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (_key: string, projectId: string) => {
+	const { data, error } = await actions.projects.getDeployments({
+		id: projectId,
+	});
+	if (error) throw error;
+	return data;
+};
 
 export function DeploymentList({ projectId }: { projectId: string }) {
 	const { data, mutate } = useSWR(
-		`/api/projects/${projectId}/deploy`,
-		fetcher,
+		["deployments", projectId],
+		([_key, id]) => fetcher(_key, id),
 		{ refreshInterval: 5000 },
 	);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -37,9 +44,7 @@ export function DeploymentList({ projectId }: { projectId: string }) {
 
 	const handleDeleteConfirm = async () => {
 		if (deploymentToDelete) {
-			await fetch(`/api/deployments/${deploymentToDelete}`, {
-				method: "DELETE",
-			});
+			await actions.deployments.deleteDeployment({ id: deploymentToDelete });
 			mutate();
 		}
 		setDeleteDialogOpen(false);

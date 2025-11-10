@@ -18,7 +18,19 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectLifecycle } from "@/hooks/use-project-lifecycle";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const projectFetcher = async (_key: string, id: string) => {
+	const { actions } = await import("astro:actions");
+	const { data, error } = await actions.projects.getProject({ id });
+	if (error) throw error;
+	return data;
+};
+
+const envFetcher = async (_key: string, id: string) => {
+	const { actions } = await import("astro:actions");
+	const { data, error } = await actions.projects.getEnv({ id });
+	if (error) throw error;
+	return data;
+};
 
 // Global refresh function that can be called from other components
 let globalRefreshFn: (() => void) | null = null;
@@ -45,18 +57,22 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [iframeError, setIframeError] = useState(false);
 	const [previewReady, setPreviewReady] = useState(false);
 	const { data: project, mutate } = useSWR(
-		`/api/projects/${projectId}`,
-		fetcher,
+		["project", projectId],
+		([_key, id]) => projectFetcher(_key, id),
 		{
 			refreshInterval: 0, // Disable auto-refresh to prevent input clearing
 			revalidateOnFocus: false,
 		},
 	);
 
-	const { data: envData } = useSWR(`/api/projects/${projectId}/env`, fetcher, {
-		refreshInterval: 0, // Disable auto-refresh
-		revalidateOnFocus: false,
-	});
+	const { data: envData } = useSWR(
+		["env", projectId],
+		([_key, id]) => envFetcher(_key, id),
+		{
+			refreshInterval: 0, // Disable auto-refresh
+			revalidateOnFocus: false,
+		},
+	);
 
 	// Register global refresh function
 	useEffect(() => {
@@ -77,7 +93,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const handleCreatePreview = useCallback(async () => {
 		setIsCreatingPreview(true);
 		try {
-			await fetch(`/api/projects/${projectId}/preview`, { method: "POST" });
+			const { actions } = await import("astro:actions");
+			await actions.projects.createPreview({ id: projectId });
 			mutate();
 		} catch (error) {
 			console.error("Failed to create preview:", error);
@@ -93,11 +110,13 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 			// Check if preview is actually running (not just DB state)
 			try {
-				const statusRes = await fetch(`/api/projects/${projectId}/preview`);
-				const statusData = await statusRes.json();
+				const { actions } = await import("astro:actions");
+				const { data, error } = await actions.projects.getPreviewStatus({
+					id: projectId,
+				});
 
 				// If preview is not running, start it
-				if (statusData.status === "not-created") {
+				if (!error && data && data.status === "not-created") {
 					console.log(`Preview not running for ${projectId}, starting...`);
 					setHasAutoStarted(true);
 					await handleCreatePreview();
@@ -163,17 +182,18 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	}, [project?.preview_url]);
 
 	const handleDeploy = async () => {
-		await fetch(`/api/projects/${projectId}/deploy`, { method: "POST" });
+		const { actions } = await import("astro:actions");
+		await actions.projects.deployProject({ id: projectId });
 		mutate();
 	};
 
 	const handleSaveEnv = async () => {
 		setIsSavingEnv(true);
 		try {
-			await fetch(`/api/projects/${projectId}/env`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ env: envVars }),
+			const { actions } = await import("astro:actions");
+			await actions.projects.setEnv({
+				id: projectId,
+				env: envVars,
 			});
 			// Restart preview to pick up new env vars
 			if (project?.preview_url) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,11 +24,13 @@ export function CreateProjectButton() {
 	const [checkingKeys, setCheckingKeys] = useState(true);
 
 	useEffect(() => {
-		fetch("/api/config/api-keys")
-			.then((res) => res.json())
-			.then((data) => {
-				const hasAnyKey = Object.values(data.keys).some((v) => v === true);
-				setHasApiKey(hasAnyKey);
+		actions.config
+			.getApiKeys()
+			.then(({ data, error }) => {
+				if (!error && data) {
+					const hasAnyKey = Object.values(data.keys).some((v) => v === true);
+					setHasApiKey(hasAnyKey);
+				}
 			})
 			.catch((err) => console.error("Failed to load API keys:", err))
 			.finally(() => setCheckingKeys(false));
@@ -38,18 +41,16 @@ export function CreateProjectButton() {
 
 		setLoading(true);
 		try {
-			const res = await fetch("/api/projects", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, description }),
+			const { data: project, error } = await actions.projects.createProject({
+				name,
+				description,
 			});
 
-			if (!res.ok) {
+			if (error) {
 				throw new Error("Failed to create project");
 			}
 
-			const project = await res.json();
-			if (typeof window !== "undefined") {
+			if (typeof window !== "undefined" && project) {
 				window.location.assign(`/project/${project.id}`);
 			}
 		} catch (error) {

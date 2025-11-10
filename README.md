@@ -20,3 +20,4 @@
 - [ ] URL bar in the preview window
 - [x] Remove all semantic colors from shadcn/ui and add the ones from our design system
 - [x] Add guidelines for persistance in templates/. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.
+- [ ] Get rid of console erros in dashboard

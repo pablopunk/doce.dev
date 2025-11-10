@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { Sparkles, Check, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -43,15 +44,18 @@ export function CreateProjectPrompt() {
 
 	// Load current model and available models on mount
 	useEffect(() => {
-		Promise.all([
-			fetch("/api/config/model").then((res) => res.json()),
-			fetch("/api/config/api-keys").then((res) => res.json()),
-		])
-			.then(([modelData, keysData]) => {
-				setCurrentModel(modelData.currentModel);
-				setAvailableModels(modelData.availableModels);
-				const hasAnyKey = Object.values(keysData.keys).some((v) => v === true);
-				setHasApiKey(hasAnyKey);
+		Promise.all([actions.config.getModel(), actions.config.getApiKeys()])
+			.then(([modelResult, keysResult]) => {
+				if (!modelResult.error && modelResult.data) {
+					setCurrentModel(modelResult.data.currentModel);
+					setAvailableModels(modelResult.data.availableModels);
+				}
+				if (!keysResult.error && keysResult.data) {
+					const hasAnyKey = Object.values(keysResult.data.keys).some(
+						(v) => v === true,
+					);
+					setHasApiKey(hasAnyKey);
+				}
 			})
 			.catch((err) => console.error("Failed to load config:", err))
 			.finally(() => setCheckingKeys(false));
@@ -62,16 +66,11 @@ export function CreateProjectPrompt() {
 		if (!prompt) return;
 		setLoading(true);
 		try {
-			const res = await fetch("/api/projects", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					prompt: prompt, // AI will generate the name and description
-				}),
+			const { data: project, error } = await actions.projects.createProject({
+				prompt: prompt, // AI will generate the name and description
 			});
-			if (!res.ok) throw new Error("Failed to create project");
-			const project = await res.json();
-			if (typeof window !== "undefined") {
+			if (error) throw error;
+			if (typeof window !== "undefined" && project) {
 				window.location.assign(`/project/${project.id}`);
 			}
 		} catch (err) {
@@ -90,12 +89,8 @@ export function CreateProjectPrompt() {
 
 	const handleModelChange = async (modelId: string) => {
 		try {
-			const res = await fetch("/api/config/model", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ model: modelId }),
-			});
-			if (res.ok) {
+			const { error } = await actions.config.setModel({ model: modelId });
+			if (!error) {
 				setCurrentModel(modelId);
 				setPopoverOpen(false);
 			}

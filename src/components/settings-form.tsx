@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,11 @@ export function SettingsForm() {
 
 	const loadSettings = async () => {
 		try {
-			const res = await fetch("/api/config/model");
-			const data = await res.json();
-			setCurrentModel(data.currentModel);
-			setAvailableModels(data.availableModels);
+			const { data, error } = await actions.config.getModel();
+			if (!error && data) {
+				setCurrentModel(data.currentModel);
+				setAvailableModels(data.availableModels);
+			}
 		} catch (err) {
 			console.error("Failed to load settings:", err);
 		} finally {
@@ -53,13 +55,9 @@ export function SettingsForm() {
 		setPopoverOpen(false);
 
 		try {
-			const res = await fetch("/api/config/model", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ model: modelId }),
-			});
+			const { error } = await actions.config.setModel({ model: modelId });
 
-			if (res.ok) {
+			if (!error) {
 				setCurrentModel(modelId);
 				setSaveStatus({ message: "Saved!", type: "success" });
 				setTimeout(() => {
@@ -149,13 +147,9 @@ export function SettingsForm() {
 											<Check className="h-3.5 w-3.5 text-strong" />
 										)}
 										<span className="text-sm font-medium">{model.name}</span>
-										<span className="text-xs text-muted">
-											{model.provider}
-										</span>
+										<span className="text-xs text-muted">{model.provider}</span>
 									</div>
-									<p className="text-xs text-muted">
-										{model.description}
-									</p>
+									<p className="text-xs text-muted">{model.description}</p>
 								</div>
 							</button>
 						))}
@@ -164,9 +158,7 @@ export function SettingsForm() {
 			</Popover>
 
 			{currentModelInfo && (
-				<p className="text-xs text-muted">
-					{currentModelInfo.description}
-				</p>
+				<p className="text-xs text-muted">{currentModelInfo.description}</p>
 			)}
 
 			{saveStatus.message && (

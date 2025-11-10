@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -43,15 +44,10 @@ export default function SetupWizard() {
 		setLoading(true);
 
 		try {
-			const res = await fetch("/api/setup/user", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ username, password }),
-			});
+			const { error } = await actions.setup.createUser({ username, password });
 
-			if (!res.ok) {
-				const data = await res.json().catch(() => null);
-				throw new Error(data?.error || "Failed to create user");
+			if (error) {
+				throw new Error(error.message || "Failed to create user");
 			}
 
 			setStep(2);
@@ -81,15 +77,13 @@ export default function SetupWizard() {
 		setLoading(true);
 
 		try {
-			const res = await fetch("/api/setup/ai", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ provider: aiProvider, apiKey }),
+			const { error } = await actions.setup.setupAI({
+				provider: aiProvider,
+				apiKey,
 			});
 
-			if (!res.ok) {
-				const data = await res.json().catch(() => null);
-				throw new Error(data?.error || "Failed to configure AI");
+			if (error) {
+				throw new Error(error.message || "Failed to configure AI");
 			}
 
 			setStep(3);
@@ -104,9 +98,9 @@ export default function SetupWizard() {
 		setLoading(true);
 
 		try {
-			const res = await fetch("/api/setup/complete", { method: "POST" });
+			const { error } = await actions.setup.completeSetup();
 
-			if (!res.ok) {
+			if (error) {
 				throw new Error("Failed to complete setup");
 			}
 

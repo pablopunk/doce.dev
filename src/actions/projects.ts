@@ -1,0 +1,640 @@
+import { defineAction, ActionError } from "astro:actions";
+import { z } from "astro:schema";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { projectFacade } from "@/application/facades/project-facade";
+import {
+	generateCode,
+	generateDefaultProjectStructure,
+} from "@/lib/code-generator";
+import {
+	createConversation,
+	createDeployment,
+	getConfig,
+	getDeployments,
+	getFiles,
+	saveFile,
+	saveMessage,
+} from "@/lib/db";
+import {
+	createPreviewContainer,
+	createDeploymentContainer,
+	getPreviewState,
+	stopPreviewForProject,
+	listProjectContainers,
+	stopContainer,
+	removeContainer,
+} from "@/lib/docker";
+import {
+	deleteProjectFiles,
+	listProjectFiles,
+	readProjectFile,
+	writeProjectFiles,
+} from "@/lib/file-system";
+import { copyTemplateToProject } from "@/lib/template-generator";
+import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
+
+// Helper functions
+function getTemplateAgentsContent(): string {
+	try {
+		const agentsPath = join(process.cwd(), "templates", "astro", "AGENTS.md");
+		return readFileSync(agentsPath, "utf-8");
+	} catch (error) {
+		console.error("Failed to read AGENTS.md:", error);
+		throw new Error("Template AGENTS.md file not found");
+	}
+}
+
+function getAIModelId() {
+	return getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+}
+
+function getAIModel() {
+	const provider = getConfig("ai_provider") || "openrouter";
+	const apiKey = getConfig(`${provider}_api_key`);
+	const defaultModel = getAIModelId();
+
+	if (!apiKey) {
+		throw new Error(
+			`No API key configured for ${provider}. Please complete setup at /setup`,
+		);
+	}
+
+	if (provider === "openrouter") {
+		const openrouter = createOpenRouter({ apiKey });
+		return openrouter(defaultModel);
+	}
+
+	const [modelProvider, ...modelParts] = defaultModel.split("/");
+	const modelId = modelParts.join("/");
+
+	if (modelProvider === "anthropic" && provider === "anthropic") {
+		process.env.ANTHROPIC_API_KEY = apiKey;
+		return anthropic(modelId || "claude-3-5-sonnet-20241022");
+	}
+	if (modelProvider === "openai" && provider === "openai") {
+		process.env.OPENAI_API_KEY = apiKey;
+		return openai(modelId || "gpt-4o-mini");
+	}
+
+	if (provider === "openrouter") {
+		const openrouter = createOpenRouter({ apiKey });
+		return openrouter(defaultModel);
+	}
+
+	throw new Error(
+		`Model ${defaultModel} not compatible with provider ${provider}`,
+	);
+}
+
+function parseEnvFile(content: string): Record<string, string> {
+	const env: Record<string, string> = {};
+	const lines = content.split("\n");
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith("#")) continue;
+
+		const match = trimmed.match(/^([^=]+)=(.*)$/);
+		if (match) {
+			const key = match[1].trim();
+			let value = match[2].trim();
+
+			if (
+				(value.startsWith('"') && value.endsWith('"')) ||
+				(value.startsWith("'") && value.endsWith("'"))
+			) {
+				value = value.slice(1, -1);
+			}
+
+			env[key] = value;
+		}
+	}
+
+	return env;
+}
+
+function stringifyEnvFile(env: Record<string, string>): string {
+	const lines: string[] = [];
+
+	for (const [key, value] of Object.entries(env)) {
+		const needsQuotes = /[\s#]/.test(value);
+		const quotedValue = needsQuotes ? `"${value}"` : value;
+		lines.push(`${key}=${quotedValue}`);
+	}
+
+	return lines.join("\n") + "\n";
+}
+
+// Track active project sessions with timeouts
+const activeProjects = new Map<string, NodeJS.Timeout>();
+const INACTIVITY_TIMEOUT = 60000; // 60 seconds
+
+export const server = {
+	// GET /api/projects
+	getProjects: defineAction({
+		handler: async () => {
+			const projects = await projectFacade.getProjects();
+			return projects.map((p) => p.toJSON());
+		},
+	}),
+
+	// POST /api/projects
+	createProject: defineAction({
+		input: z.object({
+			name: z.string().optional(),
+			description: z.string().optional(),
+			prompt: z.string().optional(),
+		}),
+		handler: async ({ name, description, prompt }) => {
+			let projectName = name;
+			const projectDescription = description || prompt;
+
+			// If a prompt is provided, generate project name with AI first
+			if (prompt && !name) {
+				try {
+					const model = getAIModel();
+
+					const nameResult = await generateText({
+						model,
+						system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (2-4 words)`,
+						prompt: `Generate a project name for the following description: ${prompt}`,
+					});
+
+					projectName = nameResult.text
+						.trim()
+						.toLowerCase()
+						.replace(/[^a-z0-9-]/g, "-")
+						.replace(/-+/g, "-");
+				} catch (error) {
+					console.error("Failed to generate project name:", error);
+					projectName = prompt
+						.slice(0, 50)
+						.toLowerCase()
+						.replace(/[^a-z0-9-]/g, "-")
+						.replace(/-+/g, "-");
+				}
+			}
+
+			const projectResult = await projectFacade.createProject(
+				projectName || "new-project",
+				projectDescription,
+			);
+
+			// If a prompt is provided, generate initial structure
+			if (prompt) {
+				try {
+					console.log(
+						`Copying minimal template for project ${projectResult.id}`,
+					);
+					const templateFiles = await copyTemplateToProject("astro");
+
+					// Filter to keep only config files
+					const minimalFiles = templateFiles.filter((file) => {
+						if (file.path.includes("package.json")) return true;
+						if (file.path.includes("astro.config.mjs")) return true;
+						if (file.path.includes("tsconfig.json")) return true;
+						if (file.path.includes("tailwind.config.cjs")) return true;
+						if (file.path.includes("postcss.config.cjs")) return true;
+						if (file.path.includes(".npmrc")) return true;
+						if (file.path.includes(".dockerignore")) return true;
+						if (file.path.includes("docker-compose")) return true;
+						if (file.path.includes("global.css")) return true;
+						if (file.path.includes("BaseLayout.astro")) return true;
+						return false;
+					});
+
+					await writeProjectFiles(projectResult.id, minimalFiles);
+					for (const file of minimalFiles) {
+						await saveFile(projectResult.id, file.path, file.content);
+					}
+					console.log(`Minimal template copied: ${minimalFiles.length} files`);
+
+					const aiModelId = getAIModelId();
+					const conversation = await createConversation(
+						projectResult.id,
+						aiModelId,
+					);
+					await saveMessage(conversation.id, "user", prompt);
+
+					const model = getAIModel();
+					const agentsContent = getTemplateAgentsContent();
+
+					const result = await generateText({
+						model,
+						system: `You are an expert web developer and designer helping users build modern sites with Astro, React islands, and Tailwind CSS.
+
+${agentsContent}`,
+						prompt: `Create a working Astro + React + Tailwind application for: ${prompt}
+
+Generate the necessary pages and components. Focus on creating a functional, well-designed implementation with good UX.`,
+					});
+
+					await saveMessage(conversation.id, "assistant", result.text);
+					await generateCode(projectResult.id, result.text);
+
+					console.log(
+						`Initial project generation completed for ${projectResult.id}`,
+					);
+				} catch (error) {
+					console.error("Failed to generate initial project structure:", error);
+				}
+			}
+
+			return projectResult;
+		},
+	}),
+
+	// GET /api/projects/[id]
+	getProject: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			const project = await projectFacade.getProject(id);
+
+			if (!project) {
+				throw new ActionError({
+					code: "NOT_FOUND",
+					message: "Project not found",
+				});
+			}
+
+			const files = await getFiles(id);
+			return { ...project.toJSON(), files };
+		},
+	}),
+
+	// DELETE /api/projects/[id]
+	deleteProject: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const containers = await listProjectContainers(id);
+				for (const container of containers) {
+					await stopContainer(container.Id);
+					await removeContainer(container.Id);
+				}
+
+				await deleteProjectFiles(id);
+				await projectFacade.deleteProject(id);
+
+				return { success: true };
+			} catch (error) {
+				console.error("Failed to delete project:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete project",
+				});
+			}
+		},
+	}),
+
+	// GET /api/projects/[id]/files
+	getFiles: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			const database = await getFiles(id);
+			const filesystem = await listProjectFiles(id);
+
+			return { database, filesystem };
+		},
+	}),
+
+	// POST /api/projects/[id]/generate
+	generateProject: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const files = await generateDefaultProjectStructure();
+				await writeProjectFiles(id, files);
+
+				for (const file of files) {
+					await saveFile(id, file.path, file.content);
+				}
+
+				return { success: true, filesCreated: files.length };
+			} catch (error) {
+				console.error("Failed to generate project:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to generate project",
+				});
+			}
+		},
+	}),
+
+	// POST /api/projects/[id]/preview
+	createPreview: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const project = await projectFacade.getProject(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				// Check if preview is already running
+				const existingState = await getPreviewState(id);
+				if (existingState) {
+					console.log(
+						`Preview already running for ${id}, syncing DB with Docker state`,
+					);
+
+					await projectFacade.updateProject(id, {
+						preview_url: existingState.url,
+						status: "preview",
+					});
+
+					return {
+						success: true,
+						containerId: existingState.containerId,
+						url: existingState.url,
+						port: existingState.port,
+						reused: true,
+					};
+				}
+
+				// Create new preview container
+				const { containerId, url, port } = await createPreviewContainer(id);
+
+				await projectFacade.updateProject(id, {
+					preview_url: url,
+					status: "preview",
+				});
+
+				return {
+					success: true,
+					containerId,
+					url,
+					port,
+					reused: false,
+				};
+			} catch (error) {
+				console.error("Failed to create preview:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create preview environment",
+				});
+			}
+		},
+	}),
+
+	// GET /api/projects/[id]/preview
+	getPreviewStatus: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const project = await projectFacade.getProject(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				// Always check Docker state first (source of truth)
+				const dockerState = await getPreviewState(id);
+
+				if (dockerState) {
+					// Sync DB if out of sync
+					if (project.previewUrl !== dockerState.url) {
+						console.log(
+							`Syncing DB for ${id}: ${project.previewUrl} -> ${dockerState.url}`,
+						);
+						await projectFacade.updateProject(id, {
+							preview_url: dockerState.url,
+							status: "preview",
+						});
+					}
+
+					return {
+						url: dockerState.url,
+						status: "running" as const,
+						port: dockerState.port,
+					};
+				}
+
+				// No container running - clear stale DB data
+				if (project.previewUrl) {
+					console.log(`Clearing stale preview URL for ${id}`);
+					await projectFacade.updateProject(id, {
+						preview_url: null,
+						status: "draft",
+					});
+				}
+
+				return { status: "not-created" as const };
+			} catch (error) {
+				console.error("Failed to get preview status:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to get preview status",
+				});
+			}
+		},
+	}),
+
+	// DELETE /api/projects/[id]/preview
+	stopPreview: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				await stopPreviewForProject(id);
+
+				await projectFacade.updateProject(id, {
+					preview_url: null,
+					status: "draft",
+				});
+
+				return { success: true };
+			} catch (error) {
+				console.error("Failed to delete preview:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to delete preview",
+				});
+			}
+		},
+	}),
+
+	// POST /api/projects/[id]/lifecycle (heartbeat)
+	sendHeartbeat: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				// Clear existing timeout if any
+				const existingTimeout = activeProjects.get(id);
+				if (existingTimeout) {
+					clearTimeout(existingTimeout);
+				}
+
+				// Set new timeout
+				const timeout = setTimeout(async () => {
+					try {
+						console.log(
+							`[Lifecycle] No heartbeat for ${INACTIVITY_TIMEOUT / 1000}s, stopping preview for project ${id}`,
+						);
+						await stopPreviewForProject(id);
+
+						await projectFacade.updateProject(id, {
+							preview_url: null,
+							status: "draft",
+						});
+
+						activeProjects.delete(id);
+						console.log(
+							`[Lifecycle] Successfully stopped preview for project ${id}`,
+						);
+					} catch (error) {
+						console.error(
+							`[Lifecycle] Failed to stop preview for project ${id}:`,
+							error,
+						);
+						activeProjects.delete(id);
+					}
+				}, INACTIVITY_TIMEOUT);
+
+				activeProjects.set(id, timeout);
+
+				return { success: true, timeout: INACTIVITY_TIMEOUT };
+			} catch (error) {
+				console.error("Failed to handle heartbeat:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to handle heartbeat",
+				});
+			}
+		},
+	}),
+
+	// POST /api/projects/[id]/deploy
+	deployProject: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const project = await projectFacade.getProject(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				const { containerId, url, deploymentId } =
+					await createDeploymentContainer(id);
+				const deployment = await createDeployment(id, containerId, url);
+
+				await projectFacade.updateProject(id, {
+					deployed_url: url,
+					status: "deployed",
+				});
+
+				return {
+					success: true,
+					deployment: {
+						id: deployment.id,
+						containerId,
+						url,
+						deploymentId,
+					},
+				};
+			} catch (error) {
+				console.error("Failed to deploy:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to deploy project",
+				});
+			}
+		},
+	}),
+
+	// GET /api/projects/[id]/deploy
+	getDeployments: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const deployments = await getDeployments(id);
+				return { deployments };
+			} catch (error) {
+				console.error("Failed to get deployments:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to get deployments",
+				});
+			}
+		},
+	}),
+
+	// GET /api/projects/[id]/env
+	getEnv: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const envContent = await readProjectFile(id, ".env");
+
+				if (!envContent) {
+					return { env: {} };
+				}
+
+				const env = parseEnvFile(envContent);
+				return { env };
+			} catch (error) {
+				console.error("Failed to read env file:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to read environment variables",
+				});
+			}
+		},
+	}),
+
+	// POST /api/projects/[id]/env
+	setEnv: defineAction({
+		input: z.object({
+			id: z.string(),
+			env: z.record(z.string()),
+		}),
+		handler: async ({ id, env }) => {
+			try {
+				const envContent = stringifyEnvFile(env);
+				await writeProjectFiles(id, [{ path: ".env", content: envContent }]);
+
+				return { success: true };
+			} catch (error) {
+				console.error("Failed to write env file:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to save environment variables",
+				});
+			}
+		},
+	}),
+};

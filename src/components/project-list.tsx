@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight, ExternalLink, Eye, Rocket, Trash2 } from "lucide-react";
+import { actions } from "astro:actions";
+import { ArrowUpRight, ExternalLink, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import {
@@ -13,15 +14,18 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async () => {
+	const { data, error } = await actions.projects.getProjects();
+	if (error) throw error;
+	return data;
+};
 
 export function ProjectList() {
-	const { data: projects, mutate } = useSWR("/api/projects", fetcher);
+	const { data: projects, mutate } = useSWR("projects", fetcher);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
@@ -31,7 +35,7 @@ export function ProjectList() {
 	};
 
 	const handleDeleteConfirm = async () => {
-		if (projectToDelete) {
+		if (projectToDelete && projects) {
 			// Optimistically update UI immediately
 			mutate(
 				projects.filter((p: any) => p.id !== projectToDelete),
@@ -44,7 +48,7 @@ export function ProjectList() {
 
 			// Perform actual deletion in background
 			try {
-				await fetch(`/api/projects/${projectToDelete}`, { method: "DELETE" });
+				await actions.projects.deleteProject({ id: projectToDelete });
 				// Revalidate to ensure consistency
 				mutate();
 			} catch (error) {
