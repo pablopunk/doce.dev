@@ -208,7 +208,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 	return (
 		<div className="flex-1 flex flex-col relative">
-			<div className="border-b border-border px-4 py-2 flex items-center justify-between">
+			<div className="border-b border-border-default px-4 py-2 flex items-center justify-between">
 				<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
 					<TabsList>
 						<TabsTrigger value="preview" className="flex items-center gap-2">
@@ -264,7 +264,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 												<p className="text-sm font-medium">
 													Starting preview...
 												</p>
-												<p className="text-xs text-muted-foreground mt-1">
+												<p className="text-xs text-secondary-foreground mt-1">
 													Waiting for server to respond...
 												</p>
 											</div>
@@ -274,7 +274,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{iframeError && !isIframeLoading && (
 									<div className="absolute inset-0 bg-white flex items-center justify-center">
 										<div className="text-center space-y-4">
-											<p className="text-muted-foreground">
+											<p className="text-secondary-foreground">
 												Preview failed to load
 											</p>
 											<Button
@@ -295,7 +295,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						) : (
 							<div className="h-full flex items-center justify-center">
 								<div className="text-center space-y-4">
-									<p className="text-muted-foreground">
+									<p className="text-secondary-foreground">
 										No preview available yet
 									</p>
 									<Button
@@ -323,7 +323,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{project.files.map((file: any) => (
 									<div
 										key={file.id}
-										className="bg-card rounded-lg border border-border overflow-hidden"
+										className="bg-card rounded-lg border border-border-default overflow-hidden"
 									>
 										<div className="bg-muted px-4 py-2 font-mono text-sm">
 											{file.file_path}
@@ -335,7 +335,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								))}
 							</div>
 						) : (
-							<div className="h-full flex items-center justify-center text-muted-foreground">
+							<div className="h-full flex items-center justify-center text-secondary-foreground">
 								No code generated yet
 							</div>
 						)}
@@ -349,7 +349,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 									<h3 className="text-lg font-semibold">
 										Environment Variables
 									</h3>
-									<p className="text-sm text-muted-foreground">
+									<p className="text-sm text-secondary-foreground">
 										Variables for development and production
 									</p>
 								</div>
@@ -363,7 +363,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{Object.entries(envVars).map(([key, value]) => (
 									<div
 										key={key}
-										className="flex items-center gap-2 bg-card p-3 rounded-lg border border-border"
+										className="flex items-center gap-2 bg-card p-3 rounded-lg border border-border-default"
 									>
 										<Input
 											placeholder="KEY"
@@ -371,7 +371,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											onChange={(e) => updateEnvVar(key, e.target.value, value)}
 											className="flex-1 font-mono text-sm"
 										/>
-										<span className="text-muted-foreground">=</span>
+										<span className="text-secondary-foreground">=</span>
 										<Input
 											placeholder="value"
 											value={value}
@@ -391,7 +391,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								))}
 
 								{Object.keys(envVars).length === 0 && (
-									<div className="text-center py-8 text-muted-foreground">
+									<div className="text-center py-8 text-secondary-foreground">
 										No environment variables yet. Click "Add Variable" to create
 										one.
 									</div>
@@ -413,7 +413,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								</div>
 							)}
 
-							<div className="mt-6 p-4 bg-muted rounded-lg border border-border">
+							<div className="mt-6 p-4 bg-muted rounded-lg border border-border-default">
 								<h4 className="font-medium mb-2 text-sm">
 									Usage in your code:
 								</h4>

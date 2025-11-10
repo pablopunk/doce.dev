@@ -133,12 +133,12 @@ export function ApiKeysForm() {
 						{provider.icon}
 						<span>{provider.name}</span>
 						{hasKeys[provider.id] && (
-							<span className="text-xs text-green-600 dark:text-green-400">
+							<span className="text-xs text-green-600 text-green-400">
 								(configured)
 							</span>
 						)}
 					</Label>
-					<div className="flex gap-2">
+					<div className="flex gap-2 items-center">
 						<div className="relative flex-1">
 							<Input
 								id={provider.id}
@@ -156,7 +156,7 @@ export function ApiKeysForm() {
 							<button
 								type="button"
 								onClick={() => toggleShow(provider.id)}
-								className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+								className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary-foreground hover:text-foreground"
 							>
 								{showKeys[provider.id] ? (
 									<EyeOff className="h-4 w-4" />
@@ -176,7 +176,7 @@ export function ApiKeysForm() {
 						<p
 							className={`text-sm ${
 								saveStatus.type === "success"
-									? "text-green-600 dark:text-green-400"
+									? "text-green-600 text-green-400"
 									: "text-destructive"
 							}`}
 						>
@@ -185,7 +185,7 @@ export function ApiKeysForm() {
 					)}
 				</div>
 			))}
-			<p className="text-xs text-muted-foreground">
+			<p className="text-xs text-secondary-foreground">
 				Note: OpenRouter supports 400+ models from all providers. You only need
 				one API key.
 			</p>

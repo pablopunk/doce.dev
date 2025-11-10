@@ -15,18 +15,41 @@ Self‑hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeSc
 
 **Pure B&W**: Monochromatic design with inverted light/dark modes. Light/Dark/System toggle in TopNav (localStorage + system preference).
 
-**Color Tokens** (HSL S=0%):
-- Neutrals: `--bg-base`, `--bg-surface`, `--bg-raised`, `--text-strong`, `--text-muted`, `--border`, `--border-strong`
-- Primary: White (#fcfcfc) in dark, black (#050505) in light
-- Semantic (OKLCH): `--success`, `--warning`, `--danger` (alerts only)
-- Shadows: `--shadow-1` (short/dark) + `--shadow-2` (long/light)
+**Semantic Layer System** (always gets lighter as you add elevation):
 
-**Dark Mode** (default): Base 3%L → Surface 5%L → Raised 8%L | Text 98%L | Borders 15%L/25%L
-**Light Mode** (inverse): Base 97%L → Surface 95%L → Raised 92%L | Text 2%L | Borders 85%L/75%L
+**Background Layers** (back to front):
+- `--bg-base` / `bg-base` → Page background (3%L dark / 97%L light)
+- `--bg-surface` / `bg-surface` → Cards, panels (5%L dark / 95%L light)
+- `--bg-raised` / `bg-raised` → Popovers, inputs, elevated UI (8%L dark / 92%L light)
+
+**Interactive States**:
+- `--bg-hover` / `bg-hover` → Hover on interactive elements (12%L dark / 88%L light)
+- `--bg-active` / `bg-active` → Pressed state (10%L dark / 90%L light)
+
+**CTA/Primary Actions**:
+- `--bg-cta` / `bg-cta` → Primary buttons (18%L dark / 98%L light)
+- `--bg-cta-hover` / `bg-cta-hover` → CTA hover (22%L dark / 95%L light)
+
+**Text Hierarchy**:
+- `--text-primary` / `text-primary` → Body text, headings (98%L dark / 2%L light)
+- `--text-secondary` / `text-secondary` → Less important text (65%L dark / 35%L light)
+- `--text-tertiary` / `text-tertiary` → Even lighter (45%L dark / 55%L light)
+- `--text-disabled` / `text-disabled` → Disabled state (30%L dark / 70%L light)
+
+**Borders**:
+- `--border-subtle` / `border-subtle` → Faint dividers (15%L dark / 85%L light)
+- `--border-default` / `border-default` → Standard borders (25%L dark / 75%L light)
+- `--border-focus` / `border-focus` → Focus rings (98%L dark / 2%L light)
+
+**Overlays**:
+- `--overlay` / `overlay` → Modal backdrops (rgba(0,0,0,0.5) both themes)
+
+**Semantic Colors** (OKLCH, alerts only):
+- `--success`, `--warning`, `--danger` (same in both themes)
 
 **Elements**: 2px borders, no rounded corners (except specified), scale-on-press buttons, shadow-on-hover cards
 
-**Tailwind**: `bg-base`, `bg-surface`, `bg-raised`, `text-strong`, `text-muted`, `border-strong`, `shadow-elevation`
+**IMPORTANT**: NO `dark:` classes allowed. All colors are semantic and automatically adapt to theme via CSS variables.
 
 **Theme Hook**: `src/hooks/use-theme.ts`
 

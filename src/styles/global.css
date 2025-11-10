@@ -4,44 +4,61 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* === Pure B&W System (Dark Mode Default) === */
-  --bg-base: hsl(0 0% 3%);          /* Deep background */
-  --bg-surface: hsl(0 0% 5%);       /* Cards background */
-  --bg-raised: hsl(0 0% 20%);        /* Elevated elements */
-  --bg-button: hsl(0 0% 18%);       /* Button background - lighter than cards */
-  --text-strong: hsl(0 0% 98%);     /* Near-white text */
-  --text-muted: hsl(0 0% 65%);      /* Muted gray text */
+  /* === Background Layers (back to front) === */
+  --bg-base: hsl(0 0% 3%);          /* Page background */
+  --bg-surface: hsl(0 0% 8%);       /* Cards, panels */
+  --bg-raised: hsl(0 0% 12%);       /* Popovers, inputs, elevated UI */
+  
+  /* === Interactive States === */
+  --bg-hover: hsl(0 0% 16%);        /* Hover on interactive elements */
+  --bg-active: hsl(0 0% 14%);       /* Pressed state */
+  
+  /* === CTA/Primary Actions === */
+  --bg-cta: hsl(0 0% 20%);          /* Primary buttons */
+  --bg-cta-hover: hsl(0 0% 24%);    /* CTA hover state */
+  
+  /* === Text Hierarchy === */
+  --text-primary: hsl(0 0% 88%);    /* Body text, headings */
+  --text-secondary: hsl(0 0% 70%);  /* Less important text */
+  --text-tertiary: hsl(0 0% 50%);   /* Even lighter text */
+  --text-disabled: hsl(0 0% 35%);   /* Disabled state */
 
-  /* UI details */
-  --border: hsl(0 0% 15%);          /* Subtle borders */
-  --border-strong: hsl(0 0% 25%);   /* Visible borders for cards */
-  --highlight: hsl(0 0% 12%);       /* Top highlight on cards */
-  --shadow-1: hsla(0 0% 0% / 0.5);  /* Stronger shadows */
-  --shadow-2: hsla(0 0% 0% / 0.25);
+  /* === Borders === */
+  --border-subtle: hsl(0 0% 18%);   /* Faint dividers */
+  --border-default: hsl(0 0% 28%);  /* Standard borders */
+  --border-focus: hsl(0 0% 88%);    /* Focus rings */
+  
+  /* === Overlays === */
+  --overlay: rgba(0, 0, 0, 0.5);    /* Modal backdrops */
+  
+  /* === Primary (buttons, CTAs) === */
+  --primary: hsl(0 0% 88%);         /* Light gray for dark mode */
+  --primary-contrast: hsl(0 0% 8%); /* Dark text on light buttons */
 
-  /* === B&W Primary (buttons, CTAs) === */
-  --primary: hsl(0 0% 98%);         /* White for dark mode */
-  --primary-contrast: hsl(0 0% 5%); /* Dark text on white buttons */
-
-  /* === Semantic Colors === */
+  /* === Semantic Colors (alerts) === */
   --success: oklch(0.65 0.16 145);   /* Green */
   --warning: oklch(0.75 0.18 75);    /* Yellow/Orange */
   --danger: oklch(0.65 0.20 25);     /* Red */
 
-  /* === Legacy compatibility mappings === */
+  /* === Effects === */
+  --highlight: hsl(0 0% 16%);       /* Top highlight on cards */
+  --shadow-1: hsla(0 0% 0% / 0.5);  /* Stronger shadows */
+  --shadow-2: hsla(0 0% 0% / 0.25);
+
+  /* === shadcn/ui Compatibility (DO NOT REMOVE) === */
   --background: var(--bg-base);
-  --foreground: var(--text-strong);
+  --foreground: var(--text-primary);
   --card: var(--bg-surface);
-  --card-foreground: var(--text-strong);
+  --card-foreground: var(--text-primary);
   --popover: var(--bg-raised);
-  --popover-foreground: var(--text-strong);
+  --popover-foreground: var(--text-primary);
   --primary-foreground: var(--primary-contrast);
-  --secondary: var(--bg-raised);
-  --secondary-foreground: var(--text-strong);
+  --secondary: var(--text-secondary);
+  --secondary-foreground: var(--text-tertiary);
   --muted: var(--bg-surface);
-  --muted-foreground: var(--text-muted);
+  --muted-foreground: var(--text-secondary);
   --accent: var(--bg-raised);
-  --accent-foreground: var(--text-strong);
+  --accent-foreground: var(--text-primary);
   --destructive: var(--danger);
   --destructive-foreground: oklch(0.95 0.02 20);
   --input: var(--bg-raised);
@@ -56,53 +73,74 @@
 
   /* Sidebar */
   --sidebar: var(--bg-surface);
-  --sidebar-foreground: var(--text-strong);
+  --sidebar-foreground: var(--text-primary);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-contrast);
   --sidebar-accent: var(--bg-raised);
-  --sidebar-accent-foreground: var(--text-strong);
-  --sidebar-border: var(--border);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--primary);
 
   --radius: 0.625rem;
 }
 
 .light {
-  /* === Light mode: Inverted B&W === */
-  --bg-base: hsl(0 0% 97%);         /* Near-white base */
-  --bg-surface: hsl(0 0% 95%);      /* Slightly darker cards */
-  --bg-raised: hsl(0 0% 92%);       /* Darker elevated elements */
-  --bg-button: hsl(0 0% 98%);       /* Button background - white/near-white */
-  --text-strong: hsl(0 0% 2%);      /* Near-black text */
-  --text-muted: hsl(0 0% 35%);      /* Muted dark gray */
+  /* === Background Layers (back to front) === */
+  --bg-base: hsl(0 0% 88%);         /* Page background (grey-ish) */
+  --bg-surface: hsl(0 0% 92%);      /* Cards, panels */
+  --bg-raised: hsl(0 0% 95%);       /* Popovers, inputs, elevated UI */
+  
+  /* === Interactive States === */
+  --bg-hover: hsl(0 0% 97%);        /* Hover on interactive elements */
+  --bg-active: hsl(0 0% 96%);       /* Pressed state */
+  
+  /* === CTA/Primary Actions === */
+  --bg-cta: hsl(0 0% 99%);          /* Primary buttons (almost white) */
+  --bg-cta-hover: hsl(0 0% 98%);    /* CTA hover state */
+  
+  /* === Text Hierarchy === */
+  --text-primary: hsl(0 0% 5%);     /* Body text, headings */
+  --text-secondary: hsl(0 0% 15%);  /* Less important text */
+  --text-tertiary: hsl(0 0% 35%);   /* Even lighter text */
+  --text-disabled: hsl(0 0% 55%);   /* Disabled state */
 
-  /* Light mode details */
-  --border: hsl(0 0% 85%);          /* Light borders */
-  --border-strong: hsl(0 0% 75%);   /* Visible borders */
-  --highlight: hsl(0 0% 88%);       /* Subtle highlight */
+  /* === Borders === */
+  --border-subtle: hsl(0 0% 82%);   /* Faint dividers */
+  --border-default: hsl(0 0% 72%);  /* Standard borders */
+  --border-focus: hsl(0 0% 12%);    /* Focus rings */
+
+  /* === Primary (buttons, CTAs) === */
+  --primary: hsl(0 0% 5%);          /* Dark gray for light mode */
+  --primary-contrast: hsl(0 0% 92%); /* Light text on dark buttons */
+
+  /* === Effects === */
+  --highlight: hsl(0 0% 84%);       /* Subtle highlight */
   --shadow-1: hsla(0 0% 0% / 0.08);
   --shadow-2: hsla(0 0% 0% / 0.04);
-
-  /* B&W Primary */
-  --primary: hsl(0 0% 2%);          /* Black for light mode */
-  --primary-contrast: hsl(0 0% 98%); /* Light text on black buttons */
 }
 
 /* System preference fallback when no class is set */
 @media (prefers-color-scheme: light) {
   :root:not(.light):not(.dark) {
-    --bg-base: hsl(0 0% 97%);
-    --bg-surface: hsl(0 0% 95%);
-    --bg-raised: hsl(0 0% 92%);
-    --text-strong: hsl(0 0% 2%);
-    --text-muted: hsl(0 0% 35%);
-    --border: hsl(0 0% 85%);
-    --border-strong: hsl(0 0% 75%);
-    --highlight: hsl(0 0% 88%);
+    --bg-base: hsl(0 0% 88%);
+    --bg-surface: hsl(0 0% 92%);
+    --bg-raised: hsl(0 0% 95%);
+    --bg-hover: hsl(0 0% 97%);
+    --bg-active: hsl(0 0% 96%);
+    --bg-cta: hsl(0 0% 99%);
+    --bg-cta-hover: hsl(0 0% 98%);
+    --text-primary: hsl(0 0% 5%);
+    --text-secondary: hsl(0 0% 15%);
+    --text-tertiary: hsl(0 0% 35%);
+    --text-disabled: hsl(0 0% 55%);
+    --border-subtle: hsl(0 0% 82%);
+    --border-default: hsl(0 0% 72%);
+    --border-focus: hsl(0 0% 5%);
+    --highlight: hsl(0 0% 84%);
     --shadow-1: hsla(0 0% 0% / 0.08);
     --shadow-2: hsla(0 0% 0% / 0.04);
-    --primary: hsl(0 0% 2%);
-    --primary-contrast: hsl(0 0% 98%);
+    --primary: hsl(0 0% 5%);
+    --primary-contrast: hsl(0 0% 92%);
   }
 }
 
@@ -110,17 +148,25 @@
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
 
-  /* Map to new neutral system */
+  /* Semantic color system */
   --color-bg-base: var(--bg-base);
   --color-bg-surface: var(--bg-surface);
   --color-bg-raised: var(--bg-raised);
-  --color-bg-button: var(--bg-button);
-  --color-text-strong: var(--text-strong);
-  --color-text-muted: var(--text-muted);
-  --color-border: var(--border);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-bg-cta: var(--bg-cta);
+  --color-bg-cta-hover: var(--bg-cta-hover);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-focus: var(--border-focus);
+  --color-overlay: var(--overlay);
   --color-highlight: var(--highlight);
 
-  /* Legacy mappings */
+  /* shadcn/ui component colors (Tailwind v4 @theme) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -160,7 +206,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border-default outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;

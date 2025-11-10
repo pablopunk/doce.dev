@@ -77,10 +77,10 @@ export function CreateProjectButton() {
 				<div className="space-y-4 py-4">
 					{!hasApiKey && !checkingKeys && (
 						<div className="rounded-lg border border-yellow-600/30 bg-yellow-500/10 px-4 py-3 text-sm">
-							<p className="font-medium text-yellow-600 dark:text-yellow-400">
+							<p className="font-medium text-yellow-600 text-yellow-400">
 								No API key configured
 							</p>
-							<p className="text-yellow-700/80 dark:text-yellow-300/80 mt-1">
+							<p className="text-yellow-700/80 text-yellow-300/80 mt-1">
 								Please configure an API key in{" "}
 								<a href="/settings" className="underline hover:no-underline">
 									Settings

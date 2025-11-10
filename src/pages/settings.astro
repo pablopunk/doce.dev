@@ -1,6 +1,7 @@
 ---
 import { SettingsForm } from "@/components/settings-form";
 import { ApiKeysForm } from "@/components/api-keys-form";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
@@ -14,34 +15,30 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 
       <div class="space-y-6">
         <!-- AI Model Settings -->
-        <div class="relative rounded-lg border border-border bg-card p-6 shadow-elevation overflow-hidden">
-          <!-- Top highlight -->
-          <div class="absolute inset-x-0 top-0 h-px bg-highlight" />
-
-          <div class="mb-4">
-            <h2 class="text-xl font-semibold text-text-strong">Default AI Model</h2>
-            <p class="text-sm text-muted-foreground mt-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>Default AI Model</CardTitle>
+            <CardDescription>
               Choose the default AI model for new projects
-            </p>
-          </div>
-
-          <SettingsForm client:load />
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingsForm client:load />
+          </CardContent>
+        </Card>
 
         <!-- API Keys Settings -->
-        <div class="relative rounded-lg border border-border bg-card p-6 shadow-elevation overflow-hidden">
-          <!-- Top highlight -->
-          <div class="absolute inset-x-0 top-0 h-px bg-highlight" />
-
-          <div class="mb-4">
-            <h2 class="text-xl font-semibold text-text-strong">API Keys</h2>
-            <p class="text-sm text-muted-foreground mt-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>API Keys</CardTitle>
+            <CardDescription>
               Configure API keys for AI providers. Keys are stored securely in the database.
-            </p>
-          </div>
-
-          <ApiKeysForm client:load />
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ApiKeysForm client:load />
+          </CardContent>
+        </Card>
       </div>
     </div>
   </div>

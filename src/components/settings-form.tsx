@@ -3,7 +3,6 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
 	Popover,
 	PopoverContent,
@@ -112,7 +111,7 @@ export function SettingsForm() {
 				<PopoverTrigger asChild>
 					<Button
 						variant="outline"
-						className="w-full justify-between h-auto py-3"
+						className="w-full justify-between h-auto py-3 bg-bg-raised"
 					>
 						<div className="flex items-center gap-3">
 							{currentModelInfo && getProviderIcon(currentModelInfo.provider)}
@@ -120,7 +119,7 @@ export function SettingsForm() {
 								{currentModelInfo ? (
 									<>
 										<span className="font-medium">{currentModelInfo.name}</span>
-										<span className="text-muted-foreground">
+										<span className="text-secondary-foreground">
 											{" "}
 											— {currentModelInfo.provider}
 										</span>
@@ -150,11 +149,11 @@ export function SettingsForm() {
 											<Check className="h-3.5 w-3.5 text-primary" />
 										)}
 										<span className="text-sm font-medium">{model.name}</span>
-										<span className="text-xs text-muted-foreground">
+										<span className="text-xs text-secondary-foreground">
 											{model.provider}
 										</span>
 									</div>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-secondary-foreground">
 										{model.description}
 									</p>
 								</div>
@@ -165,7 +164,7 @@ export function SettingsForm() {
 			</Popover>
 
 			{currentModelInfo && (
-				<p className="text-xs text-muted-foreground">
+				<p className="text-xs text-secondary-foreground">
 					{currentModelInfo.description}
 				</p>
 			)}
@@ -174,7 +173,7 @@ export function SettingsForm() {
 				<p
 					className={`text-sm ${
 						saveStatus.type === "success"
-							? "text-green-600 dark:text-green-400"
+							? "text-green-600 text-green-400"
 							: "text-destructive"
 					}`}
 				>

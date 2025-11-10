@@ -5,14 +5,23 @@ module.exports = {
 	theme: {
 		extend: {
 			colors: {
-				// Pure B&W system
+				// Semantic color system
 				"bg-base": "var(--bg-base)",
 				"bg-surface": "var(--bg-surface)",
 				"bg-raised": "var(--bg-raised)",
-				"text-strong": "var(--text-strong)",
-				"text-muted": "var(--text-muted)",
+				"bg-hover": "var(--bg-hover)",
+				"bg-active": "var(--bg-active)",
+				"bg-cta": "var(--bg-cta)",
+				"bg-cta-hover": "var(--bg-cta-hover)",
+				"text-primary": "var(--text-primary)",
+				"text-secondary": "var(--text-secondary)",
+				"text-tertiary": "var(--text-tertiary)",
+				"text-disabled": "var(--text-disabled)",
+				"border-subtle": "var(--border-subtle)",
+				"border-default": "var(--border-default)",
+				"border-focus": "var(--border-focus)",
+				overlay: "var(--overlay)",
 				highlight: "var(--highlight)",
-				"border-strong": "var(--border-strong)",
 			},
 			boxShadow: {
 				elevation: "0 2px 4px var(--shadow-1), 0 8px 16px var(--shadow-2)",

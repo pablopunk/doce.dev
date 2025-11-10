@@ -11,21 +11,21 @@
   --bg-raised: hsl(0 0% 10%);       /* 10% L - elevated surfaces */
   --text-strong: hsl(0 0% 92%);     /* High contrast for headings */
   --text-muted: hsl(0 0% 68%);      /* Muted for body text */
-  
+
   /* UI details */
   --border: hsl(0 0% 20%);          /* Visible but subtle borders */
   --highlight: hsl(0 0% 14%);       /* Lighter top border for raised surfaces */
   --shadow-1: hsla(0 0% 0% / 0.25); /* Short, darker shadow */
   --shadow-2: hsla(0 0% 0% / 0.12); /* Longer, lighter shadow */
-  
+
   /* === Brand & Semantic Colors (OKLCH) === */
   --primary: oklch(0.95 0 0);       /* White/light gray for dark mode, dark for light mode */
   --primary-contrast: oklch(0.15 0 0);
-  
+
   --success: oklch(0.62 0.14 140);  /* Green */
   --warning: oklch(0.74 0.18 80);   /* Yellow/Orange */
   --danger: oklch(0.61 0.16 20);    /* Red */
-  
+
   /* === Legacy compatibility mappings === */
   --background: var(--bg-base);
   --foreground: var(--text-strong);
@@ -44,14 +44,14 @@
   --destructive-foreground: oklch(0.95 0.02 20);
   --input: var(--bg-surface);
   --ring: var(--primary);
-  
+
   /* Chart colors */
   --chart-1: oklch(0.65 0.18 250);
   --chart-2: oklch(0.62 0.14 140);
   --chart-3: oklch(0.74 0.18 80);
   --chart-4: oklch(0.61 0.16 20);
   --chart-5: oklch(0.68 0.15 300);
-  
+
   /* Sidebar */
   --sidebar: var(--bg-surface);
   --sidebar-foreground: var(--text-strong);
@@ -61,24 +61,24 @@
   --sidebar-accent-foreground: var(--text-strong);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
-  
+
   --radius: 0.625rem;
 }
 
 .light {
   /* === Light mode: darker base, lighter surfaces for depth === */
   --bg-base: hsl(0 0% 92%);         /* Darker base for more contrast */
-  --bg-surface: hsl(0 0% 99%);      /* Near-white cards */
+  --bg-surface: hsl(0 0% 97%);      /* Near-white cards */
   --bg-raised: hsl(0 0% 100%);      /* Pure white - high elevation (CTAs, etc) */
   --text-strong: hsl(0 0% 9%);
   --text-muted: hsl(0 0% 42%);
-  
+
   /* Light mode details */
   --highlight: hsl(0 0% 100%);      /* Bright highlight for top edges */
   --border: hsl(0 0% 85%);          /* More visible borders */
   --shadow-1: hsla(0 0% 0% / 0.08); /* Stronger shadows for depth */
   --shadow-2: hsla(0 0% 0% / 0.04);
-  
+
   /* B&W buttons in light mode - LIGHTEST */
   --primary: oklch(0.98 0 0);       /* Lightest/white buttons */
   --primary-contrast: oklch(0.10 0 0); /* Dark text */
@@ -91,12 +91,12 @@
   --bg-raised: hsl(0 0% 14%);        /* Even lighter for elevated elements */
   --text-strong: hsl(0 0% 92%);
   --text-muted: hsl(0 0% 68%);
-  
+
   --border: hsl(0 0% 18%);           /* More visible borders */
   --highlight: hsl(0 0% 20%);        /* Brighter highlight */
   --shadow-1: hsla(0 0% 0% / 0.4);   /* Stronger shadows */
   --shadow-2: hsla(0 0% 0% / 0.2);
-  
+
   /* B&W buttons in dark mode - DARKEST */
   --primary: oklch(0.05 0 0);        /* Darkest/black buttons */
   --primary-contrast: oklch(0.98 0 0); /* Light text */
@@ -122,7 +122,7 @@
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
-  
+
   /* Map to new neutral system */
   --color-bg-base: var(--bg-base);
   --color-bg-surface: var(--bg-surface);
@@ -131,7 +131,7 @@
   --color-text-muted: var(--text-muted);
   --color-border: var(--border);
   --color-highlight: var(--highlight);
-  
+
   /* Legacy mappings */
   --color-background: var(--background);
   --color-foreground: var(--foreground);

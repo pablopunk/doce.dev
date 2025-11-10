@@ -5,22 +5,22 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-shadow transition-filter transition-colors duration-200 ease-in-out disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer",
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-shadow transition-filter transition-colors duration-200 ease-in-out disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/30 aria-invalid:border-destructive cursor-pointer",
 	{
 		variants: {
 			variant: {
 				default:
-					"bg-[color:var(--bg-button)] text-[color:var(--text-strong)] font-semibold transition-shadow transition-filter transition-colors duration-200 ease-in-out active:scale-[0.98]",
+					"bg-bg-cta text-text-primary font-semibold hover:bg-bg-cta-hover transition-shadow transition-filter transition-colors duration-200 ease-in-out active:scale-[0.98]",
 
 				destructive:
-					"bg-destructive text-white font-semibold shadow-elevation hover:shadow-elevation-lg hover:brightness-110 active:scale-[0.98] transition-shadow transition-filter transition-colors duration-200 ease-in-out",
+					"bg-destructive text-destructive-foreground font-semibold shadow-elevation hover:shadow-elevation-lg hover:brightness-110 active:scale-[0.98] transition-shadow transition-filter transition-colors duration-200 ease-in-out",
 				outline:
-					"bg-bg-surface text-text-strong font-medium hover:bg-bg-raised hover:brightness-105 transition-shadow transition-filter transition-colors duration-200 ease-in-out",
+					"bg-bg-surface text-text-primary font-medium hover:bg-bg-hover hover:brightness-105 transition-shadow transition-filter transition-colors duration-200 ease-in-out",
 				secondary:
-					"bg-bg-raised text-text-strong font-medium hover:bg-bg-surface hover:brightness-105 transition-shadow transition-filter transition-colors duration-200 ease-in-out",
+					"bg-bg-raised text-text-primary font-medium hover:bg-bg-hover hover:brightness-105 transition-shadow transition-filter transition-colors duration-200 ease-in-out",
 				ghost:
-					"text-text-strong hover:bg-bg-raised transition-shadow transition-filter transition-colors duration-200 ease-in-out",
-				link: "text-text-strong underline-offset-4 hover:underline",
+					"text-text-primary hover:bg-bg-hover transition-shadow transition-filter transition-colors duration-200 ease-in-out",
+				link: "text-text-primary underline-offset-4 hover:underline",
 			},
 			size: {
 				default: "h-9 px-4 py-2 has-[>svg]:px-3",

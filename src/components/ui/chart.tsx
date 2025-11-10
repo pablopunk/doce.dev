@@ -6,7 +6,7 @@ import * as RechartsPrimitive from "recharts";
 import { cn } from "@/lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
-const THEMES = { light: "", dark: ".dark" } as const;
+const THEMES = { light: "",  ".dark" } as const;
 
 export type ChartConfig = {
 	[k in string]: {
@@ -173,7 +173,7 @@ function ChartTooltipContent({
 	return (
 		<div
 			className={cn(
-				"border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+				"border-border-default/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
 				className,
 			)}
 		>
@@ -188,7 +188,7 @@ function ChartTooltipContent({
 						<div
 							key={item.dataKey}
 							className={cn(
-								"[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+								"[&>svg]:text-secondary-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
 								indicator === "dot" && "items-center",
 							)}
 						>
@@ -228,7 +228,7 @@ function ChartTooltipContent({
 									>
 										<div className="grid gap-1.5">
 											{nestLabel ? tooltipLabel : null}
-											<span className="text-muted-foreground">
+											<span className="text-secondary-foreground">
 												{itemConfig?.label || item.name}
 											</span>
 										</div>
@@ -283,7 +283,7 @@ function ChartLegendContent({
 					<div
 						key={item.value}
 						className={
-							"[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
+							"[&>svg]:text-secondary-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
 						}
 					>
 						{itemConfig?.icon && !hideIcon ? (

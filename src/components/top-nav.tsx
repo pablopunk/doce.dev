@@ -12,10 +12,10 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 
 export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
-	const { theme, setTheme } = useTheme();
+	const { setTheme } = useTheme();
 
 	return (
-		<nav className="relative border-b border-border bg-bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-bg-surface/80 shadow-elevation">
+		<nav className="relative border-b border-bg-surface backdrop-blur supports-[backdrop-filter]:bg-bg-surface/80 shadow-elevation">
 			<div className="absolute inset-x-0 top-0 h-px bg-highlight" />
 			<div
 				className={clsx("px-4", {
@@ -34,8 +34,8 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button variant="ghost" size="icon-sm" title="Toggle theme">
-									<Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-									<Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+									<Sun className="h-4 w-4 [.dark_&]:hidden" />
+									<Moon className="h-4 w-4 hidden [.dark_&]:block" />
 									<span className="sr-only">Toggle theme</span>
 								</Button>
 							</DropdownMenuTrigger>

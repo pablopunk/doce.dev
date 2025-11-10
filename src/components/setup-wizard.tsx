@@ -137,19 +137,19 @@ export default function SetupWizard() {
 				<CardContent className="space-y-6">
 					<div className="flex items-center justify-center gap-2 my-5">
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 1 ? "bg-primary" : "bg-raised"}`}
+							className={`h-2 w-2 rounded-full ${step >= 1 ? "bg-primary" : "bg-bg-raised"}`}
 						/>
 						<div
-							className={`h-0.5 w-12 ${step >= 2 ? "bg-primary" : "bg-raised"}`}
+							className={`h-0.5 w-12 ${step >= 2 ? "bg-primary" : "bg-bg-raised"}`}
 						/>
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-primary" : "bg-raised"}`}
+							className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-primary" : "bg-bg-raised"}`}
 						/>
 						<div
-							className={`h-0.5 w-12 ${step >= 3 ? "bg-primary" : "bg-raised"}`}
+							className={`h-0.5 w-12 ${step >= 3 ? "bg-primary" : "bg-bg-raised"}`}
 						/>
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 3 ? "bg-primary" : "bg-raised"}`}
+							className={`h-2 w-2 rounded-full ${step >= 3 ? "bg-primary" : "bg-bg-raised"}`}
 						/>
 					</div>
 
@@ -163,7 +163,7 @@ export default function SetupWizard() {
 						<form onSubmit={handleCreateUser} className="space-y-4">
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">Create Admin Account</h3>
-								<p className="text-sm text-muted-foreground">
+								<p className="text-sm text-secondary-foreground">
 									This will be your login to access the builder
 								</p>
 							</div>
@@ -221,7 +221,7 @@ export default function SetupWizard() {
 						<form onSubmit={handleConfigureAI} className="space-y-4">
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">Configure AI Provider</h3>
-								<p className="text-sm text-muted-foreground">
+								<p className="text-sm text-secondary-foreground">
 									Choose your AI provider and enter your API key
 								</p>
 							</div>
@@ -249,7 +249,7 @@ export default function SetupWizard() {
 											placeholder="sk-..."
 											required
 										/>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-xs text-secondary-foreground">
 											Get your API key from{" "}
 											<a
 												href="https://platform.openai.com/api-keys"
@@ -274,7 +274,7 @@ export default function SetupWizard() {
 											placeholder="sk-ant-..."
 											required
 										/>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-xs text-secondary-foreground">
 											Get your API key from{" "}
 											<a
 												href="https://console.anthropic.com/"
@@ -299,7 +299,7 @@ export default function SetupWizard() {
 											placeholder="or-sk-..."
 											required
 										/>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-xs text-secondary-foreground">
 											Get your API key from{" "}
 											<a
 												href="https://openrouter.ai/"
@@ -347,7 +347,7 @@ export default function SetupWizard() {
 
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">All Set!</h3>
-								<p className="text-sm text-muted-foreground">
+								<p className="text-sm text-secondary-foreground">
 									Your doce.dev is ready to use. You can now start creating
 									amazing websites with AI.
 								</p>
@@ -355,7 +355,7 @@ export default function SetupWizard() {
 
 							<div className="space-y-2 rounded-lg bg-muted p-4 text-left">
 								<p className="text-sm font-medium">What's next?</p>
-								<ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+								<ul className="list-inside list-disc space-y-1 text-sm text-secondary-foreground">
 									<li>Create your first project</li>
 									<li>Chat with AI to generate code</li>
 									<li>Preview your site instantly</li>

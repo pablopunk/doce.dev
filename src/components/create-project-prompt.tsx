@@ -20,6 +20,7 @@ import { Google } from "@/components/ui/svgs/google";
 import { GrokDark } from "@/components/ui/svgs/grokDark";
 import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
 import { Openai } from "@/components/ui/svgs/openai";
+import AIBlob from "./ui/ai-blob";
 
 interface ModelInfo {
 	id: string;
@@ -129,10 +130,10 @@ export function CreateProjectPrompt() {
 		<div className="w-full max-w-3xl">
 			{!hasApiKey && !checkingKeys && (
 				<div className="mb-4 rounded-lg border border-yellow-600/30 bg-yellow-500/10 px-4 py-3 text-sm">
-					<p className="font-medium text-yellow-600 dark:text-yellow-400">
+					<p className="font-medium text-yellow-600 text-yellow-400">
 						No API key configured
 					</p>
-					<p className="text-yellow-700/80 dark:text-yellow-300/80 mt-1">
+					<p className="text-yellow-700/80 text-yellow-300/80 mt-1">
 						Please configure an API key in{" "}
 						<a href="/settings" className="underline hover:no-underline">
 							Settings
@@ -141,52 +142,17 @@ export function CreateProjectPrompt() {
 					</p>
 				</div>
 			)}
-			{loading && (
+			{true && (
 				<div className="mb-8 flex flex-col items-center justify-center gap-6">
-					{/* Siri-inspired orb animation */}
-					<div className="relative flex h-32 w-32 items-center justify-center">
-						{/* Outer glow rings */}
-						<div className="absolute inset-0 animate-[ping_2s_ease-in-out_infinite]">
-							<div className="h-full w-full rounded-full bg-gradient-to-r from-purple-500/30 via-pink-500/30 to-blue-500/30 blur-xl" />
-						</div>
-						<div className="absolute inset-0 animate-[ping_2s_ease-in-out_infinite_0.5s]">
-							<div className="h-full w-full rounded-full bg-gradient-to-r from-blue-500/30 via-cyan-500/30 to-purple-500/30 blur-xl" />
-						</div>
+					<AIBlob />
 
-						{/* Main orb with animated gradient */}
-						<div className="relative h-24 w-24 overflow-hidden rounded-full">
-							<div className="absolute inset-0 animate-[spin_3s_linear_infinite] bg-gradient-conic from-purple-600 via-pink-600 via-blue-600 via-cyan-600 to-purple-600" />
-							<div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-purple-900/90 via-blue-900/90 to-pink-900/90 backdrop-blur-xl animate-[pulse_3s_ease-in-out_infinite]" />
-
-							{/* Inner animated waves */}
-							<div className="absolute inset-0 animate-[pulse_1.5s_ease-in-out_infinite]">
-								<div className="h-full w-full rounded-full bg-gradient-to-r from-purple-400/40 via-pink-400/40 to-blue-400/40 blur-md" />
-							</div>
-							<div className="absolute inset-0 animate-[pulse_1.5s_ease-in-out_infinite_0.3s]">
-								<div className="h-full w-full rounded-full bg-gradient-to-r from-cyan-400/40 via-blue-400/40 to-purple-400/40 blur-md" />
-							</div>
-						</div>
-
-						{/* Orbiting particles */}
-						<div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
-							<div className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
-						</div>
-						<div className="absolute inset-0 animate-[spin_4s_linear_infinite_1s]">
-							<div className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.8)]" />
-						</div>
-						<div className="absolute inset-0 animate-[spin_4s_linear_infinite_2s]">
-							<div className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
-						</div>
-					</div>
-
-					{/* Text with animated gradient */}
 					<div className="space-y-2 text-center">
 						<div className="relative">
 							<div className="bg-gradient-to-r from-purple-400 via-pink-400 via-blue-400 to-cyan-400 bg-clip-text text-lg font-medium text-transparent animate-[pulse_2s_ease-in-out_infinite]">
 								AI is generating your project...
 							</div>
 						</div>
-						<div className="text-sm text-muted-foreground/60">
+						<div className="text-sm text-secondary-foreground/60">
 							This may take a moment
 						</div>
 					</div>
@@ -211,11 +177,11 @@ export function CreateProjectPrompt() {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-secondary-foreground">
 										AI Model
 									</Label>
 									{currentModelInfo && (
-										<p className="mt-1 text-xs text-muted-foreground">
+										<p className="mt-1 text-xs text-secondary-foreground">
 											Currently using: {currentModelInfo.name}
 										</p>
 									)}
@@ -240,11 +206,11 @@ export function CreateProjectPrompt() {
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-muted-foreground">
+													<span className="text-xs text-secondary-foreground">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-muted-foreground">
+												<p className="text-xs text-secondary-foreground">
 													{model.description}
 												</p>
 											</div>

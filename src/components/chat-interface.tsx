@@ -438,7 +438,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		};
 
 		return (
-			<div className="space-y-2 prose prose-sm dark:prose-invert max-w-none overflow-hidden">
+			<div className="space-y-2 prose prose-sm prose-invert max-w-none overflow-hidden">
 				{parts.map((part, i) => {
 					if (part.type === "text") {
 						return (
@@ -480,7 +480,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						return (
 							<div
 								key={i}
-								className="border border-border rounded-md overflow-hidden bg-background/50 not-prose max-w-full"
+								className="border border-border-default rounded-md overflow-hidden bg-background/50 not-prose max-w-full"
 							>
 								<div className="w-full flex items-center justify-between p-3 min-w-0">
 									<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
@@ -488,7 +488,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<span className="font-mono font-medium truncate">
 											{part.file || `${part.language} code`}
 										</span>
-										<span className="text-xs text-muted-foreground flex-shrink-0">
+										<span className="text-xs text-secondary-foreground flex-shrink-0">
 											{part.content.split("\n").length} lines
 										</span>
 									</div>
@@ -504,7 +504,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							open={expandedBlocks.has(part.index!)}
 							onOpenChange={() => toggleBlock(part.index!)}
 						>
-							<div className="border border-border rounded-md overflow-hidden bg-background/50 not-prose max-w-full">
+							<div className="border border-border-default rounded-md overflow-hidden bg-background/50 not-prose max-w-full">
 								<CollapsibleTrigger asChild>
 									<button className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors min-w-0">
 										<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
@@ -512,7 +512,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											<span className="font-mono font-medium truncate">
 												{part.file || `${part.language} code`}
 											</span>
-											<span className="text-xs text-muted-foreground flex-shrink-0">
+											<span className="text-xs text-secondary-foreground flex-shrink-0">
 												{part.content.split("\n").length} lines
 											</span>
 										</div>
@@ -537,13 +537,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex-1 flex flex-col border-r border-border min-w-0">
+		<div className="flex-1 flex flex-col border-r border-border-default min-w-0">
 			<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 				{messages.length === 0 && (
 					<div className="h-full flex items-center justify-center text-center">
 						<div className="max-w-md space-y-4">
 							<h2 className="text-2xl font-bold">Start Building</h2>
-							<p className="text-muted-foreground">
+							<p className="text-secondary-foreground">
 								Describe the website you want to build, and I'll generate the
 								code for you.
 							</p>
@@ -575,7 +575,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 												isStreaming={isStreamingMessage}
 											/>
 										) : (
-											<div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words">
+											<div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap break-words">
 												{message.content}
 											</div>
 										)}
@@ -586,7 +586,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								<ContextMenuItem
 									onClick={() => handleDeleteMessage(message.id, false)}
 									disabled={isLoading || isDeleting}
-									className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+									className="text-red-600 text-red-400 focus:text-red-700 focus:text-red-300"
 								>
 									<Trash2 className="mr-2 h-4 w-4" />
 									Delete this message only
@@ -597,7 +597,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<ContextMenuItem
 											onClick={() => handleDeleteMessage(message.id, true)}
 											disabled={isLoading || isDeleting}
-											className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+											className="text-red-600 text-red-400 focus:text-red-700 focus:text-red-300"
 										>
 											<Trash2 className="mr-2 h-4 w-4" />
 											<ChevronDown className="mr-2 h-4 w-4" />
@@ -613,7 +613,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					<div className="flex justify-start">
 						<div className="bg-muted rounded-lg px-4 py-2 flex items-center gap-2">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							<span className="text-sm text-muted-foreground">
+							<span className="text-sm text-secondary-foreground">
 								Generating...
 							</span>
 						</div>
@@ -623,7 +623,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			</div>
 			<form
 				onSubmit={handleSubmit}
-				className="border-t border-border p-4 space-y-3"
+				className="border-t border-border-default p-4 space-y-3"
 			>
 				<div className="flex items-center gap-2">
 					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -655,11 +655,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-secondary-foreground">
 										AI Model
 									</Label>
 									{AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel) && (
-										<p className="mt-1 text-xs text-muted-foreground">
+										<p className="mt-1 text-xs text-secondary-foreground">
 											Currently using:{" "}
 											{
 												AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
@@ -688,11 +688,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-muted-foreground">
+													<span className="text-xs text-secondary-foreground">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-muted-foreground">
+												<p className="text-xs text-secondary-foreground">
 													{model.description}
 												</p>
 											</div>

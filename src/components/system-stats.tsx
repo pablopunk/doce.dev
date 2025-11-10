@@ -23,7 +23,7 @@ export function SystemStats() {
 						<Layers className="h-6 w-6 text-primary" />
 					</div>
 					<div>
-						<p className="text-sm text-muted-foreground">Total Projects</p>
+						<p className="text-sm text-secondary-foreground">Total Projects</p>
 						<p className="text-2xl font-bold">{stats.totalProjects}</p>
 					</div>
 				</div>
@@ -35,7 +35,7 @@ export function SystemStats() {
 						<Rocket className="h-6 w-6 text-green-600" />
 					</div>
 					<div>
-						<p className="text-sm text-muted-foreground">Deployments</p>
+						<p className="text-sm text-secondary-foreground">Deployments</p>
 						<p className="text-2xl font-bold">{stats.totalDeployments}</p>
 					</div>
 				</div>
@@ -47,7 +47,7 @@ export function SystemStats() {
 						<Eye className="h-6 w-6 text-blue-600" />
 					</div>
 					<div>
-						<p className="text-sm text-muted-foreground">Active Previews</p>
+						<p className="text-sm text-secondary-foreground">Active Previews</p>
 						<p className="text-2xl font-bold">{stats.activePreviews}</p>
 					</div>
 				</div>
@@ -59,7 +59,7 @@ export function SystemStats() {
 						<Server className="h-6 w-6 text-orange-600" />
 					</div>
 					<div>
-						<p className="text-sm text-muted-foreground">Containers</p>
+						<p className="text-sm text-secondary-foreground">Containers</p>
 						<p className="text-2xl font-bold">{stats.totalContainers}</p>
 					</div>
 				</div>

@@ -99,20 +99,20 @@ export function TerminalDock({
 	return (
 		<div
 			className={cn(
-				"absolute bottom-0 left-0 right-0 z-10 bg-background border-t border-border transition-all duration-300 ease-in-out",
+				"absolute bottom-0 left-0 right-0 z-10 bg-background border-t border-border-default transition-all duration-300 ease-in-out",
 				isExpanded ? "h-80" : "h-12",
 			)}
 		>
 			{/* Header */}
-			<div className="h-12 px-4 flex items-center justify-between border-b border-border bg-muted/30">
+			<div className="h-12 px-4 flex items-center justify-between border-b border-border-default bg-muted/30">
 				<button
 					onClick={handleToggle}
-					className="flex items-center gap-2 hover:text-foreground text-muted-foreground transition-colors flex-1"
+					className="flex items-center gap-2 hover:text-foreground text-secondary-foreground transition-colors flex-1"
 				>
 					<Terminal className="h-4 w-4" />
 					<span className="text-sm font-medium">Terminal</span>
 					{isConnected && (
-						<span className="text-xs text-muted-foreground">
+						<span className="text-xs text-secondary-foreground">
 							({logs.length} lines)
 						</span>
 					)}
@@ -152,7 +152,7 @@ export function TerminalDock({
 					className="h-[calc(100%-3rem)] overflow-y-auto bg-black text-green-400 p-4 font-mono text-sm"
 				>
 					{logs.length === 0 ? (
-						<div className="text-muted-foreground">
+						<div className="text-secondary-foreground">
 							{isConnected
 								? "Waiting for logs..."
 								: "Connecting to container..."}
