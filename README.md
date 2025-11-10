@@ -15,6 +15,7 @@
 - [ ] Git integration for version control and rollback
 - [ ] Project export/import functionality
 - [ ] Support for multiple frameworks (Next.js, etc.) and infra
+- [ ] Different templates for specific type of apps (blog, todo-app, SaaS, dashboard, SPA tool, crazy animations, games, etc.)
 - [ ] Add agent-controlled "Tasks" section to chat interface
 - [x] Make design system have semantic colors. There should be zero "dark:" classes in the codebase, since there's no reason to differentiate between light and dark mode with semantic colors.
 - [ ] URL bar in the preview window
