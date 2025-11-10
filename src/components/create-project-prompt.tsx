@@ -142,7 +142,7 @@ export function CreateProjectPrompt() {
 					</p>
 				</div>
 			)}
-			{true && (
+			{loading && (
 				<div className="mb-8 flex flex-col items-center justify-center gap-6">
 					<AIBlob />
 
