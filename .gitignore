@@ -68,22 +68,8 @@ pnpm-lock.yaml
 # Public assets cache
 /public/.cache/
 
-# Ignore built CSS files if any
-*.css
-
-# Ignore components.json if it is generated
-components.json
-
-# Ignore any local test or debug files
-/debug/
-/tests/local/
-
 # Ignore .next folder used by Next.js
 .next
-
-# Ignore docker-related containers
-**/doce-preview-*
-**/doce-deploy-*
 
 # Ignore environment key files
 .env*
