@@ -106,7 +106,7 @@ shared/                       → kernel/, logging/, config/
 
 **AI Models**: `src/shared/config/ai-models.ts` (7 models) • `DEFAULT_AI_MODEL`, `AVAILABLE_AI_MODELS`, `getModelById()`, `isValidModel()` • Provider icons in `src/components/ui/svgs/` (SVGL via shadcn)
 
-**Code Gen**: Fenced blocks with `file="path"` • Parser tries JSON first, then extracts blocks
+**Code Gen**: Fenced blocks with `file="path"` • Parser tries JSON first, then extracts blocks • **CRITICAL**: When creating new projects, AI MUST always generate `src/pages/index.astro` as a complete, valid Astro page with full HTML structure
 
 ## Debugging
 

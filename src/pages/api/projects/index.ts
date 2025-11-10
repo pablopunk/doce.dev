@@ -154,9 +154,30 @@ A minimal Astro project template has been set up with the following files:
 - src/layouts/BaseLayout.astro (imports global.css)
 
 Your job is to generate ONLY the application-specific files needed for the user's request:
-- src/pages/index.astro - The main landing page
+- src/pages/index.astro - The main landing page (REQUIRED - must always be generated)
 - src/components/*.tsx - React components for interactive features
 - Any additional pages or components needed
+
+**CRITICAL: You MUST always generate src/pages/index.astro as a complete, valid Astro page.**
+
+Example structure for src/pages/index.astro:
+\`\`\`astro
+---
+import "../styles/global.css";
+import { YourComponent } from "@/components/YourComponent";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your App Title</title>
+  </head>
+  <body>
+    <YourComponent client:load />
+  </body>
+</html>
+\`\`\`
 
 When generating code:
 - Use Astro 5 with the \`src/\` directory structure.
@@ -167,6 +188,7 @@ When generating code:
 - Provide complete, working examples.
 - Never reference Next.js APIs or components.
 - DO NOT regenerate config files (package.json, astro.config.mjs, etc.) unless specifically needed for the feature.
+- **ALWAYS generate src/pages/index.astro with a complete HTML structure** - never skip this file.
 
 Format code responses with markdown code blocks including file paths:
 \`\`\`tsx file="src/components/MyComponent.tsx"

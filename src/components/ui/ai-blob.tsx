@@ -3,7 +3,7 @@ interface AIBlobProps {
 	className?: string;
 }
 
-export default function AIBlob({ size = 120, className = "" }: AIBlobProps) {
+export default function AIBlob({ size = 60, className = "" }: AIBlobProps) {
 	return (
 		<div
 			className={`relative ${className}`}

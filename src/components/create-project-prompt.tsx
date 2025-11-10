@@ -21,6 +21,7 @@ import { GrokDark } from "@/components/ui/svgs/grokDark";
 import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
 import { Openai } from "@/components/ui/svgs/openai";
 import AIBlob from "./ui/ai-blob";
+import { motion } from "motion/react";
 
 interface ModelInfo {
 	id: string;
@@ -142,20 +143,6 @@ export function CreateProjectPrompt() {
 					</p>
 				</div>
 			)}
-			{loading && (
-				<div className="mb-8 flex flex-col items-center justify-center gap-6">
-					<AIBlob />
-
-					<div className="space-y-2 text-center">
-						<div className="relative">
-							<div className="bg-gradient-to-r from-purple-400 via-pink-400 via-blue-400 to-cyan-400 bg-clip-text text-lg font-medium text-transparent animate-[pulse_2s_ease-in-out_infinite]">
-								AI is generating your project...
-							</div>
-						</div>
-						<div className="text-sm text-muted/60">This may take a moment</div>
-					</div>
-				</div>
-			)}
 			<InputGroup className="h-14">
 				<InputGroupAddon>
 					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -244,6 +231,20 @@ export function CreateProjectPrompt() {
 					</InputGroupButton>
 				</InputGroupAddon>
 			</InputGroup>
+			<motion.div
+				className="mb-8 flex flex-col items-center justify-center gap-6"
+				style={{ opacity: loading ? 1 : 0 }}
+			>
+				<AIBlob />
+				<div className="space-y-2 text-center">
+					<div className="relative">
+						<div className="bg-gradient-to-r from-purple-400 via-pink-400 via-blue-400 to-cyan-400 bg-clip-text text-lg font-medium text-transparent animate-[pulse_2s_ease-in-out_infinite]">
+							AI is generating your project...
+						</div>
+					</div>
+					<div className="text-sm text-muted/60">This may take a moment</div>
+				</div>
+			</motion.div>
 		</div>
 	);
 }
