@@ -15,7 +15,7 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 	const { setTheme } = useTheme();
 
 	return (
-		<nav className="relative border-b border-surface backdrop-blur supports-[backdrop-filter]:bg-surface/80 shadow-md">
+		<nav className="relative border-b border-surface backdrop-blur supports-[backdrop-filter]:bg-surface/80 shadow-md dark:shadow-[0_2px_5px_0_hsl(0_0%_100%_/_0.15)]">
 			<div className="absolute inset-x-0 top-0 h-px bg-strong" />
 			<div
 				className={clsx("px-4", {
