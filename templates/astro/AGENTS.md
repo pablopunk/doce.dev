@@ -83,6 +83,98 @@ Need interactivity?
 
 ---
 
+## Tool Usage Resilience
+
+**🚨 CRITICAL: Always Generate Code After Using Tools**
+
+### Common Failure Pattern (DO NOT DO THIS):
+```
+❌ User: "Make a simple app called Financer"
+❌ AI: "Let me check if the hooks directory exists:" [uses runCommand with ls]
+❌ AI: "Directory doesn't exist" [ends conversation]
+❌ RESULT: No code generated, user sees empty response
+```
+
+### Correct Pattern (ALWAYS DO THIS):
+```
+✅ User: "Make a simple app called Financer"
+✅ AI: [Optionally uses readFile/listFiles to understand project]
+✅ AI: "I'll create a Financer app with categories and expenses..." [GENERATES CODE BLOCKS]
+✅ RESULT: User sees working application
+```
+
+### Tool Usage Rules
+
+1. **Generate Code FIRST, Inspect AFTER**
+   - ✅ Generate complete feature → Use `readFile` to verify → Fix if needed
+   - ❌ Check if files exist → Generate code (often forgets to generate)
+
+2. **Never Check Directory Existence**
+   - ❌ `runCommand` with `ls -la src/hooks/` or `test -d src/components`
+   - ✅ Just generate the file - the system creates directories automatically
+   - **Directories are created automatically** when writing files
+
+3. **Tools Are Optional for Most Tasks**
+   - `readFile` - Use when **modifying existing files** (not for new features)
+   - `listFiles` - Use when **unsure of project structure** (rarely needed)
+   - `runCommand` - Use for `pnpm install` after changing dependencies
+   - `fetchUrl` - Use for external API docs (uncommon)
+
+4. **Every Response Must Include Code**
+   - If you use tools, always follow with code generation
+   - If a tool fails (error), still generate code
+   - **Never end a response with only tool results**
+
+5. **Resilient Tool Handling**
+   - Tool error? Proceed anyway with best assumptions
+   - File not found? Generate it from scratch
+   - Command failed? Provide alternative or skip
+
+### Examples of Resilient Responses
+
+**Example 1: Directory doesn't exist (CORRECT)**
+```
+User: "Add a custom hook useLocalStorage"
+
+AI: I'll create a custom hook for localStorage management.
+
+[Generates code without checking if src/hooks/ exists]
+
+```tsx file="src/hooks/useLocalStorage.tsx"
+import { useState, useEffect } from 'react';
+// ... implementation
+```
+
+**Example 2: Using tools correctly (CORRECT)**
+```
+User: "Update the Hero component to use a different color scheme"
+
+AI: Let me first read the existing Hero component to see its structure.
+
+[Uses readFile tool on src/components/Hero.tsx]
+
+Now I'll update it with the new color scheme:
+
+```tsx file="src/components/Hero.tsx"
+// ... updated implementation
+```
+
+**Example 3: Tool fails but still deliver (CORRECT)**
+```
+User: "Add a chart to visualize data"
+
+AI: Let me check if recharts is installed.
+
+[runCommand: pnpm list recharts → Error: package not found]
+
+I see recharts isn't installed yet. I'll generate the component and you can run `pnpm add recharts` to install it.
+
+```tsx file="src/components/DataChart.tsx"
+// ... component using recharts
+```
+
+---
+
 ## Project Planning Framework
 
 ### User Stories Template
@@ -171,7 +263,13 @@ export function MyComponent() {
 - **Package installation**: When you modify `package.json` dependencies, run `pnpm install` to update node_modules
 - **Environment variables**: Managed via Environment tab, auto-restarts container
 
-**Available Commands** (via `runCommand` tool):
+**Available Tools**:
+- `readFile` - Read existing file contents before modifying
+- `listFiles` - See project structure (if unsure what exists)
+- `runCommand` - Run shell commands like `pnpm install` or `pnpm add <package>`
+- `fetchUrl` - Fetch external documentation/APIs
+
+**Common Commands**:
 - `pnpm install` - Install/update dependencies after package.json changes
 - `pnpm add <package>` - Add new dependencies if needed (e.g., `pnpm add recharts`)
 
@@ -179,6 +277,96 @@ export function MyComponent() {
 - ❌ Don't run `pnpm run dev` (already running in Docker)
 - ❌ Don't try to start/stop the dev server
 - ❌ Don't worry about port configuration (handled by Docker)
+- ❌ **NEVER check if directories exist** with `ls` or `runCommand` - just generate files directly
+- ❌ **NEVER end responses with only tool calls** - always generate code after using tools
+
+---
+
+## Quick Start: Common Request Patterns
+
+### Pattern 1: "Make a simple app called [X]"
+
+**User request**: "Make a simple app called Financer to organize my finances, I should be able to add categories and expenses and it should show a pie chart of categories"
+
+**Your response structure**:
+```
+I'll create a Financer app with expense tracking and category visualization.
+
+[Brief explanation of what you're building - 2-3 sentences]
+
+```tsx file="src/components/FinancerApp.tsx"
+// Full component implementation
+```
+
+```tsx file="src/components/ExpenseForm.tsx"
+// Form component
+```
+
+```astro file="src/pages/index.astro"
+// Main page importing components
+```
+
+[Brief usage instructions if needed]
+```
+
+**DO NOT**:
+- ❌ Check if directories exist with `ls` or `runCommand`
+- ❌ End response with "Let me check if the hooks directory exists..."
+- ❌ Ask "Should I create a hooks directory?" - just create files
+
+### Pattern 2: "Add [feature] to existing component"
+
+**User request**: "Add a dark mode toggle to the navbar"
+
+**Your response structure**:
+```
+I'll add a dark mode toggle to the navbar using a custom hook.
+
+[Read existing navbar if needed using readFile tool]
+
+```tsx file="src/hooks/useDarkMode.tsx"
+// Hook implementation
+```
+
+```tsx file="src/components/Navbar.tsx"
+// Updated navbar with toggle
+```
+
+The toggle is now in the top-right corner. It persists preference in localStorage.
+```
+
+### Pattern 3: "Build [complex application]"
+
+**User request**: "Build a blog with categories, tags, and search"
+
+**Your response structure**:
+```
+I'll build a full blog system with categories, tags, and search. Let me break this down:
+
+**Features**:
+- Post listing with pagination
+- Category filtering
+- Tag-based search
+- Individual post pages
+
+**Database schema**: [Show schema briefly]
+
+[Then generate ALL files needed]
+
+```typescript file="src/lib/db.ts"
+// Database setup
+```
+
+```typescript file="src/actions/posts.ts"
+// Astro Actions
+```
+
+[... all other files ...]
+
+```astro file="src/pages/index.astro"
+// Main blog page
+```
+```
 
 ---
 
@@ -398,6 +586,244 @@ p-8  → 32px   (spacious)
 gap-4 → 16px  (component spacing)
 gap-6 → 24px  (section spacing)
 ```
+
+### Icons with Lucide
+
+**Icon Library**: `lucide-react` (already installed)
+
+**When to use which**:
+- Use `lucide-react` in React components (`.tsx` files) - **PREFERRED**
+- Lucide icons are beautiful, consistent, and lightweight
+- 1000+ icons available at [lucide.dev/icons](https://lucide.dev/icons)
+
+#### Using lucide-react in Components
+
+```tsx
+import { Home, User, Settings, Check, X, ChevronRight } from 'lucide-react';
+
+export function Navigation() {
+  return (
+    <nav className="flex gap-4">
+      <a href="/" className="flex items-center gap-2">
+        <Home className="w-5 h-5" />
+        <span>Home</span>
+      </a>
+      <a href="/profile" className="flex items-center gap-2">
+        <User className="w-5 h-5" />
+        <span>Profile</span>
+      </a>
+      <a href="/settings" className="flex items-center gap-2">
+        <Settings className="w-5 h-5" />
+        <span>Settings</span>
+      </a>
+    </nav>
+  );
+}
+
+// Icon-only buttons (always include aria-label!)
+export function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Close"
+      className="p-2 hover:bg-gray-100 rounded"
+    >
+      <X className="w-5 h-5" />
+    </button>
+  );
+}
+
+// Icons with custom styling
+export function SuccessIcon() {
+  return (
+    <Check className="w-6 h-6 text-green-600 stroke-[2.5]" />
+  );
+}
+
+// Animated icons
+export function LoadingIcon() {
+  return (
+    <Loader2 className="w-5 h-5 animate-spin" />
+  );
+}
+```
+
+#### Common Icon Sizes
+
+```tsx
+// Extra small (16px) - inline with text
+<Icon className="w-4 h-4" />
+
+// Small (20px) - buttons, navigation
+<Icon className="w-5 h-5" />
+
+// Medium (24px) - default UI elements
+<Icon className="w-6 h-6" />
+
+// Large (32px) - feature highlights
+<Icon className="w-8 h-8" />
+
+// Extra large (48px) - empty states, hero sections
+<Icon className="w-12 h-12" />
+```
+
+#### Frequently Used Icons
+
+```tsx
+// Navigation & UI
+import {
+  Menu,           // Hamburger menu
+  X,              // Close
+  ChevronDown,    // Dropdown arrows
+  ChevronLeft,    // Back button
+  ChevronRight,   // Forward, next
+  Home,           // Home page
+  Settings,       // Settings page
+  User,           // Profile, account
+  Search,         // Search functionality
+  Bell,           // Notifications
+} from 'lucide-react';
+
+// Actions
+import {
+  Plus,           // Add, create
+  Edit,           // Edit, modify
+  Trash2,         // Delete, remove
+  Check,          // Confirm, success
+  Save,           // Save changes
+  Download,       // Download files
+  Upload,         // Upload files
+  Share2,         // Share content
+  Copy,           // Copy to clipboard
+  ExternalLink,   // External links
+} from 'lucide-react';
+
+// Status & Feedback
+import {
+  CheckCircle2,   // Success state
+  XCircle,        // Error state
+  AlertCircle,    // Warning, info
+  Info,           // Information
+  Loader2,        // Loading (animate-spin)
+  AlertTriangle,  // Warning, caution
+} from 'lucide-react';
+
+// Content & Media
+import {
+  Image,          // Images, photos
+  File,           // Files, documents
+  FileText,       // Text documents
+  Video,          // Video content
+  Music,          // Audio content
+  Calendar,       // Dates, events
+  Clock,          // Time, history
+  Mail,           // Email
+  MessageSquare,  // Chat, comments
+} from 'lucide-react';
+
+// E-commerce
+import {
+  ShoppingCart,   // Cart
+  CreditCard,     // Payments
+  Package,        // Orders, shipping
+  Heart,          // Favorites, wishlist
+  Star,           // Ratings, reviews
+} from 'lucide-react';
+```
+
+#### Icon Patterns with shadcn/ui
+
+```tsx
+// Button with icon
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+
+<Button>
+  <Download className="w-4 h-4 mr-2" />
+  Download
+</Button>
+
+// Alert with icon
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+
+<Alert>
+  <AlertCircle className="h-4 w-4" />
+  <AlertTitle>Error</AlertTitle>
+  <AlertDescription>Something went wrong.</AlertDescription>
+</Alert>
+
+// Card with icon header
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { BarChart3 } from 'lucide-react';
+
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <BarChart3 className="w-5 h-5" />
+      Analytics
+    </CardTitle>
+  </CardHeader>
+  <CardContent>...</CardContent>
+</Card>
+```
+
+#### Accessibility with Icons
+
+```tsx
+// ✅ Icon with text label
+<button className="flex items-center gap-2">
+  <Trash2 className="w-4 h-4" />
+  <span>Delete</span>
+</button>
+
+// ✅ Icon-only button with aria-label
+<button aria-label="Delete item">
+  <Trash2 className="w-4 h-4" />
+</button>
+
+// ✅ Icon with screen reader text
+<button>
+  <Trash2 className="w-4 h-4" />
+  <span className="sr-only">Delete item</span>
+</button>
+
+// ❌ Icon-only button without label
+<button>
+  <Trash2 className="w-4 h-4" />
+</button>
+```
+
+#### Dynamic Icons
+
+```tsx
+import { Check, X, Loader2, type LucideIcon } from 'lucide-react';
+
+type Status = 'idle' | 'loading' | 'success' | 'error';
+
+const statusIcons: Record<Status, LucideIcon> = {
+  idle: Check,
+  loading: Loader2,
+  success: Check,
+  error: X,
+};
+
+export function StatusIcon({ status }: { status: Status }) {
+  const Icon = statusIcons[status];
+  const isLoading = status === 'loading';
+  
+  return (
+    <Icon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+  );
+}
+```
+
+**Best Practices**:
+- Always import icons individually (tree-shaking): `import { Home } from 'lucide-react'`
+- Use consistent sizing across your app (prefer `w-5 h-5` for most UI elements)
+- Always provide accessible labels for icon-only buttons
+- Use semantic colors: `text-green-600` for success, `text-red-600` for errors
+- Animate loading icons: `<Loader2 className="w-5 h-5 animate-spin" />`
 
 ---
 
