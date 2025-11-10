@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,6 +19,19 @@ export function CreateProjectButton() {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [hasApiKey, setHasApiKey] = useState(true);
+	const [checkingKeys, setCheckingKeys] = useState(true);
+
+	useEffect(() => {
+		fetch("/api/config/api-keys")
+			.then((res) => res.json())
+			.then((data) => {
+				const hasAnyKey = Object.values(data.keys).some((v) => v === true);
+				setHasApiKey(hasAnyKey);
+			})
+			.catch((err) => console.error("Failed to load API keys:", err))
+			.finally(() => setCheckingKeys(false));
+	}, []);
 
 	const handleCreate = async () => {
 		if (!name.trim()) return;
@@ -49,7 +62,10 @@ export function CreateProjectButton() {
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button className="flex items-center gap-2">
+				<Button
+					className="flex items-center gap-2"
+					disabled={!hasApiKey && !checkingKeys}
+				>
 					<Plus className="h-4 w-4" />
 					New Project
 				</Button>
@@ -59,6 +75,20 @@ export function CreateProjectButton() {
 					<DialogTitle>Create New Project</DialogTitle>
 				</DialogHeader>
 				<div className="space-y-4 py-4">
+					{!hasApiKey && !checkingKeys && (
+						<div className="rounded-lg border border-yellow-600/30 bg-yellow-500/10 px-4 py-3 text-sm">
+							<p className="font-medium text-yellow-600 dark:text-yellow-400">
+								No API key configured
+							</p>
+							<p className="text-yellow-700/80 dark:text-yellow-300/80 mt-1">
+								Please configure an API key in{" "}
+								<a href="/settings" className="underline hover:no-underline">
+									Settings
+								</a>{" "}
+								to create projects.
+							</p>
+						</div>
+					)}
 					<div className="space-y-2">
 						<Label htmlFor="name">Project Name</Label>
 						<Input
@@ -79,7 +109,7 @@ export function CreateProjectButton() {
 					</div>
 					<Button
 						onClick={handleCreate}
-						disabled={loading || !name.trim()}
+						disabled={loading || !name.trim() || !hasApiKey}
 						className="w-full"
 					>
 						{loading ? "Creating..." : "Create Project"}

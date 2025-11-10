@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Check, Plus, Settings2 } from "lucide-react";
+import { ArrowUpRight, Check, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	InputGroup,
@@ -36,16 +36,23 @@ export function CreateProjectPrompt() {
 	);
 	const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 	const [popoverOpen, setPopoverOpen] = useState(false);
+	const [hasApiKey, setHasApiKey] = useState(true);
+	const [checkingKeys, setCheckingKeys] = useState(true);
 
 	// Load current model and available models on mount
 	useEffect(() => {
-		fetch("/api/config/model")
-			.then((res) => res.json())
-			.then((data) => {
-				setCurrentModel(data.currentModel);
-				setAvailableModels(data.availableModels);
+		Promise.all([
+			fetch("/api/config/model").then((res) => res.json()),
+			fetch("/api/config/api-keys").then((res) => res.json()),
+		])
+			.then(([modelData, keysData]) => {
+				setCurrentModel(modelData.currentModel);
+				setAvailableModels(modelData.availableModels);
+				const hasAnyKey = Object.values(keysData.keys).some((v) => v === true);
+				setHasApiKey(hasAnyKey);
 			})
-			.catch((err) => console.error("Failed to load model config:", err));
+			.catch((err) => console.error("Failed to load config:", err))
+			.finally(() => setCheckingKeys(false));
 	}, []);
 
 	const create = async () => {
@@ -120,6 +127,20 @@ export function CreateProjectPrompt() {
 
 	return (
 		<div className="w-full max-w-3xl">
+			{!hasApiKey && !checkingKeys && (
+				<div className="mb-4 rounded-lg border border-yellow-600/30 bg-yellow-500/10 px-4 py-3 text-sm">
+					<p className="font-medium text-yellow-600 dark:text-yellow-400">
+						No API key configured
+					</p>
+					<p className="text-yellow-700/80 dark:text-yellow-300/80 mt-1">
+						Please configure an API key in{" "}
+						<a href="/settings" className="underline hover:no-underline">
+							Settings
+						</a>{" "}
+						to create projects.
+					</p>
+				</div>
+			)}
 			{loading && (
 				<div className="mb-8 flex flex-col items-center justify-center gap-6">
 					{/* Siri-inspired orb animation */}
@@ -204,6 +225,7 @@ export function CreateProjectPrompt() {
 									{availableModels.map((model) => (
 										<button
 											key={model.id}
+											type="button"
 											onClick={() => handleModelChange(model.id)}
 											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
 										>
@@ -234,12 +256,16 @@ export function CreateProjectPrompt() {
 					</Popover>
 				</InputGroupAddon>
 				<InputGroupInput
-					placeholder="Describe what to build..."
+					placeholder={
+						!hasApiKey && !checkingKeys
+							? "Configure API key in Settings first..."
+							: "Describe what to build..."
+					}
 					value={value}
 					onChange={(e) => setValue(e.target.value)}
 					onKeyDown={onKeyDown}
 					className="h-14 text-base outline-none"
-					disabled={loading}
+					disabled={loading || !hasApiKey}
 				/>
 				<InputGroupAddon align="inline-end">
 					<InputGroupButton
@@ -247,7 +273,7 @@ export function CreateProjectPrompt() {
 						size="icon-sm"
 						variant="ghost"
 						onClick={create}
-						disabled={loading || !value.trim()}
+						disabled={loading || !value.trim() || !hasApiKey}
 					>
 						<ArrowUpRight className="size-5" />
 					</InputGroupButton>

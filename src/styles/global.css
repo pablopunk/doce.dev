@@ -7,27 +7,27 @@
   /* === Pure B&W System (Dark Mode Default) === */
   --bg-base: hsl(0 0% 3%);          /* Deep background */
   --bg-surface: hsl(0 0% 5%);       /* Cards background */
-  --bg-raised: hsl(0 0% 8%);        /* Elevated elements */
+  --bg-raised: hsl(0 0% 20%);        /* Elevated elements */
   --bg-button: hsl(0 0% 18%);       /* Button background - lighter than cards */
   --text-strong: hsl(0 0% 98%);     /* Near-white text */
   --text-muted: hsl(0 0% 65%);      /* Muted gray text */
-  
+
   /* UI details */
   --border: hsl(0 0% 15%);          /* Subtle borders */
   --border-strong: hsl(0 0% 25%);   /* Visible borders for cards */
   --highlight: hsl(0 0% 12%);       /* Top highlight on cards */
   --shadow-1: hsla(0 0% 0% / 0.5);  /* Stronger shadows */
   --shadow-2: hsla(0 0% 0% / 0.25);
-  
+
   /* === B&W Primary (buttons, CTAs) === */
   --primary: hsl(0 0% 98%);         /* White for dark mode */
   --primary-contrast: hsl(0 0% 5%); /* Dark text on white buttons */
-  
+
   /* === Semantic Colors === */
   --success: oklch(0.65 0.16 145);   /* Green */
   --warning: oklch(0.75 0.18 75);    /* Yellow/Orange */
   --danger: oklch(0.65 0.20 25);     /* Red */
-  
+
   /* === Legacy compatibility mappings === */
   --background: var(--bg-base);
   --foreground: var(--text-strong);
@@ -46,14 +46,14 @@
   --destructive-foreground: oklch(0.95 0.02 20);
   --input: var(--bg-raised);
   --ring: var(--primary);
-  
+
   /* Chart colors */
   --chart-1: oklch(0.65 0.18 250);
   --chart-2: oklch(0.62 0.14 140);
   --chart-3: oklch(0.74 0.18 80);
   --chart-4: oklch(0.61 0.16 20);
   --chart-5: oklch(0.68 0.15 300);
-  
+
   /* Sidebar */
   --sidebar: var(--bg-surface);
   --sidebar-foreground: var(--text-strong);
@@ -63,7 +63,7 @@
   --sidebar-accent-foreground: var(--text-strong);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
-  
+
   --radius: 0.625rem;
 }
 
@@ -75,36 +75,17 @@
   --bg-button: hsl(0 0% 98%);       /* Button background - white/near-white */
   --text-strong: hsl(0 0% 2%);      /* Near-black text */
   --text-muted: hsl(0 0% 35%);      /* Muted dark gray */
-  
+
   /* Light mode details */
   --border: hsl(0 0% 85%);          /* Light borders */
   --border-strong: hsl(0 0% 75%);   /* Visible borders */
   --highlight: hsl(0 0% 88%);       /* Subtle highlight */
   --shadow-1: hsla(0 0% 0% / 0.08);
   --shadow-2: hsla(0 0% 0% / 0.04);
-  
+
   /* B&W Primary */
   --primary: hsl(0 0% 2%);          /* Black for light mode */
   --primary-contrast: hsl(0 0% 98%); /* Light text on black buttons */
-}
-
-.dark {
-  /* === Dark mode: Deep B&W === */
-  --bg-base: hsl(0 0% 3%);
-  --bg-surface: hsl(0 0% 5%);
-  --bg-raised: hsl(0 0% 8%);
-  --bg-button: hsl(0 0% 18%);       /* Button background - lighter than cards */
-  --text-strong: hsl(0 0% 98%);
-  --text-muted: hsl(0 0% 65%);
-  
-  --border: hsl(0 0% 15%);
-  --border-strong: hsl(0 0% 25%);
-  --highlight: hsl(0 0% 12%);
-  --shadow-1: hsla(0 0% 0% / 0.5);
-  --shadow-2: hsla(0 0% 0% / 0.25);
-  
-  --primary: hsl(0 0% 98%);
-  --primary-contrast: hsl(0 0% 5%);
 }
 
 /* System preference fallback when no class is set */
@@ -138,7 +119,7 @@
   --color-text-muted: var(--text-muted);
   --color-border: var(--border);
   --color-highlight: var(--highlight);
-  
+
   /* Legacy mappings */
   --color-background: var(--background);
   --color-foreground: var(--foreground);

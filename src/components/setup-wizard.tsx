@@ -135,21 +135,21 @@ export default function SetupWizard() {
 				</CardHeader>
 
 				<CardContent className="space-y-6">
-					<div className="flex items-center justify-center gap-2">
+					<div className="flex items-center justify-center gap-2 my-5">
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 1 ? "bg-primary" : "bg-muted"}`}
+							className={`h-2 w-2 rounded-full ${step >= 1 ? "bg-primary" : "bg-raised"}`}
 						/>
 						<div
-							className={`h-0.5 w-12 ${step >= 2 ? "bg-primary" : "bg-muted"}`}
+							className={`h-0.5 w-12 ${step >= 2 ? "bg-primary" : "bg-raised"}`}
 						/>
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-primary" : "bg-muted"}`}
+							className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-primary" : "bg-raised"}`}
 						/>
 						<div
-							className={`h-0.5 w-12 ${step >= 3 ? "bg-primary" : "bg-muted"}`}
+							className={`h-0.5 w-12 ${step >= 3 ? "bg-primary" : "bg-raised"}`}
 						/>
 						<div
-							className={`h-2 w-2 rounded-full ${step >= 3 ? "bg-primary" : "bg-muted"}`}
+							className={`h-2 w-2 rounded-full ${step >= 3 ? "bg-primary" : "bg-raised"}`}
 						/>
 					</div>
 

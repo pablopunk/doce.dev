@@ -1,5 +1,6 @@
 ---
 import { SettingsForm } from "@/components/settings-form";
+import { ApiKeysForm } from "@/components/api-keys-form";
 import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
@@ -10,21 +11,36 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
         <h1 class="text-3xl font-bold">Settings</h1>
         <p class="text-muted-foreground mt-1">Manage your global preferences</p>
       </div>
-      
+
       <div class="space-y-6">
         <!-- AI Model Settings -->
         <div class="relative rounded-lg border border-border bg-card p-6 shadow-elevation overflow-hidden">
           <!-- Top highlight -->
           <div class="absolute inset-x-0 top-0 h-px bg-highlight" />
-          
+
           <div class="mb-4">
-            <h2 class="text-xl font-semibold text-text-strong">AI Model</h2>
+            <h2 class="text-xl font-semibold text-text-strong">Default AI Model</h2>
             <p class="text-sm text-muted-foreground mt-1">
               Choose the default AI model for new projects
             </p>
           </div>
-          
+
           <SettingsForm client:load />
+        </div>
+
+        <!-- API Keys Settings -->
+        <div class="relative rounded-lg border border-border bg-card p-6 shadow-elevation overflow-hidden">
+          <!-- Top highlight -->
+          <div class="absolute inset-x-0 top-0 h-px bg-highlight" />
+
+          <div class="mb-4">
+            <h2 class="text-xl font-semibold text-text-strong">API Keys</h2>
+            <p class="text-sm text-muted-foreground mt-1">
+              Configure API keys for AI providers. Keys are stored securely in the database.
+            </p>
+          </div>
+
+          <ApiKeysForm client:load />
         </div>
       </div>
     </div>
