@@ -22,7 +22,7 @@ const PROVIDERS: ProviderConfig[] = [
 		id: "openrouter",
 		name: "OpenRouter",
 		icon: (
-			<div className="h-5 w-5 rounded bg-muted-foreground/20 flex items-center justify-center text-[10px] font-bold">
+			<div className="h-5 w-5 rounded flex items-center justify-center text-[10px] font-bold">
 				OR
 			</div>
 		),
@@ -31,27 +31,25 @@ const PROVIDERS: ProviderConfig[] = [
 	{
 		id: "anthropic",
 		name: "Anthropic",
-		icon: (
-			<AnthropicBlack className="h-5 w-5 [&_*]:!fill-muted-foreground/60" />
-		),
+		icon: <AnthropicBlack className="h-5 w-5 [&_*]:!fill-muted/60" />,
 		placeholder: "sk-ant-...",
 	},
 	{
 		id: "openai",
 		name: "OpenAI",
-		icon: <Openai className="h-5 w-5 [&_*]:!fill-muted-foreground/60" />,
+		icon: <Openai className="h-5 w-5 [&_*]:!fill-muted/60" />,
 		placeholder: "sk-proj-...",
 	},
 	{
 		id: "google",
 		name: "Google",
-		icon: <Google className="h-5 w-5 [&_*]:!fill-muted-foreground/60" />,
+		icon: <Google className="h-5 w-5 [&_*]:!fill-muted/60" />,
 		placeholder: "AIza...",
 	},
 	{
 		id: "xai",
 		name: "xAI",
-		icon: <GrokDark className="h-5 w-5 [&_*]:!fill-muted-foreground/60" />,
+		icon: <GrokDark className="h-5 w-5 [&_*]:!fill-muted/60" />,
 		placeholder: "xai-...",
 	},
 ];
@@ -120,7 +118,7 @@ export function ApiKeysForm() {
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center py-8">
-				<div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+				<div className="h-6 w-6 animate-spin rounded-full border-2 border-strong border-t-transparent" />
 			</div>
 		);
 	}
@@ -129,11 +127,14 @@ export function ApiKeysForm() {
 		<div className="space-y-6">
 			{PROVIDERS.map((provider) => (
 				<div key={provider.id} className="space-y-2">
-					<Label htmlFor={provider.id} className="flex items-center gap-2">
+					<Label
+						htmlFor={provider.id}
+						className="flex items-center gap-2 font-bold"
+					>
 						{provider.icon}
 						<span>{provider.name}</span>
 						{hasKeys[provider.id] && (
-							<span className="text-xs text-green-600 text-green-400">
+							<span className="text-xs text-strong text-strong">
 								(configured)
 							</span>
 						)}
@@ -156,7 +157,7 @@ export function ApiKeysForm() {
 							<button
 								type="button"
 								onClick={() => toggleShow(provider.id)}
-								className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground-tertiary hover:text-foreground-primary"
+								className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-strong"
 							>
 								{showKeys[provider.id] ? (
 									<EyeOff className="h-4 w-4" />
@@ -176,8 +177,8 @@ export function ApiKeysForm() {
 						<p
 							className={`text-sm ${
 								saveStatus.type === "success"
-									? "text-green-600 text-green-400"
-									: "text-destructive"
+									? "text-strong text-strong"
+									: "text-danger"
 							}`}
 						>
 							{saveStatus.message}
@@ -185,7 +186,7 @@ export function ApiKeysForm() {
 					)}
 				</div>
 			))}
-			<p className="text-xs text-foreground-tertiary">
+			<p className="text-xs text-muted">
 				Note: OpenRouter supports 400+ models from all providers. You only need
 				one API key.
 			</p>

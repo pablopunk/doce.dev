@@ -54,7 +54,7 @@ export function DeploymentList({ projectId }: { projectId: string }) {
 		<div className="space-y-4">
 			<h3 className="text-lg font-semibold">Deployments</h3>
 			{data.deployments.length === 0 ? (
-				<p className="text-sm text-foreground-tertiary">No deployments yet</p>
+				<p className="text-sm text-muted">No deployments yet</p>
 			) : (
 				<div className="space-y-2">
 					{data.deployments.map((deployment: any) => (
@@ -62,13 +62,13 @@ export function DeploymentList({ projectId }: { projectId: string }) {
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-3">
 									{deployment.status === "running" ? (
-										<CheckCircle className="h-5 w-5 text-green-500" />
+										<CheckCircle className="h-5 w-5 text-strong" />
 									) : (
-										<XCircle className="h-5 w-5 text-foreground-tertiary" />
+										<XCircle className="h-5 w-5 text-muted" />
 									)}
 									<div>
 										<div className="font-mono text-sm">{deployment.url}</div>
-										<div className="text-xs text-foreground-tertiary">
+										<div className="text-xs text-muted">
 											{new Date(deployment.created_at).toLocaleString()}
 										</div>
 									</div>

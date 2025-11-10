@@ -15,8 +15,8 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 	const { setTheme } = useTheme();
 
 	return (
-		<nav className="relative border-b border-bg-surface backdrop-blur supports-[backdrop-filter]:bg-bg-surface/80 shadow-elevation">
-			<div className="absolute inset-x-0 top-0 h-px bg-highlight" />
+		<nav className="relative border-b border-surface backdrop-blur supports-[backdrop-filter]:bg-surface/80 shadow-elevation">
+			<div className="absolute inset-x-0 top-0 h-px bg-strong" />
 			<div
 				className={clsx("px-4", {
 					"container mx-auto": !fullWidth,
@@ -25,9 +25,9 @@ export function TopNav({ fullWidth }: { fullWidth?: boolean }) {
 				<div className="flex h-14 items-center justify-between">
 					<a
 						href="/"
-						className="flex items-center gap-2 font-semibold text-foreground-primary hover:text-foreground/80 transition-colors"
+						className="flex items-center gap-2 font-semibold text-strong hover:text-fg/80 transition-colors"
 					>
-						<Zap className="h-5 w-5 text-yellow-500" />
+						<Zap className="h-5 w-5 text-warning" />
 						<span>doce.dev</span>
 					</a>
 					<div className="flex items-center gap-2">

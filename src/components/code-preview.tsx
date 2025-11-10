@@ -208,7 +208,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 	return (
 		<div className="flex-1 flex flex-col relative">
-			<div className="border-b border-border-default px-4 py-2 flex items-center justify-between">
+			<div className="border-b border-border-border px-4 py-2 flex items-center justify-between">
 				<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
 					<TabsList>
 						<TabsTrigger value="preview" className="flex items-center gap-2">
@@ -244,7 +244,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				className={`flex-1 overflow-auto ${isTerminalExpanded ? "pb-80" : "pb-12"}`}
 			>
 				{activeTab === "preview" && (
-					<div className="h-full min-h-full bg-white relative">
+					<div className="h-full min-h-full bg-bg relative">
 						{project?.preview_url ? (
 							<>
 								{previewReady && (
@@ -257,14 +257,14 @@ export function CodePreview({ projectId }: { projectId: string }) {
 									/>
 								)}
 								{isIframeLoading && (
-									<div className="absolute inset-0 bg-white flex items-center justify-center">
+									<div className="absolute inset-0 bg-bg flex items-center justify-center">
 										<div className="text-center space-y-4">
-											<Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+											<Loader2 className="h-8 w-8 animate-spin mx-auto text-strong" />
 											<div>
 												<p className="text-sm font-medium">
 													Starting preview...
 												</p>
-												<p className="text-xs text-foreground-tertiary mt-1">
+												<p className="text-xs text-muted mt-1">
 													Waiting for server to respond...
 												</p>
 											</div>
@@ -274,9 +274,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{iframeError && !isIframeLoading && (
 									<div className="absolute inset-0 bg-white flex items-center justify-center">
 										<div className="text-center space-y-4">
-											<p className="text-foreground-tertiary">
-												Preview failed to load
-											</p>
+											<p className="text-muted">Preview failed to load</p>
 											<Button
 												variant="outline"
 												onClick={() => {
@@ -295,9 +293,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						) : (
 							<div className="h-full flex items-center justify-center">
 								<div className="text-center space-y-4">
-									<p className="text-foreground-tertiary">
-										No preview available yet
-									</p>
+									<p className="text-muted">No preview available yet</p>
 									<Button
 										onClick={handleCreatePreview}
 										disabled={isCreatingPreview}
@@ -317,15 +313,15 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					</div>
 				)}
 				{activeTab === "code" && (
-					<div className="h-full overflow-auto p-4 bg-muted/30">
+					<div className="h-full overflow-auto p-4 bg-surface/30">
 						{project?.files && project.files.length > 0 ? (
 							<div className="space-y-4">
 								{project.files.map((file: any) => (
 									<div
 										key={file.id}
-										className="bg-card rounded-lg border border-border-default overflow-hidden"
+										className="bg-surface rounded-lg border border-border-border overflow-hidden"
 									>
-										<div className="bg-muted px-4 py-2 font-mono text-sm">
+										<div className="bg-surface px-4 py-2 font-mono text-sm">
 											{file.file_path}
 										</div>
 										<pre className="p-4 overflow-x-auto">
@@ -335,21 +331,21 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								))}
 							</div>
 						) : (
-							<div className="h-full flex items-center justify-center text-foreground-tertiary">
+							<div className="h-full flex items-center justify-center text-muted">
 								No code generated yet
 							</div>
 						)}
 					</div>
 				)}
 				{activeTab === "env" && (
-					<div className="h-full overflow-auto p-4 bg-muted/30">
+					<div className="h-full overflow-auto p-4 bg-surface/30">
 						<div className="max-w-3xl mx-auto space-y-4">
 							<div className="flex items-center justify-between">
 								<div>
 									<h3 className="text-lg font-semibold">
 										Environment Variables
 									</h3>
-									<p className="text-sm text-foreground-tertiary">
+									<p className="text-sm text-muted">
 										Variables for development and production
 									</p>
 								</div>
@@ -363,7 +359,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								{Object.entries(envVars).map(([key, value]) => (
 									<div
 										key={key}
-										className="flex items-center gap-2 bg-card p-3 rounded-lg border border-border-default"
+										className="flex items-center gap-2 bg-surface p-3 rounded-lg border border-border-border"
 									>
 										<Input
 											placeholder="KEY"
@@ -371,7 +367,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											onChange={(e) => updateEnvVar(key, e.target.value, value)}
 											className="flex-1 font-mono text-sm"
 										/>
-										<span className="text-foreground-tertiary">=</span>
+										<span className="text-muted">=</span>
 										<Input
 											placeholder="value"
 											value={value}
@@ -385,13 +381,13 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											onClick={() => deleteEnvVar(key)}
 											className="flex-shrink-0"
 										>
-											<Trash2 className="h-4 w-4 text-destructive" />
+											<Trash2 className="h-4 w-4 text-danger" />
 										</Button>
 									</div>
 								))}
 
 								{Object.keys(envVars).length === 0 && (
-									<div className="text-center py-8 text-foreground-tertiary">
+									<div className="text-center py-8 text-muted">
 										No environment variables yet. Click "Add Variable" to create
 										one.
 									</div>
@@ -413,11 +409,11 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								</div>
 							)}
 
-							<div className="mt-6 p-4 bg-muted rounded-lg border border-border-default">
+							<div className="mt-6 p-4 bg-surface rounded-lg border border-border-border">
 								<h4 className="font-medium mb-2 text-sm">
 									Usage in your code:
 								</h4>
-								<pre className="text-xs font-mono bg-background p-3 rounded overflow-x-auto">
+								<pre className="text-xs font-mono bg-bg p-3 rounded overflow-x-auto">
 									<code>{`// Access in Astro components
 const apiKey = import.meta.env.YOUR_API_KEY
 

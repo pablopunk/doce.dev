@@ -14,7 +14,7 @@ interface Props {
 
 const {
 	title,
-	bodyClass = "bg-bg-base text-primary",
+	bodyClass = "",
 	showNav = true,
 	fullWidth = false,
 } = Astro.props;
@@ -39,7 +39,7 @@ const {
   </head>
   <body class={bodyClass}>
     {showNav && <TopNav client:load fullWidth={fullWidth} />}
-    <main class={clsx("bg-background px-4 min-h-[calc(100vh-3.5rem)] flex flex-col", {
+    <main class={clsx("px-4 min-h-[calc(100vh-3.5rem)] flex flex-col", {
           "container mx-auto": !fullWidth,
     })}>
     <slot />

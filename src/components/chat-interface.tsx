@@ -52,7 +52,14 @@ interface Message {
 
 export function ChatInterface({ projectId }: { projectId: string }) {
 	const [messages, setMessages] = useState<Message[]>([]);
-	const [input, setInput] = useState("");
+	const [input, setInput] = useState(() => {
+		// Load saved input from localStorage on mount
+		if (typeof window !== "undefined") {
+			const saved = localStorage.getItem(`chat-input-${projectId}`);
+			return saved || "";
+		}
+		return "";
+	});
 	const [isLoading, setIsLoading] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 	const [selectedModel, setSelectedModel] = useState(DEFAULT_AI_MODEL);
@@ -66,8 +73,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
 		const iconClass =
 			size === "sm"
-				? "h-4 w-4 [&_*]:!fill-foreground [&_path]:!fill-foreground"
-				: "h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
+				? "h-4 w-4 text-strong [&_*]:!fill-current [&_path]:!fill-current"
+				: "h-5 w-5 text-strong [&_*]:!fill-current [&_path]:!fill-current";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -118,6 +125,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
+
+	// Save input to localStorage whenever it changes
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			localStorage.setItem(`chat-input-${projectId}`, input);
+		}
+	}, [input, projectId]);
 
 	const handleDeleteMessage = async (
 		messageId: string,
@@ -184,6 +198,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		setMessages((prev) => [...prev, userMessage]);
 		setInput("");
+		// Clear localStorage when message is sent
+		if (typeof window !== "undefined") {
+			localStorage.removeItem(`chat-input-${projectId}`);
+		}
 		setIsLoading(true);
 
 		// Create new AbortController for this request
@@ -451,7 +469,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										const isInline = !className?.includes("language-");
 										return isInline ? (
 											<code
-												className="bg-muted px-1 py-0.5 rounded text-xs font-mono break-all"
+												className="bg-surface px-1 py-0.5 rounded text-xs font-mono break-all"
 												{...props}
 											/>
 										) : (
@@ -460,7 +478,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									},
 									// Handle any remaining code blocks in markdown (shouldn't happen with our regex)
 									pre: ({ children }: any) => (
-										<pre className="bg-muted/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
+										<pre className="bg-surface/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
 											{children}
 										</pre>
 									),
@@ -480,7 +498,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						return (
 							<div
 								key={i}
-								className="border border-border-default rounded-md overflow-hidden bg-background/50 not-prose max-w-full"
+								className="border border-border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full"
 							>
 								<div className="w-full flex items-center justify-between p-3 min-w-0">
 									<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
@@ -488,7 +506,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<span className="font-mono font-medium truncate">
 											{part.file || `${part.language} code`}
 										</span>
-										<span className="text-xs text-foreground-tertiary flex-shrink-0">
+										<span className="text-xs text-muted flex-shrink-0">
 											{part.content.split("\n").length} lines
 										</span>
 									</div>
@@ -504,15 +522,15 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							open={expandedBlocks.has(part.index!)}
 							onOpenChange={() => toggleBlock(part.index!)}
 						>
-							<div className="border border-border-default rounded-md overflow-hidden bg-background/50 not-prose max-w-full">
+							<div className="border border-border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full">
 								<CollapsibleTrigger asChild>
-									<button className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors min-w-0">
+									<button className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors min-w-0">
 										<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
 											<FileCode className="h-4 w-4 flex-shrink-0" />
 											<span className="font-mono font-medium truncate">
 												{part.file || `${part.language} code`}
 											</span>
-											<span className="text-xs text-foreground-tertiary flex-shrink-0">
+											<span className="text-xs text-muted flex-shrink-0">
 												{part.content.split("\n").length} lines
 											</span>
 										</div>
@@ -524,7 +542,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									</button>
 								</CollapsibleTrigger>
 								<CollapsibleContent>
-									<pre className="p-4 overflow-x-auto text-xs bg-muted/30 max-w-full">
+									<pre className="p-4 overflow-x-auto text-xs bg-surface/30 max-w-full">
 										<code>{part.content}</code>
 									</pre>
 								</CollapsibleContent>
@@ -537,13 +555,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex-1 flex flex-col border-r border-border-default min-w-0">
+		<div className="flex-1 flex flex-col border-r border-border-border min-w-0">
 			<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 				{messages.length === 0 && (
 					<div className="h-full flex items-center justify-center text-center">
 						<div className="max-w-md space-y-4">
 							<h2 className="text-2xl font-bold">Start Building</h2>
-							<p className="text-foreground-tertiary">
+							<p className="text-muted">
 								Describe the website you want to build, and I'll generate the
 								code for you.
 							</p>
@@ -565,8 +583,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									<div
 										className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden cursor-context-menu ${
 											message.role === "user"
-												? "bg-primary text-primary-foreground"
-												: "bg-muted text-foreground-primary"
+												? "bg-strong text-surface"
+												: "bg-surface text-strong"
 										} ${isDeleting ? "opacity-50" : ""}`}
 									>
 										{message.role === "assistant" ? (
@@ -586,7 +604,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								<ContextMenuItem
 									onClick={() => handleDeleteMessage(message.id, false)}
 									disabled={isLoading || isDeleting}
-									className="text-red-600 text-red-400 focus:text-red-700 focus:text-red-300"
+									className="text-danger text-danger focus:text-danger focus:text-danger"
 								>
 									<Trash2 className="mr-2 h-4 w-4" />
 									Delete this message only
@@ -597,7 +615,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<ContextMenuItem
 											onClick={() => handleDeleteMessage(message.id, true)}
 											disabled={isLoading || isDeleting}
-											className="text-red-600 text-red-400 focus:text-red-700 focus:text-red-300"
+											className="text-danger text-danger focus:text-danger focus:text-danger"
 										>
 											<Trash2 className="mr-2 h-4 w-4" />
 											<ChevronDown className="mr-2 h-4 w-4" />
@@ -611,11 +629,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				})}
 				{isLoading && (
 					<div className="flex justify-start">
-						<div className="bg-muted rounded-lg px-4 py-2 flex items-center gap-2">
+						<div className="bg-surface rounded-lg px-4 py-2 flex items-center gap-2">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							<span className="text-sm text-foreground-tertiary">
-								Generating...
-							</span>
+							<span className="text-sm text-muted">Generating...</span>
 						</div>
 					</div>
 				)}
@@ -623,7 +639,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			</div>
 			<form
 				onSubmit={handleSubmit}
-				className="border-t border-border-default p-4 space-y-3"
+				className="border-t border-border-border p-4 space-y-3"
 			>
 				<div className="flex items-center gap-2">
 					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -655,11 +671,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-foreground-tertiary">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-muted">
 										AI Model
 									</Label>
 									{AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel) && (
-										<p className="mt-1 text-xs text-foreground-tertiary">
+										<p className="mt-1 text-xs text-muted">
 											Currently using:{" "}
 											{
 												AVAILABLE_AI_MODELS.find((m) => m.id === selectedModel)!
@@ -674,7 +690,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<button
 											key={model.id}
 											onClick={() => handleModelChange(model.id)}
-											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
+											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-raised/90"
 											type="button"
 										>
 											<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
@@ -683,16 +699,16 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											<div className="flex-1 space-y-0.5">
 												<div className="flex items-center gap-2">
 													{selectedModel === model.id && (
-														<Check className="h-3.5 w-3.5 text-primary" />
+														<Check className="h-3.5 w-3.5 text-strong" />
 													)}
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-foreground-tertiary">
+													<span className="text-xs text-muted">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-foreground-tertiary">
+												<p className="text-xs text-muted">
 													{model.description}
 												</p>
 											</div>

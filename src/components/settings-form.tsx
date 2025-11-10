@@ -78,7 +78,7 @@ export function SettingsForm() {
 
 	const getProviderIcon = (provider: string) => {
 		const iconClass =
-			"h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
+			"h-5 w-5 [&_*]:!fill-fg-secondary/60 [&_path]:!fill-fg-secondary/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -100,7 +100,7 @@ export function SettingsForm() {
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center py-8">
-				<div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+				<div className="h-6 w-6 animate-spin rounded-full border-2 border-strong border-t-transparent"></div>
 			</div>
 		);
 	}
@@ -111,7 +111,7 @@ export function SettingsForm() {
 				<PopoverTrigger asChild>
 					<Button
 						variant="outline"
-						className="w-full justify-between h-auto py-3 bg-bg-raised"
+						className="w-full justify-between h-auto py-3 bg-raised"
 					>
 						<div className="flex items-center gap-3">
 							{currentModelInfo && getProviderIcon(currentModelInfo.provider)}
@@ -119,7 +119,7 @@ export function SettingsForm() {
 								{currentModelInfo ? (
 									<>
 										<span className="font-medium">{currentModelInfo.name}</span>
-										<span className="text-foreground-tertiary">
+										<span className="text-muted">
 											{" "}
 											— {currentModelInfo.provider}
 										</span>
@@ -138,7 +138,7 @@ export function SettingsForm() {
 							<button
 								key={model.id}
 								onClick={() => handleModelChange(model.id)}
-								className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-accent"
+								className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-raised/90"
 							>
 								<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
 									{getProviderIcon(model.provider)}
@@ -146,14 +146,14 @@ export function SettingsForm() {
 								<div className="flex-1 space-y-0.5">
 									<div className="flex items-center gap-2">
 										{currentModel === model.id && (
-											<Check className="h-3.5 w-3.5 text-primary" />
+											<Check className="h-3.5 w-3.5 text-strong" />
 										)}
 										<span className="text-sm font-medium">{model.name}</span>
-										<span className="text-xs text-foreground-tertiary">
+										<span className="text-xs text-muted">
 											{model.provider}
 										</span>
 									</div>
-									<p className="text-xs text-foreground-tertiary">
+									<p className="text-xs text-muted">
 										{model.description}
 									</p>
 								</div>
@@ -164,7 +164,7 @@ export function SettingsForm() {
 			</Popover>
 
 			{currentModelInfo && (
-				<p className="text-xs text-foreground-tertiary">
+				<p className="text-xs text-muted">
 					{currentModelInfo.description}
 				</p>
 			)}
@@ -173,8 +173,8 @@ export function SettingsForm() {
 				<p
 					className={`text-sm ${
 						saveStatus.type === "success"
-							? "text-green-600 text-green-400"
-							: "text-destructive"
+							? "text-strong text-strong"
+							: "text-danger"
 					}`}
 				>
 					{saveStatus.message}

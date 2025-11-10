@@ -7,13 +7,13 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const toggleVariants = cva(
-	"inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium hover:bg-muted hover:text-secondary-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none transition-[color,box-shadow] aria-invalid:ring-destructive/20 aria-invalid:ring-destructive/40 aria-invalid:border-destructive whitespace-nowrap",
+	"inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium hover:bg-surface hover:text-muted disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-raised data-[state=on]:text-strong [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 focus-visible:border-strong focus-visible:ring-strong/50 focus-visible:ring-[3px] outline-none transition-[color,box-shadow] aria-invalid:ring-danger/20 aria-invalid:ring-danger/40 aria-invalid:border-danger whitespace-nowrap",
 	{
 		variants: {
 			variant: {
 				default: "bg-transparent",
 				outline:
-					"border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+					"border border-border bg-transparent shadow-xs hover:bg-raised hover:text-strong",
 			},
 			size: {
 				default: "h-9 px-2 min-w-9",

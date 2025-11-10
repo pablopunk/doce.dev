@@ -15,41 +15,44 @@ Self‑hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeSc
 
 **Pure B&W**: Monochromatic design with inverted light/dark modes. Light/Dark/System toggle in TopNav (localStorage + system preference).
 
-**Semantic Layer System** (always gets lighter as you add elevation):
+**Typography**:
+- `font-sans` → Geist variable font (100-900 weight)
+- `font-mono` → Geist Mono variable font (for code)
 
-**Background Layers** (back to front):
-- `--bg-base` / `bg-base` → Page background (3%L dark / 97%L light)
-- `--bg-surface` / `bg-surface` → Cards, panels (5%L dark / 95%L light)
-- `--bg-raised` / `bg-raised` → Popovers, inputs, elevated UI (8%L dark / 92%L light)
+**Color System** (defined in `src/styles/global.css`):
 
-**Interactive States**:
-- `--bg-hover` / `bg-hover` → Hover on interactive elements (12%L dark / 88%L light)
-- `--bg-active` / `bg-active` → Pressed state (10%L dark / 90%L light)
-
-**CTA/Primary Actions**:
-- `--bg-cta` / `bg-cta` → Primary buttons (18%L dark / 98%L light)
-- `--bg-cta-hover` / `bg-cta-hover` → CTA hover (22%L dark / 95%L light)
+**Background Layers** (elevation hierarchy, darkest to lightest):
+- `bg-bg` → Page background
+- `bg-surface` → Cards, panels
+- `bg-raised` → Elevated surfaces, inputs
+- `bg-cta` → Primary buttons, CTAs (inverted: darkest in dark mode, lightest in light mode)
 
 **Text Hierarchy**:
-- `--text-primary` / `text-primary` → Body text, headings (98%L dark / 2%L light)
-- `--text-secondary` / `text-secondary` → Less important text (65%L dark / 35%L light)
-- `--text-tertiary` / `text-tertiary` → Even lighter (45%L dark / 55%L light)
-- `--text-disabled` / `text-disabled` → Disabled state (30%L dark / 70%L light)
+- `text-strong` → Headings, emphasis (highest contrast)
+- `text-fg` → Default body text
+- `text-muted` → Secondary text, captions
 
-**Borders**:
-- `--border-subtle` / `border-subtle` → Faint dividers (15%L dark / 85%L light)
-- `--border-default` / `border-default` → Standard borders (25%L dark / 75%L light)
-- `--border-focus` / `border-focus` → Focus rings (98%L dark / 2%L light)
+**Borders & Accents**:
+- `border-border` → Standard borders
 
-**Overlays**:
-- `--overlay` / `overlay` → Modal backdrops (rgba(0,0,0,0.5) both themes)
+**Semantic Colors**:
+- `warning` → Yellow alerts
+- `danger` → Red errors/destructive actions
 
-**Semantic Colors** (OKLCH, alerts only):
-- `--success`, `--warning`, `--danger` (same in both themes)
+**Available Utilities**:
+- Backgrounds: `bg-{bg|surface|raised|cta|warning|danger}`
+- Text: `text-{strong|fg|muted|warning|danger}`
+- Borders: `border-{border|strong|danger}`
+- Rings: `ring-{strong|danger}`
 
-**Elements**: 2px borders, no rounded corners (except specified), scale-on-press buttons, shadow-on-hover cards
+**Design Patterns**:
+- Default button: `bg-cta text-strong border border-border`
+- Card: `bg-surface text-fg`
+- Input: `bg-raised text-fg border border-border`
+- Scale-on-press buttons: `active:scale-[0.98]`
+- Hover brightness: `hover:brightness-110`
 
-**IMPORTANT**: NO `dark:` classes allowed. All colors are semantic and automatically adapt to theme via CSS variables.
+**IMPORTANT**: NO `dark:` classes allowed. All colors automatically adapt via CSS variables in `.dark` and `.light` classes.
 
 **Theme Hook**: `src/hooks/use-theme.ts`
 

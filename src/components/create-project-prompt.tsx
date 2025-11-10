@@ -108,8 +108,8 @@ export function CreateProjectPrompt() {
 	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
 		const iconClass =
 			size === "sm"
-				? "h-4 w-4 [&_*]:!fill-foreground-secondary [&_path]:!fill-foreground-secondary"
-				: "h-5 w-5 [&_*]:!fill-foreground-secondary/60 [&_path]:!fill-foreground-secondary/60";
+				? "h-4 w-4 [&_*]:!fill-fg-secondary [&_path]:!fill-fg-secondary"
+				: "h-5 w-5 [&_*]:!fill-fg-secondary/60 [&_path]:!fill-fg-secondary/60";
 		switch (provider) {
 			case "OpenAI":
 				return <Openai className={iconClass} />;
@@ -129,11 +129,11 @@ export function CreateProjectPrompt() {
 	return (
 		<div className="w-full max-w-3xl">
 			{!hasApiKey && !checkingKeys && (
-				<div className="mb-4 rounded-lg border border-yellow-600/30 bg-yellow-500/10 px-4 py-3 text-sm">
-					<p className="font-medium text-yellow-600 text-yellow-400">
+				<div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
+					<p className="font-medium text-warning text-warning">
 						No API key configured
 					</p>
-					<p className="text-yellow-700/80 text-yellow-300/80 mt-1">
+					<p className="text-warning/80 text-warning/80 mt-1">
 						Please configure an API key in{" "}
 						<a href="/settings" className="underline hover:no-underline">
 							Settings
@@ -152,7 +152,7 @@ export function CreateProjectPrompt() {
 								AI is generating your project...
 							</div>
 						</div>
-						<div className="text-sm text-foreground-tertiary/60">
+						<div className="text-sm text-muted/60">
 							This may take a moment
 						</div>
 					</div>
@@ -177,11 +177,11 @@ export function CreateProjectPrompt() {
 						<PopoverContent className="w-[32rem] p-3" align="start">
 							<div className="space-y-3">
 								<div>
-									<Label className="text-xs font-semibold uppercase tracking-wider text-foreground-tertiary">
+									<Label className="text-xs font-semibold uppercase tracking-wider text-muted">
 										AI Model
 									</Label>
 									{currentModelInfo && (
-										<p className="mt-1 text-xs text-foreground-tertiary">
+										<p className="mt-1 text-xs text-muted">
 											Currently using: {currentModelInfo.name}
 										</p>
 									)}
@@ -193,7 +193,7 @@ export function CreateProjectPrompt() {
 											key={model.id}
 											type="button"
 											onClick={() => handleModelChange(model.id)}
-											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-bg-cta cursor-pointer"
+											className="flex w-full items-start gap-3 rounded-md p-2 text-left transition-colors hover:bg-cta cursor-pointer"
 										>
 											<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
 												{getProviderIcon(model.provider)}
@@ -201,16 +201,16 @@ export function CreateProjectPrompt() {
 											<div className="flex-1 space-y-0.5">
 												<div className="flex items-center gap-2">
 													{currentModel === model.id && (
-														<Check className="h-3.5 w-3.5 text-primary" />
+														<Check className="h-3.5 w-3.5 text-strong" />
 													)}
 													<span className="text-sm font-medium">
 														{model.name}
 													</span>
-													<span className="text-xs text-foreground-tertiary">
+													<span className="text-xs text-muted">
 														{model.provider}
 													</span>
 												</div>
-												<p className="text-xs text-foreground-tertiary">
+												<p className="text-xs text-muted">
 													{model.description}
 												</p>
 											</div>

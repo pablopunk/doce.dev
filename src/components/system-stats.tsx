@@ -19,11 +19,11 @@ export function SystemStats() {
 		<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 			<Card className="p-6">
 				<div className="flex items-center gap-4">
-					<div className="p-3 bg-primary/10 rounded-lg">
-						<Layers className="h-6 w-6 text-primary" />
+					<div className="p-3 bg-strong/10 rounded-lg">
+						<Layers className="h-6 w-6 text-strong" />
 					</div>
 					<div>
-						<p className="text-sm text-foreground-tertiary">Total Projects</p>
+						<p className="text-sm text-muted">Total Projects</p>
 						<p className="text-2xl font-bold">{stats.totalProjects}</p>
 					</div>
 				</div>
@@ -31,11 +31,11 @@ export function SystemStats() {
 
 			<Card className="p-6">
 				<div className="flex items-center gap-4">
-					<div className="p-3 bg-green-500/10 rounded-lg">
-						<Rocket className="h-6 w-6 text-green-600" />
+					<div className="p-3 bg-strong/10 rounded-lg">
+						<Rocket className="h-6 w-6 text-strong" />
 					</div>
 					<div>
-						<p className="text-sm text-foreground-tertiary">Deployments</p>
+						<p className="text-sm text-muted">Deployments</p>
 						<p className="text-2xl font-bold">{stats.totalDeployments}</p>
 					</div>
 				</div>
@@ -43,11 +43,11 @@ export function SystemStats() {
 
 			<Card className="p-6">
 				<div className="flex items-center gap-4">
-					<div className="p-3 bg-blue-500/10 rounded-lg">
-						<Eye className="h-6 w-6 text-blue-600" />
+					<div className="p-3 bg-strong/10 rounded-lg">
+						<Eye className="h-6 w-6 text-strong" />
 					</div>
 					<div>
-						<p className="text-sm text-foreground-tertiary">Active Previews</p>
+						<p className="text-sm text-muted">Active Previews</p>
 						<p className="text-2xl font-bold">{stats.activePreviews}</p>
 					</div>
 				</div>
@@ -55,11 +55,11 @@ export function SystemStats() {
 
 			<Card className="p-6">
 				<div className="flex items-center gap-4">
-					<div className="p-3 bg-orange-500/10 rounded-lg">
-						<Server className="h-6 w-6 text-orange-600" />
+					<div className="p-3 bg-warning/10 rounded-lg">
+						<Server className="h-6 w-6 text-warning" />
 					</div>
 					<div>
-						<p className="text-sm text-foreground-tertiary">Containers</p>
+						<p className="text-sm text-muted">Containers</p>
 						<p className="text-2xl font-bold">{stats.totalContainers}</p>
 					</div>
 				</div>

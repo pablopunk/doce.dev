@@ -1,16 +1,22 @@
 ---
 import { SettingsForm } from "@/components/settings-form";
 import { ApiKeysForm } from "@/components/api-keys-form";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import {
+	Card,
+	CardHeader,
+	CardTitle,
+	CardDescription,
+	CardContent,
+} from "@/components/ui/card";
 import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="Settings">
-  <div class="min-h-screen bg-background">
+  <div class="bg-bg">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
       <div class="mb-8">
         <h1 class="text-3xl font-bold">Settings</h1>
-        <p class="text-muted-foreground mt-1">Manage your global preferences</p>
+        <p class="text-fg mt-1">Manage your global preferences</p>
       </div>
 
       <div class="space-y-6">

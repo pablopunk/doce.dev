@@ -434,7 +434,7 @@ body {
       <div className="flex flex-wrap items-center justify-center gap-4">
         <a
           href="https://docs.astro.build"
-          className="rounded-lg bg-white px-6 py-3 font-medium text-slate-900 transition hover:bg-slate-200"
+          className="rounded-lg bg-white px-6 py-3 font-medium text-fg transition hover:bg-surface"
           target="_blank"
           rel="noreferrer"
         >
