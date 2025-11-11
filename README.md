@@ -6,6 +6,7 @@
 - [ ] Add agent-controlled "Tasks" section to chat interface
 - [ ] Agent tool: cli commands
 - [ ] Agent tool: web requests
+- [ ] Agent tool: logs (access to docker logs + container logs, just like the web terminal)
 - [ ] Deployments. `astro build` + `astro preview`
 - [ ] Set up reverse proxy for deployment routing (traefik?)
 - [ ] Add file tree view for project navigation
@@ -23,3 +24,5 @@
 - [x] Add guidelines for persistance in templates/. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.
 - [ ] Get rid of console erros in dashboard
 - [ ] Allow editing Global prompt for templates. Should be saved in settings, never replace the template AGENTS file.
+- [ ] Allow inserting images in the prompt
+- [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
