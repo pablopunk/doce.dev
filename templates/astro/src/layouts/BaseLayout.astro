@@ -1,11 +1,23 @@
 ---
-import "../styles/global.css";
+import "../styles/global-default.css";
 
 interface Props {
 	title?: string;
+	description?: string;
+	image?: string;
+	canonicalURL?: string;
 }
 
-const { title = "Astro App" } = Astro.props;
+const {
+	title = "Astro App",
+	description = "A modern web application built with Astro",
+	image,
+	canonicalURL = new URL(Astro.url.pathname, Astro.site).toString()
+} = Astro.props;
+
+// Site metadata - can be moved to astro.config.mjs
+const siteName = "Astro App";
+const siteURL = Astro.site?.toString() || "https://example.com";
 ---
 
 <!DOCTYPE html>
@@ -13,7 +25,40 @@ const { title = "Astro App" } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Primary Meta Tags -->
     <title>{title}</title>
+    <meta name="title" content={title} />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {image && <meta property="og:image" content={new URL(image, siteURL).toString()} />}
+    <meta property="og:site_name" content={siteName} />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content={image ? "summary_large_image" : "summary"} />
+    <meta property="twitter:url" content={canonicalURL} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    {image && <meta property="twitter:image" content={new URL(image, siteURL).toString()} />}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Sitemap -->
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Geist Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet" />
   </head>
   <body>
     <slot />

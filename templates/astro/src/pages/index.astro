@@ -1,15 +1,11 @@
 ---
-import "../styles/global.css";
 import { Hero } from "@/components/Hero";
+import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Astro Starter</title>
-  </head>
-  <body>
+<BaseLayout
+    title="Astro + React + Tailwind + shadcn/ui"
+    description="A modern web application template with Astro, React, Tailwind CSS, and shadcn/ui components"
+>
     <Hero client:load />
-  </body>
-</html>
+</BaseLayout>

@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button";
 export function Hero() {
 	return (
 		<section className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-6 py-24 text-center">
-			<Badge variant="outline" className="text-white/70 border-white/20">
+			<Badge variant="outline">
 				Astro + React + Tailwind + shadcn/ui
 			</Badge>
-			<h1 className="text-balance text-4xl font-bold leading-tight text-white md:text-6xl">
+			<h1 className="text-balance text-4xl font-bold leading-tight md:text-6xl">
 				Build blazing-fast sites with islands of interactivity
 			</h1>
-			<p className="text-balance text-white/70 md:text-lg">
+			<p className="text-balance md:text-lg">
 				Combine Astro's content-first architecture with React components when
 				you need client-side interactivity. Styled with Tailwind CSS and
 				beautiful shadcn/ui components.

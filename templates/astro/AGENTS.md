@@ -605,6 +605,50 @@ text-3xl     → 30px (page titles)
 text-4xl     → 36px (hero headings)
 ```
 
+### Fonts
+
+**Default Font**: Geist (sans-serif) and Geist Mono (monospace)
+
+The template uses Geist font via CSS variables defined in your global CSS files:
+
+```css
+/* In src/styles/global-default.css or global-pastel.css */
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  /* ... other variables */
+}
+```
+
+**To add Geist to your layout**, include the CDN links in `src/layouts/BaseLayout.astro`:
+
+```astro
+<!-- In the <head> section -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet" />
+```
+
+**To replace Geist with another font** (e.g., Inter):
+
+1. Update the CDN links in `BaseLayout.astro`:
+```astro
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
+```
+
+2. Update the CSS variables in your global CSS file:
+```css
+@theme inline {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  /* ... keep other variables */
+}
+```
+
+3. The new font will automatically apply everywhere via Tailwind's `font-sans` and `font-mono` utilities.
+
 ### Spacing Scale
 
 ```
