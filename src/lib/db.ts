@@ -296,9 +296,70 @@ export function deleteMessagesFromIndex(
 
 // File functions
 export function getFiles(projectId: string) {
-	return db
+	const allFiles = db
 		.prepare("SELECT * FROM files WHERE project_id = ? ORDER BY file_path")
-		.all(projectId);
+		.all(projectId) as Array<{
+		id: string;
+		project_id: string;
+		file_path: string;
+		content: string;
+		created_at: string;
+		updated_at: string;
+	}>;
+
+	// Filter out common build artifacts and system files
+	const shouldIgnore = (filePath: string) => {
+		const ignoredPatterns = [
+			// Build artifacts
+			/node_modules\//,
+			/\.next\//,
+			/\.astro\//,
+			/dist\//,
+			/build\//,
+			/out\//,
+			/\.cache\//,
+			/\.turbo\//,
+			/\.vercel\//,
+			/\.netlify\//,
+
+			// Lock files
+			/package-lock\.json$/,
+			/yarn\.lock$/,
+			/pnpm-lock\.yaml$/,
+			/bun\.lockb$/,
+
+			// Environment files (still stored, just hidden from UI)
+			/\.env$/,
+			/\.env\.local$/,
+			/\.env\.[^/]+$/,
+
+			// System files
+			/\.DS_Store$/,
+			/Thumbs\.db$/,
+			/\.git\//,
+			/\.svn\//,
+			/\.hg\//,
+
+			/AGENTS\.md$/,
+
+			// IDE files
+			/\.vscode\//,
+			/\.idea\//,
+			/\.vs\//,
+			/\*\.swp$/,
+			/\*~$/,
+
+			// Log files
+			/\.log$/,
+			/npm-debug\.log$/,
+			/yarn-debug\.log$/,
+			/yarn-error\.log$/,
+		];
+
+		return ignoredPatterns.some((pattern) => pattern.test(filePath));
+	};
+
+	return allFiles.filter((file) => !shouldIgnore(file.file_path));
 }
 
 export function saveFile(projectId: string, filePath: string, content: string) {
