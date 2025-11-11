@@ -6,6 +6,7 @@
 - [ ] Add agent-controlled "Tasks" section to chat interface
 - [ ] Agent tool: cli commands
 - [ ] Agent tool: web requests
+- [ ] Agent tool: logs (access to docker logs + container logs, just like the web terminal)
 - [ ] Deployments. `astro build` + `astro preview`
 - [ ] Set up reverse proxy for deployment routing (traefik?)
 - [ ] Add file tree view for project navigation
