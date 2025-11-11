@@ -26,3 +26,4 @@
 - [ ] Allow editing Global prompt for templates. Should be saved in settings, never replace the template AGENTS file.
 - [ ] Allow inserting images in the prompt
 - [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
+- [ ] Multiple design systems: I think having several tailwind configs / css files would be enough here. Default to one, let user choose.

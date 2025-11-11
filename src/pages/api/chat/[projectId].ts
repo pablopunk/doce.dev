@@ -114,7 +114,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	let conversation = await getConversation(projectId);
 	if (!conversation) {
-		conversation = await createConversation(projectId, requestedModel);
+		conversation = createConversation(projectId, requestedModel);
 	} else if (requestedModel && requestedModel !== conversation.model) {
 		// Update model if changed
 		await updateConversationModel(conversation.id, requestedModel);
@@ -124,7 +124,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 	const userMessage = messages[messages.length - 1];
 
 	// Check if this exact user message already exists (prevent duplicates)
-	const existingMessages = await getMessages(conversation.id);
+	const existingMessages = getMessages(conversation.id);
 	const lastUserMessage = existingMessages
 		.filter((msg: any) => msg.role === "user")
 		.pop();
@@ -133,7 +133,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 		lastUserMessage && lastUserMessage.content === userMessage.content;
 
 	if (!isDuplicate) {
-		await saveMessage(conversation.id, "user", userMessage.content);
+		saveMessage(conversation.id, "user", userMessage.content);
 		console.log("[Chat] Saved new user message");
 	} else {
 		console.log(
@@ -342,6 +342,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 	let lastSaveTime = 0;
 	const SAVE_INTERVAL_MS = 300; // Save every 300ms during streaming
 
+	// Track full message content including tool calls (mirroring frontend behavior)
+	let fullMessageContent = "";
+	let lastEventWasToolResult = false;
+
 	// Immediate save function - saves to DB and emits event for SSE
 	const saveToDatabase = (
 		text: string,
@@ -404,8 +408,31 @@ export const POST: APIRoute = async ({ params, request }) => {
 					`[Chat] Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
 				);
 
-				// Save to database with streaming status
-				saveToDatabase(text, "streaming");
+				// Build full message content including tool calls (same format as frontend)
+				// Add tool calls
+				for (const toolCall of toolCalls) {
+					const toolMessage = `\n\n🔧 **Using tool: ${toolCall.toolName}**\n\`\`\`json\n${JSON.stringify(toolCall.args, null, 2)}\n\`\`\`\n`;
+					fullMessageContent += toolMessage;
+				}
+
+				// Add tool results
+				for (const toolResult of toolResults) {
+					const resultMessage = `\n📋 **Result from ${toolResult.toolName}:**\n\`\`\`json\n${JSON.stringify(toolResult.result, null, 2)}\n\`\`\`\n`;
+					fullMessageContent += resultMessage;
+					lastEventWasToolResult = true;
+				}
+
+				// Add spacing before text if we just had tool results
+				if (text.trim().length > 0) {
+					if (lastEventWasToolResult) {
+						fullMessageContent += "\n\n";
+						lastEventWasToolResult = false;
+					}
+					fullMessageContent += text;
+				}
+
+				// Save full content to database with streaming status
+				saveToDatabase(fullMessageContent, "streaming");
 
 				if (toolResults.length > 0) {
 					console.log(
@@ -433,12 +460,12 @@ export const POST: APIRoute = async ({ params, request }) => {
 CRITICAL RULES:
 1. ALWAYS generate code in fenced blocks with file="path" attribute
 2. ALWAYS close code blocks with \`\`\` - incomplete code blocks will fail to save
-3. NEVER end responses with only tool call results - always include code
-4. Tools are for INSPECTION only - don't check if directories exist, just generate files
-5. If a tool fails, continue with code generation anyway
-6. Complete ALL files before finishing - don't stop mid-file
+3. If a tool fails, communicate it to the user
+4. Complete ALL files before finishing - don't stop mid-file
 
-Available tools: readFile (inspect existing code), listFiles (see structure), runCommand (run shell commands), fetchUrl (get external docs)
+Available tools: readFile (inspect existing code), listFiles (see structure), runCommand (run shell commands), fetchUrl (get external website content, like docs)
+
+AGENTS.md guidelines. These are the guidelines for the new project:
 
 ${agentGuidelines}`,
 			messages,
@@ -447,14 +474,17 @@ ${agentGuidelines}`,
 				console.log(
 					`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
 				);
+				console.log(
+					`[Chat] Full message content length: ${fullMessageContent.length} chars`,
+				);
 
 				// Check if client aborted
 				if (clientAborted) {
 					console.log(`[Chat] Client aborted, marking message as stopped`);
-					if (assistantMessageId && text.trim().length > 0) {
+					if (assistantMessageId && fullMessageContent.trim().length > 0) {
 						updateMessage(
 							assistantMessageId,
-							text + "\n\n_[Generation stopped by user]_",
+							fullMessageContent + "\n\n_[Generation stopped by user]_",
 							"complete",
 						);
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
@@ -462,20 +492,24 @@ ${agentGuidelines}`,
 					return;
 				}
 
+				// Use fullMessageContent which includes tool calls, not just text
+				const finalContent =
+					fullMessageContent.trim().length > 0 ? fullMessageContent : text;
+
 				// Final save to DB with complete status
-				if (text.trim().length > 0) {
+				if (finalContent.trim().length > 0) {
 					if (assistantMessageId) {
-						// Mark message as complete in database
-						updateMessage(assistantMessageId, text, "complete");
+						// Mark message as complete in database with full content
+						updateMessage(assistantMessageId, finalContent, "complete");
 						console.log(
-							`[Chat] Marked message ${assistantMessageId} as complete`,
+							`[Chat] Marked message ${assistantMessageId} as complete with ${finalContent.length} chars`,
 						);
 
 						// Emit final update
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					} else {
 						// Fallback: create message if somehow it wasn't created yet
-						await saveMessage(conversation.id, "assistant", text, "complete");
+						saveMessage(conversation.id, "assistant", finalContent, "complete");
 						console.log(`[Chat] Created message in onFinish (fallback)`);
 
 						// Emit final update
@@ -484,6 +518,7 @@ ${agentGuidelines}`,
 
 					try {
 						console.log(`[Chat] Attempting to generate code from response...`);
+						// Still use 'text' for code generation (without tool metadata)
 						const generation = await generateCode(projectId, text);
 						if (generation) {
 							console.log(
