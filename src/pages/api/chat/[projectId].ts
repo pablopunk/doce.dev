@@ -105,6 +105,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	const { messages, model: requestedModel } = await request.json();
 
+	// Track if client disconnects (stop button clicked)
+	let clientAborted = false;
+	request.signal.addEventListener("abort", () => {
+		console.log(`[Chat] Client aborted request for project ${projectId}`);
+		clientAborted = true;
+	});
+
 	let conversation = await getConversation(projectId);
 	if (!conversation) {
 		conversation = await createConversation(projectId, requestedModel);
@@ -440,6 +447,20 @@ ${agentGuidelines}`,
 				console.log(
 					`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
 				);
+
+				// Check if client aborted
+				if (clientAborted) {
+					console.log(`[Chat] Client aborted, marking message as stopped`);
+					if (assistantMessageId && text.trim().length > 0) {
+						updateMessage(
+							assistantMessageId,
+							text + "\n\n_[Generation stopped by user]_",
+							"complete",
+						);
+						chatEvents.notifyMessageUpdate(projectId, conversation.id);
+					}
+					return;
+				}
 
 				// Final save to DB with complete status
 				if (text.trim().length > 0) {
