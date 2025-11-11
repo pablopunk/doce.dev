@@ -499,6 +499,24 @@ export async function cleanupOldContainers(
 	}
 }
 
+/**
+ * Prune unused Docker networks
+ * This prevents "all predefined address pools have been fully subnetted" errors
+ */
+export async function pruneDockerNetworks(): Promise<void> {
+	try {
+		const { exec } = await import("child_process");
+		const { promisify } = await import("util");
+		const execAsync = promisify(exec);
+
+		const { stdout } = await execAsync("docker network prune -f");
+		console.log("Pruned unused Docker networks:", stdout.trim());
+	} catch (error) {
+		console.error("Failed to prune Docker networks:", error);
+		throw error;
+	}
+}
+
 async function ensureDockerImage(imageName: string): Promise<void> {
 	try {
 		// Check if image exists

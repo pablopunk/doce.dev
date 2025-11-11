@@ -1,5 +1,5 @@
 import { defineAction, ActionError } from "astro:actions";
-import { cleanupOldContainers } from "@/lib/docker";
+import { cleanupOldContainers, pruneDockerNetworks } from "@/lib/docker";
 
 export const server = {
 	// POST /api/admin/cleanup
@@ -7,6 +7,7 @@ export const server = {
 		handler: async () => {
 			try {
 				await cleanupOldContainers();
+				await pruneDockerNetworks();
 				return { success: true, message: "Cleanup completed" };
 			} catch (error) {
 				console.error("Cleanup failed:", error);
