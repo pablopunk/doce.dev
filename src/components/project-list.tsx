@@ -2,6 +2,7 @@
 
 import { actions } from "astro:actions";
 import { ArrowUpRight, ExternalLink, Trash2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import useSWR from "swr";
 import {
@@ -74,66 +75,87 @@ export function ProjectList() {
 
 	return (
 		<>
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-				{projects.map((project: any) => (
-					<Card
-						key={project.id}
-						className="relative cursor-pointer hover:bg-raised transition-colors justify-between group"
-						onClick={() => (window.location.href = `/project/${project.id}`)}
-					>
-						{/* Arrow in top right */}
-						<ArrowUpRight className="h-4 w-4 text-muted absolute top-4 right-4" />
+			<motion.div
+				className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ duration: 0.3 }}
+			>
+				<AnimatePresence mode="popLayout">
+					{projects.map((project: any, index: number) => (
+						<motion.div
+							key={project.id}
+							layout
+							initial={{ opacity: 0, scale: 0.95, y: 20 }}
+							animate={{ opacity: 1, scale: 1, y: 0 }}
+							exit={{ opacity: 0, scale: 0.9, filter: "blur(4px)" }}
+							transition={{
+								duration: 0.3,
+								delay: index * 0.05,
+								layout: { duration: 0.3 },
+							}}
+						>
+							<Card
+								className="relative cursor-pointer hover:bg-raised transition-colors justify-between group"
+								onClick={() =>
+									(window.location.href = `/project/${project.id}`)
+								}
+							>
+								{/* Arrow in top right */}
+								<ArrowUpRight className="h-4 w-4 text-muted absolute top-4 right-4" />
 
-						{/* Title and description */}
-						<div className="pr-8 mb-4">
-							<h3 className="font-semibold text-xl mb-1 text-strong">
-								{project.name}
-							</h3>
-							{project.description && (
-								<p className="text-xs text-muted line-clamp-2">
-									{project.description}
-								</p>
-							)}
-						</div>
+								{/* Title and description */}
+								<div className="pr-8 mb-4">
+									<h3 className="font-semibold text-xl mb-1 text-strong">
+										{project.name}
+									</h3>
+									{project.description && (
+										<p className="text-xs text-muted line-clamp-2">
+											{project.description}
+										</p>
+									)}
+								</div>
 
-						{/* Bottom row: date and action buttons */}
-						<div className="flex items-center justify-between">
-							<div className="text-xs text-muted/60">
-								Updated {new Date(project.updated_at).toLocaleDateString()}
-							</div>
-							<div className="flex items-center gap-1">
-								{project.deployed_url && (
-									<Button
-										asChild
-										variant="ghost"
-										size="icon-sm"
-										onClick={(e) => e.stopPropagation()}
-									>
-										<a
-											href={project.deployed_url}
-											target="_blank"
-											rel="noopener noreferrer"
+								{/* Bottom row: date and action buttons */}
+								<div className="flex items-center justify-between">
+									<div className="text-xs text-muted/60">
+										Updated {new Date(project.updated_at).toLocaleDateString()}
+									</div>
+									<div className="flex items-center gap-1">
+										{project.deployed_url && (
+											<Button
+												asChild
+												variant="ghost"
+												size="icon-sm"
+												onClick={(e) => e.stopPropagation()}
+											>
+												<a
+													href={project.deployed_url}
+													target="_blank"
+													rel="noopener noreferrer"
+												>
+													<ExternalLink className="h-4 w-4" />
+												</a>
+											</Button>
+										)}
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											className="opacity-0 group-hover:opacity-100 transition-opacity"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleDeleteClick(project.id);
+											}}
 										>
-											<ExternalLink className="h-4 w-4" />
-										</a>
-									</Button>
-								)}
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									className="opacity-0 group-hover:opacity-100 transition-opacity"
-									onClick={(e) => {
-										e.stopPropagation();
-										handleDeleteClick(project.id);
-									}}
-								>
-									<Trash2 className="h-4 w-1" />
-								</Button>
-							</div>
-						</div>
-					</Card>
-				))}
-			</div>
+											<Trash2 className="h-4 w-1" />
+										</Button>
+									</div>
+								</div>
+							</Card>
+						</motion.div>
+					))}
+				</AnimatePresence>
+			</motion.div>
 
 			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
 				<AlertDialogContent>
