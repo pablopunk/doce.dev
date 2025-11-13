@@ -10,7 +10,7 @@ import {
 export const server = {
 	getApiKeys: defineAction({
 		handler: async () => {
-			const providers = ["openrouter", "anthropic", "openai", "google", "xai"];
+			const providers = ["openrouter"];
 
 			const keys: Record<string, boolean> = {};
 			for (const provider of providers) {
@@ -24,7 +24,7 @@ export const server = {
 
 	setApiKey: defineAction({
 		input: z.object({
-			provider: z.enum(["openrouter", "anthropic", "openai", "google", "xai"]),
+			provider: z.enum(["openrouter"]),
 			apiKey: z.string(),
 		}),
 		handler: async ({ provider, apiKey }) => {

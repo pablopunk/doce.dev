@@ -1,7 +1,5 @@
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import { readFileSync } from "node:fs";
@@ -60,35 +58,12 @@ function getAIModel() {
 
 	if (!apiKey) {
 		throw new Error(
-			`No API key configured for ${provider}. Please complete setup at /setup`,
+			`No OpenRouter API key configured. Please complete setup at /setup`,
 		);
 	}
 
-	if (provider === "openrouter") {
-		const openrouter = createOpenRouter({ apiKey });
-		return openrouter(defaultModel);
-	}
-
-	const [modelProvider, ...modelParts] = defaultModel.split("/");
-	const modelId = modelParts.join("/");
-
-	if (modelProvider === "anthropic" && provider === "anthropic") {
-		process.env.ANTHROPIC_API_KEY = apiKey;
-		return anthropic(modelId || "claude-3-5-sonnet-20241022");
-	}
-	if (modelProvider === "openai" && provider === "openai") {
-		process.env.OPENAI_API_KEY = apiKey;
-		return openai(modelId || "gpt-4o-mini");
-	}
-
-	if (provider === "openrouter") {
-		const openrouter = createOpenRouter({ apiKey });
-		return openrouter(defaultModel);
-	}
-
-	throw new Error(
-		`Model ${defaultModel} not compatible with provider ${provider}`,
-	);
+	const openrouter = createOpenRouter({ apiKey });
+	return openrouter(defaultModel);
 }
 
 function parseEnvFile(content: string): Record<string, string> {

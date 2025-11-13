@@ -16,6 +16,7 @@ import { TerminalDock } from "@/components/terminal-dock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AIBlob from "@/components/ui/ai-blob";
 import { useProjectLifecycle } from "@/hooks/use-project-lifecycle";
 
 const projectFetcher = async (_key: string, id: string) => {
@@ -34,6 +35,15 @@ const envFetcher = async (_key: string, id: string) => {
 
 // Global refresh function that can be called from other components
 let globalRefreshFn: (() => void) | null = null;
+// Track if initial generation is in progress (per project)
+const initialGenerationInProgress = new Map<string, boolean>();
+
+export function setInitialGenerationInProgress(
+	projectId: string,
+	inProgress: boolean,
+) {
+	initialGenerationInProgress.set(projectId, inProgress);
+}
 
 export function refreshCodePreview() {
 	if (globalRefreshFn) {
@@ -58,6 +68,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [previewReady, setPreviewReady] = useState(false);
 	const [iframeKey, setIframeKey] = useState(0);
 	const [isRestarting, setIsRestarting] = useState(false);
+	const [isFirstGenerationComplete, setIsFirstGenerationComplete] =
+		useState(false);
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
@@ -91,6 +103,30 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		}
 	}, [envData]);
 
+	// Track when first generation is complete based on the global state
+	useEffect(() => {
+		const inProgress = initialGenerationInProgress.get(projectId);
+		if (inProgress === false) {
+			setIsFirstGenerationComplete(true);
+		} else if (inProgress === undefined) {
+			// If we don't have info about this project, assume it's complete
+			// (happens when loading an existing project)
+			setIsFirstGenerationComplete(true);
+		}
+	}, [projectId]);
+
+	// Poll the global state to detect when generation completes
+	useEffect(() => {
+		const interval = setInterval(() => {
+			const inProgress = initialGenerationInProgress.get(projectId);
+			if (inProgress === false) {
+				setIsFirstGenerationComplete(true);
+			}
+		}, 100);
+
+		return () => clearInterval(interval);
+	}, [projectId]);
+
 	// Handler to create/start preview
 	const handleCreatePreview = useCallback(async () => {
 		setIsCreatingPreview(true);
@@ -122,6 +158,12 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					console.log(`Preview not running for ${projectId}, starting...`);
 					setHasAutoStarted(true);
 					await handleCreatePreview();
+				} else if (!error && data && data.status === "running") {
+					// Preview is running, refresh project data to sync with DB
+					console.log(
+						`Preview already running for ${projectId}, syncing UI...`,
+					);
+					mutate();
 				}
 			} catch (error) {
 				console.error("Failed to check preview status:", error);
@@ -135,6 +177,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		isCreatingPreview,
 		projectId,
 		handleCreatePreview,
+		mutate,
 	]);
 
 	// Reset loading state when preview URL changes and poll for readiness
@@ -289,7 +332,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					<div className="h-full min-h-full bg-bg relative">
 						{project?.preview_url ? (
 							<>
-								{previewReady && (
+								{/* Show iframe only if preview is ready AND first generation is complete */}
+								{previewReady && isFirstGenerationComplete && (
 									<iframe
 										key={`${project.preview_url}-${iframeKey}`}
 										src={project.preview_url}
@@ -298,19 +342,36 @@ export function CodePreview({ projectId }: { projectId: string }) {
 										sandbox="allow-same-origin allow-scripts allow-forms"
 									/>
 								)}
-								{isIframeLoading && (
+								{/* Show loading state when iframe is loading OR during initial generation */}
+								{(isIframeLoading || !isFirstGenerationComplete) && (
 									<div className="absolute inset-0 bg-bg flex items-center justify-center">
-										<div className="text-center space-y-4">
-											<Loader2 className="h-8 w-8 animate-spin mx-auto text-strong" />
-											<div>
-												<p className="text-sm font-medium">
-													Starting preview...
-												</p>
-												<p className="text-xs text-muted mt-1">
-													Waiting for server to respond...
-												</p>
+										{!isFirstGenerationComplete ? (
+											// Show AI blob during initial generation (even if preview is technically ready)
+											<div className="text-center space-y-6">
+												<AIBlob size={80} className="mx-auto" />
+												<div>
+													<p className="text-sm font-medium">
+														Generating your project...
+													</p>
+													<p className="text-xs text-muted mt-1">
+														This might take a moment
+													</p>
+												</div>
 											</div>
-										</div>
+										) : (
+											// Show regular loading after first generation is complete
+											<div className="text-center space-y-4">
+												<Loader2 className="h-8 w-8 animate-spin mx-auto text-strong" />
+												<div>
+													<p className="text-sm font-medium">
+														Starting preview...
+													</p>
+													<p className="text-xs text-muted mt-1">
+														Waiting for server to respond...
+													</p>
+												</div>
+											</div>
+										)}
 									</div>
 								)}
 								{iframeError && !isIframeLoading && (

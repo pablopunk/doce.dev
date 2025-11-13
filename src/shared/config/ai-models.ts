@@ -14,15 +14,9 @@ export interface AIModel {
 
 /**
  * All available AI models
- * These models are compatible with OpenRouter and support tool calling
+ * All models are accessed through OpenRouter, which supports 400+ models from all providers
  */
 export const AVAILABLE_AI_MODELS: AIModel[] = [
-	{
-		id: "openai/gpt-4.1-mini",
-		name: "GPT-4.1 Mini",
-		provider: "OpenAI",
-		description: "Fast and cost-effective. Strong coding and vision.",
-	},
 	{
 		id: "openai/gpt-5-codex",
 		name: "GPT-5 Codex",
@@ -49,13 +43,6 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
 		name: "Gemini 2.5 Pro",
 		provider: "Google",
 		description: "Advanced reasoning and coding. Top LMArena performance.",
-	},
-	{
-		id: "moonshotai/kimi-k2-thinking",
-		name: "Kimi K2 Thinking",
-		provider: "MoonshotAI",
-		description:
-			"Deep reasoning with 256k context. Long-horizon coding workflows.",
 	},
 	{
 		id: "x-ai/grok-code-fast-1",

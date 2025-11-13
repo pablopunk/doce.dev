@@ -27,3 +27,4 @@
 - [ ] Allow inserting images in the prompt
 - [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
 - [ ] Multiple design systems: I think having several tailwind configs / css files would be enough here. Default to one, let user choose.
+- [ ] Set up DB abstraction. Refactor the whole project to use a DB abstraction that then can be swapped out whenever needed.

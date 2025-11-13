@@ -1,5 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { stepCountIs, streamText, tool } from "ai";
 import type { APIRoute } from "astro";
@@ -16,7 +14,11 @@ import {
 	updateConversationModel,
 	updateMessage,
 } from "@/lib/db";
-import { listProjectFiles, readProjectFile } from "@/lib/file-system";
+import {
+	listProjectFiles,
+	readProjectFile,
+	writeProjectFile,
+} from "@/lib/file-system";
 import { chatEvents } from "@/lib/chat-events";
 import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
 
@@ -60,28 +62,8 @@ function getApiKey(provider: string): string | null {
 	return value || null;
 }
 
-// Helper to get model provider and instance (provider-agnostic)
+// Helper to get model provider and instance (OpenRouter only)
 function getModel(modelId: string) {
-	// Extract provider from model ID (e.g., "openai/gpt-4.1-mini" -> "openai")
-	const [provider] = modelId.split("/");
-
-	// Try direct provider first for potentially better performance/features
-	if (provider === "openai") {
-		const apiKey = getApiKey("openai");
-		if (apiKey) {
-			process.env.OPENAI_API_KEY = apiKey;
-			return openai(modelId.replace("openai/", ""));
-		}
-	}
-
-	if (provider === "anthropic") {
-		const apiKey = getApiKey("anthropic");
-		if (apiKey) {
-			process.env.ANTHROPIC_API_KEY = apiKey;
-			return anthropic(modelId.replace("anthropic/", ""));
-		}
-	}
-
 	// OpenRouter can route to ANY provider (OpenAI, Anthropic, Google, xAI, etc.)
 	const openrouterKey = getApiKey("openrouter");
 	if (openrouterKey) {
@@ -89,11 +71,10 @@ function getModel(modelId: string) {
 		return openrouter(modelId);
 	}
 
-	// No API keys configured - provide helpful error
+	// No API key configured - provide helpful error
 	throw new Error(
-		`No API key configured. Please configure at least one: ` +
-			`openrouter_api_key (supports 400+ models), ` +
-			`${provider}_api_key (direct to ${provider}), or another provider in /setup`,
+		`No OpenRouter API key configured. Please configure your OpenRouter API key in /settings. ` +
+			`OpenRouter supports 400+ models from all providers.`,
 	);
 }
 
@@ -202,6 +183,31 @@ export const POST: APIRoute = async ({ params, request }) => {
 				} catch (error: any) {
 					console.log(`[Tool] readFile error: ${error.message}`);
 					return `Error reading ${filePath}: ${error.message}`;
+				}
+			},
+		}),
+		writeFile: tool({
+			description:
+				"Write content to a file in the project. Creates the file and any necessary parent directories. Use this to create new files or update existing ones.",
+			inputSchema: z.object({
+				filePath: z
+					.string()
+					.describe(
+						"Relative path from project root (e.g. 'src/components/Hero.tsx')",
+					),
+				content: z.string().describe("The complete file content to write"),
+			}),
+			execute: async ({ filePath, content }) => {
+				console.log(`[Tool] writeFile called: ${filePath}`);
+				try {
+					await writeProjectFile(projectId, filePath, content);
+					console.log(
+						`[Tool] writeFile: success, wrote ${content.length} chars to ${filePath}`,
+					);
+					return `Successfully wrote ${content.length} characters to ${filePath}`;
+				} catch (error: any) {
+					console.log(`[Tool] writeFile error: ${error.message}`);
+					return `Error writing ${filePath}: ${error.message}`;
 				}
 			},
 		}),
@@ -458,12 +464,24 @@ export const POST: APIRoute = async ({ params, request }) => {
 			system: `You are an expert web developer building Astro applications.
 
 CRITICAL RULES:
-1. ALWAYS generate code in fenced blocks with file="path" attribute
-2. ALWAYS close code blocks with \`\`\` - incomplete code blocks will fail to save
-3. If a tool fails, communicate it to the user
-4. Complete ALL files before finishing - don't stop mid-file
+1. Use the writeFile tool to create or modify files in the project
+2. ALWAYS write complete, valid file contents - no placeholders or truncated code
+3. Read existing files with readFile before modifying them to understand the current structure
+4. If a tool fails, communicate it to the user and try an alternative approach
+5. Complete ALL files before finishing - don't stop mid-file
 
-Available tools: readFile (inspect existing code), listFiles (see structure), runCommand (run shell commands), fetchUrl (get external website content, like docs)
+Available tools:
+- readFile: inspect existing code in a file
+- writeFile: create or update a file with new content
+- listFiles: see the project directory structure
+- runCommand: execute shell commands (npm install, build, test, etc.)
+- fetchUrl: fetch external documentation or resources
+
+Workflow for modifying code:
+1. Use listFiles to understand the project structure
+2. Use readFile to inspect files you need to modify
+3. Use writeFile to create or update files with your changes
+4. Use runCommand to install dependencies, run builds, or test changes
 
 AGENTS.md guidelines. These are the guidelines for the new project:
 

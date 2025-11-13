@@ -6,10 +6,6 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
-import { Google } from "@/components/ui/svgs/google";
-import { GrokDark } from "@/components/ui/svgs/grokDark";
-import { Openai } from "@/components/ui/svgs/openai";
 
 interface ProviderConfig {
 	id: string;
@@ -28,30 +24,6 @@ const PROVIDERS: ProviderConfig[] = [
 			</div>
 		),
 		placeholder: "sk-or-v1-...",
-	},
-	{
-		id: "anthropic",
-		name: "Anthropic",
-		icon: <AnthropicBlack className="h-5 w-5 [&_*]:!fill-muted/60" />,
-		placeholder: "sk-ant-...",
-	},
-	{
-		id: "openai",
-		name: "OpenAI",
-		icon: <Openai className="h-5 w-5 [&_*]:!fill-muted/60" />,
-		placeholder: "sk-proj-...",
-	},
-	{
-		id: "google",
-		name: "Google",
-		icon: <Google className="h-5 w-5 [&_*]:!fill-muted/60" />,
-		placeholder: "AIza...",
-	},
-	{
-		id: "xai",
-		name: "xAI",
-		icon: <GrokDark className="h-5 w-5 [&_*]:!fill-muted/60" />,
-		placeholder: "xai-...",
 	},
 ];
 

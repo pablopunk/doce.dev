@@ -20,7 +20,7 @@ export function useProjectLifecycle(projectId: string) {
 		sendHeartbeat();
 
 		// Send heartbeat every X seconds
-		const heartbeatInterval = setInterval(sendHeartbeat, 5 * 1000);
+		const heartbeatInterval = setInterval(sendHeartbeat, 15 * 1000);
 
 		// Cleanup - stop sending heartbeats when component unmounts
 		return () => {

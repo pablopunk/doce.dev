@@ -18,6 +18,22 @@ export async function ensureProjectDirectory(
 	return projectPath;
 }
 
+export async function writeProjectFile(
+	projectId: string,
+	filePath: string,
+	content: string,
+): Promise<void> {
+	const projectPath = await ensureProjectDirectory(projectId);
+	const fullPath = path.join(projectPath, filePath);
+	const fileDir = path.dirname(fullPath);
+
+	// Ensure directory exists
+	await fs.mkdir(fileDir, { recursive: true });
+
+	// Write file
+	await fs.writeFile(fullPath, content, "utf-8");
+}
+
 export async function writeProjectFiles(
 	projectId: string,
 	files: Array<{ path: string; content: string }>,

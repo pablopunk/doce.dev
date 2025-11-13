@@ -35,7 +35,7 @@ export function CreateProjectPrompt() {
 	const [value, setValue] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [currentModel, setCurrentModel] = useState<string>(
-		"openai/gpt-4.1-mini",
+		"anthropic/claude-sonnet-4.5",
 	);
 	const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 	const [popoverOpen, setPopoverOpen] = useState(false);

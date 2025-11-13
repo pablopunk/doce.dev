@@ -34,7 +34,5 @@ export const PROJECT_CONSTANTS = {
 export const AI_CONSTANTS = {
 	PROVIDERS: {
 		OPENROUTER: "openrouter",
-		OPENAI: "openai",
-		ANTHROPIC: "anthropic",
 	},
 } as const;

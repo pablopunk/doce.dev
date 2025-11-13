@@ -12,7 +12,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { refreshCodePreview } from "@/components/code-preview";
+import {
+	refreshCodePreview,
+	setInitialGenerationInProgress,
+} from "@/components/code-preview";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -102,6 +105,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		model: string,
 	) => {
 		setIsLoading(true);
+		// Mark that initial generation is in progress
+		setInitialGenerationInProgress(projectId, true);
 
 		// Create new AbortController for this request
 		const abortController = new AbortController();
@@ -227,13 +232,19 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				}
 			}
 
-			// After streaming completes, refresh the code preview and reload messages with real IDs
+			// After streaming completes, mark initial generation as complete
+			setInitialGenerationInProgress(projectId, false);
+
+			// Refresh the code preview and reload messages with real IDs
 			refreshCodePreview();
 
 			// Reload messages from server to get proper database IDs
 			await reloadMessages();
 		} catch (error: any) {
 			console.error("Chat error:", error);
+
+			// Mark initial generation as complete even on error
+			setInitialGenerationInProgress(projectId, false);
 
 			// Check if the error was due to abort
 			if (error.name === "AbortError") {

@@ -2,7 +2,7 @@
 
 import { actions } from "astro:actions";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function SetupWizard() {
 	const [step, setStep] = useState(1);
@@ -25,11 +24,7 @@ export default function SetupWizard() {
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
 
-	const [aiProvider, setAiProvider] = useState<
-		"openai" | "anthropic" | "openrouter"
-	>("openai");
-	const [openaiKey, setOpenaiKey] = useState("");
-	const [anthropicKey, setAnthropicKey] = useState("");
+	const [aiProvider, setAiProvider] = useState<"openrouter">("openrouter");
 	const [openrouterKey, setOpenrouterKey] = useState("");
 
 	const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
@@ -47,6 +42,11 @@ export default function SetupWizard() {
 			const { error } = await actions.setup.createUser({ username, password });
 
 			if (error) {
+				// If setup is already completed, redirect to dashboard
+				if (error.message?.includes("already completed")) {
+					window.location.href = "/dashboard";
+					return;
+				}
 				throw new Error(error.message || "Failed to create user");
 			}
 
@@ -62,12 +62,7 @@ export default function SetupWizard() {
 		event.preventDefault();
 		setError("");
 
-		const apiKey =
-			aiProvider === "openai"
-				? openaiKey
-				: aiProvider === "anthropic"
-					? anthropicKey
-					: openrouterKey;
+		const apiKey = openrouterKey;
 
 		if (!apiKey) {
 			setError("Please enter an API key");
@@ -114,7 +109,7 @@ export default function SetupWizard() {
 	};
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+		<div className="flex min-h-screen items-center justify-center p-4">
 			<Card className="w-full max-w-2xl">
 				<CardHeader className="text-center">
 					<div className="mb-4 flex justify-center">
@@ -216,118 +211,44 @@ export default function SetupWizard() {
 							<div className="space-y-2">
 								<h3 className="text-lg font-semibold">Configure AI Provider</h3>
 								<p className="text-sm text-muted">
-									Choose your AI provider and enter your API key
+									Enter your OpenRouter API key to access 400+ AI models
 								</p>
 							</div>
 
-							<Tabs
-								value={aiProvider}
-								onValueChange={(value) =>
-									setAiProvider(value as "openai" | "anthropic" | "openrouter")
-								}
-							>
-								<TabsList className="grid w-full grid-cols-3">
-									<TabsTrigger value="openai">OpenAI</TabsTrigger>
-									<TabsTrigger value="anthropic">Anthropic</TabsTrigger>
-									<TabsTrigger value="openrouter">OpenRouter.ai</TabsTrigger>
-								</TabsList>
-
-								<TabsContent value="openai" className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="openaiKey">OpenAI API Key</Label>
-										<Input
-											id="openaiKey"
-											type="password"
-											value={openaiKey}
-											onChange={(event) => setOpenaiKey(event.target.value)}
-											placeholder="sk-..."
-											required
-										/>
-										<p className="text-xs text-muted">
-											Get your API key from{" "}
-											<a
-												href="https://platform.openai.com/api-keys"
-												target="_blank"
-												rel="noopener noreferrer"
-												className="underline"
-											>
-												platform.openai.com
-											</a>
-										</p>
-									</div>
-								</TabsContent>
-
-								<TabsContent value="anthropic" className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="anthropicKey">Anthropic API Key</Label>
-										<Input
-											id="anthropicKey"
-											type="password"
-											value={anthropicKey}
-											onChange={(event) => setAnthropicKey(event.target.value)}
-											placeholder="sk-ant-..."
-											required
-										/>
-										<p className="text-xs text-muted">
-											Get your API key from{" "}
-											<a
-												href="https://console.anthropic.com/"
-												target="_blank"
-												rel="noopener noreferrer"
-												className="underline"
-											>
-												console.anthropic.com
-											</a>
-										</p>
-									</div>
-								</TabsContent>
-
-								<TabsContent value="openrouter" className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="openrouterKey">OpenRouter API Key</Label>
-										<Input
-											id="openrouterKey"
-											type="password"
-											value={openrouterKey}
-											onChange={(event) => setOpenrouterKey(event.target.value)}
-											placeholder="or-sk-..."
-											required
-										/>
-										<p className="text-xs text-muted">
-											Get your API key from{" "}
-											<a
-												href="https://openrouter.ai/"
-												target="_blank"
-												rel="noopener noreferrer"
-												className="underline"
-											>
-												openrouter.ai
-											</a>
-										</p>
-									</div>
-								</TabsContent>
-							</Tabs>
-
-							<div className="flex gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => setStep(1)}
-									className="w-full"
-								>
-									Back
-								</Button>
-								<Button type="submit" className="w-full" disabled={loading}>
-									{loading ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Configuring...
-										</>
-									) : (
-										"Continue"
-									)}
-								</Button>
+							<div className="space-y-2">
+								<Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+								<Input
+									id="openrouterKey"
+									type="password"
+									value={openrouterKey}
+									onChange={(event) => setOpenrouterKey(event.target.value)}
+									placeholder="sk-or-v1-..."
+									required
+									autoFocus
+								/>
+								<p className="text-xs text-muted">
+									Get your API key from{" "}
+									<a
+										href="https://openrouter.ai/keys"
+										target="_blank"
+										rel="noopener noreferrer"
+										className="underline"
+									>
+										openrouter.ai/keys
+									</a>
+								</p>
 							</div>
+
+							<Button type="submit" className="w-full" disabled={loading}>
+								{loading ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Configuring...
+									</>
+								) : (
+									"Continue"
+								)}
+							</Button>
 						</form>
 					)}
 
