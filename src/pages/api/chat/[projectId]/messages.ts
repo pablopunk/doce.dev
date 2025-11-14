@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { getConversation, getMessages } from "@/lib/db";
-import { chatEvents } from "@/lib/chat-events";
+import { chatEvents } from "@/domain/conversations/lib/events";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("messages-api");
 
 /**
  * Server-Sent Events endpoint for real-time message updates
@@ -12,18 +15,16 @@ export const GET: APIRoute = async ({ params }) => {
 		return Response.json({ error: "Project id is required" }, { status: 400 });
 	}
 
-	console.log(`[SSE] Client connecting for project ${projectId}`);
+	logger.info(`Client connecting for project ${projectId}`);
 
 	// Get conversation
 	const conversation = await getConversation(projectId);
 	if (!conversation) {
-		console.log(`[SSE] No conversation found for project ${projectId}`);
+		logger.warn(`No conversation found for project ${projectId}`);
 		return Response.json({ error: "Conversation not found" }, { status: 404 });
 	}
 
-	console.log(
-		`[SSE] Found conversation ${conversation.id} for project ${projectId}`,
-	);
+	logger.info(`Found conversation ${conversation.id} for project ${projectId}`);
 
 	const encoder = new TextEncoder();
 	let keepaliveInterval: NodeJS.Timeout | null = null;
@@ -34,8 +35,8 @@ export const GET: APIRoute = async ({ params }) => {
 			const sendMessages = () => {
 				try {
 					const messages = getMessages(conversation.id);
-					console.log(
-						`[SSE] Sending ${messages.length} messages for project ${projectId}`,
+					logger.debug(
+						`Sending ${messages.length} messages for project ${projectId}`,
 					);
 					const data = JSON.stringify({
 						type: "messages",
@@ -49,22 +50,20 @@ export const GET: APIRoute = async ({ params }) => {
 					});
 					controller.enqueue(encoder.encode(`data: ${data}\n\n`));
 				} catch (error) {
-					console.error("[SSE] Error sending messages:", error);
+					logger.error("Error sending messages", error);
 				}
 			};
 
 			// Send initial state
-			console.log(`[SSE] Sending initial messages for project ${projectId}`);
+			logger.debug(`Sending initial messages for project ${projectId}`);
 			sendMessages();
 
 			// Listen for updates from the event emitter (NO POLLING!)
 			const updateHandler = () => {
-				console.log(
-					`[SSE] Event received for project ${projectId}, sending update`,
-				);
+				logger.debug(`Event received for project ${projectId}, sending update`);
 				sendMessages();
 			};
-			console.log(`[SSE] Registered event listener for project:${projectId}`);
+			logger.debug(`Registered event listener for project:${projectId}`);
 			chatEvents.on(`project:${projectId}`, updateHandler);
 
 			// Setup keepalive every 30s
@@ -81,7 +80,7 @@ export const GET: APIRoute = async ({ params }) => {
 
 			// Cleanup on client disconnect
 			return () => {
-				console.log(`[SSE] Client disconnected from project ${projectId}`);
+				logger.info(`Client disconnected from project ${projectId}`);
 				chatEvents.off(`project:${projectId}`, updateHandler);
 				if (keepaliveInterval) {
 					clearInterval(keepaliveInterval);

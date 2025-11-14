@@ -12,12 +12,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
-import { TerminalDock } from "@/components/terminal-dock";
+import { TerminalDock } from "@/domain/system/components/terminal-dock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIBlob from "@/components/ui/ai-blob";
-import { useProjectLifecycle } from "@/hooks/use-project-lifecycle";
+import { useProjectLifecycle } from "@/domain/projects/hooks/use-project-lifecycle";
 
 const projectFetcher = async (_key: string, id: string) => {
 	const { actions } = await import("astro:actions");

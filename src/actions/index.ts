@@ -1,17 +1,19 @@
-import { server as adminActions } from "./admin";
-import { server as chatActions } from "./chat";
-import { server as configActions } from "./config";
-import { server as deploymentActions } from "./deployments";
-import { server as projectActions } from "./projects";
-import { server as setupActions } from "./setup";
-import { server as statsActions } from "./stats";
+import { server as projectActions } from "@/domain/projects/actions/project-actions";
+import { server as llmActions } from "@/domain/llms/actions/llm-actions";
+import { server as conversationActions } from "@/domain/conversations/actions/conversation-actions";
+import { server as authActions } from "@/domain/auth/actions/auth-actions";
+import {
+	deployments as deploymentActions,
+	stats as statsActions,
+	admin as adminActions,
+} from "@/domain/system/actions/system-actions";
 
 export const server = {
 	admin: adminActions,
-	chat: chatActions,
-	config: configActions,
+	chat: conversationActions,
+	config: llmActions,
 	deployments: deploymentActions,
 	projects: projectActions,
-	setup: setupActions,
+	setup: authActions,
 	stats: statsActions,
 };

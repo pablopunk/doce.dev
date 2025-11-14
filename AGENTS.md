@@ -1,9 +1,9 @@
 # AGENTS.md — doce.dev
 
 ## Overview
-Self‑hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
+Self-hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
 
-**Stack**: Astro (Node adapter) • better‑sqlite3 (`./data/doceapp.db`) • `ai` SDK with OpenRouter • Docker
+**Stack**: Astro (Node adapter) • better-sqlite3 (`./data/doceapp.db`) • `ai` SDK with OpenRouter • Docker
 
 **Run**: `pnpm install && pnpm run dev` → http://localhost:4321
 
@@ -56,79 +56,106 @@ Self‑hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeSc
 
 **Theme Hook**: `src/hooks/use-theme.ts`
 
-## 🏗️ Architecture (Clean Architecture + DDD)
+## 🏗️ Architecture (MCA Pattern)
 
-**Flow**: Astro Action → Facade → Use Case → Domain Service → Repository → Infrastructure
+**Flow**: Component → Action → Model → DB Provider
 
-**Layers**: Actions (type-safe server functions) → Application (use cases, facades) → Domain (pure business logic) → Infrastructure (SQLite, Docker, FS, AI) → Shared (errors, types, config)
+**Pattern**: MCA (Model-Component-Actions) with provider abstraction for infrastructure.
 
 **Structure**:
 ```
-actions/                      → {domain}.ts (Astro Actions with Zod validation)
-domains/{domain}/domain/      → models/, repositories/ (interfaces), services/
-domains/{domain}/application/ → use-cases/
-infrastructure/               → database/sqlite/, container-orchestration/, file-system/, ai-providers/
-application/facades/          → Coordinates between use cases and actions
-shared/                       → kernel/, logging/, config/
+src/
+├── domain/{feature}/        # Business features (MCA pattern)
+│   ├── models/              # Business logic + DB interaction
+│   ├── actions/             # Server-side Astro actions
+│   ├── components/          # React UI components
+│   ├── hooks/               # Domain-specific React hooks (optional)
+│   └── lib/                 # Domain-specific utilities (optional)
+├── lib/                     # Infrastructure providers
+│   ├── db/                  # Database abstraction layer
+│   ├── logger/              # Logger abstraction layer
+│   ├── docker/              # Docker utilities
+│   └── file-system.ts       # File operations
+├── actions/
+│   └── index.ts             # Re-exports all domain actions
+├── components/
+│   ├── ui/                  # shadcn components (shared)
+│   └── [shared].tsx         # Global shared components
+├── hooks/                   # Global hooks (theme, mobile, toast)
+├── layouts/                 # Astro layouts
+└── pages/                   # Astro pages + API routes
 ```
+
+**Domains**:
+- `projects/` - Project CRUD, preview, deployment, file management
+- `llms/` - AI model configuration, API key management
+- `conversations/` - Chat history, messages
+- `auth/` - User management, setup wizard
+- `system/` - System stats, deployments, admin operations
 
 **Frontend**: `layouts/` (BaseLayout.astro) → `pages/` (.astro pages) → `components/` (.tsx React + ui/ shadcn)
 
-**API**: Astro Actions for all server operations. Streaming endpoints (`logs`, `chat`) use API routes.
+**API**: Astro Actions for all server operations. Streaming endpoints (`logs`, `chat`) use API routes in `pages/api/`.
 
 ## 💡 Adding a New Feature
 
-### Simple Features (No Domain Logic)
-For simple CRUD or form handling, create actions directly:
+### MCA Pattern (Recommended)
 
-**1. Action**: `actions/my-feature.ts` - Define with `defineAction()`, Zod validation
-**2. Page**: `pages/my-page.astro` - Use `BaseLayout`, import React component
-**3. Component**: `components/my-component.tsx` - Call actions with `import { actions } from "astro:actions"`
+For features with business logic, follow the MCA pattern:
 
-### Complex Features (Domain-Driven)
-For business logic, relationships, or complex rules:
-
-**1. Domain**: `domains/my-feature/domain/models/` - Aggregate root extending `AggregateRoot<Props>`
-**2. Repo Interface**: `domains/my-feature/domain/repositories/` - `IMyEntityRepository` interface
-**3. Use Case**: `domains/my-feature/application/use-cases/` - Orchestrates domain + repo
-**4. Repo Impl**: `infrastructure/database/sqlite/repositories/` - Implements interface with `getDatabase()`
-**5. Facade**: `application/facades/` - Coordinates use cases
-**6. Action**: `actions/my-feature.ts` - Calls facade methods
-**7. Page**: `pages/my-page.astro` - Use `BaseLayout`, import React component with `client:load`
-**8. Component**: `components/my-component.tsx` - React with `"use client"`, import `actions` from `astro:actions`
-
-### Example Action
-
+**1. Model**: Create `domain/my-feature/models/my-feature.ts`
 ```typescript
-// src/actions/my-feature.ts
+import * as db from "@/lib/db";
+
+export interface MyFeatureData {
+  id: string;
+  name: string;
+}
+
+export class MyFeature {
+  static async getAll(): Promise<MyFeatureData[]> {
+    // Call DB provider functions
+    return db.myFeature.getAll() as MyFeatureData[];
+  }
+  
+  static async create(name: string): Promise<MyFeatureData> {
+    return db.myFeature.create(name) as MyFeatureData;
+  }
+}
+```
+
+**2. Actions**: Create `domain/my-feature/actions/my-feature-actions.ts`
+```typescript
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
-import { myFeatureFacade } from "@/application/facades/my-feature-facade";
+import { MyFeature } from "@/domain/my-feature/models/my-feature";
 
 export const server = {
-  getItem: defineAction({
-    input: z.object({ id: z.string() }),
-    handler: async ({ id }) => {
-      const item = await myFeatureFacade.getItem(id);
-      if (!item) {
-        throw new ActionError({ code: "NOT_FOUND", message: "Item not found" });
-      }
+  getAll: defineAction({
+    handler: async () => {
+      const items = await MyFeature.getAll();
+      return items;
+    },
+  }),
+  
+  create: defineAction({
+    input: z.object({ name: z.string() }),
+    handler: async ({ name }) => {
+      const item = await MyFeature.create(name);
       return item;
     },
   }),
 };
 ```
 
-### Using Actions in Components
-
+**3. Component**: Create `domain/my-feature/components/my-feature-list.tsx`
 ```typescript
-// src/components/my-component.tsx
 "use client";
 import { actions } from "astro:actions";
 
-export function MyComponent() {
-  const handleClick = async () => {
-    const { data, error } = await actions.myFeature.getItem({ id: "123" });
+export function MyFeatureList() {
+  const handleCreate = async () => {
+    const { data, error } = await actions.myFeature.create({ name: "Test" });
     if (error) {
       console.error(error.code, error.message);
       return;
@@ -139,72 +166,119 @@ export function MyComponent() {
 }
 ```
 
+**4. Export**: Update `src/actions/index.ts`
+```typescript
+import { server as myFeatureActions } from "@/domain/my-feature/actions/my-feature-actions";
+
+export const server = {
+  // ... existing
+  myFeature: myFeatureActions,
+};
+```
+
+**5. Page**: Create `pages/my-feature.astro`
+```astro
+---
+import { MyFeatureList } from "@/domain/my-feature/components/my-feature-list";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="My Feature">
+  <MyFeatureList client:load />
+</BaseLayout>
+```
+
+### Domain Structure Details
+
+**models/** - Business logic and data access
+- Define interfaces/types
+- Create model classes with static methods
+- Call DB provider functions (`@/lib/db`)
+- Keep functions small (<20 lines)
+
+**actions/** - Server-side Astro actions
+- Define with `defineAction()` and Zod validation
+- Call model methods (NOT DB directly)
+- Use `ActionError` for errors
+- Export as `export const server = {...}`
+
+**components/** - React UI components
+- Use `"use client"` directive
+- Import `actions` from `astro:actions`
+- Use shadcn/ui components from `@/components/ui/`
+
+**hooks/** - Domain-specific React hooks (optional)
+- Custom hooks for domain state management
+- Example: `use-project-lifecycle.ts`
+
+**lib/** - Domain-specific utilities (optional)
+- Helper functions specific to the domain
+- Example: `projects/lib/code-generator.tsx`
+
 ## Rules
 
 **DO**:
-- Keep domain pure • Small functions (<20 lines) • Proper error types • Type-safe
+- Organize by domain (feature) • Small functions (<20 lines) • Type-safe
+- Models call DB provider • Actions call models • Components call actions
 - Use Astro Actions for server functions • Zod schemas for validation
-- Use BaseLayout • React components for UI • Astro islands with `client:load`
-- Import actions with `import { actions } from "astro:actions"`
+- Use BaseLayout • React components with `client:load` • Import `actions` from `astro:actions`
 
 **DON'T**:
-- Infrastructure in domain • Business logic in actions
-- Direct DB access from actions • `innerHTML` or string DOM manipulation
+- Direct DB access from actions • Business logic in actions
+- Skip the model layer • `innerHTML` or string DOM manipulation
 - Duplicate HTML • Full pages in `.astro` without layouts
 - Use `fetch()` for internal APIs (use Actions instead)
 - Create API routes for non-streaming endpoints (use Actions)
 
-## Data & Files
+## Data & Infrastructure
 
-**DB**:
-- Tables: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments`
-- Access: Repositories in `infrastructure/database/sqlite/repositories/` or `src/lib/db.ts`
-- Migrations: `src/lib/migrations.ts` - auto-run on first connection (NOT build time)
+**DB Provider** (`src/lib/db/`):
+- **Location**: `src/lib/db/providers/sqlite.ts`
+- **API**: `src/lib/db/index.ts` exports namespaced operations + legacy functions
+- **Tables**: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments`
+- **Access from models**: `import * as db from "@/lib/db"` then call `db.getProject()`, `db.saveFile()`, etc.
+- **Migrations**: `src/lib/migrations.ts` - auto-run on first connection
 
-**Config**: `ai_provider`, `{provider}_api_key`, `default_ai_model`, `setup_complete` (stored in DB)
+**Config**: `ai_provider`, `{provider}_api_key`, `default_ai_model`, `setup_complete` (stored in DB via `db.config` operations)
 
 **Files**: Mirrored in DB + filesystem • Use `writeProjectFiles`/`listProjectFiles` (`src/lib/file-system.ts`)
 
 **Docker**:
-- Preview: `doce-preview-{projectId}` on ports 10000-20000
+- **Preview**: `doce-preview-{projectId}` on ports 10000-20000
+- **Deployment**: `doce-deploy-{projectId}`
+- **Constants**: `src/lib/docker/constants.ts`
 - Docker is source of truth, DB `preview_url` is cache
 
 **AI Models**:
-- Config: `src/shared/config/ai-models.ts` (7 models)
-- Available: `DEFAULT_AI_MODEL`, `AVAILABLE_AI_MODELS`, `getModelById()`, `isValidModel()`
-- Icons: `src/components/ui/svgs/` (SVGL via shadcn)
+- **Location**: `src/domain/llms/models/ai-models.ts`
+- **Exports**: `DEFAULT_AI_MODEL`, `AVAILABLE_AI_MODELS`, `getModelById()`, `isValidModel()`
+- **Icons**: `src/components/ui/svgs/` (provider logos via SVGL)
+- **Config**: Managed by `LLMConfig` model in `domain/llms/models/llm-config.ts`
+
+**Logger Provider** (`src/lib/logger/`):
+- **Location**: `src/lib/logger/providers/pino.ts`
+- **API**: `src/lib/logger/index.ts`
+- **Usage**: `import { createLogger } from "@/lib/logger"` then `const logger = createLogger("namespace")`
 
 **Code Gen**:
-- Format: Fenced blocks with `file="path"` attribute
-- Parser: JSON first, then code block extraction
+- **Location**: `src/domain/projects/lib/code-generator.tsx`
+- **Format**: Fenced blocks with `file="path"` attribute
+- **Parser**: JSON first, then code block extraction
 - **CRITICAL**: Always generate `src/pages/index.astro` as complete page with full HTML
 - **Templates**: All projects include full shadcn/ui library in `src/components/ui/` - use these components
 
-## Debugging
-
-**DB**: `sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"`
-**Docker**: `docker ps --filter "name=doce-preview"` • `docker logs doce-preview-{id} --tail 50`
-**Actions**: `curl -X POST http://localhost:4321/_actions/projects.getProjects -H "Content-Type: application/json" -d '{}'`
-**API Routes**: Only for streaming - `logs.ts`, `chat/[projectId].ts`
-
-**Issues**:
-- Preview → check `preview_url`
-- Build → check imports
-- Types → domain only imports `@/shared/kernel/`
-- Actions → check `src/actions/index.ts` exports
-
 ## Actions Structure
 
-**Main Export**: `src/actions/index.ts` exports all action modules
+**Main Export**: `src/actions/index.ts` re-exports all domain actions
 
 **Current Actions**:
-- `actions.stats.*` - System statistics (1 action)
-- `actions.config.*` - API keys, AI model configuration (4 actions)
-- `actions.projects.*` - Project operations: CRUD, preview, deploy, env, files (15 actions)
-- `actions.setup.*` - Setup wizard: user creation, AI config, completion (4 actions)
-- `actions.admin.*` - Admin operations: cleanup (1 action)
-- `actions.deployments.*` - Deployment management (2 actions)
-- `actions.chat.*` - Chat history, message deletion (2 actions)
+- `actions.projects.*` - 15 actions (CRUD, preview, deploy, env, files, heartbeat)
+- `actions.config.*` - 4 actions (API keys, model selection) - from `llms` domain
+- `actions.chat.*` - 2 actions (history, delete message) - from `conversations` domain
+- `actions.setup.*` - 4 actions (user creation, AI config, completion) - from `auth` domain
+- `actions.deployments.*` - 2 actions (get, delete) - from `system` domain
+- `actions.stats.*` - 1 action (system stats) - from `system` domain
+- `actions.admin.*` - 1 action (cleanup) - from `system` domain
 
 **Why Actions?**
 - ✅ **Type-safe**: Full TypeScript from server to client
@@ -219,16 +293,58 @@ export function MyComponent() {
 
 Actions don't support streaming responses - use traditional API routes for SSE/streaming.
 
+## Debugging
+
+**DB**: `sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"`
+
+**Docker**: 
+- `docker ps --filter "name=doce-preview"` 
+- `docker logs doce-preview-{id} --tail 50`
+
+**Actions**: 
+```bash
+curl -X POST http://localhost:4321/_actions/projects.getProjects \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+**API Routes**: Only for streaming
+- Logs: `src/pages/api/projects/[id]/logs.ts`
+- Chat: `src/pages/api/chat/[projectId].ts`
+
+**Common Issues**:
+- **Preview not starting** → Check Docker logs, verify `preview_url` in DB
+- **Build fails** → Check import paths (`@/domain/...` not `@/domains/...`)
+- **Actions fail** → Check `src/actions/index.ts` exports all domain actions
+- **TypeScript errors** → Model types must match DB schema (snake_case)
+
 ## Guidelines
 
-- Use **pnpm** • Run `pnpm build` frequently
-- Schema → `src/lib/migrations.ts`
-- Test actions: `curl -X POST http://localhost:4321/_actions/{module}.{action} -d '{}'`
-- Docker first for preview debugging
-- New models → `src/shared/config/ai-models.ts`
-- Icons → `pnpm dlx shadcn@latest add @svgl/{icon-name}`
+**Development**:
+- Use **pnpm** for package management
+- Run `pnpm build` frequently to catch errors
+- Follow MCA pattern for all new features
+- Keep functions small (<20 lines) and focused
+
+**Database**:
+- Schema defined in `src/lib/db/providers/sqlite.ts`
+- Migrations in `src/lib/migrations.ts` (auto-run on first connection)
+- Access via model layer, not directly from actions
+
+**AI Models**:
+- Add new models to `src/domain/llms/models/ai-models.ts`
+- Icons: `pnpm dlx shadcn@latest add @svgl/{provider-name}`
+
+**Testing**:
+- Actions: `curl -X POST http://localhost:4321/_actions/{domain}.{action} -H "Content-Type: application/json" -d '{}'`
+- Docker: Always check Docker state first (source of truth)
+- Database: `sqlite3 ./data/doceapp.db` for direct queries
+
+**Best Practices**:
 - Use Actions, not fetch: `actions.projects.getProjects()` not `fetch('/api/projects')`
+- Components in domain folders, not global `components/`
+- Shared UI components in `components/ui/` only
+- Provider abstraction for infrastructure (DB, Logger, Docker)
 
 ---
 
-**Scope**: Architecture for entire repo. New features use Astro Actions + Clean Architecture.
+**Architecture**: MCA (Model-Component-Actions) pattern with provider abstraction. All new features follow domain organization.

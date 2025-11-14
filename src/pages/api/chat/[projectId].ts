@@ -4,7 +4,7 @@ import type { APIRoute } from "astro";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { z } from "zod";
-import { generateCode } from "@/lib/code-generator";
+import { generateCode } from "@/domain/projects/lib/code-generator";
 import {
 	createConversation,
 	getConfig,
@@ -19,8 +19,11 @@ import {
 	readProjectFile,
 	writeProjectFile,
 } from "@/lib/file-system";
-import { chatEvents } from "@/lib/chat-events";
-import { DEFAULT_AI_MODEL } from "@/shared/config/ai-models";
+import { chatEvents } from "@/domain/conversations/lib/events";
+import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("chat-api");
 
 const execAsync = promisify(exec);
 
@@ -89,7 +92,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 	// Track if client disconnects (stop button clicked)
 	let clientAborted = false;
 	request.signal.addEventListener("abort", () => {
-		console.log(`[Chat] Client aborted request for project ${projectId}`);
+		logger.info(`Client aborted request for project ${projectId}`);
 		clientAborted = true;
 	});
 
@@ -115,10 +118,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	if (!isDuplicate) {
 		saveMessage(conversation.id, "user", userMessage.content);
-		console.log("[Chat] Saved new user message");
+		logger.debug("Saved new user message");
 	} else {
-		console.log(
-			"[Chat] User message already exists (duplicate detected), skipping save",
+		logger.debug(
+			"User message already exists (duplicate detected), skipping save",
 		);
 	}
 
@@ -130,8 +133,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 			new Date(msg.created_at).getTime() < Date.now() - 30000, // Stuck for >30s
 	);
 	if (stuckStreamingMessage) {
-		console.log(
-			`[Chat] Found stuck streaming message ${stuckStreamingMessage.id}, marking as error`,
+		logger.warn(
+			`Found stuck streaming message ${stuckStreamingMessage.id}, marking as error`,
 		);
 		updateMessage(
 			stuckStreamingMessage.id,
@@ -152,7 +155,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 	} catch (error) {
 		// AGENTS.md doesn't exist yet, use default guidelines
-		console.log(`[Chat] No AGENTS.md found for project ${projectId}`);
+		logger.debug(`No AGENTS.md found for project ${projectId}`);
 	}
 
 	// AI SDK supports tool calling for most modern models
@@ -170,18 +173,18 @@ export const POST: APIRoute = async ({ params, request }) => {
 					),
 			}),
 			execute: async ({ filePath }) => {
-				console.log(`[Tool] readFile called with: ${filePath}`);
+				logger.debug(`readFile called with: ${filePath}`);
 				try {
 					const content = await readProjectFile(projectId, filePath);
 					if (!content) {
-						console.log(`[Tool] readFile: file not found`);
+						logger.debug(`readFile: file not found`);
 						return `Error: File not found: ${filePath}`;
 					}
-					console.log(`[Tool] readFile: success, ${content.length} chars`);
+					logger.debug(`readFile: success, ${content.length} chars`);
 					// Return the content directly with a header showing the file path
 					return `File: ${filePath}\n${"=".repeat(50)}\n${content}`;
 				} catch (error: any) {
-					console.log(`[Tool] readFile error: ${error.message}`);
+					logger.error(`readFile error`, error);
 					return `Error reading ${filePath}: ${error.message}`;
 				}
 			},
@@ -198,15 +201,15 @@ export const POST: APIRoute = async ({ params, request }) => {
 				content: z.string().describe("The complete file content to write"),
 			}),
 			execute: async ({ filePath, content }) => {
-				console.log(`[Tool] writeFile called: ${filePath}`);
+				logger.debug(`writeFile called: ${filePath}`);
 				try {
 					await writeProjectFile(projectId, filePath, content);
-					console.log(
-						`[Tool] writeFile: success, wrote ${content.length} chars to ${filePath}`,
+					logger.debug(
+						`writeFile: success, wrote ${content.length} chars to ${filePath}`,
 					);
 					return `Successfully wrote ${content.length} characters to ${filePath}`;
 				} catch (error: any) {
-					console.log(`[Tool] writeFile error: ${error.message}`);
+					logger.error(`writeFile error`, error);
 					return `Error writing ${filePath}: ${error.message}`;
 				}
 			},
@@ -216,10 +219,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 				"List files in the project directory. Returns a tree structure showing the project organization.",
 			inputSchema: z.object({}),
 			execute: async () => {
-				console.log(`[Tool] listFiles called for project ${projectId}`);
+				logger.debug(`listFiles called for project ${projectId}`);
 				try {
 					const allFiles = await listProjectFiles(projectId);
-					console.log(`[Tool] listFiles: found ${allFiles.length} files`);
+					logger.debug(`listFiles: found ${allFiles.length} files`);
 
 					// Group files by top-level directory and filter out massive node_modules-like directories
 					const filesByDir: Record<string, string[]> = {};
@@ -262,16 +265,15 @@ export const POST: APIRoute = async ({ params, request }) => {
 					}
 
 					const result = summary.join("\n");
-					console.log(
-						`[Tool] listFiles: returning summary of ${result.length} chars`,
+					logger.debug(
+						`listFiles: returning summary of ${result.length} chars`,
 					);
-					console.log(
-						`[Tool] listFiles: first 200 chars:`,
-						result.substring(0, 200),
+					logger.debug(
+						`listFiles: first 200 chars: ${result.substring(0, 200)}`,
 					);
 					return result;
 				} catch (error: any) {
-					console.log(`[Tool] listFiles error: ${error.message}`);
+					logger.error(`listFiles error`, error);
 					return `Error listing files: ${error.message}`;
 				}
 			},
@@ -287,13 +289,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 					),
 			}),
 			execute: async ({ command }) => {
-				console.log(`[Tool] runCommand called: ${command}`);
+				logger.debug(`runCommand called: ${command}`);
 				try {
 					const output = await execInContainer(projectId, command);
-					console.log(`[Tool] runCommand: success, ${output.length} chars`);
+					logger.debug(`runCommand: success, ${output.length} chars`);
 					return `Command: ${command}\n${"=".repeat(50)}\n${output}`;
 				} catch (error: any) {
-					console.log(`[Tool] runCommand error: ${error.message}`);
+					logger.error(`runCommand error`, error);
 					return `Error executing "${command}": ${error.message}`;
 				}
 			},
@@ -305,7 +307,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 				url: z.string().url().describe("URL to fetch"),
 			}),
 			execute: async ({ url }) => {
-				console.log(`[Tool] fetchUrl called: ${url}`);
+				logger.debug(`fetchUrl called: ${url}`);
 				try {
 					// Only allow https URLs and common documentation sites
 					if (!url.startsWith("https://")) {
@@ -326,21 +328,21 @@ export const POST: APIRoute = async ({ params, request }) => {
 					const truncated = text.slice(0, 50000);
 					const wasTruncated = text.length > 50000;
 
-					console.log(
-						`[Tool] fetchUrl: success, ${truncated.length} chars${wasTruncated ? " (truncated)" : ""}`,
+					logger.debug(
+						`fetchUrl: success, ${truncated.length} chars${wasTruncated ? " (truncated)" : ""}`,
 					);
 					return `URL: ${url}\n${"=".repeat(50)}\n${truncated}${wasTruncated ? "\n\n[Content truncated at 50,000 characters]" : ""}`;
 				} catch (error: any) {
-					console.log(`[Tool] fetchUrl error: ${error.message}`);
+					logger.error(`fetchUrl error`, error);
 					return `Error fetching ${url}: ${error.message}`;
 				}
 			},
 		}),
 	};
 
-	console.log(`[Chat] Model supports tools: ${modelSupportsTools}`);
-	console.log(`[Chat] Tools enabled: ${modelSupportsTools ? "YES" : "NO"}`);
-	console.log(`[Chat] Tool names:`, Object.keys(toolDefinitions));
+	logger.debug(`Model supports tools: ${modelSupportsTools}`);
+	logger.debug(`Tools enabled: ${modelSupportsTools ? "YES" : "NO"}`);
+	logger.debug(`Tool names: ${Object.keys(toolDefinitions).join(", ")}`);
 
 	// Create assistant message immediately for resilience - backend-first approach
 	let assistantMessageId: string | null = null;
@@ -372,9 +374,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 			updateMessage(assistantMessageId, text, status);
 			lastSavedText = text;
 			lastSaveTime = now;
-			console.log(
-				`[Chat] Saved to DB: ${text.length} chars, status: ${status}`,
-			);
+			logger.debug(`Saved to DB: ${text.length} chars, status: ${status}`);
 
 			// Emit event to notify SSE listeners (no polling!)
 			chatEvents.notifyMessageUpdate(projectId, conversation.id);
@@ -389,15 +389,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 		"streaming",
 	);
 	assistantMessageId = initialMsg.id;
-	console.log(
-		`[Chat] Created streaming assistant message: ${assistantMessageId}`,
-	);
+	logger.debug(`Created streaming assistant message: ${assistantMessageId}`);
 
-	console.log(
-		`[Chat] Starting AI stream with model ${conversation.model || DEFAULT_AI_MODEL}`,
+	logger.info(
+		`Starting AI stream with model ${conversation.model || DEFAULT_AI_MODEL}`,
 	);
-	console.log(
-		`[Chat] Message count: ${messages.length}, last message: "${messages[messages.length - 1]?.content?.substring(0, 50)}..."`,
+	logger.debug(
+		`Message count: ${messages.length}, last message: "${messages[messages.length - 1]?.content?.substring(0, 50)}..."`,
 	);
 
 	let result;
@@ -410,8 +408,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 				maxSteps: 10, // Explicit max steps
 			}),
 			onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {
-				console.log(
-					`[Chat] Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
+				logger.debug(
+					`Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
 				);
 
 				// Build full message content including tool calls (same format as frontend)
@@ -441,9 +439,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 				saveToDatabase(fullMessageContent, "streaming");
 
 				if (toolResults.length > 0) {
-					console.log(
-						`[Chat] Tool results (full):`,
-						JSON.stringify(toolResults, null, 2),
+					logger.debug(
+						`Tool results (full): ${JSON.stringify(toolResults, null, 2)}`,
 					);
 				}
 
@@ -453,11 +450,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 					text.trim().length === 0 &&
 					toolCalls.length > 0
 				) {
-					console.warn(
-						`[Chat] WARNING: Step ended with tool-calls but no text generated. This will result in empty response.`,
+					logger.warn(
+						`Step ended with tool-calls but no text generated. This will result in empty response.`,
 					);
-					console.warn(
-						`[Chat] Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`,
+					logger.warn(
+						`Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`,
 					);
 				}
 			},
@@ -488,17 +485,17 @@ AGENTS.md guidelines. These are the guidelines for the new project:
 ${agentGuidelines}`,
 			messages,
 			onFinish: async ({ text, finishReason }) => {
-				console.log(`[Chat] onFinish called for project ${projectId}`);
-				console.log(
-					`[Chat] Response length: ${text.length} chars, finish reason: ${finishReason}`,
+				logger.debug(`onFinish called for project ${projectId}`);
+				logger.debug(
+					`Response length: ${text.length} chars, finish reason: ${finishReason}`,
 				);
-				console.log(
-					`[Chat] Full message content length: ${fullMessageContent.length} chars`,
+				logger.debug(
+					`Full message content length: ${fullMessageContent.length} chars`,
 				);
 
 				// Check if client aborted
 				if (clientAborted) {
-					console.log(`[Chat] Client aborted, marking message as stopped`);
+					logger.info(`Client aborted, marking message as stopped`);
 					if (assistantMessageId && fullMessageContent.trim().length > 0) {
 						updateMessage(
 							assistantMessageId,
@@ -519,8 +516,8 @@ ${agentGuidelines}`,
 					if (assistantMessageId) {
 						// Mark message as complete in database with full content
 						updateMessage(assistantMessageId, finalContent, "complete");
-						console.log(
-							`[Chat] Marked message ${assistantMessageId} as complete with ${finalContent.length} chars`,
+						logger.debug(
+							`Marked message ${assistantMessageId} as complete with ${finalContent.length} chars`,
 						);
 
 						// Emit final update
@@ -528,30 +525,28 @@ ${agentGuidelines}`,
 					} else {
 						// Fallback: create message if somehow it wasn't created yet
 						saveMessage(conversation.id, "assistant", finalContent, "complete");
-						console.log(`[Chat] Created message in onFinish (fallback)`);
+						logger.debug(`Created message in onFinish (fallback)`);
 
 						// Emit final update
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					}
 
 					try {
-						console.log(`[Chat] Attempting to generate code from response...`);
+						logger.debug(`Attempting to generate code from response...`);
 						// Still use 'text' for code generation (without tool metadata)
 						const generation = await generateCode(projectId, text);
 						if (generation) {
-							console.log(
-								`[Chat] Generated ${generation.files?.length || 0} files for project ${projectId}`,
+							logger.debug(
+								`Generated ${generation.files?.length || 0} files for project ${projectId}`,
 							);
 						} else {
-							console.log(`[Chat] No code blocks found in response`);
+							logger.debug(`No code blocks found in response`);
 						}
 					} catch (error) {
-						console.error("[Chat] Failed to generate code:", error);
+						logger.error("Failed to generate code", error);
 					}
 				} else {
-					console.warn(
-						`[Chat] WARNING: Empty response from model, marking as error`,
-					);
+					logger.warn(`Empty response from model, marking as error`);
 					if (assistantMessageId) {
 						updateMessage(
 							assistantMessageId,
@@ -566,9 +561,9 @@ ${agentGuidelines}`,
 			},
 		});
 
-		console.log(`[Chat] streamText created successfully, returning response`);
+		logger.info(`streamText created successfully, returning response`);
 	} catch (error) {
-		console.error(`[Chat] FATAL ERROR creating streamText:`, error);
+		logger.error(`FATAL ERROR creating streamText`, error);
 		if (assistantMessageId) {
 			updateMessage(assistantMessageId, `Error: ${error}`, "error");
 			chatEvents.notifyMessageUpdate(projectId, conversation.id);

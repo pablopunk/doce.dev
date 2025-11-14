@@ -3,8 +3,8 @@
 ## To Do
 
 - [x] template: different docker-compose for dev and prod (commands and ports should differ)
-- [ ] Add agent-controlled "Tasks" section to chat interface
 - [ ] Agent tool: cli commands
+- [ ] Agent tool: todo list
 - [ ] Agent tool: web requests
 - [ ] Agent tool: logs (access to docker logs + container logs, just like the web terminal)
 - [ ] Deployments. `astro build` + `astro preview`
@@ -28,4 +28,4 @@
 - [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
 - [ ] Multiple design systems: I think having several tailwind configs / css files would be enough here. Default to one, let user choose.
 - [ ] Set up DB abstraction. Refactor the whole project to use a DB abstraction that then can be swapped out whenever needed. Especially useful when deploying in docker (could be deployed with a mysql DB for performance on large projects).
-- [ ] Add a logger library. This should be able to log different levels to console or files (or both)
+- [x] Add a logger library. This should be able to log different levels to console or files (or both)

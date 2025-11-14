@@ -1,6 +1,9 @@
 import type { APIRoute } from "astro";
 import { streamContainerLogs } from "@/lib/docker";
 import { getProject } from "@/lib/db";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("logs-api");
 
 export const GET: APIRoute = async ({ params, request }) => {
 	const projectId = params.id;
@@ -15,7 +18,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		// Get the log stream from Docker
 		const logStream = await streamContainerLogs(projectId);
 
-		console.log(`Starting log stream for project ${projectId}`);
+		logger.info(`Starting log stream for project ${projectId}`);
 
 		// Create WebSocket connection
 		// Note: In production with Node adapter, we need to handle WebSocket differently
@@ -124,7 +127,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 							);
 						}
 					} catch (error) {
-						console.error("Error parsing log chunk:", error);
+						logger.error("Error parsing log chunk", error);
 						// Fallback: send raw text on error
 						try {
 							const text = chunk.toString("utf-8");
@@ -145,7 +148,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				});
 
 				logStream.on("error", (error: Error) => {
-					console.error("Log stream error:", error);
+					logger.error("Log stream error", error);
 					if (keepaliveInterval) {
 						clearInterval(keepaliveInterval);
 					}
@@ -170,7 +173,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			},
 		});
 	} catch (error) {
-		console.error("Failed to stream logs:", error);
+		logger.error("Failed to stream logs", error);
 		return new Response("Failed to stream logs", { status: 500 });
 	}
 };
