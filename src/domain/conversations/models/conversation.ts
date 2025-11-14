@@ -11,7 +11,7 @@ import type {
 import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
 
 // Domain types - always import from here, never from @/lib/db
-export type ConversationData = ConversationInDatabase;
+export type ConversationModel = ConversationInDatabase;
 export type Message = MessageInDatabase;
 
 export interface ChatHistory {
@@ -27,21 +27,21 @@ export class Conversation {
 	/**
 	 * Get conversation for a project
 	 */
-	static getByProjectId(projectId: string): ConversationData | null {
+	static getByProjectId(projectId: string): ConversationModel | null {
 		return db.conversations.getByProjectId(projectId) ?? null;
 	}
 
 	/**
 	 * Get conversation by ID
 	 */
-	static getById(conversationId: string): ConversationData | null {
+	static getById(conversationId: string): ConversationModel | null {
 		return db.conversations.getById(conversationId) ?? null;
 	}
 
 	/**
 	 * Create a new conversation for a project
 	 */
-	static create(projectId: string, model?: string): ConversationData {
+	static create(projectId: string, model?: string): ConversationModel {
 		const id = crypto.randomUUID();
 		const conversation = db.conversations.create({
 			id,
@@ -55,7 +55,7 @@ export class Conversation {
 	/**
 	 * Update conversation model
 	 */
-	static updateModel(conversationId: string, model: string): ConversationData {
+	static updateModel(conversationId: string, model: string): ConversationModel {
 		const updated = db.conversations.update(conversationId, { model });
 		if (!updated) throw new Error(`Conversation ${conversationId} not found`);
 		return updated;

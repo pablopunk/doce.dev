@@ -4,23 +4,26 @@
  */
 
 import * as db from "@/lib/db";
-import type {
-	ProjectInDatabase,
-	FileInDatabase,
-} from "@/lib/db/providers/drizzle/schema";
+import type { ProjectInDatabase } from "@/lib/db/providers/drizzle/schema";
 import { filterIgnoredFiles } from "../lib/file-filters";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
 
-// Domain types - always import from here, never from @/lib/db
-export type ProjectData = ProjectInDatabase;
-export type FileData = FileInDatabase;
-export type NewProjectData = {
+export type ProjectModel = ProjectInDatabase;
+export type FileData = {
+	id: string;
+	projectId: string;
+	filePath: string;
+	content: string;
+	createdAt: string | null;
+	updatedAt: string | null;
+};
+export type NewProjectModel = {
 	id: string;
 	name: string;
 	description?: string | null;
 };
 
-export interface ProjectWithFiles extends ProjectData {
+export interface ProjectWithFiles extends ProjectModel {
 	files: FileData[];
 }
 
@@ -32,14 +35,14 @@ export class Project {
 	/**
 	 * Get all projects
 	 */
-	static async getAll(): Promise<ProjectData[]> {
+	static async getAll(): Promise<ProjectModel[]> {
 		return db.projects.getAll();
 	}
 
 	/**
 	 * Get a project by ID
 	 */
-	static async getById(id: string): Promise<ProjectData | null> {
+	static async getById(id: string): Promise<ProjectModel | null> {
 		const project = db.projects.getById(id);
 		return project ?? null;
 	}
@@ -80,7 +83,7 @@ export class Project {
 	static async create(
 		name: string,
 		description?: string,
-	): Promise<ProjectData> {
+	): Promise<ProjectModel> {
 		const id = crypto.randomUUID();
 		const project = db.projects.create({ id, name, description });
 		if (!project) throw new Error("Failed to create project");
@@ -100,7 +103,7 @@ export class Project {
 	static async updatePreview(
 		id: string,
 		previewUrl: string | null,
-	): Promise<ProjectData> {
+	): Promise<ProjectModel> {
 		const updated = db.projects.update(id, {
 			previewUrl,
 			status: previewUrl ? "preview" : "draft",
@@ -115,7 +118,7 @@ export class Project {
 	static async updateDeployment(
 		id: string,
 		deployedUrl: string,
-	): Promise<ProjectData> {
+	): Promise<ProjectModel> {
 		const updated = db.projects.update(id, {
 			deployedUrl,
 			status: "deployed",
@@ -129,8 +132,8 @@ export class Project {
 	 */
 	static async update(
 		id: string,
-		data: Partial<Pick<ProjectData, "name" | "description" | "status">>,
-	): Promise<ProjectData> {
+		data: Partial<Pick<ProjectModel, "name" | "description" | "status">>,
+	): Promise<ProjectModel> {
 		const updated = db.projects.update(id, data);
 		if (!updated) throw new Error(`Project ${id} not found`);
 		return updated;
@@ -141,8 +144,8 @@ export class Project {
 	 */
 	static async updateFields(
 		id: string,
-		fields: Partial<ProjectData>,
-	): Promise<ProjectData> {
+		fields: Partial<ProjectModel>,
+	): Promise<ProjectModel> {
 		const updated = db.projects.update(id, fields);
 		if (!updated) throw new Error(`Project ${id} not found`);
 		return updated;

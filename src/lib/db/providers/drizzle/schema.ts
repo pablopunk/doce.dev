@@ -86,13 +86,3 @@ export type NewProjectInDatabase = typeof projects.$inferInsert;
 export type NewConversationInDatabase = typeof conversations.$inferInsert;
 export type NewMessageInDatabase = typeof messages.$inferInsert;
 export type NewDeploymentInDatabase = typeof deployments.$inferInsert;
-
-// FileInDatabase type kept for backward compatibility (files now stored on filesystem only)
-export type FileInDatabase = {
-	id: string;
-	projectId: string;
-	filePath: string;
-	content: string;
-	createdAt: string | null;
-	updatedAt: string | null;
-};

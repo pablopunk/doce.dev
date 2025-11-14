@@ -8,7 +8,7 @@ import type { UserInDatabase } from "@/lib/db/providers/drizzle/schema";
 import bcrypt from "bcryptjs";
 
 // Domain types - always import from here, never from @/lib/db
-export type UserData = UserInDatabase;
+export type UserModel = UserInDatabase;
 
 export interface SetupStatus {
 	setupComplete: boolean;
@@ -22,7 +22,7 @@ export class User {
 	/**
 	 * Create a new user
 	 */
-	static async create(username: string, password: string): Promise<UserData> {
+	static async create(username: string, password: string): Promise<UserModel> {
 		const passwordHash = await bcrypt.hash(password, 10);
 		const user = db.users.create(username, passwordHash);
 		if (!user) throw new Error("Failed to create user");
@@ -32,7 +32,7 @@ export class User {
 	/**
 	 * Get user by username
 	 */
-	static getByUsername(username: string): UserData | null {
+	static getByUsername(username: string): UserModel | null {
 		const user = db.users.getByUsername(username);
 		return user ?? null;
 	}

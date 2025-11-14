@@ -18,7 +18,7 @@ const docker = new Docker({
 	socketPath: process.env.DOCKER_HOST || "/var/run/docker.sock",
 });
 
-export type DeploymentData = DeploymentInDatabase;
+export type DeploymentModel = DeploymentInDatabase;
 
 export interface SystemStats {
 	totalProjects: number;
@@ -34,7 +34,7 @@ export class Deployment {
 	/**
 	 * Get deployment by ID
 	 */
-	static async getById(id: string): Promise<DeploymentData | null> {
+	static async getById(id: string): Promise<DeploymentModel | null> {
 		const deployment = db.deployments.getById(id);
 		if (!deployment) return null;
 
@@ -65,7 +65,7 @@ export class Deployment {
 	/**
 	 * Get deployments for a project
 	 */
-	static getByProjectId(projectId: string): DeploymentData[] {
+	static getByProjectId(projectId: string): DeploymentModel[] {
 		return db.deployments.getByProjectId(projectId);
 	}
 }

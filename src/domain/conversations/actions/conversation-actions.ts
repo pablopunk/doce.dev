@@ -2,7 +2,7 @@ import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
 import {
 	Conversation,
-	type ConversationData,
+	type ConversationModel,
 } from "@/domain/conversations/models/conversation";
 
 export const server = {
