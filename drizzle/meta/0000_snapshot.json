@@ -59,7 +59,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'openai/gpt-4o-mini'"
+          "default": "'anthropic/claude-4.5-sonnet'"
         },
         "created_at": {
           "name": "created_at",

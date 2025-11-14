@@ -42,7 +42,7 @@ export const conversations = sqliteTable("conversations", {
 	projectId: text("project_id")
 		.notNull()
 		.references(() => projects.id, { onDelete: "cascade" }),
-	model: text("model").default("openai/gpt-4o-mini"),
+	model: text("model").default("anthropic/claude-4.5-sonnet"),
 	createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 	updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });

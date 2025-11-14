@@ -7,7 +7,7 @@ CREATE TABLE `config` (
 CREATE TABLE `conversations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
-	`model` text DEFAULT 'openai/gpt-4o-mini',
+	`model` text DEFAULT 'anthropic/claude-4.5-sonnet',
 	`created_at` text DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
