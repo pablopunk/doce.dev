@@ -10,6 +10,7 @@ import {
 	isValidModel,
 	type AIModel,
 } from "@/domain/llms/models/ai-models";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 export type AIProvider = "openrouter";
 
@@ -114,5 +115,36 @@ export class LLMConfig {
 				process.env.ANTHROPIC_API_KEY ||
 				process.env.OPENROUTER_API_KEY,
 		);
+	}
+
+	/**
+	 * Get the current AI model ID (just the string identifier)
+	 * Alias for getCurrentModel() for clarity
+	 */
+	static getAIModelId(): string {
+		return LLMConfig.getCurrentModel();
+	}
+
+	/**
+	 * Get configured AI model instance ready for use with ai SDK
+	 * Returns a model object that can be passed directly to generateText, streamText, etc.
+	 * Throws error if provider is not configured
+	 */
+	static getAIModel() {
+		const config = LLMConfig.getConfig();
+
+		if (!config.apiKey) {
+			throw new Error(
+				`No ${config.provider} API key configured. Please complete setup at /setup`,
+			);
+		}
+
+		// Currently only OpenRouter is supported
+		if (config.provider === "openrouter") {
+			const openrouter = createOpenRouter({ apiKey: config.apiKey });
+			return openrouter(config.currentModel);
+		}
+
+		throw new Error(`Unsupported AI provider: ${config.provider}`);
 	}
 }

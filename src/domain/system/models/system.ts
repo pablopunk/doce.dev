@@ -32,6 +32,25 @@ export interface SystemStats {
  */
 export class Deployment {
 	/**
+	 * Create a new deployment
+	 */
+	static create(
+		projectId: string,
+		containerId: string,
+		url: string,
+	): DeploymentModel {
+		const id = crypto.randomUUID();
+		const deployment = db.deployments.create({
+			id,
+			projectId,
+			containerId,
+			url,
+		});
+		if (!deployment) throw new Error("Failed to create deployment");
+		return deployment;
+	}
+
+	/**
 	 * Get deployment by ID
 	 */
 	static async getById(id: string): Promise<DeploymentModel | null> {

@@ -1,15 +1,10 @@
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Project } from "@/domain/projects/models/project";
-import {
-	generateCode,
-	generateDefaultProjectStructure,
-} from "@/domain/projects/lib/code-generator";
-import * as db from "@/lib/db";
+import { generateDefaultProjectStructure } from "@/domain/projects/lib/code-generator";
 import {
 	createPreviewContainer,
 	createDeploymentContainer,
@@ -26,7 +21,9 @@ import {
 	writeProjectFiles,
 } from "@/lib/file-system";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
-import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
+import { Conversation } from "@/domain/conversations/models/conversation";
+import { Deployment } from "@/domain/system/models/system";
 
 // Helper functions
 function getTemplateAgentsContent(): string {
@@ -37,25 +34,6 @@ function getTemplateAgentsContent(): string {
 		console.error("Failed to read AGENTS.md:", error);
 		throw new Error("Template AGENTS.md file not found");
 	}
-}
-
-function getAIModelId() {
-	return db.config.get("default_ai_model")?.value || DEFAULT_AI_MODEL;
-}
-
-function getAIModel() {
-	const provider = db.config.get("ai_provider")?.value || "openrouter";
-	const apiKey = db.config.get(`${provider}_api_key`)?.value;
-	const defaultModel = getAIModelId();
-
-	if (!apiKey) {
-		throw new Error(
-			`No OpenRouter API key configured. Please complete setup at /setup`,
-		);
-	}
-
-	const openrouter = createOpenRouter({ apiKey });
-	return openrouter(defaultModel);
 }
 
 function parseEnvFile(content: string): Record<string, string> {
@@ -124,7 +102,7 @@ export const server = {
 			// If a prompt is provided, generate project name with AI first
 			if (prompt && !name) {
 				try {
-					const model = getAIModel();
+					const model = LLMConfig.getAIModel();
 
 					const nameResult = await generateText({
 						model,
@@ -164,20 +142,12 @@ export const server = {
 					console.log(`Full template copied: ${templateFiles.length} files`);
 
 					// Create conversation and save initial user prompt
-					const aiModelId = getAIModelId();
-					const conversation = db.conversations.create({
-						id: crypto.randomUUID(),
-						projectId: projectResult.id,
-						model: aiModelId,
-					});
-					if (conversation) {
-						db.messages.create({
-							id: crypto.randomUUID(),
-							conversationId: conversation.id,
-							role: "user",
-							content: prompt,
-						});
-					}
+					const aiModelId = LLMConfig.getAIModelId();
+					Conversation.createWithInitialMessage(
+						projectResult.id,
+						prompt,
+						aiModelId,
+					);
 
 					console.log(
 						`Project ${projectResult.id} created with initial prompt. Generation will start when user visits project page.`,
@@ -529,12 +499,7 @@ export const server = {
 
 				const { containerId, url, deploymentId } =
 					await createDeploymentContainer(id);
-				const deployment = db.deployments.create({
-					id: crypto.randomUUID(),
-					projectId: id,
-					containerId,
-					url,
-				});
+				const deployment = Deployment.create(id, containerId, url);
 
 				await Project.updateFields(id, {
 					deployedUrl: url,
@@ -569,7 +534,7 @@ export const server = {
 		}),
 		handler: async ({ id }) => {
 			try {
-				const deployments = db.deployments.getByProjectId(id);
+				const deployments = Deployment.getByProjectId(id);
 				return { deployments };
 			} catch (error) {
 				console.error("Failed to get deployments:", error);

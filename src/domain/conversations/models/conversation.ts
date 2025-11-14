@@ -53,6 +53,20 @@ export class Conversation {
 	}
 
 	/**
+	 * Create a new conversation with an initial user message
+	 * Used for project creation with prompt
+	 */
+	static createWithInitialMessage(
+		projectId: string,
+		initialPrompt: string,
+		model?: string,
+	): ConversationModel {
+		const conversation = Conversation.create(projectId, model);
+		Conversation.saveMessage(conversation.id, "user", initialPrompt);
+		return conversation;
+	}
+
+	/**
 	 * Update conversation model
 	 */
 	static updateModel(conversationId: string, model: string): ConversationModel {

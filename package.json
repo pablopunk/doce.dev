@@ -15,7 +15,7 @@
 		"db:studio": "drizzle-kit studio",
 		"predeploy": "pnpm db:generate",
 		"deploy": "pnpm db:migrate && pnpm build && pnpm preview",
-    "check-types": "tsc --noEmit"
+    "type-check": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "latest",
