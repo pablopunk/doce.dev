@@ -1,6 +1,6 @@
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
-import { User, Setup } from "@/domain/auth/models/user";
+import { User, Setup, type UserData } from "@/domain/auth/models/user";
 
 export const server = {
 	/**
@@ -71,7 +71,7 @@ export const server = {
 					});
 				}
 
-				const user = await User.create(username, password);
+				const user: UserData = await User.create(username, password);
 				console.log(`[Setup] User created successfully: ${user.id}`);
 
 				return { success: true, userId: user.id };

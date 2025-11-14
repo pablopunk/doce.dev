@@ -4,14 +4,11 @@
  */
 
 import * as db from "@/lib/db";
+import type { UserInDatabase } from "@/lib/db/providers/drizzle/schema";
 import bcrypt from "bcryptjs";
 
-export interface UserData {
-	id: string;
-	username: string;
-	password_hash: string;
-	created_at: string;
-}
+// Domain types - always import from here, never from @/lib/db
+export type UserData = UserInDatabase;
 
 export interface SetupStatus {
 	setupComplete: boolean;
@@ -27,16 +24,17 @@ export class User {
 	 */
 	static async create(username: string, password: string): Promise<UserData> {
 		const passwordHash = await bcrypt.hash(password, 10);
-		const user = db.createUser(username, passwordHash);
-		return user as UserData;
+		const user = db.users.create(username, passwordHash);
+		if (!user) throw new Error("Failed to create user");
+		return user;
 	}
 
 	/**
 	 * Get user by username
 	 */
 	static getByUsername(username: string): UserData | null {
-		const user = db.getUserByUsername(username);
-		return user as UserData | null;
+		const user = db.users.getByUsername(username);
+		return user ?? null;
 	}
 
 	/**
@@ -49,7 +47,7 @@ export class User {
 		const user = User.getByUsername(username);
 		if (!user) return false;
 
-		return bcrypt.compare(password, user.password_hash);
+		return bcrypt.compare(password, user.passwordHash);
 	}
 }
 
@@ -60,9 +58,32 @@ export class User {
 export class Setup {
 	/**
 	 * Check if setup is complete
+	 * Business logic: requires at least one user AND an AI provider configured
 	 */
 	static isComplete(): boolean {
-		return db.isSetupComplete();
+		// Check if setup_complete flag is set
+		const configValue = db.config.get("setup_complete");
+		if (configValue?.value === "true") return true;
+
+		// Check if we have at least one user
+		const userCount = db.users.count();
+		const hasUser = userCount > 0;
+
+		// Check if AI provider is configured
+		const hasEnvKey = Boolean(
+			process.env.OPENAI_API_KEY ||
+				process.env.ANTHROPIC_API_KEY ||
+				process.env.OPENROUTER_API_KEY,
+		);
+
+		const providerConfig = db.config.get("ai_provider");
+		const provider = providerConfig?.value;
+		const hasConfigKey = provider
+			? Boolean(db.config.get(`${provider}_api_key`)?.value)
+			: false;
+		const hasAI = hasEnvKey || (!!provider && hasConfigKey);
+
+		return hasUser && !!hasAI;
 	}
 
 	/**
@@ -78,7 +99,7 @@ export class Setup {
 	 * Mark setup as complete
 	 */
 	static complete(): void {
-		db.setConfig("setup_complete", "true");
+		db.config.set("setup_complete", "true");
 	}
 
 	/**
@@ -89,7 +110,7 @@ export class Setup {
 			throw new Error("Setup already completed");
 		}
 
-		db.setConfig("ai_provider", provider);
-		db.setConfig(`${provider}_api_key`, apiKey);
+		db.config.set("ai_provider", provider);
+		db.config.set(`${provider}_api_key`, apiKey);
 	}
 }

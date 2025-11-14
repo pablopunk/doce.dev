@@ -3,14 +3,14 @@ import "../../styles/global.css";
 import { ChatInterface } from "@/domain/conversations/components/chat-interface";
 import { CodePreview } from "@/components/code-preview";
 import BaseLayout from "@/layouts/BaseLayout.astro";
-import { getProject } from "@/lib/db";
+import * as db from "@/lib/db";
 
 const { id } = Astro.params;
 if (!id) {
 	return Astro.redirect("/dashboard");
 }
 
-const project = getProject(id);
+const project = db.projects.getById(id);
 
 if (!project) {
 	return Astro.redirect("/dashboard");

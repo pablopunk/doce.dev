@@ -1,6 +1,6 @@
 # Node modules
 node_modules/
-data/
+/data/
 
 # Logs
 logs
@@ -33,10 +33,6 @@ build/
 # Docker containers and images
 **/docker-compose.yml
 **/Dockerfile
-
-# SQLite database
-/data/*.db
-/data/*.db-journal
 
 # Generated project files
 /projects/

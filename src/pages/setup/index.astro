@@ -1,10 +1,10 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import SetupWizard from "@/domain/auth/components/setup-wizard";
-import { isSetupComplete } from "@/lib/db";
+import { Setup } from "@/domain/auth/models/user";
 
 // Redirect to dashboard if setup is already complete
-if (isSetupComplete()) {
+if (Setup.isComplete()) {
 	return Astro.redirect("/dashboard");
 }
 ---

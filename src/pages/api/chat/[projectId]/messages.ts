@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { getConversation, getMessages } from "@/lib/db";
+import * as db from "@/lib/db";
 import { chatEvents } from "@/domain/conversations/lib/events";
 import { createLogger } from "@/lib/logger";
 
@@ -15,16 +15,16 @@ export const GET: APIRoute = async ({ params }) => {
 		return Response.json({ error: "Project id is required" }, { status: 400 });
 	}
 
-	logger.info(`Client connecting for project ${projectId}`);
+	logger.info(`Client connecting for project \${projectId}`);
 
 	// Get conversation
-	const conversation = await getConversation(projectId);
+	const conversation = db.conversations.getByProjectId(projectId);
 	if (!conversation) {
-		logger.warn(`No conversation found for project ${projectId}`);
+		logger.warn(`No conversation found for project \${projectId}`);
 		return Response.json({ error: "Conversation not found" }, { status: 404 });
 	}
 
-	logger.info(`Found conversation ${conversation.id} for project ${projectId}`);
+	logger.info(`Found conversation \${conversation.id} for project \${projectId}`);
 
 	const encoder = new TextEncoder();
 	let keepaliveInterval: NodeJS.Timeout | null = null;
@@ -34,9 +34,9 @@ export const GET: APIRoute = async ({ params }) => {
 			// Send initial messages immediately
 			const sendMessages = () => {
 				try {
-					const messages = getMessages(conversation.id);
+					const messages = db.messages.getByConversationId(conversation.id);
 					logger.debug(
-						`Sending ${messages.length} messages for project ${projectId}`,
+						`Sending \${messages.length} messages for project \${projectId}`,
 					);
 					const data = JSON.stringify({
 						type: "messages",
@@ -48,28 +48,32 @@ export const GET: APIRoute = async ({ params }) => {
 							created_at: msg.created_at,
 						})),
 					});
-					controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+					controller.enqueue(encoder.encode(`data: \${data}\
+\
+`));
 				} catch (error) {
-					logger.error("Error sending messages", error);
+					logger.error("Error sending messages", error as Error);
 				}
 			};
 
 			// Send initial state
-			logger.debug(`Sending initial messages for project ${projectId}`);
+			logger.debug(`Sending initial messages for project \${projectId}`);
 			sendMessages();
 
 			// Listen for updates from the event emitter (NO POLLING!)
 			const updateHandler = () => {
-				logger.debug(`Event received for project ${projectId}, sending update`);
+				logger.debug(`Event received for project \${projectId}, sending update`);
 				sendMessages();
 			};
-			logger.debug(`Registered event listener for project:${projectId}`);
-			chatEvents.on(`project:${projectId}`, updateHandler);
+			logger.debug(`Registered event listener for project:\${projectId}`);
+			chatEvents.on(`project:\${projectId}`, updateHandler);
 
 			// Setup keepalive every 30s
 			keepaliveInterval = setInterval(() => {
 				try {
-					controller.enqueue(encoder.encode(": keepalive\n\n"));
+					controller.enqueue(encoder.encode(": keepalive\
+\
+"));
 				} catch (error) {
 					// Stream closed
 					if (keepaliveInterval) {
@@ -80,8 +84,8 @@ export const GET: APIRoute = async ({ params }) => {
 
 			// Cleanup on client disconnect
 			return () => {
-				logger.info(`Client disconnected from project ${projectId}`);
-				chatEvents.off(`project:${projectId}`, updateHandler);
+				logger.info(`Client disconnected from project \${projectId}`);
+				chatEvents.off(`project:\${projectId}`, updateHandler);
 				if (keepaliveInterval) {
 					clearInterval(keepaliveInterval);
 				}

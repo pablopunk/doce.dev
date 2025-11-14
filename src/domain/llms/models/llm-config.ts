@@ -32,8 +32,8 @@ export class LLMConfig {
 		const keys: Record<string, boolean> = {};
 
 		for (const provider of providers) {
-			const key = db.getConfig(`${provider}_api_key`);
-			keys[provider] = Boolean(key);
+			const configItem = db.config.get(`${provider}_api_key`);
+			keys[provider] = Boolean(configItem?.value);
 		}
 
 		return keys as Record<AIProvider, boolean>;
@@ -44,14 +44,15 @@ export class LLMConfig {
 	 */
 	static setApiKey(provider: AIProvider, apiKey: string): void {
 		const trimmedKey = apiKey?.trim() || "";
-		db.setConfig(`${provider}_api_key`, trimmedKey);
+		db.config.set(`${provider}_api_key`, trimmedKey);
 	}
 
 	/**
 	 * Get the current AI model configuration
 	 */
 	static getCurrentModel(): string {
-		return db.getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+		const configItem = db.config.get("default_ai_model");
+		return configItem?.value || DEFAULT_AI_MODEL;
 	}
 
 	/**
@@ -68,22 +69,22 @@ export class LLMConfig {
 		if (!isValidModel(modelId)) {
 			throw new Error(`Invalid model ID: ${modelId}`);
 		}
-		db.setConfig("default_ai_model", modelId);
+		db.config.set("default_ai_model", modelId);
 	}
 
 	/**
 	 * Get current AI provider
 	 */
 	static getCurrentProvider(): AIProvider | null {
-		const provider = db.getConfig("ai_provider");
-		return provider as AIProvider | null;
+		const configItem = db.config.get("ai_provider");
+		return (configItem?.value as AIProvider) || null;
 	}
 
 	/**
 	 * Set current AI provider
 	 */
 	static setProvider(provider: AIProvider): void {
-		db.setConfig("ai_provider", provider);
+		db.config.set("ai_provider", provider);
 	}
 
 	/**
@@ -91,7 +92,8 @@ export class LLMConfig {
 	 */
 	static getConfig(): AIConfig {
 		const provider = LLMConfig.getCurrentProvider() || "openrouter";
-		const apiKey = db.getConfig(`${provider}_api_key`) || null;
+		const apiKeyConfig = db.config.get(`${provider}_api_key`);
+		const apiKey = apiKeyConfig?.value || null;
 		const currentModel = LLMConfig.getCurrentModel();
 
 		return {

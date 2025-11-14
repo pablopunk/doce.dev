@@ -4,27 +4,21 @@
  */
 
 import * as db from "@/lib/db";
+import type {
+	ProjectInDatabase,
+	FileInDatabase,
+} from "@/lib/db/providers/drizzle/schema";
+import { filterIgnoredFiles } from "../lib/file-filters";
+import { listProjectFiles, readProjectFile } from "@/lib/file-system";
 
-export interface ProjectData {
+// Domain types - always import from here, never from @/lib/db
+export type ProjectData = ProjectInDatabase;
+export type FileData = FileInDatabase;
+export type NewProjectData = {
 	id: string;
 	name: string;
-	description?: string;
-	created_at: string;
-	updated_at: string;
-	user_id?: string;
-	status: "draft" | "preview" | "deployed" | "building" | "error";
-	preview_url?: string | null;
-	deployed_url?: string | null;
-}
-
-export interface FileData {
-	id: string;
-	project_id: string;
-	file_path: string;
-	content: string;
-	created_at: string;
-	updated_at: string;
-}
+	description?: string | null;
+};
 
 export interface ProjectWithFiles extends ProjectData {
 	files: FileData[];
@@ -39,25 +33,44 @@ export class Project {
 	 * Get all projects
 	 */
 	static async getAll(): Promise<ProjectData[]> {
-		return db.getProjects() as ProjectData[];
+		return db.projects.getAll();
 	}
 
 	/**
 	 * Get a project by ID
 	 */
 	static async getById(id: string): Promise<ProjectData | null> {
-		const project = db.getProject(id);
-		return project ? (project as ProjectData) : null;
+		const project = db.projects.getById(id);
+		return project ?? null;
 	}
 
 	/**
 	 * Get a project with its files
+	 * Reads files from filesystem (single source of truth)
+	 * Applies file filtering (excludes node_modules, build dirs, etc.)
 	 */
 	static async getWithFiles(id: string): Promise<ProjectWithFiles | null> {
 		const project = await Project.getById(id);
 		if (!project) return null;
 
-		const files = db.getFiles(id) as FileData[];
+		// Read files from filesystem (not DB) - filesystem is source of truth
+		const filePaths = await listProjectFiles(id);
+		const filesWithContent = await Promise.all(
+			filePaths.map(async (path) => {
+				const content = await readProjectFile(id, path);
+				// Create FileData-compatible objects from filesystem
+				return {
+					id: path, // Use path as ID
+					projectId: id,
+					filePath: path,
+					content: content || "",
+					createdAt: null,
+					updatedAt: null,
+				} as FileData;
+			}),
+		);
+
+		const files = filterIgnoredFiles(filesWithContent);
 		return { ...project, files };
 	}
 
@@ -68,15 +81,17 @@ export class Project {
 		name: string,
 		description?: string,
 	): Promise<ProjectData> {
-		const project = db.createProject(name, description);
-		return project as ProjectData;
+		const id = crypto.randomUUID();
+		const project = db.projects.create({ id, name, description });
+		if (!project) throw new Error("Failed to create project");
+		return project;
 	}
 
 	/**
 	 * Delete a project
 	 */
 	static async delete(id: string): Promise<void> {
-		db.deleteProject(id);
+		db.projects.delete(id);
 	}
 
 	/**
@@ -86,13 +101,12 @@ export class Project {
 		id: string,
 		previewUrl: string | null,
 	): Promise<ProjectData> {
-		const updates: any = {
-			preview_url: previewUrl,
+		const updated = db.projects.update(id, {
+			previewUrl,
 			status: previewUrl ? "preview" : "draft",
-		};
-
-		const updated = db.updateProject(id, updates);
-		return updated as ProjectData;
+		});
+		if (!updated) throw new Error(`Project ${id} not found`);
+		return updated;
 	}
 
 	/**
@@ -102,13 +116,12 @@ export class Project {
 		id: string,
 		deployedUrl: string,
 	): Promise<ProjectData> {
-		const updates: any = {
-			deployed_url: deployedUrl,
+		const updated = db.projects.update(id, {
+			deployedUrl,
 			status: "deployed",
-		};
-
-		const updated = db.updateProject(id, updates);
-		return updated as ProjectData;
+		});
+		if (!updated) throw new Error(`Project ${id} not found`);
+		return updated;
 	}
 
 	/**
@@ -118,8 +131,9 @@ export class Project {
 		id: string,
 		data: Partial<Pick<ProjectData, "name" | "description" | "status">>,
 	): Promise<ProjectData> {
-		const updated = db.updateProject(id, data);
-		return updated as ProjectData;
+		const updated = db.projects.update(id, data);
+		if (!updated) throw new Error(`Project ${id} not found`);
+		return updated;
 	}
 
 	/**
@@ -129,7 +143,31 @@ export class Project {
 		id: string,
 		fields: Partial<ProjectData>,
 	): Promise<ProjectData> {
-		const updated = db.updateProject(id, fields);
-		return updated as ProjectData;
+		const updated = db.projects.update(id, fields);
+		if (!updated) throw new Error(`Project ${id} not found`);
+		return updated;
+	}
+
+	/**
+	 * Append a log line to project build logs
+	 * Business logic for managing build logs
+	 */
+	static async appendBuildLog(id: string, logLine: string): Promise<void> {
+		const project = db.projects.getById(id);
+		if (!project) {
+			throw new Error(`Project ${id} not found`);
+		}
+
+		const currentLogs = project.buildLogs || "";
+		const newLogs = currentLogs + logLine;
+
+		db.projects.update(id, { buildLogs: newLogs });
+	}
+
+	/**
+	 * Clear build logs for a project
+	 */
+	static async clearBuildLogs(id: string): Promise<void> {
+		db.projects.update(id, { buildLogs: null });
 	}
 }

@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { actions } from "astro:actions";
 import {
 	refreshCodePreview,
 	setInitialGenerationInProgress,
@@ -279,13 +280,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		async function loadHistory() {
 			try {
 				console.log(`[ChatInterface] Loading history for project ${projectId}`);
-				const { actions } = await import("astro:actions");
+
 				const { data, error } = await actions.chat.getHistory({ projectId });
 				if (!error && data) {
 					console.log(
 						`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`,
 					);
-					setMessages(data.messages || []);
+					setMessages((data.messages || []) as any);
 					if (data.model) {
 						setSelectedModel(data.model);
 					}
@@ -329,7 +330,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setDeletingMessageId(messageId);
 
 		try {
-			const { actions } = await import("astro:actions");
 			const { error } = await actions.chat.deleteMessage({
 				projectId,
 				messageId,
@@ -357,10 +357,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 	const reloadMessages = async () => {
 		try {
-			const { actions } = await import("astro:actions");
 			const { data, error } = await actions.chat.getHistory({ projectId });
 			if (!error && data) {
-				setMessages(data.messages || []);
+				setMessages((data.messages || []) as any);
 			}
 		} catch (error) {
 			console.error("Failed to reload messages:", error);

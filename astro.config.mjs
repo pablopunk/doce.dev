@@ -30,7 +30,7 @@ export default defineConfig({
 		server: {
 			watch: {
 				// Exclude data directory containing generated projects to avoid "too many open files" error
-				ignored: ["**/data/**", "**/node_modules/**", "**/.git/**"],
+        ignored: ["**/data/**", "**/node_modules/**", "**/.git/**", "/AGENTS.md"],
 			},
 		},
 	},

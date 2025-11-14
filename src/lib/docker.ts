@@ -1,9 +1,16 @@
 import Docker from "dockerode";
 import { nanoid } from "nanoid";
 import path from "path";
+import { promises as fs } from "fs";
+import { spawn, exec } from "child_process";
+import { promisify } from "util";
+import { Project } from "@/domain/projects/models/project";
+import env from "./env";
+
+const execAsync = promisify(exec);
 
 const docker = new Docker({
-	socketPath: process.env.DOCKER_HOST || "/var/run/docker.sock",
+	socketPath: env.dockerHost,
 });
 
 export interface ContainerConfig {
@@ -21,11 +28,8 @@ export async function createPreviewContainer(
 	const subdomain = `preview-${projectId.slice(0, 8)}`;
 
 	try {
-		// Import DB functions for logging
-		const { clearBuildLogs, appendBuildLog } = await import("@/lib/db");
-
 		// Clear previous build logs
-		clearBuildLogs(projectId);
+		await Project.clearBuildLogs(projectId);
 
 		// Check if container already exists and is running
 		const existingContainer = await getContainerByName(containerName);
@@ -33,7 +37,10 @@ export async function createPreviewContainer(
 			const info = await existingContainer.inspect();
 			if (info.State.Running) {
 				console.log(`Preview container already running for ${projectId}`);
-				appendBuildLog(projectId, `✓ Preview container already running\n`);
+				await Project.appendBuildLog(
+					projectId,
+					`✓ Preview container already running\n`,
+				);
 				const existingPort = parseInt(
 					info.HostConfig.PortBindings["3000/tcp"]?.[0]?.HostPort ||
 						port.toString(),
@@ -44,22 +51,26 @@ export async function createPreviewContainer(
 					port: existingPort,
 				};
 			}
-			appendBuildLog(projectId, `⟳ Removing existing stopped container\n`);
+			await Project.appendBuildLog(
+				projectId,
+				`⟳ Removing existing stopped container\n`,
+			);
 			await existingContainer.remove({ force: true });
 		}
 
-		const DATA_DIR = path.dirname(
-			process.env.DATABASE_PATH || "./data/doceapp.db",
-		);
-		const projectPath = path.resolve(
-			path.join(DATA_DIR, "projects", projectId),
-		);
+		const projectPath = path.resolve(path.join(env.projectsDir, projectId));
 
 		console.log(
 			`Starting preview via docker-compose for ${projectId} at ${projectPath}`,
 		);
-		appendBuildLog(projectId, `⟳ Starting preview container...\n`);
-		appendBuildLog(projectId, `📂 Project path: ${projectPath}\n`);
+		await Project.appendBuildLog(
+			projectId,
+			`⟳ Starting preview container...\n`,
+		);
+		await Project.appendBuildLog(
+			projectId,
+			`📂 Project path: ${projectPath}\n`,
+		);
 
 		// Generate docker-compose override for this specific instance with port and labels
 		const composeOverride = `services:
@@ -79,18 +90,21 @@ export async function createPreviewContainer(
       doce.container.type: "preview"
 `;
 
-		const fs = await import("fs/promises");
 		await fs.writeFile(
 			path.join(projectPath, "docker-compose.override.yml"),
 			composeOverride,
 		);
-		appendBuildLog(projectId, `✓ Generated docker-compose override\n`);
+		await Project.appendBuildLog(
+			projectId,
+			`✓ Generated docker-compose override\n`,
+		);
 
 		// Use docker-compose via command line (more reliable than docker SDK for compose)
-		const { spawn } = await import("child_process");
-
 		// Start containers with docker-compose (use dev config for preview)
-		appendBuildLog(projectId, `⟳ Running docker-compose up...\n\n`);
+		await Project.appendBuildLog(
+			projectId,
+			`⟳ Running docker-compose up...\n\n`,
+		);
 
 		const composeProcess = spawn(
 			"docker-compose",
@@ -109,26 +123,26 @@ export async function createPreviewContainer(
 		composeProcess.stdout.on("data", (data) => {
 			const log = data.toString();
 			console.log(log);
-			appendBuildLog(projectId, log);
+			Project.appendBuildLog(projectId, log); // Fire and forget - logging shouldn't block
 		});
 
 		composeProcess.stderr.on("data", (data) => {
 			const log = data.toString();
 			console.error(log);
-			appendBuildLog(projectId, log);
+			Project.appendBuildLog(projectId, log); // Fire and forget - logging shouldn't block
 		});
 
 		// Wait for the process to complete
 		await new Promise<void>((resolve, reject) => {
 			composeProcess.on("close", (code) => {
 				if (code === 0) {
-					appendBuildLog(
+					Project.appendBuildLog(
 						projectId,
 						`\n✓ docker-compose up completed successfully\n`,
 					);
 					resolve();
 				} else {
-					appendBuildLog(
+					Project.appendBuildLog(
 						projectId,
 						`\n✗ docker-compose up failed with exit code ${code}\n`,
 					);
@@ -138,7 +152,10 @@ export async function createPreviewContainer(
 		});
 
 		console.log(`Preview started for ${projectId}, waiting for container...`);
-		appendBuildLog(projectId, `⟳ Waiting for container to be ready...\n`);
+		await Project.appendBuildLog(
+			projectId,
+			`⟳ Waiting for container to be ready...\n`,
+		);
 
 		// Wait for the container to appear and be running
 		let attempts = 0;
@@ -149,9 +166,8 @@ export async function createPreviewContainer(
 				const info = await container.inspect();
 				if (info.State.Running) {
 					console.log(`Preview container is running for ${projectId}`);
-					const { appendBuildLog } = await import("@/lib/db");
-					appendBuildLog(projectId, `✓ Container is running\n`);
-					appendBuildLog(
+					await Project.appendBuildLog(projectId, `✓ Container is running\n`);
+					await Project.appendBuildLog(
 						projectId,
 						`🚀 Preview available at http://localhost:${port}\n`,
 					);
@@ -163,8 +179,10 @@ export async function createPreviewContainer(
 		}
 
 		if (!container) {
-			const { appendBuildLog } = await import("@/lib/db");
-			appendBuildLog(projectId, `✗ Container failed to start within timeout\n`);
+			await Project.appendBuildLog(
+				projectId,
+				`✗ Container failed to start within timeout\n`,
+			);
 			throw new Error("Container failed to start within timeout");
 		}
 
@@ -174,8 +192,7 @@ export async function createPreviewContainer(
 		return { containerId: container.id, url, port };
 	} catch (error) {
 		console.error("Failed to create preview container:", error);
-		const { appendBuildLog } = await import("@/lib/db");
-		appendBuildLog(
+		await Project.appendBuildLog(
 			projectId,
 			`\n✗ ERROR: ${error instanceof Error ? error.message : String(error)}\n`,
 		);
@@ -266,7 +283,6 @@ EXPOSE 3000
 CMD ["http-server", "dist", "-p", "3000", "--cors"]
 `;
 
-	const fs = await import("fs/promises");
 	await fs.writeFile(`${projectPath}/Dockerfile`, dockerfile);
 
 	const stream = await docker.buildImage(
@@ -333,16 +349,9 @@ export async function removeContainer(containerId: string): Promise<void> {
 }
 
 export async function stopPreviewForProject(projectId: string): Promise<void> {
-	const DATA_DIR = path.dirname(
-		process.env.DATABASE_PATH || "./data/doceapp.db",
-	);
-	const projectPath = path.resolve(path.join(DATA_DIR, "projects", projectId));
+	const projectPath = path.resolve(path.join(env.projectsDir, projectId));
 
 	try {
-		const { exec } = await import("child_process");
-		const { promisify } = await import("util");
-		const execAsync = promisify(exec);
-
 		await execAsync(`docker-compose -f docker-compose.dev.yml down`, {
 			cwd: projectPath,
 		});
@@ -440,15 +449,9 @@ async function getPortFromComposeOverride(
 	projectId: string,
 ): Promise<number | null> {
 	try {
-		const DATA_DIR = path.dirname(
-			process.env.DATABASE_PATH || "./data/doceapp.db",
-		);
-		const projectPath = path.resolve(
-			path.join(DATA_DIR, "projects", projectId),
-		);
+		const projectPath = path.resolve(path.join(env.projectsDir, projectId));
 		const overridePath = path.join(projectPath, "docker-compose.override.yml");
 
-		const fs = await import("fs/promises");
 		const content = await fs.readFile(overridePath, "utf-8");
 
 		// Parse port mapping like "12345:3000"
@@ -505,10 +508,6 @@ export async function cleanupOldContainers(
  */
 export async function pruneDockerNetworks(): Promise<void> {
 	try {
-		const { exec } = await import("child_process");
-		const { promisify } = await import("util");
-		const execAsync = promisify(exec);
-
 		const { stdout } = await execAsync("docker network prune -f");
 		console.log("Pruned unused Docker networks:", stdout.trim());
 	} catch (error) {

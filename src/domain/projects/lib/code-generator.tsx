@@ -1,15 +1,9 @@
-import { saveFile } from "@/lib/db";
 import { writeProjectFiles } from "@/lib/file-system";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
 
 interface GeneratedFile {
 	path: string;
 	content: string;
-}
-
-interface CodeGenerationResult {
-	explanation?: string;
-	files: GeneratedFile[];
 }
 
 export async function generateCode(projectId: string, aiResponse: string) {
@@ -62,14 +56,7 @@ export async function generateCode(projectId: string, aiResponse: string) {
 }
 
 async function processFiles(projectId: string, files: GeneratedFile[]) {
-	// Save to database
-	for (const file of files) {
-		if (file.path && file.content) {
-			await saveFile(projectId, file.path, file.content);
-		}
-	}
-
-	// Write to file system for building
+	// Write to filesystem only (single source of truth)
 	await writeProjectFiles(projectId, files);
 }
 

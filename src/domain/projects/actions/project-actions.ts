@@ -9,15 +9,7 @@ import {
 	generateCode,
 	generateDefaultProjectStructure,
 } from "@/domain/projects/lib/code-generator";
-import {
-	createConversation,
-	createDeployment,
-	getConfig,
-	getDeployments,
-	getFiles,
-	saveFile,
-	saveMessage,
-} from "@/lib/db";
+import * as db from "@/lib/db";
 import {
 	createPreviewContainer,
 	createDeploymentContainer,
@@ -48,12 +40,12 @@ function getTemplateAgentsContent(): string {
 }
 
 function getAIModelId() {
-	return getConfig("default_ai_model") || DEFAULT_AI_MODEL;
+	return db.config.get("default_ai_model")?.value || DEFAULT_AI_MODEL;
 }
 
 function getAIModel() {
-	const provider = getConfig("ai_provider") || "openrouter";
-	const apiKey = getConfig(`${provider}_api_key`);
+	const provider = db.config.get("ai_provider")?.value || "openrouter";
+	const apiKey = db.config.get(`${provider}_api_key`)?.value;
 	const defaultModel = getAIModelId();
 
 	if (!apiKey) {
@@ -167,20 +159,25 @@ export const server = {
 					console.log(`Copying full template for project ${projectResult.id}`);
 					const templateFiles = await copyTemplateToProject("astro");
 
-					// Write all template files - AI will modify as needed
+					// Write all template files - AI will modify as needed (filesystem only)
 					await writeProjectFiles(projectResult.id, templateFiles);
-					for (const file of templateFiles) {
-						await saveFile(projectResult.id, file.path, file.content);
-					}
 					console.log(`Full template copied: ${templateFiles.length} files`);
 
 					// Create conversation and save initial user prompt
 					const aiModelId = getAIModelId();
-					const conversation = await createConversation(
-						projectResult.id,
-						aiModelId,
-					);
-					await saveMessage(conversation.id, "user", prompt);
+					const conversation = db.conversations.create({
+						id: crypto.randomUUID(),
+						projectId: projectResult.id,
+						model: aiModelId,
+					});
+					if (conversation) {
+						db.messages.create({
+							id: crypto.randomUUID(),
+							conversationId: conversation.id,
+							role: "user",
+							content: prompt,
+						});
+					}
 
 					console.log(
 						`Project ${projectResult.id} created with initial prompt. Generation will start when user visits project page.`,
@@ -246,10 +243,8 @@ export const server = {
 			id: z.string(),
 		}),
 		handler: async ({ id }) => {
-			const database = await getFiles(id);
 			const filesystem = await listProjectFiles(id);
-
-			return { database, filesystem };
+			return { files: filesystem };
 		},
 	}),
 
@@ -261,11 +256,8 @@ export const server = {
 		handler: async ({ id }) => {
 			try {
 				const files = await generateDefaultProjectStructure();
+				// Write to filesystem only (single source of truth)
 				await writeProjectFiles(id, files);
-
-				for (const file of files) {
-					await saveFile(id, file.path, file.content);
-				}
 
 				return { success: true, filesCreated: files.length };
 			} catch (error) {
@@ -301,7 +293,7 @@ export const server = {
 					);
 
 					await Project.updateFields(id, {
-						preview_url: existingState.url,
+						previewUrl: existingState.url,
 						status: "preview",
 					});
 
@@ -318,7 +310,7 @@ export const server = {
 				const { containerId, url, port } = await createPreviewContainer(id);
 
 				await Project.updateFields(id, {
-					preview_url: url,
+					previewUrl: url,
 					status: "preview",
 				});
 
@@ -359,12 +351,12 @@ export const server = {
 
 				if (dockerState) {
 					// Sync DB if out of sync
-					if (project.preview_url !== dockerState.url) {
+					if (project.previewUrl !== dockerState.url) {
 						console.log(
-							`Syncing DB for ${id}: ${project.preview_url} -> ${dockerState.url}`,
+							`Syncing DB for ${id}: ${project.previewUrl} -> ${dockerState.url}`,
 						);
 						await Project.updateFields(id, {
-							preview_url: dockerState.url,
+							previewUrl: dockerState.url,
 							status: "preview",
 						});
 					}
@@ -377,10 +369,10 @@ export const server = {
 				}
 
 				// No container running - clear stale DB data
-				if (project.preview_url) {
+				if (project.previewUrl) {
 					console.log(`Clearing stale preview URL for ${id}`);
 					await Project.updateFields(id, {
-						preview_url: null,
+						previewUrl: null,
 						status: "draft",
 					});
 				}
@@ -406,7 +398,7 @@ export const server = {
 				await stopPreviewForProject(id);
 
 				await Project.updateFields(id, {
-					preview_url: null,
+					previewUrl: null,
 					status: "draft",
 				});
 
@@ -448,7 +440,7 @@ export const server = {
 				const { containerId, url, port } = await createPreviewContainer(id);
 
 				await Project.updateFields(id, {
-					preview_url: url,
+					previewUrl: url,
 					status: "preview",
 				});
 
@@ -490,7 +482,7 @@ export const server = {
 						await stopPreviewForProject(id);
 
 						await Project.updateFields(id, {
-							preview_url: null,
+							previewUrl: null,
 							status: "draft",
 						});
 
@@ -537,21 +529,28 @@ export const server = {
 
 				const { containerId, url, deploymentId } =
 					await createDeploymentContainer(id);
-				const deployment = await createDeployment(id, containerId, url);
+				const deployment = db.deployments.create({
+					id: crypto.randomUUID(),
+					projectId: id,
+					containerId,
+					url,
+				});
 
 				await Project.updateFields(id, {
-					deployed_url: url,
+					deployedUrl: url,
 					status: "deployed",
 				});
 
 				return {
 					success: true,
-					deployment: {
-						id: deployment.id,
-						containerId,
-						url,
-						deploymentId,
-					},
+					deployment: deployment
+						? {
+								id: deployment.id,
+								containerId,
+								url,
+								deploymentId,
+							}
+						: null,
 				};
 			} catch (error) {
 				console.error("Failed to deploy:", error);
@@ -570,7 +569,7 @@ export const server = {
 		}),
 		handler: async ({ id }) => {
 			try {
-				const deployments = await getDeployments(id);
+				const deployments = db.deployments.getByProjectId(id);
 				return { deployments };
 			} catch (error) {
 				console.error("Failed to get deployments:", error);

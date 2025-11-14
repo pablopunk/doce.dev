@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
+import { actions } from "astro:actions";
 import { TerminalDock } from "@/domain/system/components/terminal-dock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +21,12 @@ import AIBlob from "@/components/ui/ai-blob";
 import { useProjectLifecycle } from "@/domain/projects/hooks/use-project-lifecycle";
 
 const projectFetcher = async (_key: string, id: string) => {
-	const { actions } = await import("astro:actions");
 	const { data, error } = await actions.projects.getProject({ id });
 	if (error) throw error;
 	return data;
 };
 
 const envFetcher = async (_key: string, id: string) => {
-	const { actions } = await import("astro:actions");
 	const { data, error } = await actions.projects.getEnv({ id });
 	if (error) throw error;
 	return data;
@@ -131,7 +130,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const handleCreatePreview = useCallback(async () => {
 		setIsCreatingPreview(true);
 		try {
-			const { actions } = await import("astro:actions");
 			await actions.projects.createPreview({ id: projectId });
 			mutate();
 		} catch (error) {
@@ -148,7 +146,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 			// Check if preview is actually running (not just DB state)
 			try {
-				const { actions } = await import("astro:actions");
 				const { data, error } = await actions.projects.getPreviewStatus({
 					id: projectId,
 				});
@@ -182,7 +179,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 	// Reset loading state when preview URL changes and poll for readiness
 	useEffect(() => {
-		if (project?.preview_url) {
+		if (project?.previewUrl) {
 			setIsIframeLoading(true);
 			setIframeError(false);
 			setPreviewReady(false);
@@ -194,14 +191,14 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				attempts++;
 				try {
 					// Try to actually fetch the URL to see if it responds
-					const response = await fetch(project.preview_url as string, {
+					const response = await fetch(project.previewUrl as string, {
 						method: "GET",
 						cache: "no-cache",
 					});
 
 					// If we get any response (even 404), the server is up
 					if (response) {
-						console.log(`Preview server ready at ${project.preview_url}`);
+						console.log(`Preview server ready at ${project.previewUrl}`);
 						setPreviewReady(true);
 						setIsIframeLoading(false);
 						clearInterval(pollInterval);
@@ -224,10 +221,9 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		} else {
 			setPreviewReady(false);
 		}
-	}, [project?.preview_url]);
+	}, [project?.previewUrl]);
 
 	const handleDeploy = async () => {
-		const { actions } = await import("astro:actions");
 		await actions.projects.deployProject({ id: projectId });
 		mutate();
 	};
@@ -237,7 +233,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		setPreviewReady(false);
 		setIsIframeLoading(true);
 		try {
-			const { actions } = await import("astro:actions");
 			await actions.projects.restartPreview({ id: projectId });
 			setIframeKey((prev) => prev + 1);
 			await mutate();
@@ -252,13 +247,12 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const handleSaveEnv = async () => {
 		setIsSavingEnv(true);
 		try {
-			const { actions } = await import("astro:actions");
 			await actions.projects.setEnv({
 				id: projectId,
 				env: envVars,
 			});
 			// Restart preview to pick up new env vars
-			if (project?.preview_url) {
+			if (project?.previewUrl) {
 				await handleCreatePreview();
 			}
 		} catch (error) {
@@ -330,13 +324,13 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			>
 				{activeTab === "preview" && (
 					<div className="h-full min-h-full bg-bg relative">
-						{project?.preview_url ? (
+						{project?.previewUrl ? (
 							<>
 								{/* Show iframe only if preview is ready AND first generation is complete */}
 								{previewReady && isFirstGenerationComplete && (
 									<iframe
-										key={`${project.preview_url}-${iframeKey}`}
-										src={project.preview_url}
+										key={`${project.previewUrl}-${iframeKey}`}
+										src={project.previewUrl}
 										className="w-full h-full border-0"
 										title="Preview"
 										sandbox="allow-same-origin allow-scripts allow-forms"
@@ -533,7 +527,7 @@ const apiKey = import.meta.env.PUBLIC_YOUR_API_KEY
 			<TerminalDock
 				key={iframeKey}
 				projectId={projectId}
-				isPreviewRunning={!!project?.preview_url}
+				isPreviewRunning={!!project?.previewUrl}
 				isExpanded={isTerminalExpanded}
 				onToggle={() => setIsTerminalExpanded(!isTerminalExpanded)}
 			/>

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { actions } from "astro:actions";
 
 /**
  * Hook to send heartbeats to keep the preview container alive
@@ -9,7 +10,6 @@ export function useProjectLifecycle(projectId: string) {
 		// Send heartbeat to keep container alive
 		const sendHeartbeat = async () => {
 			try {
-				const { actions } = await import("astro:actions");
 				await actions.projects.sendHeartbeat({ id: projectId });
 			} catch (error) {
 				console.error("[Lifecycle] Failed to send heartbeat:", error);

@@ -5,15 +5,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { z } from "zod";
 import { generateCode } from "@/domain/projects/lib/code-generator";
-import {
-	createConversation,
-	getConfig,
-	getConversation,
-	getMessages,
-	saveMessage,
-	updateConversationModel,
-	updateMessage,
-} from "@/lib/db";
+import * as db from "@/lib/db";
 import {
 	listProjectFiles,
 	readProjectFile,
@@ -61,8 +53,8 @@ async function execInContainer(
 
 // Helper to get API key from database (returns null if not configured)
 function getApiKey(provider: string): string | null {
-	const value = getConfig(`${provider}_api_key`);
-	return value || null;
+	const config = db.config.get(`${provider}_api_key`);
+	return config?.value || null;
 }
 
 // Helper to get model provider and instance (OpenRouter only)
@@ -96,19 +88,28 @@ export const POST: APIRoute = async ({ params, request }) => {
 		clientAborted = true;
 	});
 
-	let conversation = await getConversation(projectId);
+	let conversation = db.conversations.getByProjectId(projectId);
 	if (!conversation) {
-		conversation = createConversation(projectId, requestedModel);
+		conversation = db.conversations.create({
+			id: crypto.randomUUID(),
+			projectId,
+			model: requestedModel,
+		});
 	} else if (requestedModel && requestedModel !== conversation.model) {
 		// Update model if changed
-		await updateConversationModel(conversation.id, requestedModel);
+		db.conversations.update(conversation.id, { model: requestedModel });
 		conversation.model = requestedModel;
+	}
+
+	// TypeScript assertion: conversation is guaranteed to be defined after the above check
+	if (!conversation) {
+		throw new Error("Failed to create or retrieve conversation");
 	}
 
 	const userMessage = messages[messages.length - 1];
 
 	// Check if this exact user message already exists (prevent duplicates)
-	const existingMessages = getMessages(conversation.id);
+	const existingMessages = db.messages.getByConversationId(conversation.id);
 	const lastUserMessage = existingMessages
 		.filter((msg: any) => msg.role === "user")
 		.pop();
@@ -117,7 +118,12 @@ export const POST: APIRoute = async ({ params, request }) => {
 		lastUserMessage && lastUserMessage.content === userMessage.content;
 
 	if (!isDuplicate) {
-		saveMessage(conversation.id, "user", userMessage.content);
+		db.messages.create({
+			id: crypto.randomUUID(),
+			conversationId: conversation.id,
+			role: "user",
+			content: userMessage.content,
+		});
 		logger.debug("Saved new user message");
 	} else {
 		logger.debug(
@@ -136,11 +142,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 		logger.warn(
 			`Found stuck streaming message ${stuckStreamingMessage.id}, marking as error`,
 		);
-		updateMessage(
-			stuckStreamingMessage.id,
-			"Error: Previous response timed out",
-			"error",
-		);
+		db.messages.update(stuckStreamingMessage.id, {
+			content: "Error: Previous response timed out",
+			streamingStatus: "error",
+		});
 		chatEvents.notifyMessageUpdate(projectId, conversation.id);
 	}
 
@@ -371,7 +376,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 
 		if (assistantMessageId) {
-			updateMessage(assistantMessageId, text, status);
+			db.messages.update(assistantMessageId, {
+				content: text,
+				streamingStatus: status,
+			});
 			lastSavedText = text;
 			lastSaveTime = now;
 			logger.debug(`Saved to DB: ${text.length} chars, status: ${status}`);
@@ -382,13 +390,14 @@ export const POST: APIRoute = async ({ params, request }) => {
 	};
 
 	// Create assistant message immediately in DB with streaming status
-	const initialMsg = await saveMessage(
-		conversation.id,
-		"assistant",
-		"",
-		"streaming",
-	);
-	assistantMessageId = initialMsg.id;
+	const initialMsg = db.messages.create({
+		id: crypto.randomUUID(),
+		conversationId: conversation.id,
+		role: "assistant",
+		content: "",
+		streamingStatus: "streaming",
+	});
+	assistantMessageId = initialMsg?.id ?? null;
 	logger.debug(`Created streaming assistant message: ${assistantMessageId}`);
 
 	logger.info(
@@ -415,13 +424,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 				// Build full message content including tool calls (same format as frontend)
 				// Add tool calls
 				for (const toolCall of toolCalls) {
-					const toolMessage = `\n\n🔧 **Using tool: ${toolCall.toolName}**\n\`\`\`json\n${JSON.stringify(toolCall.args, null, 2)}\n\`\`\`\n`;
+					const toolMessage = `\n\n🔧 **Using tool: ${toolCall.toolName}**\n\`\`\`json\n${JSON.stringify((toolCall as any).args, null, 2)}\n\`\`\`\n`;
 					fullMessageContent += toolMessage;
 				}
 
 				// Add tool results
 				for (const toolResult of toolResults) {
-					const resultMessage = `\n📋 **Result from ${toolResult.toolName}:**\n\`\`\`json\n${JSON.stringify(toolResult.result, null, 2)}\n\`\`\`\n`;
+					const resultMessage = `\n📋 **Result from ${toolResult.toolName}:**\n\`\`\`json\n${JSON.stringify((toolResult as any).result, null, 2)}\n\`\`\`\n`;
 					fullMessageContent += resultMessage;
 					lastEventWasToolResult = true;
 				}
@@ -497,11 +506,11 @@ ${agentGuidelines}`,
 				if (clientAborted) {
 					logger.info(`Client aborted, marking message as stopped`);
 					if (assistantMessageId && fullMessageContent.trim().length > 0) {
-						updateMessage(
-							assistantMessageId,
-							fullMessageContent + "\n\n_[Generation stopped by user]_",
-							"complete",
-						);
+						db.messages.update(assistantMessageId, {
+							content:
+								fullMessageContent + "\n\n_[Generation stopped by user]_",
+							streamingStatus: "complete",
+						});
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					}
 					return;
@@ -515,7 +524,10 @@ ${agentGuidelines}`,
 				if (finalContent.trim().length > 0) {
 					if (assistantMessageId) {
 						// Mark message as complete in database with full content
-						updateMessage(assistantMessageId, finalContent, "complete");
+						db.messages.update(assistantMessageId, {
+							content: finalContent,
+							streamingStatus: "complete",
+						});
 						logger.debug(
 							`Marked message ${assistantMessageId} as complete with ${finalContent.length} chars`,
 						);
@@ -524,7 +536,13 @@ ${agentGuidelines}`,
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					} else {
 						// Fallback: create message if somehow it wasn't created yet
-						saveMessage(conversation.id, "assistant", finalContent, "complete");
+						db.messages.create({
+							id: crypto.randomUUID(),
+							conversationId: conversation.id,
+							role: "assistant",
+							content: finalContent,
+							streamingStatus: "complete",
+						});
 						logger.debug(`Created message in onFinish (fallback)`);
 
 						// Emit final update
@@ -543,16 +561,18 @@ ${agentGuidelines}`,
 							logger.debug(`No code blocks found in response`);
 						}
 					} catch (error) {
-						logger.error("Failed to generate code", error);
+						logger.error(
+							"Failed to generate code",
+							error instanceof Error ? error : new Error(String(error)),
+						);
 					}
 				} else {
 					logger.warn(`Empty response from model, marking as error`);
 					if (assistantMessageId) {
-						updateMessage(
-							assistantMessageId,
-							"Error: Empty response from model",
-							"error",
-						);
+						db.messages.update(assistantMessageId, {
+							content: "Error: Empty response from model",
+							streamingStatus: "error",
+						});
 
 						// Emit error update
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
@@ -563,9 +583,15 @@ ${agentGuidelines}`,
 
 		logger.info(`streamText created successfully, returning response`);
 	} catch (error) {
-		logger.error(`FATAL ERROR creating streamText`, error);
+		logger.error(
+			`FATAL ERROR creating streamText`,
+			error instanceof Error ? error : new Error(String(error)),
+		);
 		if (assistantMessageId) {
-			updateMessage(assistantMessageId, `Error: ${error}`, "error");
+			db.messages.update(assistantMessageId, {
+				content: `Error: ${error}`,
+				streamingStatus: "error",
+			});
 			chatEvents.notifyMessageUpdate(projectId, conversation.id);
 		}
 		return new Response(

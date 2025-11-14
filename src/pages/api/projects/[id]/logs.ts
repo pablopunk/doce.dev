@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { streamContainerLogs } from "@/lib/docker";
-import { getProject } from "@/lib/db";
+import { projects } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("logs-api");
@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	try {
 		// Get project to check for stored build logs
-		const project = getProject(projectId) as any;
+		const project = projects.getById(projectId) as any;
 
 		// Get the log stream from Docker
 		const logStream = await streamContainerLogs(projectId);
@@ -127,7 +127,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 							);
 						}
 					} catch (error) {
-						logger.error("Error parsing log chunk", error);
+						logger.error(
+							"Error parsing log chunk",
+							error instanceof Error ? error : new Error(String(error)),
+						);
 						// Fallback: send raw text on error
 						try {
 							const text = chunk.toString("utf-8");
@@ -159,7 +162,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 				if (keepaliveInterval) {
 					clearInterval(keepaliveInterval);
 				}
-				if ("destroy" in logStream && typeof logStream.destroy === "function") {
+				if (
+					logStream &&
+					"destroy" in logStream &&
+					typeof logStream.destroy === "function"
+				) {
 					logStream.destroy();
 				}
 			},
@@ -173,7 +180,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 			},
 		});
 	} catch (error) {
-		logger.error("Failed to stream logs", error);
+		logger.error(
+			"Failed to stream logs",
+			error instanceof Error ? error : new Error(String(error)),
+		);
 		return new Response("Failed to stream logs", { status: 500 });
 	}
 };

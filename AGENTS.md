@@ -1,13 +1,17 @@
 # AGENTS.md — doce.dev
 
+> **Maintenance Note**: When updating this file, avoid listing specific counts, implementation details, or enumerations that will become outdated quickly. Instead, reference source files with `@path/to/file.ts` notation.
+
 ## Overview
 Self-hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
 
-**Stack**: Astro (Node adapter) • better-sqlite3 (`./data/doceapp.db`) • `ai` SDK with OpenRouter • Docker
+**Stack**: Astro (Node adapter) • Drizzle ORM (w/ local sqlite) • `ai` SDK with OpenRouter • Docker
 
 **Run**: `pnpm install && pnpm run dev` → http://localhost:4321
 
-**Environment**: `DATABASE_PATH` (default `./data/doceapp.db`) • `PROJECTS_DIR` (default `./data/projects/`) • `DOCKER_HOST` (default `/var/run/docker.sock`)
+**Environment**: Variables defined in `.env` (gitignored). See @src/lib/env.ts for schema and defaults:
+- `DOCKER_HOST` - Docker socket path (default: `/var/run/docker.sock`)
+- `DATA_PATH` - Data directory for DB and projects (default: `./data`)
 
 **Setup**: `/setup` → create admin user → configure AI provider (keys in DB, not env vars)
 
@@ -95,7 +99,9 @@ src/
 
 **Frontend**: `layouts/` (BaseLayout.astro) → `pages/` (.astro pages) → `components/` (.tsx React + ui/ shadcn)
 
-**API**: Astro Actions for all server operations. Streaming endpoints (`logs`, `chat`) use API routes in `pages/api/`.
+**API**: Astro Actions for all server operations. API routes (`pages/api/`) are ONLY for special cases where Actions are insufficient (streaming responses, SSE, etc.):
+- Chat: @src/pages/api/chat/[projectId].ts (AI streaming with tool calling)
+- Logs: @src/pages/api/projects/[id]/logs.ts (Server-Sent Events for Docker logs)
 
 ## 💡 Adding a New Feature
 
@@ -117,7 +123,7 @@ export class MyFeature {
     // Call DB provider functions
     return db.myFeature.getAll() as MyFeatureData[];
   }
-  
+
   static async create(name: string): Promise<MyFeatureData> {
     return db.myFeature.create(name) as MyFeatureData;
   }
@@ -137,7 +143,7 @@ export const server = {
       return items;
     },
   }),
-  
+
   create: defineAction({
     input: z.object({ name: z.string() }),
     handler: async ({ name }) => {
@@ -150,7 +156,6 @@ export const server = {
 
 **3. Component**: Create `domain/my-feature/components/my-feature-list.tsx`
 ```typescript
-"use client";
 import { actions } from "astro:actions";
 
 export function MyFeatureList() {
@@ -203,9 +208,9 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 - Export as `export const server = {...}`
 
 **components/** - React UI components
-- Use `"use client"` directive
 - Import `actions` from `astro:actions`
 - Use shadcn/ui components from `@/components/ui/`
+- Require hydration directives in Astro pages (e.g., `client:load`)
 
 **hooks/** - Domain-specific React hooks (optional)
 - Custom hooks for domain state management
@@ -215,45 +220,81 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 - Helper functions specific to the domain
 - Example: `projects/lib/code-generator.tsx`
 
+### Astro Hydration Directives
+
+React components in Astro pages require hydration directives to run on the client:
+
+- `client:load` - Hydrate immediately on page load (use for interactive components)
+- `client:idle` - Hydrate when main thread is idle (use for non-critical interactivity)
+- `client:visible` - Hydrate when component scrolled into viewport (use for below-fold content)
+- `client:only` - Skip SSR, render only on client (use for browser-only code)
+
+**Note**: Do NOT use `"use client"` directive (that's Next.js, not needed in Astro)
+
 ## Rules
 
 **DO**:
 - Organize by domain (feature) • Small functions (<20 lines) • Type-safe
 - Models call DB provider • Actions call models • Components call actions
+- Use Drizzle ORM for data access • Keep business logic in domain models
 - Use Astro Actions for server functions • Zod schemas for validation
 - Use BaseLayout • React components with `client:load` • Import `actions` from `astro:actions`
 
 **DON'T**:
-- Direct DB access from actions • Business logic in actions
-- Skip the model layer • `innerHTML` or string DOM manipulation
+- Direct DB access from actions • Business logic in DB provider or actions
+- Skip the model layer • Put business logic in DB provider
+- `innerHTML` or string DOM manipulation
 - Duplicate HTML • Full pages in `.astro` without layouts
 - Use `fetch()` for internal APIs (use Actions instead)
 - Create API routes for non-streaming endpoints (use Actions)
 
 ## Data & Infrastructure
 
-**DB Provider** (`src/lib/db/`):
-- **Location**: `src/lib/db/providers/sqlite.ts`
-- **API**: `src/lib/db/index.ts` exports namespaced operations + legacy functions
+**DB Provider** (`src/lib/db/`) - **Using Drizzle ORM**:
+- **Schema**: `src/lib/db/providers/drizzle/schema.ts` - Pure schema definitions (no business logic)
+- **DB Instance**: `src/lib/db/providers/drizzle/db.ts` - Drizzle instance + SQLite connection
+- **CRUD Operations**: `src/lib/db/providers/drizzle/tables/*.ts` - Clean operations, one file per model
+- **API**: `src/lib/db/index.ts` - Exports namespaced operations + backward compat wrappers
 - **Tables**: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments`
-- **Access from models**: `import * as db from "@/lib/db"` then call `db.getProject()`, `db.saveFile()`, etc.
-- **Migrations**: `src/lib/migrations.ts` - auto-run on first connection
+- **Access from models**: `import * as db from "@/lib/db"` then call `db.projects.getById()`, `db.files.upsert()`, etc.
+- **Type Safety**: Full TypeScript types exported from schema (`User`, `Project`, `NewProject`, etc.)
+- **Migrations**: Managed by Drizzle Kit (see below)
+- **Config**: `drizzle.config.ts` at project root
+
+**Database Migrations** (Drizzle Kit):
+- **Development**: `pnpm db:push` - Direct schema sync, no migration files (rapid prototyping)
+- **Production Workflow**:
+  1. Make schema changes in `src/lib/db/providers/drizzle/schema.ts`
+  2. Run `pnpm db:generate` locally (creates migration SQL files in `/drizzle`)
+  3. Commit migration files to git
+  4. Deploy: `pnpm deploy` (auto-generates migrations if needed, applies them, builds, previews)
+- **Pull from DB**: `pnpm db:pull` - Generate TypeScript schema from existing database
+- **Studio**: `pnpm db:studio` - Visual database browser at https://local.drizzle.studio
+- **Migration files**: Stored in `/drizzle` folder (auto-generated, version-controlled)
+- **History tracking**: Drizzle maintains `__drizzle_migrations` table automatically
+- **Commands**:
+  - `db:push` - Best for development, pushes schema changes directly to DB
+  - `db:generate` - Generates SQL migration files from schema changes
+  - `db:migrate` - Applies pending migrations to database
+  - `db:pull` - Introspects database and generates schema.ts
+  - `db:studio` - Opens Drizzle Studio for visual DB management
+  - `deploy` - Production deployment: generate migrations → apply → build → preview
 
 **Config**: `ai_provider`, `{provider}_api_key`, `default_ai_model`, `setup_complete` (stored in DB via `db.config` operations)
 
 **Files**: Mirrored in DB + filesystem • Use `writeProjectFiles`/`listProjectFiles` (`src/lib/file-system.ts`)
 
 **Docker**:
-- **Preview**: `doce-preview-{projectId}` on ports 10000-20000
+- **Preview**: `doce-preview-{projectId}` on random ports 10000-20000
 - **Deployment**: `doce-deploy-{projectId}`
-- **Constants**: `src/lib/docker/constants.ts`
-- Docker is source of truth, DB `preview_url` is cache
+- **Port Allocation**: Random selection from range (see @src/lib/docker.ts `findAvailablePort()`)
+- **Constants**: @src/lib/docker/constants.ts
+- **Source of Truth**: Docker state is authoritative; DB `preview_url` is cache (see @src/lib/docker.ts `getPreviewState()`)
 
 **AI Models**:
-- **Location**: `src/domain/llms/models/ai-models.ts`
-- **Exports**: `DEFAULT_AI_MODEL`, `AVAILABLE_AI_MODELS`, `getModelById()`, `isValidModel()`
-- **Icons**: `src/components/ui/svgs/` (provider logos via SVGL)
-- **Config**: Managed by `LLMConfig` model in `domain/llms/models/llm-config.ts`
+- **Available Models**: See @src/domain/llms/models/ai-models.ts for all supported models
+- **Configuration**: Managed by @src/domain/llms/models/llm-config.ts
+- **Icons**: Provider logos in @src/components/ui/svgs/
 
 **Logger Provider** (`src/lib/logger/`):
 - **Location**: `src/lib/logger/providers/pino.ts`
@@ -261,24 +302,38 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 - **Usage**: `import { createLogger } from "@/lib/logger"` then `const logger = createLogger("namespace")`
 
 **Code Gen**:
-- **Location**: `src/domain/projects/lib/code-generator.tsx`
-- **Format**: Fenced blocks with `file="path"` attribute
-- **Parser**: JSON first, then code block extraction
+- **Templates**: @templates/ contains one folder per template (currently `astro/`). These are base projects that the AI model copies and modifies to generate new projects.
+- **Format**: Fenced blocks with `file="path"` attribute, or JSON with files array
+- **Parser**: @src/domain/projects/lib/code-generator.tsx (tries JSON first, then extracts code blocks)
+- **File Operations**: @src/lib/file-system.ts (writes files to disk + DB)
 - **CRITICAL**: Always generate `src/pages/index.astro` as complete page with full HTML
-- **Templates**: All projects include full shadcn/ui library in `src/components/ui/` - use these components
+- **Components**: All generated projects include full shadcn/ui library from template
+
+## Middleware
+
+**Location**: @src/middleware.ts
+
+**Purpose**: Astro middleware that runs on every request:
+- Redirects to `/setup` if setup is not complete
+- Logs all Astro Action errors for debugging (400+ status codes)
+- Allows `/setup` routes to bypass authentication
+
+**Docs**: https://docs.astro.build/en/guides/middleware/
 
 ## Actions Structure
 
 **Main Export**: `src/actions/index.ts` re-exports all domain actions
 
 **Current Actions**:
-- `actions.projects.*` - 15 actions (CRUD, preview, deploy, env, files, heartbeat)
-- `actions.config.*` - 4 actions (API keys, model selection) - from `llms` domain
-- `actions.chat.*` - 2 actions (history, delete message) - from `conversations` domain
-- `actions.setup.*` - 4 actions (user creation, AI config, completion) - from `auth` domain
-- `actions.deployments.*` - 2 actions (get, delete) - from `system` domain
-- `actions.stats.*` - 1 action (system stats) - from `system` domain
-- `actions.admin.*` - 1 action (cleanup) - from `system` domain
+- `actions.projects.*` - Project operations (see @src/domain/projects/actions/project-actions.ts)
+- `actions.config.*` - AI configuration (see @src/domain/llms/actions/llm-actions.ts)
+- `actions.chat.*` - Chat operations (see @src/domain/conversations/actions/conversation-actions.ts)
+- `actions.setup.*` - Setup wizard (see @src/domain/auth/actions/auth-actions.ts)
+- `actions.deployments.*` - Deployment management (see @src/domain/system/actions/system-actions.ts)
+- `actions.stats.*` - System statistics (see @src/domain/system/actions/system-actions.ts)
+- `actions.admin.*` - Admin operations (see @src/domain/system/actions/system-actions.ts)
+
+All actions exported via @src/actions/index.ts
 
 **Why Actions?**
 - ✅ **Type-safe**: Full TypeScript from server to client
@@ -295,13 +350,13 @@ Actions don't support streaming responses - use traditional API routes for SSE/s
 
 ## Debugging
 
-**DB**: `sqlite3 ./data/doceapp.db "SELECT id, name, preview_url FROM projects;"`
+**DB**: `sqlite3 ./data/doce.db "SELECT id, name, preview_url FROM projects;"`
 
-**Docker**: 
-- `docker ps --filter "name=doce-preview"` 
+**Docker**:
+- `docker ps --filter "name=doce-preview"`
 - `docker logs doce-preview-{id} --tail 50`
 
-**Actions**: 
+**Actions**:
 ```bash
 curl -X POST http://localhost:4321/_actions/projects.getProjects \
   -H "Content-Type: application/json" -d '{}'
@@ -321,23 +376,25 @@ curl -X POST http://localhost:4321/_actions/projects.getProjects \
 
 **Development**:
 - Use **pnpm** for package management
+- Run `pnpm format` to format code with Biome
 - Run `pnpm build` frequently to catch errors
+- Run `pnpm type-check` to catch type errors
 - Follow MCA pattern for all new features
 - Keep functions small (<20 lines) and focused
 
 **Database**:
-- Schema defined in `src/lib/db/providers/sqlite.ts`
-- Migrations in `src/lib/migrations.ts` (auto-run on first connection)
+- Schema defined in @src/lib/db/providers/drizzle/schema.ts
+- Migrations managed by Drizzle Kit (see Database Migrations section)
 - Access via model layer, not directly from actions
 
 **AI Models**:
-- Add new models to `src/domain/llms/models/ai-models.ts`
-- Icons: `pnpm dlx shadcn@latest add @svgl/{provider-name}`
+- Add new models to @src/domain/llms/models/ai-models.ts
+- **Icons**: UI uses `lucide-react` for interface icons. Provider logos in @src/components/ui/svgs/ (manually added SVG components)
 
 **Testing**:
 - Actions: `curl -X POST http://localhost:4321/_actions/{domain}.{action} -H "Content-Type: application/json" -d '{}'`
 - Docker: Always check Docker state first (source of truth)
-- Database: `sqlite3 ./data/doceapp.db` for direct queries
+- Database: `sqlite3 ./data/doce.db` for direct queries
 
 **Best Practices**:
 - Use Actions, not fetch: `actions.projects.getProjects()` not `fetch('/api/projects')`

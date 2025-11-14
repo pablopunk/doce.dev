@@ -1,6 +1,9 @@
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro:schema";
-import { Conversation } from "@/domain/conversations/models/conversation";
+import {
+	Conversation,
+	type ConversationData,
+} from "@/domain/conversations/models/conversation";
 
 export const server = {
 	/**

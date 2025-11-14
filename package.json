@@ -1,5 +1,5 @@
 {
-	"name": "doce-app",
+	"name": "doce-dev",
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
@@ -7,7 +7,15 @@
 		"build": "astro build",
 		"lint": "eslint .",
 		"preview": "astro preview",
-		"format": "biome check --write"
+		"format": "biome check --write",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
+		"db:pull": "drizzle-kit pull",
+		"db:studio": "drizzle-kit studio",
+		"predeploy": "pnpm db:generate",
+		"deploy": "pnpm db:migrate && pnpm build && pnpm preview",
+    "check-types": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "latest",
@@ -51,6 +59,7 @@
 		"cmdk": "1.0.4",
 		"date-fns": "4.1.0",
 		"dockerode": "latest",
+		"drizzle-orm": "^0.44.7",
 		"embla-carousel-react": "8.5.1",
 		"geist": "^1.5.1",
 		"input-otp": "1.4.1",
@@ -86,6 +95,7 @@
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"astro": "^5.1.0",
+		"drizzle-kit": "^0.31.7",
 		"pino-pretty": "^13.1.2",
 		"postcss": "^8.5",
 		"tailwindcss": "^4.1.9",
