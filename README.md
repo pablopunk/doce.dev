@@ -30,4 +30,4 @@
 - [x] Set up DB abstraction. Refactor the whole project to use a DB abstraction that then can be swapped out whenever needed. Especially useful when deploying in docker (could be deployed with a mysql DB for performance on large projects).
 - [x] Add a logger library. This should be able to log different levels to console or files (or both)
 - [ ] Please go model by model and fix the mess that the AI made.
-- [ ] Remove all imports from db outside models files (example: project id page). Maybe we can add a biome rule for this.
+- [x] Remove all imports from db outside models files (example: project id page). Maybe we can add a biome rule for this.
