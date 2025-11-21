@@ -1,6 +1,6 @@
-import { defineAction, ActionError } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { Deployment, SystemStats, Admin } from "@/domain/system/models/system";
+import { Admin, Deployment, SystemStats } from "@/domain/system/models/system";
 
 export const deployments = {
 	/**

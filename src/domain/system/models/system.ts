@@ -7,11 +7,11 @@ import Docker from "dockerode";
 import * as db from "@/lib/db";
 import type { DeploymentInDatabase } from "@/lib/db/providers/drizzle/schema";
 import {
+	cleanupOldContainers,
 	getContainerStatus,
+	pruneDockerNetworks,
 	removeContainer,
 	stopContainer,
-	cleanupOldContainers,
-	pruneDockerNetworks,
 } from "@/lib/docker";
 
 const docker = new Docker({

@@ -1,6 +1,6 @@
-import { defineAction, ActionError } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { User, Setup, type UserModel } from "@/domain/auth/models/user";
+import { Setup, User, type UserModel } from "@/domain/auth/models/user";
 
 export const server = {
 	/**

@@ -1,32 +1,32 @@
-import { defineAction, ActionError } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { generateText } from "ai";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Project } from "@/domain/projects/models/project";
+import { generateText } from "ai";
+import { Conversation } from "@/domain/conversations/models/conversation";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
 import { generateDefaultProjectStructure } from "@/domain/projects/lib/code-generator";
+import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
+import { chooseTemplateForPrompt } from "@/domain/projects/lib/template-selector";
+import { Project } from "@/domain/projects/models/project";
+import { Deployment } from "@/domain/system/models/system";
 import {
-	createPreviewContainer,
 	createDeploymentContainer,
+	createPreviewContainer,
 	getPreviewState,
-	stopPreviewForProject,
 	listProjectContainers,
-	stopContainer,
 	removeContainer,
+	stopContainer,
+	stopPreviewForProject,
 } from "@/lib/docker";
 import {
 	deleteProjectFiles,
 	listProjectFiles,
-	readProjectFile,
-	writeProjectFiles,
 	listProjectSrcFiles,
+	readProjectFile,
 	readProjectSrcFile,
+	writeProjectFiles,
 } from "@/lib/file-system";
-
-import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
-import { LLMConfig } from "@/domain/llms/models/llm-config";
-import { Conversation } from "@/domain/conversations/models/conversation";
-import { Deployment } from "@/domain/system/models/system";
 import { publishPreviewStatus } from "@/lib/preview-status-bus";
 
 // Helper functions
@@ -102,6 +102,7 @@ export const server = {
 		handler: async ({ name, description, prompt }) => {
 			let projectName = name;
 			const projectDescription = description || prompt;
+			let chosenTemplateId: string | undefined;
 
 			// If a prompt is provided, generate project name with AI first
 			if (prompt && !name) {
@@ -110,7 +111,8 @@ export const server = {
 
 					const nameResult = await generateText({
 						model,
-						system: `You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (1-4 words) and SEO friendly.`,
+						system:
+							"You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (1-4 words) and SEO friendly.",
 						prompt: `Generate a project name for the following description: ${prompt}`,
 					});
 
@@ -129,23 +131,39 @@ export const server = {
 				}
 			}
 
+			// If a prompt is provided, choose template before creating the row
+			if (prompt) {
+				try {
+					const choice = await chooseTemplateForPrompt(prompt);
+					chosenTemplateId = choice.template.id;
+					console.log(
+						`Template choice for new project: ${choice.template.id} (confidence=${choice.confidence})`,
+					);
+				} catch (error) {
+					console.error("Failed to choose template for project:", error);
+				}
+			}
+
 			const projectResult = await Project.create(
 				projectName || "new-project",
 				projectDescription,
+				chosenTemplateId,
 			);
 
-			// If a prompt is provided, copy full template and save initial user message
-			// The chat interface will handle the generation after redirect
-			if (prompt) {
+			// If a prompt is provided and we have a chosen template, copy its
+			// files and save the initial user message.
+			if (prompt && chosenTemplateId) {
 				try {
-					console.log(`Copying full template for project ${projectResult.id}`);
-					const templateFiles = await copyTemplateToProject("astro");
+					const choice = await chooseTemplateForPrompt(prompt);
+					const templateFiles = await copyTemplateToProject(
+						choice.template.folder,
+					);
 
-					// Write all template files - AI will modify as needed (filesystem only)
 					await writeProjectFiles(projectResult.id, templateFiles);
-					console.log(`Full template copied: ${templateFiles.length} files`);
+					console.log(
+						`Template ${choice.template.id} copied: ${templateFiles.length} files`,
+					);
 
-					// Create conversation and save initial user prompt
 					const aiModelId = LLMConfig.getAIModelId();
 					Conversation.createWithInitialMessage(
 						projectResult.id,
@@ -154,7 +172,7 @@ export const server = {
 					);
 
 					console.log(
-						`Project ${projectResult.id} created with initial prompt. Generation will start when user visits project page.`,
+						`Project ${projectResult.id} created with initial prompt using template ${choice.template.id}. Generation will start when user visits project page.`,
 					);
 				} catch (error) {
 					console.error("Failed to setup initial project structure:", error);

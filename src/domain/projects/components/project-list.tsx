@@ -2,7 +2,7 @@
 
 import { actions } from "astro:actions";
 import { ArrowUpRight, ExternalLink, Trash2 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import useSWR from "swr";
 import {

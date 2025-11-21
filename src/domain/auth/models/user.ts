@@ -3,9 +3,9 @@
  * Handles user management and setup flow
  */
 
+import bcrypt from "bcryptjs";
 import * as db from "@/lib/db";
 import type { UserInDatabase } from "@/lib/db/providers/drizzle/schema";
-import bcrypt from "bcryptjs";
 
 // Domain types - always import from here, never from @/lib/db
 export type UserModel = UserInDatabase;

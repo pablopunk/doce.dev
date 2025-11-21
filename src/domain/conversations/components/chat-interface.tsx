@@ -1,3 +1,4 @@
+import { actions } from "astro:actions";
 import {
 	Check,
 	ChevronDown,
@@ -12,7 +13,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { actions } from "astro:actions";
 import {
 	refreshCodePreview,
 	setInitialGenerationInProgress,

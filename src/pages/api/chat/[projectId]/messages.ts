@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
-import { Conversation } from "@/domain/conversations/models/conversation";
 import { chatEvents } from "@/domain/conversations/lib/events";
+import { Conversation } from "@/domain/conversations/models/conversation";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("messages-api");

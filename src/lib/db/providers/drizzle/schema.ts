@@ -5,7 +5,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { text, sqliteTable } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Config table
 export const config = sqliteTable("config", {
@@ -27,6 +27,7 @@ export const projects = sqliteTable("projects", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
 	description: text("description"),
+	templateId: text("template_id"),
 	createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 	updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 	userId: text("user_id"),

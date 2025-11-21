@@ -1,5 +1,5 @@
-import { writeProjectFiles } from "@/lib/file-system";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
+import { writeProjectFiles } from "@/lib/file-system";
 
 interface GeneratedFile {
 	path: string;

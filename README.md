@@ -31,5 +31,14 @@
 - [x] Add a logger library. This should be able to log different levels to console or files (or both)
 - [ ] Please go model by model and fix the mess that the AI made.
 - [x] Remove all imports from db outside models files (example: project id page). Maybe we can add a biome rule for this.
-- [x] Split the template AGENTS file into rules for template, and subsequent rules for the project, i.e. once it's created it should not mention that's a template, but just a project on itself. The other rules should be global doce-rules, re-used in all templates.
+- [ ] Global AGENTS.md, template-independent rules, like "use pnpm", "use tailwind", etc.
+  - [ ] Decide if shadcn or flowbite and add it to that AGENTS.md
+  - [ ] Generic instructions for the backend. They all could use astro actions and server islands for SSR.
 - [ ] Button in the file browser to add a file to the chat as context
+- [ ] Fork project (fresh context)
+- [ ] Compact context in chat:
+  - [ ] Button to compact it
+  - [ ] Mechanism to detect when compression is needed (context gets big)
+- [ ] Template for ecommerce
+- [ ] Template for minimal tools
+- [ ] Think about cloning the templates on the fly and keeping an AGENTS.md file on the repo with instructions on how to modify the template

@@ -7,6 +7,14 @@ import { z } from "zod";
 import { generateCode } from "@/domain/projects/lib/code-generator";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import { LLMConfig } from "@/domain/llms/models/llm-config";
+import { getTemplateById } from "@/domain/projects/lib/template-metadata";
+import {
+	buildBootstrapPlan,
+	formatBootstrapPlanForSystem,
+} from "@/domain/projects/lib/bootstrap-plan";
+import { projects as projectsTable } from "@/lib/db";
+import type { ProjectInDatabase } from "@/lib/db";
+
 import {
 	listProjectFiles,
 	readProjectFile,
@@ -157,6 +165,31 @@ export const POST: APIRoute = async ({ params, request }) => {
 		logger.debug(`No AGENTS.md found for project ${projectId}`);
 	}
 
+	// Try to build a bootstrap plan using the stored templateId
+	let bootstrapPlanText = "";
+	try {
+		// Lightweight direct query via Drizzle to avoid circular imports
+		const project = projectsTable.getById(projectId) as
+			| (ProjectInDatabase & { templateId?: string | null })
+			| null;
+
+		if (project?.templateId) {
+			const template = getTemplateById(project.templateId);
+			if (template) {
+				const plan = buildBootstrapPlan(
+					template,
+					project.name,
+					userMessage.content,
+				);
+				bootstrapPlanText = `\n\n## Bootstrap Plan\n\n${formatBootstrapPlanForSystem(plan)}`;
+			}
+		}
+	} catch (error) {
+		logger.warn("Failed to build bootstrap plan", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+
 	// AI SDK supports tool calling for most modern models
 	const modelSupportsTools = true;
 
@@ -181,7 +214,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 					}
 					logger.debug(`readFile: success, ${content.length} chars`);
 					// Return the content directly with a header showing the file path
-					return `File: ${filePath}\n${"=".repeat(50)}\n${content}`;
+					return `File: ${filePath}\n${"".padEnd(50, "=")}\n${content}`;
 				} catch (error: any) {
 					logger.error(`readFile error`, error);
 					return `Error reading ${filePath}: ${error.message}`;
@@ -255,7 +288,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 						if (files.length > 50) {
 							// For large directories, just show count and some examples
 							summary.push(
-								`${dir}/ (${files.length} files) - examples: ${files.slice(0, 10).join(", ")}`,
+								`${dir}/ (${files.length} files) - examples: ${files
+									.slice(0, 10)
+									.join(", ")}`,
 							);
 						} else if (files.length > 0) {
 							// For smaller directories, show all files
@@ -292,7 +327,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 				try {
 					const output = await execInContainer(projectId, command);
 					logger.debug(`runCommand: success, ${output.length} chars`);
-					return `Command: ${command}\n${"=".repeat(50)}\n${output}`;
+					return `Command: ${command}\n${"".padEnd(50, "=")}\n${output}`;
 				} catch (error: any) {
 					logger.error(`runCommand error`, error);
 					return `Error executing "${command}": ${error.message}`;
@@ -330,7 +365,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 					logger.debug(
 						`fetchUrl: success, ${truncated.length} chars${wasTruncated ? " (truncated)" : ""}`,
 					);
-					return `URL: ${url}\n${"=".repeat(50)}\n${truncated}${wasTruncated ? "\n\n[Content truncated at 50,000 characters]" : ""}`;
+					return `URL: ${url}\n${"".padEnd(50, "=")}\n${truncated}${wasTruncated ? "\n\n[Content truncated at 50,000 characters]" : ""}`;
 				} catch (error: any) {
 					logger.error(`fetchUrl error`, error);
 					return `Error fetching ${url}: ${error.message}`;
@@ -457,6 +492,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 					);
 				}
 			},
+			// NOTE: bootstrapPlanText is appended after AGENTS.md guidelines
 			system: `You are an expert web developer building Astro applications.
 
 CRITICAL RULES:
@@ -481,7 +517,7 @@ Workflow for modifying code:
 
 AGENTS.md guidelines. These are the guidelines for the new project:
 
-${agentGuidelines}`,
+${agentGuidelines}${bootstrapPlanText}`,
 			messages,
 			onFinish: async ({ text, finishReason }) => {
 				logger.debug(`onFinish called for project ${projectId}`);

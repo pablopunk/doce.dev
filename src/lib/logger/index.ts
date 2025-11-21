@@ -8,7 +8,7 @@
 import { PinoLogger } from "./providers/pino";
 import type { Logger } from "./types";
 
-export type { Logger, LogEntry } from "./types";
+export type { LogEntry, Logger } from "./types";
 export { LogLevel } from "./types";
 
 /**

@@ -37,6 +37,7 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
 		provider: "Google",
 		description: "Advanced reasoning and coding. Top LMArena performance.",
 	},
+
 	{
 		id: "x-ai/grok-code-fast-1",
 		name: "Grok Code Fast",

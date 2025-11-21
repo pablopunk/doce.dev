@@ -5,8 +5,8 @@
 
 import * as db from "@/lib/db";
 import type { ProjectInDatabase } from "@/lib/db/providers/drizzle/schema";
-import { filterIgnoredFiles, shouldIgnoreFile } from "../lib/file-filters";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
+import { filterIgnoredFiles, shouldIgnoreFile } from "../lib/file-filters";
 
 export type ProjectModel = ProjectInDatabase;
 export type FileData = {
@@ -88,9 +88,10 @@ export class Project {
 	static async create(
 		name: string,
 		description?: string,
+		templateId?: string,
 	): Promise<ProjectModel> {
 		const id = crypto.randomUUID();
-		const project = db.projects.create({ id, name, description });
+		const project = db.projects.create({ id, name, description, templateId });
 		if (!project) throw new Error("Failed to create project");
 		return project;
 	}

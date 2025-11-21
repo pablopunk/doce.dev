@@ -477,8 +477,7 @@ const sidebarMenuButtonVariants = cva(
 	{
 		variants: {
 			variant: {
-				default:
-					"hover:bg-raised/90 hover:text-strong",
+				default: "hover:bg-raised/90 hover:text-strong",
 				outline:
 					"bg-bg shadow-[0_0_0_1px_var(--border-border)] hover:bg-raised/90 hover:text-strong hover:shadow-[0_0_0_1px_var(--bg-raised)]",
 			},

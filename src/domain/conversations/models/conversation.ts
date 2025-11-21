@@ -3,12 +3,12 @@
  * Handles chat conversations and messages for projects
  */
 
+import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
 import * as db from "@/lib/db";
 import type {
 	ConversationInDatabase,
 	MessageInDatabase,
 } from "@/lib/db/providers/drizzle/schema";
-import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
 
 // Domain types - always import from here, never from @/lib/db
 export type ConversationModel = ConversationInDatabase;

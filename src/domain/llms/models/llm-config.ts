@@ -3,14 +3,14 @@
  * Handles AI provider configuration, API keys, and model selection
  */
 
-import * as db from "@/lib/db";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
+	type AIModel,
 	AVAILABLE_AI_MODELS,
 	DEFAULT_AI_MODEL,
 	isValidModel,
-	type AIModel,
 } from "@/domain/llms/models/ai-models";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import * as db from "@/lib/db";
 
 export type AIProvider = "openrouter";
 

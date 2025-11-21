@@ -1,8 +1,10 @@
 "use client";
 
 import { actions } from "astro:actions";
-import { Sparkles, Check, Settings2, Loader2 } from "lucide-react";
+import { Check, Loader2, Settings2, Sparkles } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import AIBlob from "@/components/ui/ai-blob";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -21,8 +23,6 @@ import { Google } from "@/components/ui/svgs/google";
 import { GrokDark } from "@/components/ui/svgs/grokDark";
 import { KimiIcon } from "@/components/ui/svgs/kimiIcon";
 import { Openai } from "@/components/ui/svgs/openai";
-import AIBlob from "@/components/ui/ai-blob";
-import { motion } from "motion/react";
 
 interface ModelInfo {
 	id: string;

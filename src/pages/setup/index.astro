@@ -1,7 +1,7 @@
 ---
-import BaseLayout from "@/layouts/BaseLayout.astro";
 import SetupWizard from "@/domain/auth/components/setup-wizard";
 import { Setup } from "@/domain/auth/models/user";
+import BaseLayout from "@/layouts/BaseLayout.astro";
 
 // Redirect to dashboard if setup is already complete
 if (Setup.isComplete()) {

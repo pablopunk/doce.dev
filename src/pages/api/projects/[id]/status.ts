@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import {
-	subscribePreviewStatus,
 	getLastPreviewStatus,
+	subscribePreviewStatus,
 } from "@/lib/preview-status-bus";
 
 export const GET: APIRoute = async ({ params }) => {

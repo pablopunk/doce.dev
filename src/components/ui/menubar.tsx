@@ -201,10 +201,7 @@ function MenubarShortcut({
 	return (
 		<span
 			data-slot="menubar-shortcut"
-			className={cn(
-				"text-muted ml-auto text-xs tracking-widest",
-				className,
-			)}
+			className={cn("text-muted ml-auto text-xs tracking-widest", className)}
 			{...props}
 		/>
 	);

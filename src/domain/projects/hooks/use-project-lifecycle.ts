@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { actions } from "astro:actions";
+import { useEffect } from "react";
 
 /**
  * Hook to send heartbeats to keep the preview container alive

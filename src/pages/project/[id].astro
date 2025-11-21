@@ -1,9 +1,9 @@
 ---
 import "../../styles/global.css";
-import { ChatInterface } from "@/domain/conversations/components/chat-interface";
 import { CodePreview } from "@/components/code-preview";
-import BaseLayout from "@/layouts/BaseLayout.astro";
+import { ChatInterface } from "@/domain/conversations/components/chat-interface";
 import { Project } from "@/domain/projects/models/project";
+import BaseLayout from "@/layouts/BaseLayout.astro";
 
 const { id } = Astro.params;
 if (!id) {

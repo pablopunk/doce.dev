@@ -111,10 +111,7 @@ function Calendar({
 					defaultClassNames.range_start,
 				),
 				range_middle: cn("rounded-none", defaultClassNames.range_middle),
-				range_end: cn(
-					"rounded-r-md bg-raised",
-					defaultClassNames.range_end,
-				),
+				range_end: cn("rounded-r-md bg-raised", defaultClassNames.range_end),
 				today: cn(
 					"bg-raised text-strong rounded-md data-[selected=true]:rounded-none",
 					defaultClassNames.today,
@@ -123,10 +120,7 @@ function Calendar({
 					"text-muted aria-selected:text-muted",
 					defaultClassNames.outside,
 				),
-				disabled: cn(
-					"text-muted opacity-50",
-					defaultClassNames.disabled,
-				),
+				disabled: cn("text-muted opacity-50", defaultClassNames.disabled),
 				hidden: cn("invisible", defaultClassNames.hidden),
 				...classNames,
 			}}

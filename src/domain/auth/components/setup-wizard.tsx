@@ -2,7 +2,7 @@
 
 import { actions } from "astro:actions";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import { type FormEvent, useState, useEffect } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {

@@ -1,8 +1,8 @@
+import { exec, spawn } from "child_process";
 import Docker from "dockerode";
+import { promises as fs } from "fs";
 import { nanoid } from "nanoid";
 import path from "path";
-import { promises as fs } from "fs";
-import { spawn, exec } from "child_process";
 import { promisify } from "util";
 import { Project } from "@/domain/projects/models/project";
 import env from "./env";
