@@ -53,7 +53,7 @@ export async function chooseTemplateForPrompt(
 		const lower = userPrompt.toLowerCase();
 		let fallbackId = PROJECT_TEMPLATES[0].id;
 		if (lower.includes("dashboard") || lower.includes("admin")) {
-			fallbackId = "flowbite-astro-admin-dashboard";
+			fallbackId = "astro-starter";
 		} else if (
 			lower.includes("blog") ||
 			lower.includes("content") ||

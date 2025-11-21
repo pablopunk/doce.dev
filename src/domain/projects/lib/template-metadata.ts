@@ -37,20 +37,6 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 			"Start from src/pages/index.astro and a single layout, compose pages from widgets under src/components/widgets, then aggressively delete unused homes, landing variants, blog routes, demo posts, and platform-specific config.",
 	},
 	{
-		id: "flowbite-astro-admin-dashboard",
-		name: "Flowbite Admin Dashboard",
-		folder: "flowbite-astro-admin-dashboard",
-		description:
-			"Astro + Tailwind + Flowbite admin dashboard with auth flows, CRUD examples, and a modular layout/module/service structure.",
-		bestFor: [
-			"Admin dashboards and internal tools",
-			"CRUD back-offices and data tables",
-			"Analytics panels built from reusable modules",
-		],
-		modificationHints:
-			"Decide the core routes, keep only the necessary pages under src/pages, reuse or rename modules in src/modules for your entities, and gradually replace JSON-backed services in src/services and src/lib/data.ts with real APIs or databases.",
-	},
-	{
 		id: "astro-starter",
 		name: "Astro Starter",
 		folder: "astro-starter",

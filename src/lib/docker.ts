@@ -72,6 +72,35 @@ export async function createPreviewContainer(
 			`📂 Project path: ${projectPath}\n`,
 		);
 
+		// Ensure a base docker-compose.dev.yml exists for the project. This
+		// defines a generic Node dev service that runs `npm install` and
+		// `npm run dev` on port 3000. The per-preview override below then
+		// injects the concrete host port and Traefik labels.
+		const devComposePath = path.join(projectPath, "docker-compose.dev.yml");
+		try {
+			await fs.stat(devComposePath);
+			await Project.appendBuildLog(
+				projectId,
+				`✓ Using existing docker-compose.dev.yml\n`,
+			);
+		} catch {
+			const devCompose = `services:
+  app:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: ["sh", "-c", "pnpm install && pnpm run dev -- --host 0.0.0.0 --port 3000"]
+    environment:
+      NODE_ENV: development
+`;
+			await fs.writeFile(devComposePath, devCompose);
+			await Project.appendBuildLog(
+				projectId,
+				`✓ Generated default docker-compose.dev.yml\n`,
+			);
+		}
+
 		// Generate docker-compose override for this specific instance with port and labels
 		const composeOverride = `services:
   app:
