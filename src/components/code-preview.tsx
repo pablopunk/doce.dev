@@ -10,7 +10,8 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import Editor from "@monaco-editor/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { actions } from "astro:actions";
 import { TerminalDock } from "@/domain/system/components/terminal-dock";
@@ -32,6 +33,28 @@ const envFetcher = async (_key: string, id: string) => {
 	if (error) throw error;
 	return data;
 };
+
+const filesFetcher = async (_key: string, id: string) => {
+	const { data, error } = await actions.projects.getFiles({ id });
+	if (error) throw error;
+	return data;
+};
+
+const fileContentFetcher = async (_key: string, id: string, path: string) => {
+	const { data, error } = await actions.projects.getFileContent({ id, path });
+	if (error) throw error;
+	return data;
+};
+
+function getLanguageFromPath(path: string): string {
+	if (path.endsWith(".ts") || path.endsWith(".tsx")) return "typescript";
+	if (path.endsWith(".js") || path.endsWith(".jsx")) return "javascript";
+	if (path.endsWith(".css")) return "css";
+	if (path.endsWith(".md") || path.endsWith(".mdx")) return "markdown";
+	if (path.endsWith(".astro")) return "html";
+	if (path.endsWith(".json")) return "json";
+	return "plaintext";
+}
 
 // Global refresh function that can be called from other components
 let globalRefreshFn: (() => void) | null = null;
@@ -71,6 +94,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [isFirstGenerationComplete, setIsFirstGenerationComplete] =
 		useState(false);
 	const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("unknown");
+	const [selectedFile, setSelectedFile] = useState<string | null>(null);
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
@@ -88,6 +112,53 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			revalidateOnFocus: false,
 		},
 	);
+
+	const { data: filesData, isLoading: isFilesLoading } = useSWR(
+		["files", projectId],
+		([_key, id]) => filesFetcher(_key, id),
+		{
+			refreshInterval: 0,
+			revalidateOnFocus: false,
+		},
+	);
+
+	const { data: fileContentData, isLoading: isFileContentLoading } = useSWR(
+		selectedFile ? ["file", projectId, selectedFile] : null,
+		(key) => {
+			if (!key) return null;
+			const [_key, id, path] = key as [string, string, string];
+			return fileContentFetcher(_key, id, path);
+		},
+		{
+			refreshInterval: 0,
+			revalidateOnFocus: false,
+		},
+	);
+
+	const fileEntries = useMemo(
+		() =>
+			filesData?.files?.map((path: string) => {
+				const withoutSrc = path.replace(/^src\//, "");
+				const segments = withoutSrc.split("/");
+				return {
+					path,
+					name: segments[segments.length - 1],
+					displayPath: withoutSrc,
+					depth: segments.length - 1,
+				};
+			}) ?? [],
+		[filesData],
+	);
+
+	useEffect(() => {
+		if (!filesData?.files || filesData.files.length === 0) return;
+		if (selectedFile && filesData.files.includes(selectedFile)) return;
+
+		const preferred = filesData.files.find(
+			(path: string) => path === "src/pages/index.astro",
+		);
+		setSelectedFile(preferred ?? filesData.files[0]);
+	}, [filesData, selectedFile]);
 
 	// Register global refresh function
 	useEffect(() => {
@@ -478,9 +549,72 @@ export function CodePreview({ projectId }: { projectId: string }) {
 					</div>
 				)}
 				{activeTab === "code" && (
-					<div className="h-full overflow-auto p-4 bg-surface/30">
-						<div className="h-full flex items-center justify-center text-muted">
-							Code view temporarily disabled
+					<div className="h-full flex bg-surface/30">
+						<div className="w-64 border-r border-border-border bg-surface/80 flex flex-col">
+							<div className="px-3 py-2 text-xs font-medium text-muted uppercase tracking-wide">
+								Files
+							</div>
+							<div className="flex-1 overflow-auto text-xs">
+								{isFilesLoading && (
+									<div className="px-3 py-2 text-muted">Loading files...</div>
+								)}
+								{!isFilesLoading && fileEntries.length === 0 && (
+									<div className="px-3 py-2 text-muted">
+										No source files in this project.
+									</div>
+								)}
+								{!isFilesLoading &&
+									fileEntries.map((entry) => (
+										<button
+											key={entry.path}
+											type="button"
+											onClick={() => setSelectedFile(entry.path)}
+											className={`w-full text-left px-3 py-1.5 text-xs font-mono truncate border-l-2 ${
+												selectedFile === entry.path
+													? "bg-bg/80 text-strong border-strong"
+													: "text-muted border-transparent hover:bg-bg/60"
+											}`}
+											style={{ paddingLeft: 12 + entry.depth * 12 }}
+										>
+											{entry.displayPath}
+										</button>
+									))}
+							</div>
+						</div>
+						<div className="flex-1 min-w-0 flex flex-col">
+							<div className="border-b border-border-border px-4 py-2 text-xs text-muted flex items-center justify-between">
+								<div className="truncate">
+									{selectedFile
+										? selectedFile.replace(/^src\//, "")
+										: "Select a file to view"}
+								</div>
+							</div>
+							<div className="flex-1 min-h-0">
+								{!selectedFile && (
+									<div className="h-full flex items-center justify-center text-muted text-sm">
+										Select a file from the list to view its contents.
+									</div>
+								)}
+								{selectedFile && isFileContentLoading && (
+									<div className="h-full flex items-center justify-center text-muted text-sm">
+										Loading file...
+									</div>
+								)}
+								{selectedFile && !isFileContentLoading && fileContentData && (
+									<Editor
+										language={getLanguageFromPath(selectedFile)}
+										value={fileContentData.content}
+										theme="hc-black"
+										options={{
+											readOnly: true,
+											fontSize: 12,
+											minimap: { enabled: false },
+											scrollBeyondLastLine: false,
+											automaticLayout: true,
+										}}
+									/>
+								)}
+							</div>
 						</div>
 					</div>
 				)}

@@ -15,12 +15,13 @@
 		"db:studio": "drizzle-kit studio",
 		"predeploy": "pnpm db:generate",
 		"deploy": "pnpm db:migrate && pnpm build && pnpm preview",
-    "type-check": "tsc --noEmit"
+		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "latest",
 		"@ai-sdk/openai": "latest",
 		"@hookform/resolvers": "^3.10.0",
+		"@monaco-editor/react": "^4.7.0",
 		"@openrouter/ai-sdk-provider": "^1.2.1",
 		"@radix-ui/react-accordion": "1.2.2",
 		"@radix-ui/react-alert-dialog": "1.1.4",
@@ -64,6 +65,7 @@
 		"geist": "^1.5.1",
 		"input-otp": "1.4.1",
 		"lucide-react": "^0.454.0",
+		"monaco-editor": "^0.55.1",
 		"motion": "^12.23.24",
 		"nanoid": "latest",
 		"pino": "^10.1.0",
