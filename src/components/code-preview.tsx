@@ -184,43 +184,35 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		};
 	}, [projectId]);
 
-	// Auto-start preview when component mounts if not already running
+	// Auto-start preview on first visit when not created yet
 	useEffect(() => {
-		const checkAndStartPreview = async () => {
-			if (!project || hasAutoStarted || isCreatingPreview) return;
+		if (hasAutoStarted || isCreatingPreview) return;
+		if (!isFirstGenerationComplete) return;
 
-			// Check if preview is actually running (not just DB state)
-			try {
-				const { data, error } = await actions.projects.getPreviewStatus({
-					id: projectId,
-				});
-
-				// If preview is not running, start it
-				if (!error && data && data.status === "not-created") {
-					console.log(`Preview not running for ${projectId}, starting...`);
-					setHasAutoStarted(true);
-					await handleCreatePreview();
-				} else if (!error && data && data.status === "running") {
-					// Preview is running, refresh project data to sync with DB
-					console.log(
-						`Preview already running for ${projectId}, syncing UI...`,
-					);
-					mutate();
-				}
-			} catch (error) {
-				console.error("Failed to check preview status:", error);
-			}
-		};
-
-		checkAndStartPreview();
+		if (previewStatus === "not-created" || previewStatus === "unknown") {
+			console.log(
+				`Auto-starting preview for ${projectId} (status: ${previewStatus})`,
+			);
+			setHasAutoStarted(true);
+			void handleCreatePreview();
+		}
 	}, [
-		project,
+		previewStatus,
+		projectId,
 		hasAutoStarted,
 		isCreatingPreview,
-		projectId,
+		isFirstGenerationComplete,
 		handleCreatePreview,
-		mutate,
 	]);
+
+	// When server reports a running preview but project data
+	// doesn't yet have a previewUrl (eg. after dev server restart),
+	// force a project refetch so UI can attach to the URL.
+	useEffect(() => {
+		if (previewStatus === "running" && !project?.previewUrl) {
+			mutate();
+		}
+	}, [previewStatus, project?.previewUrl, mutate]);
 
 	// Reset loading state when preview URL changes and poll for readiness
 	useEffect(() => {
@@ -435,38 +427,51 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						) : (
 							<div className="h-full flex items-center justify-center">
 								<div className="text-center space-y-4">
-									<p className="text-muted">
-										{previewStatus === "creating" ||
-										previewStatus === "starting"
-											? "Preview is starting..."
-											: previewStatus === "failed"
-												? "Preview failed to start"
-												: "No preview available yet"}
-									</p>
-									<Button
-										onClick={handleCreatePreview}
-										disabled={
-											isCreatingPreview ||
+									{(() => {
+										const isLoadingStatus =
 											previewStatus === "creating" ||
-											previewStatus === "starting"
-										}
-									>
-										{isCreatingPreview || previewStatus === "creating" ? (
+											previewStatus === "starting" ||
+											(previewStatus === "running" && !project?.previewUrl);
+										return (
 											<>
-												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-												Creating Preview...
+												<p className="text-muted">
+													{isLoadingStatus
+														? "Preview is starting..."
+														: previewStatus === "failed"
+															? "Preview failed to start"
+															: "No preview available yet"}
+												</p>
+												<Button
+													onClick={handleCreatePreview}
+													disabled={
+														isCreatingPreview ||
+														previewStatus === "creating" ||
+														previewStatus === "starting" ||
+														(previewStatus === "running" &&
+															!project?.previewUrl)
+													}
+												>
+													{isCreatingPreview || previewStatus === "creating" ? (
+														<>
+															<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+															Creating Preview...
+														</>
+													) : previewStatus === "starting" ||
+														(previewStatus === "running" &&
+															!project?.previewUrl) ? (
+														<>
+															<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+															Starting Preview...
+														</>
+													) : previewStatus === "failed" ? (
+														"Retry Preview"
+													) : (
+														"Create Preview"
+													)}
+												</Button>
 											</>
-										) : previewStatus === "starting" ? (
-											<>
-												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-												Starting Preview...
-											</>
-										) : previewStatus === "failed" ? (
-											"Retry Preview"
-										) : (
-											"Create Preview"
-										)}
-									</Button>
+										);
+									})()}
 								</div>
 							</div>
 						)}
