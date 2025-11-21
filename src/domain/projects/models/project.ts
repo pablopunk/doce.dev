@@ -5,7 +5,7 @@
 
 import * as db from "@/lib/db";
 import type { ProjectInDatabase } from "@/lib/db/providers/drizzle/schema";
-import { filterIgnoredFiles } from "../lib/file-filters";
+import { filterIgnoredFiles, shouldIgnoreFile } from "../lib/file-filters";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
 
 export type ProjectModel = ProjectInDatabase;
@@ -56,10 +56,16 @@ export class Project {
 		const project = await Project.getById(id);
 		if (!project) return null;
 
-		// Read files from filesystem (not DB) - filesystem is source of truth
-		const filePaths = await listProjectFiles(id);
+		// Read files from filesystem (not DB) - filesystem is source of truth.
+		// This is potentially expensive for large projects, so we:
+		// - walk the directory tree once
+		// - filter out obviously-ignored paths early
+		// - only read file contents for the remaining paths
+		const allFilePaths = await listProjectFiles(id);
+		const filteredPaths = allFilePaths.filter((p) => !shouldIgnoreFile(p));
+
 		const filesWithContent = await Promise.all(
-			filePaths.map(async (path) => {
+			filteredPaths.map(async (path) => {
 				const content = await readProjectFile(id, path);
 				// Create FileData-compatible objects from filesystem
 				return {
@@ -73,8 +79,7 @@ export class Project {
 			}),
 		);
 
-		const files = filterIgnoredFiles(filesWithContent);
-		return { ...project, files };
+		return { ...project, files: filesWithContent };
 	}
 
 	/**
@@ -156,13 +161,24 @@ export class Project {
 	 * Business logic for managing build logs
 	 */
 	static async appendBuildLog(id: string, logLine: string): Promise<void> {
+		// Legacy helper: keep for backward-compat callers, but delegate to
+		// the batched logger so we don't hammer SQLite on every log line.
+		await Project.appendBuildLogs(id, [logLine]);
+	}
+
+	/**
+	 * Append multiple log lines in a single DB write.
+	 * Callers that produce lots of logs should batch their writes through this
+	 * API instead of calling appendBuildLog in a loop.
+	 */
+	static async appendBuildLogs(id: string, logLines: string[]): Promise<void> {
 		const project = db.projects.getById(id);
 		if (!project) {
 			throw new Error(`Project ${id} not found`);
 		}
 
 		const currentLogs = project.buildLogs || "";
-		const newLogs = currentLogs + logLine;
+		const newLogs = currentLogs + logLines.join("");
 
 		db.projects.update(id, { buildLogs: newLogs });
 	}

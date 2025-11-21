@@ -98,3 +98,51 @@ export async function listProjectFiles(projectId: string): Promise<string[]> {
 	await walk(projectPath);
 	return files;
 }
+
+// Helper for code browser: list only files under src/ to keep
+// the payload small and avoid walking build output, node_modules, etc.
+export async function listProjectSrcFiles(
+	projectId: string,
+): Promise<string[]> {
+	const projectPath = await getProjectPath(projectId);
+	const srcRoot = path.join(projectPath, "src");
+	const files: string[] = [];
+
+	async function walk(dir: string, baseDir = "") {
+		try {
+			const entries = await fs.readdir(dir, { withFileTypes: true });
+
+			for (const entry of entries) {
+				const relativePath = path.join(baseDir, entry.name);
+
+				if (entry.isDirectory()) {
+					await walk(path.join(dir, entry.name), relativePath);
+				} else {
+					files.push(path.join("src", relativePath));
+				}
+			}
+		} catch (error) {
+			// src directory may not exist yet; treat as empty
+		}
+	}
+
+	await walk(srcRoot);
+	return files;
+}
+
+// Helper to read a file under src/ by its src-relative path.
+export async function readProjectSrcFile(
+	projectId: string,
+	srcRelativePath: string,
+): Promise<string | null> {
+	// Normalise to ensure we always read from src/ and not allow escaping.
+	const projectPath = await getProjectPath(projectId);
+	const safeRelative = srcRelativePath.replace(/^src\//, "");
+	const fullPath = path.join(projectPath, "src", safeRelative);
+
+	try {
+		return await fs.readFile(fullPath, "utf-8");
+	} catch {
+		return null;
+	}
+}

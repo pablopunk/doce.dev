@@ -55,15 +55,27 @@ export class User {
  * Setup Model
  * Handles initial application setup
  */
+let setupCompleteCache: boolean | null = null;
+
 export class Setup {
 	/**
 	 * Check if setup is complete
 	 * Business logic: requires at least one user AND an AI provider configured
 	 */
 	static isComplete(): boolean {
+		// Once setup is marked complete, we can avoid hitting the database on
+		// every request and rely on an in-memory cache. This significantly
+		// reduces contention during normal operation.
+		if (setupCompleteCache === true) {
+			return true;
+		}
+
 		// Check if setup_complete flag is set
 		const configValue = db.config.get("setup_complete");
-		if (configValue?.value === "true") return true;
+		if (configValue?.value === "true") {
+			setupCompleteCache = true;
+			return true;
+		}
 
 		// Check if we have at least one user
 		const userCount = db.users.count();
@@ -83,7 +95,12 @@ export class Setup {
 			: false;
 		const hasAI = hasEnvKey || (!!provider && hasConfigKey);
 
-		return hasUser && !!hasAI;
+		const complete = hasUser && !!hasAI;
+		if (complete) {
+			setupCompleteCache = true;
+		}
+
+		return complete;
 	}
 
 	/**
@@ -100,6 +117,8 @@ export class Setup {
 	 */
 	static complete(): void {
 		db.config.set("setup_complete", "true");
+		// Update in-memory cache so subsequent middleware checks avoid DB.
+		setupCompleteCache = true;
 	}
 
 	/**

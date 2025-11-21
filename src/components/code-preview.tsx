@@ -479,27 +479,9 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				)}
 				{activeTab === "code" && (
 					<div className="h-full overflow-auto p-4 bg-surface/30">
-						{project?.files && project.files.length > 0 ? (
-							<div className="space-y-4">
-								{project.files.map((file: any) => (
-									<div
-										key={file.id}
-										className="bg-surface rounded-lg border border-border-border overflow-hidden"
-									>
-										<div className="bg-surface px-4 py-2 font-mono text-sm">
-											{file.file_path}
-										</div>
-										<pre className="p-4 overflow-x-auto">
-											<code className="text-sm">{file.content}</code>
-										</pre>
-									</div>
-								))}
-							</div>
-						) : (
-							<div className="h-full flex items-center justify-center text-muted">
-								No code generated yet
-							</div>
-						)}
+						<div className="h-full flex items-center justify-center text-muted">
+							Code view temporarily disabled
+						</div>
 					</div>
 				)}
 				{activeTab === "env" && (

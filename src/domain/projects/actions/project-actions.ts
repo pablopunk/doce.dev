@@ -19,7 +19,10 @@ import {
 	listProjectFiles,
 	readProjectFile,
 	writeProjectFiles,
+	listProjectSrcFiles,
+	readProjectSrcFile,
 } from "@/lib/file-system";
+
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
 import { LLMConfig } from "@/domain/llms/models/llm-config";
 import { Conversation } from "@/domain/conversations/models/conversation";
@@ -168,7 +171,7 @@ export const server = {
 			id: z.string(),
 		}),
 		handler: async ({ id }) => {
-			const project = await Project.getWithFiles(id);
+			const project = await Project.getById(id);
 
 			if (!project) {
 				throw new ActionError({
@@ -214,8 +217,28 @@ export const server = {
 			id: z.string(),
 		}),
 		handler: async ({ id }) => {
-			const filesystem = await listProjectFiles(id);
+			// For the code browser we only return files under src/ to keep the
+			// payload small and avoid walking build output and dependencies.
+			const filesystem = await listProjectSrcFiles(id);
 			return { files: filesystem };
+		},
+	}),
+
+	// GET /api/projects/[id]/file
+	getFileContent: defineAction({
+		input: z.object({
+			id: z.string(),
+			path: z.string(), // src-relative path, e.g. "src/pages/index.astro"
+		}),
+		handler: async ({ id, path }) => {
+			const content = await readProjectSrcFile(id, path);
+			if (content == null) {
+				throw new ActionError({
+					code: "NOT_FOUND",
+					message: "File not found",
+				});
+			}
+			return { path, content };
 		},
 	}),
 

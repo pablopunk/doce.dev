@@ -119,33 +119,72 @@ export async function createPreviewContainer(
 			{ cwd: projectPath },
 		);
 
+		// Buffer logs in memory and flush them to the database periodically
+		// instead of writing on every chunk. This avoids hammering SQLite with
+		// tiny writes while docker-compose is noisy.
+		let bufferedLogs: string[] = [];
+		const flushIntervalMs = 500;
+		let flushTimer: NodeJS.Timeout | null = null;
+		let processClosed = false;
+
+		const flushLogs = async () => {
+			if (bufferedLogs.length === 0) return;
+			const logsToWrite = bufferedLogs;
+			bufferedLogs = [];
+			try {
+				await Project.appendBuildLogs(projectId, logsToWrite);
+			} catch (error) {
+				console.error("Failed to append build logs:", error);
+			}
+		};
+
+		const ensureFlushTimer = () => {
+			if (flushTimer || processClosed) return;
+			flushTimer = setInterval(async () => {
+				await flushLogs();
+				if (processClosed && flushTimer) {
+					clearInterval(flushTimer);
+					flushTimer = null;
+				}
+			}, flushIntervalMs);
+		};
+
 		// Capture stdout and stderr
 		composeProcess.stdout.on("data", (data) => {
 			const log = data.toString();
 			console.log(log);
-			Project.appendBuildLog(projectId, log); // Fire and forget - logging shouldn't block
+			bufferedLogs.push(log);
+			ensureFlushTimer();
 		});
 
 		composeProcess.stderr.on("data", (data) => {
 			const log = data.toString();
 			console.error(log);
-			Project.appendBuildLog(projectId, log); // Fire and forget - logging shouldn't block
+			bufferedLogs.push(log);
+			ensureFlushTimer();
 		});
 
 		// Wait for the process to complete
 		await new Promise<void>((resolve, reject) => {
-			composeProcess.on("close", (code) => {
+			composeProcess.on("close", async (code) => {
+				processClosed = true;
+				if (flushTimer) {
+					clearInterval(flushTimer);
+					flushTimer = null;
+				}
+
+				// Final flush of any remaining logs
+				await flushLogs();
+
 				if (code === 0) {
-					Project.appendBuildLog(
-						projectId,
-						`\n✓ docker-compose up completed successfully\n`,
-					);
+					await Project.appendBuildLogs(projectId, [
+						"\n✓ docker-compose up completed successfully\n",
+					]);
 					resolve();
 				} else {
-					Project.appendBuildLog(
-						projectId,
+					await Project.appendBuildLogs(projectId, [
 						`\n✗ docker-compose up failed with exit code ${code}\n`,
-					);
+					]);
 					reject(new Error(`docker-compose up failed with exit code ${code}`));
 				}
 			});
