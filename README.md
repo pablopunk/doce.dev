@@ -39,6 +39,4 @@
 - [ ] Compact context in chat:
   - [ ] Button to compact it
   - [ ] Mechanism to detect when compression is needed (context gets big)
-- [ ] Template for ecommerce
-- [ ] Template for minimal tools
-- [ ] Think about cloning the templates on the fly and keeping an AGENTS.md file on the repo with instructions on how to modify the template
+- [ ] Rethink templates. Maybe we should always bootstrap the minimal starter, and provide components/styles/pages/layouts depending on the prompt.
