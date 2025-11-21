@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { streamContainerLogs } from "@/lib/docker";
-import { projects } from "@/lib/db";
+import { Project } from "@/domain/projects/models/project";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("logs-api");
@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	try {
 		// Get project to check for stored build logs
-		const project = projects.getById(projectId) as any;
+		const project = (await Project.getById(projectId)) as any;
 
 		// Get the log stream from Docker
 		const logStream = await streamContainerLogs(projectId);

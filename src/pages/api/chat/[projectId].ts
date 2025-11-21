@@ -5,7 +5,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { z } from "zod";
 import { generateCode } from "@/domain/projects/lib/code-generator";
-import * as db from "@/lib/db";
+import { Conversation } from "@/domain/conversations/models/conversation";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
 import {
 	listProjectFiles,
 	readProjectFile,
@@ -51,16 +52,17 @@ async function execInContainer(
 	}
 }
 
+import type { AIProvider } from "@/domain/llms/models/llm-config";
+
 // Helper to get API key from database (returns null if not configured)
-function getApiKey(provider: string): string | null {
-	const config = db.config.get(`${provider}_api_key`);
-	return config?.value || null;
+function getApiKey(provider: AIProvider): string | null {
+	return LLMConfig.getApiKey(provider);
 }
 
 // Helper to get model provider and instance (OpenRouter only)
 function getModel(modelId: string) {
 	// OpenRouter can route to ANY provider (OpenAI, Anthropic, Google, xAI, etc.)
-	const openrouterKey = getApiKey("openrouter");
+	const openrouterKey = LLMConfig.getApiKey("openrouter");
 	if (openrouterKey) {
 		const openrouter = createOpenRouter({ apiKey: openrouterKey });
 		return openrouter(modelId);
@@ -88,17 +90,12 @@ export const POST: APIRoute = async ({ params, request }) => {
 		clientAborted = true;
 	});
 
-	let conversation = db.conversations.getByProjectId(projectId);
+	let conversation = Conversation.getByProjectId(projectId);
 	if (!conversation) {
-		conversation = db.conversations.create({
-			id: crypto.randomUUID(),
-			projectId,
-			model: requestedModel,
-		});
+		conversation = Conversation.create(projectId, requestedModel);
 	} else if (requestedModel && requestedModel !== conversation.model) {
 		// Update model if changed
-		db.conversations.update(conversation.id, { model: requestedModel });
-		conversation.model = requestedModel;
+		conversation = Conversation.updateModel(conversation.id, requestedModel);
 	}
 
 	// TypeScript assertion: conversation is guaranteed to be defined after the above check
@@ -109,7 +106,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 	const userMessage = messages[messages.length - 1];
 
 	// Check if this exact user message already exists (prevent duplicates)
-	const existingMessages = db.messages.getByConversationId(conversation.id);
+	// Use Conversation model to access messages
+	const existingMessages = Conversation.getHistory(projectId).messages;
 	const lastUserMessage = existingMessages
 		.filter((msg: any) => msg.role === "user")
 		.pop();
@@ -118,12 +116,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 		lastUserMessage && lastUserMessage.content === userMessage.content;
 
 	if (!isDuplicate) {
-		db.messages.create({
-			id: crypto.randomUUID(),
-			conversationId: conversation.id,
-			role: "user",
-			content: userMessage.content,
-		});
+		Conversation.saveMessage(conversation.id, "user", userMessage.content);
 		logger.debug("Saved new user message");
 	} else {
 		logger.debug(
@@ -142,10 +135,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 		logger.warn(
 			`Found stuck streaming message ${stuckStreamingMessage.id}, marking as error`,
 		);
-		db.messages.update(stuckStreamingMessage.id, {
-			content: "Error: Previous response timed out",
-			streamingStatus: "error",
-		});
+		Conversation.updateMessage(
+			stuckStreamingMessage.id,
+			"Error: Previous response timed out",
+			"error",
+		);
 		chatEvents.notifyMessageUpdate(projectId, conversation.id);
 	}
 
@@ -376,10 +370,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 
 		if (assistantMessageId) {
-			db.messages.update(assistantMessageId, {
-				content: text,
-				streamingStatus: status,
-			});
+			Conversation.updateMessage(assistantMessageId!, text, status);
 			lastSavedText = text;
 			lastSaveTime = now;
 			logger.debug(`Saved to DB: ${text.length} chars, status: ${status}`);
@@ -390,13 +381,12 @@ export const POST: APIRoute = async ({ params, request }) => {
 	};
 
 	// Create assistant message immediately in DB with streaming status
-	const initialMsg = db.messages.create({
-		id: crypto.randomUUID(),
-		conversationId: conversation.id,
-		role: "assistant",
-		content: "",
-		streamingStatus: "streaming",
-	});
+	const initialMsg = Conversation.saveMessage(
+		conversation.id,
+		"assistant",
+		"",
+		"streaming",
+	);
 	assistantMessageId = initialMsg?.id ?? null;
 	logger.debug(`Created streaming assistant message: ${assistantMessageId}`);
 
@@ -506,13 +496,14 @@ ${agentGuidelines}`,
 				if (clientAborted) {
 					logger.info(`Client aborted, marking message as stopped`);
 					if (assistantMessageId && fullMessageContent.trim().length > 0) {
-						db.messages.update(assistantMessageId, {
-							content:
-								fullMessageContent + "\n\n_[Generation stopped by user]_",
-							streamingStatus: "complete",
-						});
+						Conversation.updateMessage(
+							assistantMessageId!,
+							fullMessageContent + "\n\n_[Generation stopped by user]_",
+							"complete",
+						);
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					}
+
 					return;
 				}
 
@@ -524,10 +515,11 @@ ${agentGuidelines}`,
 				if (finalContent.trim().length > 0) {
 					if (assistantMessageId) {
 						// Mark message as complete in database with full content
-						db.messages.update(assistantMessageId, {
-							content: finalContent,
-							streamingStatus: "complete",
-						});
+						Conversation.updateMessage(
+							assistantMessageId!,
+							finalContent,
+							"complete",
+						);
 						logger.debug(
 							`Marked message ${assistantMessageId} as complete with ${finalContent.length} chars`,
 						);
@@ -536,13 +528,12 @@ ${agentGuidelines}`,
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					} else {
 						// Fallback: create message if somehow it wasn't created yet
-						db.messages.create({
-							id: crypto.randomUUID(),
-							conversationId: conversation.id,
-							role: "assistant",
-							content: finalContent,
-							streamingStatus: "complete",
-						});
+						Conversation.saveMessage(
+							conversation.id,
+							"assistant",
+							finalContent,
+							"complete",
+						);
 						logger.debug(`Created message in onFinish (fallback)`);
 
 						// Emit final update
@@ -569,12 +560,11 @@ ${agentGuidelines}`,
 				} else {
 					logger.warn(`Empty response from model, marking as error`);
 					if (assistantMessageId) {
-						db.messages.update(assistantMessageId, {
-							content: "Error: Empty response from model",
-							streamingStatus: "error",
-						});
-
-						// Emit error update
+						Conversation.updateMessage(
+							assistantMessageId!,
+							"Error: Empty response from model",
+							"error",
+						);
 						chatEvents.notifyMessageUpdate(projectId, conversation.id);
 					}
 				}
@@ -588,10 +578,11 @@ ${agentGuidelines}`,
 			error instanceof Error ? error : new Error(String(error)),
 		);
 		if (assistantMessageId) {
-			db.messages.update(assistantMessageId, {
-				content: `Error: ${error}`,
-				streamingStatus: "error",
-			});
+			Conversation.updateMessage(
+				assistantMessageId!,
+				`Error: ${String(error)}`,
+				"error",
+			);
 			chatEvents.notifyMessageUpdate(projectId, conversation.id);
 		}
 		return new Response(

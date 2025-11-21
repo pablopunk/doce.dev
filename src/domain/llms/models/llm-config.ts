@@ -105,6 +105,14 @@ export class LLMConfig {
 	}
 
 	/**
+	 * Get the raw API key for a given provider from config
+	 */
+	static getApiKey(provider: AIProvider): string | null {
+		const configItem = db.config.get(`${provider}_api_key`);
+		return configItem?.value || null;
+	}
+
+	/**
 	 * Check if AI is properly configured
 	 */
 	static isConfigured(): boolean {

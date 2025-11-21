@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import * as db from "@/lib/db";
+import { Conversation } from "@/domain/conversations/models/conversation";
 import { chatEvents } from "@/domain/conversations/lib/events";
 import { createLogger } from "@/lib/logger";
 
@@ -18,13 +18,15 @@ export const GET: APIRoute = async ({ params }) => {
 	logger.info(`Client connecting for project \${projectId}`);
 
 	// Get conversation
-	const conversation = db.conversations.getByProjectId(projectId);
+	const conversation = Conversation.getByProjectId(projectId);
 	if (!conversation) {
 		logger.warn(`No conversation found for project \${projectId}`);
 		return Response.json({ error: "Conversation not found" }, { status: 404 });
 	}
 
-	logger.info(`Found conversation \${conversation.id} for project \${projectId}`);
+	logger.info(
+		`Found conversation \${conversation.id} for project \${projectId}`,
+	);
 
 	const encoder = new TextEncoder();
 	let keepaliveInterval: NodeJS.Timeout | null = null;
@@ -34,9 +36,10 @@ export const GET: APIRoute = async ({ params }) => {
 			// Send initial messages immediately
 			const sendMessages = () => {
 				try {
-					const messages = db.messages.getByConversationId(conversation.id);
+					const history = Conversation.getHistory(projectId);
+					const messages = history.messages;
 					logger.debug(
-						`Sending \${messages.length} messages for project \${projectId}`,
+						`Sending ${messages.length} messages for project ${projectId}`,
 					);
 					const data = JSON.stringify({
 						type: "messages",
@@ -48,9 +51,7 @@ export const GET: APIRoute = async ({ params }) => {
 							created_at: msg.created_at,
 						})),
 					});
-					controller.enqueue(encoder.encode(`data: \${data}\
-\
-`));
+					controller.enqueue(encoder.encode(`data: ${data}\n\n`));
 				} catch (error) {
 					logger.error("Error sending messages", error as Error);
 				}
@@ -62,7 +63,9 @@ export const GET: APIRoute = async ({ params }) => {
 
 			// Listen for updates from the event emitter (NO POLLING!)
 			const updateHandler = () => {
-				logger.debug(`Event received for project \${projectId}, sending update`);
+				logger.debug(
+					`Event received for project \${projectId}, sending update`,
+				);
 				sendMessages();
 			};
 			logger.debug(`Registered event listener for project:\${projectId}`);
@@ -71,9 +74,13 @@ export const GET: APIRoute = async ({ params }) => {
 			// Setup keepalive every 30s
 			keepaliveInterval = setInterval(() => {
 				try {
-					controller.enqueue(encoder.encode(": keepalive\
+					controller.enqueue(
+						encoder.encode(
+							": keepalive\
 \
-"));
+",
+						),
+					);
 				} catch (error) {
 					// Stream closed
 					if (keepaliveInterval) {
