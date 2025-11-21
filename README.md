@@ -31,3 +31,4 @@
 - [x] Add a logger library. This should be able to log different levels to console or files (or both)
 - [ ] Please go model by model and fix the mess that the AI made.
 - [x] Remove all imports from db outside models files (example: project id page). Maybe we can add a biome rule for this.
+- [x] Split the template AGENTS file into rules for template, and subsequent rules for the project, i.e. once it's created it should not mention that's a template, but just a project on itself. The other rules should be global doce-rules, re-used in all templates.
