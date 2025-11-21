@@ -22,7 +22,7 @@
 - [ ] URL bar in the preview window
 - [x] Remove all semantic colors from shadcn/ui and add the ones from our design system
 - [x] Add guidelines for persistance in templates/. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.
-- [ ] Get rid of console erros in dashboard
+- [x] Get rid of console erros in dashboard
 - [ ] Allow editing Global prompt for templates. Should be saved in settings, never replace the template AGENTS file.
 - [ ] Allow inserting images in the prompt
 - [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
