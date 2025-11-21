@@ -32,13 +32,6 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
 			"Most advanced for coding and autonomous agents. Top SWE-bench scores.",
 	},
 	{
-		id: "google/gemini-2.5-flash",
-		name: "Gemini 2.5 Flash",
-		provider: "Google",
-		description:
-			"Fast workhorse with thinking mode. Great for coding and math.",
-	},
-	{
 		id: "google/gemini-2.5-pro",
 		name: "Gemini 2.5 Pro",
 		provider: "Google",
