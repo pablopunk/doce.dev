@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIBlob from "@/components/ui/ai-blob";
 import { useProjectLifecycle } from "@/domain/projects/hooks/use-project-lifecycle";
+import type { PreviewStatus } from "@/lib/preview-status-bus";
 
 const projectFetcher = async (_key: string, id: string) => {
 	const { data, error } = await actions.projects.getProject({ id });
@@ -69,6 +70,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [isRestarting, setIsRestarting] = useState(false);
 	const [isFirstGenerationComplete, setIsFirstGenerationComplete] =
 		useState(false);
+	const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("unknown");
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
@@ -138,6 +140,49 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			setIsCreatingPreview(false);
 		}
 	}, [projectId, mutate]);
+
+	// Subscribe to server-side preview status via SSE
+	useEffect(() => {
+		let eventSource: EventSource | null = null;
+		if (!projectId) return;
+
+		try {
+			const url = `/api/projects/${projectId}/status`;
+			const es = new EventSource(url);
+			eventSource = es;
+
+			es.onmessage = (event) => {
+				try {
+					const payload = JSON.parse(event.data) as {
+						status?: PreviewStatus;
+						previewUrl?: string | null;
+						error?: string;
+					};
+					if (payload.status) {
+						setPreviewStatus(payload.status);
+					}
+				} catch (e) {
+					console.error("Failed to parse preview status event:", e);
+				}
+			};
+
+			es.onerror = () => {
+				// keep UI in existing state; browser will handle reconnects
+			};
+		} catch (e) {
+			console.error("Failed to open preview status stream:", e);
+		}
+
+		return () => {
+			if (eventSource) {
+				try {
+					eventSource.close();
+				} catch (e) {
+					// ignore
+				}
+			}
+		};
+	}, [projectId]);
 
 	// Auto-start preview when component mounts if not already running
 	useEffect(() => {
@@ -390,16 +435,34 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						) : (
 							<div className="h-full flex items-center justify-center">
 								<div className="text-center space-y-4">
-									<p className="text-muted">No preview available yet</p>
+									<p className="text-muted">
+										{previewStatus === "creating" ||
+										previewStatus === "starting"
+											? "Preview is starting..."
+											: previewStatus === "failed"
+												? "Preview failed to start"
+												: "No preview available yet"}
+									</p>
 									<Button
 										onClick={handleCreatePreview}
-										disabled={isCreatingPreview}
+										disabled={
+											isCreatingPreview ||
+											previewStatus === "creating" ||
+											previewStatus === "starting"
+										}
 									>
-										{isCreatingPreview ? (
+										{isCreatingPreview || previewStatus === "creating" ? (
 											<>
 												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
 												Creating Preview...
 											</>
+										) : previewStatus === "starting" ? (
+											<>
+												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+												Starting Preview...
+											</>
+										) : previewStatus === "failed" ? (
+											"Retry Preview"
 										) : (
 											"Create Preview"
 										)}

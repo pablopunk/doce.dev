@@ -119,7 +119,20 @@ export function ProjectList() {
 								{/* Bottom row: date and action buttons */}
 								<div className="flex items-center justify-between">
 									<div className="text-xs text-muted/60">
-										Updated {new Date(project.updated_at).toLocaleDateString()}
+										Updated {(() => {
+											const raw =
+												project.updated_at ??
+												project.updatedAt ??
+												project.updatedAt;
+											if (!raw) return "—";
+											try {
+												return new Date(
+													raw.replace(" ", "T"),
+												).toLocaleDateString();
+											} catch (e) {
+												return "—";
+											}
+										})()}
 									</div>
 									<div className="flex items-center gap-1">
 										{project.deployed_url && (

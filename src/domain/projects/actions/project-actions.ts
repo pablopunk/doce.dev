@@ -24,6 +24,7 @@ import { copyTemplateToProject } from "@/domain/projects/lib/template-generator"
 import { LLMConfig } from "@/domain/llms/models/llm-config";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import { Deployment } from "@/domain/system/models/system";
+import { publishPreviewStatus } from "@/lib/preview-status-bus";
 
 // Helper functions
 function getTemplateAgentsContent(): string {
@@ -255,6 +256,9 @@ export const server = {
 					});
 				}
 
+				// Notify clients that preview creation is requested
+				publishPreviewStatus(id, { status: "creating" });
+
 				// Check if preview is already running
 				const existingState = await getPreviewState(id);
 				if (existingState) {
@@ -267,6 +271,12 @@ export const server = {
 						status: "preview",
 					});
 
+					// Notify clients
+					publishPreviewStatus(id, {
+						status: "running",
+						previewUrl: existingState.url,
+					});
+
 					return {
 						success: true,
 						containerId: existingState.containerId,
@@ -277,20 +287,48 @@ export const server = {
 				}
 
 				// Create new preview container
-				const { containerId, url, port } = await createPreviewContainer(id);
+				try {
+					// publish 'starting' so clients show the starting UI while compose runs
+					try {
+						publishPreviewStatus(id, { status: "starting", previewUrl: null });
+					} catch (e) {
+						/* best-effort */
+					}
 
-				await Project.updateFields(id, {
-					previewUrl: url,
-					status: "preview",
-				});
+					const { containerId, url, port } = await createPreviewContainer(id);
 
-				return {
-					success: true,
-					containerId,
-					url,
-					port,
-					reused: false,
-				};
+					await Project.updateFields(id, {
+						previewUrl: url,
+						status: "preview",
+					});
+
+					// publish running
+					try {
+						publishPreviewStatus(id, { status: "running", previewUrl: url });
+					} catch (e) {
+						/* best-effort */
+					}
+
+					return {
+						success: true,
+						containerId,
+						url,
+						port,
+						reused: false,
+					};
+				} catch (err) {
+					// Publish failure to clients
+					try {
+						publishPreviewStatus(id, {
+							status: "failed",
+							previewUrl: null,
+							error: err instanceof Error ? err.message : String(err),
+						});
+					} catch (e) {
+						/* best-effort */
+					}
+					throw err;
+				}
 			} catch (error) {
 				console.error("Failed to create preview:", error);
 				throw new ActionError({
@@ -372,6 +410,13 @@ export const server = {
 					status: "draft",
 				});
 
+				// Notify clients
+				try {
+					publishPreviewStatus(id, { status: "not-created", previewUrl: null });
+				} catch (e) {
+					/* best-effort */
+				}
+
 				return { success: true };
 			} catch (error) {
 				console.error("Failed to delete preview:", error);
@@ -407,12 +452,26 @@ export const server = {
 
 				// Start the preview again
 				console.log(`Restarting preview for ${id}: starting container...`);
+				// Let clients know we're starting a fresh container
+				try {
+					publishPreviewStatus(id, { status: "starting", previewUrl: null });
+				} catch (e) {
+					/* best-effort */
+				}
+
 				const { containerId, url, port } = await createPreviewContainer(id);
 
 				await Project.updateFields(id, {
 					previewUrl: url,
 					status: "preview",
 				});
+
+				// Container is back up and running
+				try {
+					publishPreviewStatus(id, { status: "running", previewUrl: url });
+				} catch (e) {
+					/* best-effort */
+				}
 
 				return {
 					success: true,
@@ -422,6 +481,16 @@ export const server = {
 				};
 			} catch (error) {
 				console.error("Failed to restart preview:", error);
+				// Surface failure to clients as well
+				try {
+					publishPreviewStatus(id, {
+						status: "failed",
+						previewUrl: null,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				} catch (e) {
+					/* best-effort */
+				}
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to restart preview",
@@ -460,6 +529,16 @@ export const server = {
 						console.log(
 							`[Lifecycle] Successfully stopped preview for project ${id}`,
 						);
+
+						// Reflect in status stream
+						try {
+							publishPreviewStatus(id, {
+								status: "not-created",
+								previewUrl: null,
+							});
+						} catch (e) {
+							/* best-effort */
+						}
 					} catch (error) {
 						console.error(
 							`[Lifecycle] Failed to stop preview for project ${id}:`,
