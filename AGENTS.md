@@ -301,13 +301,161 @@ React components in Astro pages require hydration directives to run on the clien
 - **API**: `src/lib/logger/index.ts`
 - **Usage**: `import { createLogger } from "@/lib/logger"` then `const logger = createLogger("namespace")`
 
-**Code Gen**:
-- **Templates**: @templates/ contains one folder per template (currently `astro/`). These are base projects that the AI model copies and modifies to generate new projects.
-- **Format**: Fenced blocks with `file="path"` attribute, or JSON with files array
+**Code Gen & Templates**:
+- **Template System**: @templates/ contains modular template system
+  - `AGENTS.md` - Framework-independent rules for ALL generated projects
+  - `astro-starter/AGENTS.md` - Minimal Astro 5 base template (TypeScript, SEO, file-based routing)
+  - `design-systems/shadcn-tailwind/AGENTS.md` - shadcn/ui components with semantic color system
+  - `components.json` - shadcn CLI configuration in astro-starter
+- **Generation Flow**: 
+  1. Copy `astro-starter` template to project
+  2. Copy base shadcn components (button, card, input, label, utils) to `src/components/ui/`
+  3. AI reads templates/AGENTS.md + astro-starter/AGENTS.md + shadcn-tailwind/AGENTS.md
+  4. AI generates pages in `src/pages/`
+  5. AI adds components on-demand: `pnpm dlx shadcn@latest add [component]`
+  6. AI sets up Astro Actions for server logic
+  7. AI configures plain SQLite if persistence needed
+- **Prompt Builder**: @src/domain/projects/lib/prompt-builder.ts assembles complete AI prompt
+- **Template Generator**: @src/domain/projects/lib/template-generator.tsx copies templates + design system
 - **Parser**: @src/domain/projects/lib/code-generator.tsx (tries JSON first, then extracts code blocks)
 - **File Operations**: @src/lib/file-system.ts (writes files to disk + DB)
-- **CRITICAL**: Always generate `src/pages/index.astro` as complete page with full HTML
-- **Components**: All generated projects include full shadcn/ui library from template
+- **CRITICAL Rules**:
+  - Always generate `src/pages/index.astro` as complete page with full HTML
+  - Use semantic colors (`bg-surface`, `text-fg`, `border-border`) - NO `dark:` classes
+  - Use `pnpm` for all operations (NOT npm or yarn)
+  - Add shadcn components via CLI: `pnpm dlx shadcn@latest add [component]`
+  - Use Astro Actions for server logic (NOT API routes unless streaming)
+  - Use plain SQLite with better-sqlite3 for persistence (NOT Drizzle in generated projects)
+
+## 🎯 Template System (AI Project Generation)
+
+### Architecture
+
+The template system uses a **modular approach** where:
+- **Base template** (`astro-starter`) provides minimal Astro 5 setup
+- **Design system** (`shadcn-tailwind`) provides styled components + semantic color system
+- **Global rules** (`GLOBAL_RULES.md`) define framework requirements for ALL projects
+- **AI agent** orchestrates generation using tools (writeFile, runCommand, etc.)
+
+### Template Structure
+
+```
+templates/
+├── AGENTS.md                    # Framework rules (pnpm, Tailwind v4, Astro Actions, SQLite)
+├── astro-starter/               # Minimal Astro 5 base
+│   ├── AGENTS.md                # Template-specific guidelines
+│   ├── components.json          # shadcn CLI config
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── layouts/
+│   │   └── components/
+│   └── package.json
+└── design-systems/
+    └── shadcn-tailwind/
+        ├── AGENTS.md            # Design system docs
+        ├── components/          # 5 base components (button, card, input, label, utils)
+        └── styles/              # globals.css with semantic colors
+```
+
+### Generation Workflow
+
+1. **User creates project** with prompt (e.g., "Build me a todo app")
+2. **Template generator** copies astro-starter + shadcn base components
+3. **Prompt builder** loads:
+   - templates/AGENTS.md (framework requirements)
+   - design-systems/shadcn-tailwind/AGENTS.md (shadcn usage + CLI instructions)
+   - astro-starter/AGENTS.md (template specifics)
+4. **AI agent receives** complete prompt via @src/pages/api/chat/[projectId].ts
+5. **AI generates** pages, components, actions using tools:
+   - `writeFile` - Create/update files
+   - `runCommand` - Install deps, add shadcn components, run builds
+   - `listFiles` - Inspect project structure
+   - `readFile` - Read existing files
+6. **Result**: Working project with styled UI, server logic, and optional persistence
+
+### Key Files
+
+- **Prompt Builder**: @src/domain/projects/lib/prompt-builder.ts
+  - `loadGlobalRules()` - Framework rules
+  - `loadDesignSystemDocs()` - shadcn docs
+  - `loadStarterAgentsFile()` - Template docs
+- **Template Generator**: @src/domain/projects/lib/template-generator.tsx
+  - Copies base template + design system files
+- **Code Generator**: @src/domain/projects/lib/code-generator.tsx
+  - Parses AI responses (JSON or code blocks)
+  - Writes files via file-system.ts
+
+### Design System (shadcn/ui)
+
+**Base Components** (included in every project):
+- `button.tsx` - Button with variants (default, outline, ghost, destructive, link)
+- `card.tsx` - Card container (Header, Title, Description, Content, Footer)
+- `input.tsx` - Text input field
+- `label.tsx` - Form label
+- `utils.ts` - cn() utility for className merging
+
+**On-Demand Components** (via CLI):
+```bash
+pnpm dlx shadcn@latest add dialog dropdown-menu select
+```
+
+**Color Token Mapping** (shadcn → doce.dev semantic):
+- `bg-background` → `bg-bg` (page background)
+- `bg-card` → `bg-surface` (cards, panels)
+- `bg-primary` → `bg-cta` (primary buttons)
+- `text-foreground` → `text-fg` (default text)
+- `text-muted-foreground` → `text-muted` (secondary text)
+- `border` → `border-border` (borders)
+
+### templates/AGENTS.md
+
+All generated projects MUST follow these rules (enforced via AI prompt):
+
+**Framework Stack**:
+- Astro 5 (file-based routing, static by default)
+- TypeScript (required)
+- Tailwind CSS v4 (NO `dark:` classes, semantic colors only)
+- pnpm (NOT npm or yarn)
+
+**Server Logic**:
+- Astro Actions for all server operations
+- API routes ONLY for streaming (SSE, AI responses)
+
+**Persistence**:
+- Plain SQLite with better-sqlite3 (NOT Drizzle ORM in generated projects)
+- Simple wrapper in `src/lib/db.ts`
+
+**Styling**:
+- Semantic color tokens automatically adapt to light/dark mode
+- Use `@theme` directive (not `:root`) for Tailwind v4
+- NO `dark:` classes anywhere in generated code
+
+**Component Usage**:
+- Base components already included in `src/components/ui/`
+- Add more via shadcn CLI as needed
+- All components use semantic color system
+
+### Testing Generated Projects
+
+```bash
+# Navigate to generated project
+cd data/projects/{projectId}
+
+# Install dependencies
+pnpm install
+
+# Add shadcn component (if needed)
+pnpm dlx shadcn@latest add dialog
+
+# Run dev server
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Type check
+pnpm type-check
+```
 
 ## Middleware
 

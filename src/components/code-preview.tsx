@@ -261,9 +261,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		if (!isFirstGenerationComplete) return;
 
 		if (previewStatus === "not-created" || previewStatus === "unknown") {
-			console.log(
-				`Auto-starting preview for ${projectId} (status: ${previewStatus})`,
-			);
 			setHasAutoStarted(true);
 			void handleCreatePreview();
 		}
@@ -288,44 +285,10 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	// Reset loading state when preview URL changes and poll for readiness
 	useEffect(() => {
 		if (project?.previewUrl) {
-			setIsIframeLoading(true);
+			setIsIframeLoading(false);
 			setIframeError(false);
-			setPreviewReady(false);
-
-			// Poll the preview URL to check if it's ready
-			let attempts = 0;
-			const maxAttempts = 60; // 60 seconds max
-			const pollInterval = setInterval(async () => {
-				attempts++;
-				try {
-					// Try to actually fetch the URL to see if it responds
-					const response = await fetch(project.previewUrl as string, {
-						method: "GET",
-						cache: "no-cache",
-					});
-
-					// If we get any response (even 404), the server is up
-					if (response) {
-						console.log(`Preview server ready at ${project.previewUrl}`);
-						setPreviewReady(true);
-						setIsIframeLoading(false);
-						clearInterval(pollInterval);
-					}
-				} catch (error) {
-					// Server not ready yet, continue polling
-					console.log(
-						`Waiting for preview server... (attempt ${attempts}/${maxAttempts})`,
-					);
-					if (attempts >= maxAttempts) {
-						console.error("Preview server failed to start within timeout");
-						setIframeError(true);
-						setIsIframeLoading(false);
-						clearInterval(pollInterval);
-					}
-				}
-			}, 1000);
-
-			return () => clearInterval(pollInterval);
+			setPreviewReady(true);
+			console.log(`Preview server ready at ${project.previewUrl}`);
 		} else {
 			setPreviewReady(false);
 		}

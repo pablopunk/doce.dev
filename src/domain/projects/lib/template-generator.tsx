@@ -8,6 +8,7 @@ interface TemplateFile {
 
 /**
  * Copies template files from the templates directory to a project
+ * Always includes shadcn-tailwind design system
  */
 export async function copyTemplateToProject(
 	templateName: string,
@@ -35,7 +36,44 @@ export async function copyTemplateToProject(
 		}
 	}
 
+	// Copy base template files
 	await walkDirectory(templateDir);
+
+	// Always copy shadcn-tailwind design system files
+	const designSystemDir = path.join(
+		process.cwd(),
+		"templates",
+		"design-systems",
+		"shadcn-tailwind",
+	);
+
+	try {
+		// Copy components from design system
+		const componentsDir = path.join(designSystemDir, "components");
+		try {
+			await walkDirectory(componentsDir, "src/components/ui");
+		} catch (error) {
+			console.warn(`No components found in shadcn-tailwind design system`);
+		}
+
+		// Copy layouts from design system
+		const layoutsDir = path.join(designSystemDir, "layouts");
+		try {
+			await walkDirectory(layoutsDir, "src/layouts/ds");
+		} catch (error) {
+			console.warn(`No layouts found in shadcn-tailwind design system`);
+		}
+
+		// Copy styles from design system
+		const stylesDir = path.join(designSystemDir, "styles");
+		try {
+			await walkDirectory(stylesDir, "src/styles/ds");
+		} catch (error) {
+			console.warn(`No styles found in shadcn-tailwind design system`);
+		}
+	} catch (error) {
+		console.error(`Failed to copy design system files:`, error);
+	}
 
 	// Also copy any shared docker-compose files that live alongside templates
 	// (eg. templates/docker-compose.dev.yml, templates/docker-compose.prod.yml)

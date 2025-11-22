@@ -35,6 +35,8 @@ export const projects = sqliteTable("projects", {
 	previewUrl: text("preview_url"),
 	deployedUrl: text("deployed_url"),
 	buildLogs: text("build_logs"),
+	initialPrompt: text("initial_prompt"),
+	bootstrapped: text("bootstrapped").default("false"),
 });
 
 // Conversations table

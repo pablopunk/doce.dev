@@ -21,6 +21,7 @@ export type NewProjectModel = {
 	id: string;
 	name: string;
 	description?: string | null;
+	initialPrompt?: string | null;
 };
 
 export interface ProjectWithFiles extends ProjectModel {
@@ -89,9 +90,16 @@ export class Project {
 		name: string,
 		description?: string,
 		templateId?: string,
+		initialPrompt?: string,
 	): Promise<ProjectModel> {
 		const id = crypto.randomUUID();
-		const project = db.projects.create({ id, name, description, templateId });
+		const project = db.projects.create({
+			id,
+			name,
+			description,
+			templateId,
+			initialPrompt,
+		});
 		if (!project) throw new Error("Failed to create project");
 		return project;
 	}

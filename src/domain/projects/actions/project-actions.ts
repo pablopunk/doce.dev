@@ -1,13 +1,11 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { generateText } from "ai";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import { LLMConfig } from "@/domain/llms/models/llm-config";
 import { generateDefaultProjectStructure } from "@/domain/projects/lib/code-generator";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
-import { chooseTemplateForPrompt } from "@/domain/projects/lib/template-selector";
+import { DEFAULT_TEMPLATE_ID } from "@/domain/projects/lib/templates";
 import { Project } from "@/domain/projects/models/project";
 import { Deployment } from "@/domain/system/models/system";
 import {
@@ -29,16 +27,8 @@ import {
 } from "@/lib/file-system";
 import { publishPreviewStatus } from "@/lib/preview-status-bus";
 
-// Helper functions
-function getTemplateAgentsContent(): string {
-	try {
-		const agentsPath = join(process.cwd(), "templates", "astro", "AGENTS.md");
-		return readFileSync(agentsPath, "utf-8");
-	} catch (error) {
-		console.error("Failed to read AGENTS.md:", error);
-		throw new Error("Template AGENTS.md file not found");
-	}
-}
+// We now use a single template for bootstrap operations
+const TEMPLATE_ID = DEFAULT_TEMPLATE_ID;
 
 function parseEnvFile(content: string): Record<string, string> {
 	const env: Record<string, string> = {};
@@ -79,6 +69,17 @@ function stringifyEnvFile(env: Record<string, string>): string {
 	return lines.join("\n") + "\n";
 }
 
+function slugifyProjectName(source: string): string {
+	const base = source
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9-]/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-+|-+$/g, "");
+
+	return base || "project";
+}
+
 // Track active project sessions with timeouts
 const activeProjects = new Map<string, NodeJS.Timeout>();
 const INACTIVITY_TIMEOUT = 60000; // 60 seconds
@@ -95,14 +96,19 @@ export const server = {
 	// POST /api/projects
 	createProject: defineAction({
 		input: z.object({
-			name: z.string().optional(),
-			description: z.string().optional(),
-			prompt: z.string().optional(),
+			name: z
+				.string()
+				.min(1, "Name cannot be empty")
+				.max(100, "Name is too long")
+				.optional(),
+			description: z.string().max(500, "Description is too long").optional(),
+			prompt: z.string().max(2000, "Prompt is too long").optional(),
+			fromTemplate: z.boolean().optional(),
 		}),
-		handler: async ({ name, description, prompt }) => {
+		handler: async ({ name, description, prompt, fromTemplate }) => {
 			let projectName = name;
 			const projectDescription = description || prompt;
-			let chosenTemplateId: string | undefined;
+			const shouldBootstrapFromTemplate = fromTemplate ?? !!prompt;
 
 			// If a prompt is provided, generate project name with AI first
 			if (prompt && !name) {
@@ -116,64 +122,46 @@ export const server = {
 						prompt: `Generate a project name for the following description: ${prompt}`,
 					});
 
-					projectName = nameResult.text
-						.trim()
-						.toLowerCase()
-						.replace(/[^a-z0-9-]/g, "-")
-						.replace(/-+/g, "-");
+					projectName = slugifyProjectName(nameResult.text);
 				} catch (error) {
 					console.error("Failed to generate project name:", error);
-					projectName = prompt
-						.slice(0, 50)
-						.toLowerCase()
-						.replace(/[^a-z0-9-]/g, "-")
-						.replace(/-+/g, "-");
-				}
-			}
-
-			// If a prompt is provided, choose template before creating the row
-			if (prompt) {
-				try {
-					const choice = await chooseTemplateForPrompt(prompt);
-					chosenTemplateId = choice.template.id;
-					console.log(
-						`Template choice for new project: ${choice.template.id} (confidence=${choice.confidence})`,
-					);
-				} catch (error) {
-					console.error("Failed to choose template for project:", error);
+					projectName = slugifyProjectName(prompt.slice(0, 50));
 				}
 			}
 
 			const projectResult = await Project.create(
 				projectName || "new-project",
 				projectDescription,
-				chosenTemplateId,
+				TEMPLATE_ID,
+				prompt ?? undefined,
 			);
 
-			// If a prompt is provided and we have a chosen template, copy its
-			// files and save the initial user message.
-			if (prompt && chosenTemplateId) {
+			// If requested, copy the template and optionally save the initial user message
+			if (shouldBootstrapFromTemplate) {
 				try {
-					const choice = await chooseTemplateForPrompt(prompt);
-					const templateFiles = await copyTemplateToProject(
-						choice.template.folder,
-					);
+					const templateFiles = await copyTemplateToProject(TEMPLATE_ID);
 
 					await writeProjectFiles(projectResult.id, templateFiles);
 					console.log(
-						`Template ${choice.template.id} copied: ${templateFiles.length} files`,
+						`Template ${TEMPLATE_ID} copied: ${templateFiles.length} files`,
 					);
+
+					await Project.updateFields(projectResult.id, {
+						bootstrapped: "true",
+					});
 
 					const aiModelId = LLMConfig.getAIModelId();
-					Conversation.createWithInitialMessage(
-						projectResult.id,
-						prompt,
-						aiModelId,
-					);
+					if (prompt) {
+						Conversation.createWithInitialMessage(
+							projectResult.id,
+							prompt,
+							aiModelId,
+						);
 
-					console.log(
-						`Project ${projectResult.id} created with initial prompt using template ${choice.template.id}. Generation will start when user visits project page.`,
-					);
+						console.log(
+							`Project ${projectResult.id} created with initial prompt using template ${TEMPLATE_ID}. Generation will start when user visits project page.`,
+						);
+					}
 				} catch (error) {
 					console.error("Failed to setup initial project structure:", error);
 				}
@@ -267,13 +255,29 @@ export const server = {
 		}),
 		handler: async ({ id }) => {
 			try {
+				const project = await Project.getById(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				if (project.bootstrapped === "true") {
+					return { success: true, filesCreated: 0, skipped: true };
+				}
+
 				const files = await generateDefaultProjectStructure();
 				// Write to filesystem only (single source of truth)
 				await writeProjectFiles(id, files);
+				await Project.updateFields(id, { bootstrapped: "true" });
 
 				return { success: true, filesCreated: files.length };
 			} catch (error) {
 				console.error("Failed to generate project:", error);
+				if (error instanceof ActionError) {
+					throw error;
+				}
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to generate project",

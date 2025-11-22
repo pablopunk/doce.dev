@@ -6,12 +6,16 @@ import { promisify } from "util";
 import { z } from "zod";
 import { generateCode } from "@/domain/projects/lib/code-generator";
 import { Conversation } from "@/domain/conversations/models/conversation";
-import { LLMConfig } from "@/domain/llms/models/llm-config";
-import { getTemplateById } from "@/domain/projects/lib/template-metadata";
 import {
-	buildBootstrapPlan,
-	formatBootstrapPlanForSystem,
-} from "@/domain/projects/lib/bootstrap-plan";
+	getToolStatus,
+	setToolStatus,
+} from "@/domain/conversations/lib/tool-status";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
+import {
+	loadGlobalRules,
+	loadDesignSystemDocs,
+	loadStarterAgentsFile,
+} from "@/domain/projects/lib/prompt-builder";
 import { projects as projectsTable } from "@/lib/db";
 import type { ProjectInDatabase } from "@/lib/db";
 
@@ -28,7 +32,7 @@ const logger = createLogger("chat-api");
 
 const execAsync = promisify(exec);
 
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes for complex project generation with many tool calls
 
 // Helper function to safely execute commands in preview container
 async function execInContainer(
@@ -136,8 +140,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 	const stuckStreamingMessage = existingMessages.find(
 		(msg: any) =>
 			msg.role === "assistant" &&
-			msg.streaming_status === "streaming" &&
-			new Date(msg.created_at).getTime() < Date.now() - 30000, // Stuck for >30s
+			msg.streamingStatus === "streaming" &&
+			new Date(msg.createdAt).getTime() < Date.now() - 30000, // Stuck for >30s
 	);
 	if (stuckStreamingMessage) {
 		logger.warn(
@@ -153,41 +157,49 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	const model = getModel(conversation.model || DEFAULT_AI_MODEL);
 
-	// Try to read AGENTS.md from the project
-	let agentGuidelines = "";
+	// Load global rules and design system documentation
+	const [globalRules, designSystemDocs, starterAgents] = await Promise.all([
+		loadGlobalRules(),
+		loadDesignSystemDocs(),
+		loadStarterAgentsFile(),
+	]);
+
+	// Load template documentation (global rules + design system + starter template)
+	let templateDocs = "";
+	try {
+		const globalRules = await loadGlobalRules();
+		const designSystemDocs = await loadDesignSystemDocs();
+		const starterDocs = await loadStarterAgentsFile();
+
+		templateDocs = `
+
+## Template Documentation
+
+### Global Rules (Framework Requirements)
+${globalRules}
+
+### Design System (shadcn/ui Components)
+${designSystemDocs}
+
+### Starter Template (Astro 5 Base)
+${starterDocs}
+`;
+	} catch (error) {
+		logger.warn("Failed to load template documentation", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+
+	// Try to read AGENTS.md from the project (for project-specific guidelines)
+	let projectGuidelines = "";
 	try {
 		const agentsMd = await readProjectFile(projectId, "AGENTS.md");
 		if (agentsMd) {
-			agentGuidelines = `\n\n## Project-Specific Guidelines\n\n${agentsMd}`;
+			projectGuidelines = `\n\n## Project-Specific Guidelines\n\n${agentsMd}`;
 		}
 	} catch (error) {
-		// AGENTS.md doesn't exist yet, use default guidelines
+		// AGENTS.md doesn't exist yet
 		logger.debug(`No AGENTS.md found for project ${projectId}`);
-	}
-
-	// Try to build a bootstrap plan using the stored templateId
-	let bootstrapPlanText = "";
-	try {
-		// Lightweight direct query via Drizzle to avoid circular imports
-		const project = projectsTable.getById(projectId) as
-			| (ProjectInDatabase & { templateId?: string | null })
-			| null;
-
-		if (project?.templateId) {
-			const template = getTemplateById(project.templateId);
-			if (template) {
-				const plan = buildBootstrapPlan(
-					template,
-					project.name,
-					userMessage.content,
-				);
-				bootstrapPlanText = `\n\n## Bootstrap Plan\n\n${formatBootstrapPlanForSystem(plan)}`;
-			}
-		}
-	} catch (error) {
-		logger.warn("Failed to build bootstrap plan", {
-			error: error instanceof Error ? error.message : String(error),
-		});
 	}
 
 	// AI SDK supports tool calling for most modern models
@@ -436,29 +448,68 @@ export const POST: APIRoute = async ({ params, request }) => {
 	try {
 		result = streamText({
 			model,
+			maxOutputTokens: 16384, // High per-step token limit for complex generations
 			...(modelSupportsTools && {
 				tools: toolDefinitions,
-				stopWhen: stepCountIs(10), // Allow up to 10 steps for tool calling
-				maxSteps: 10, // Explicit max steps
+				stopWhen: stepCountIs(50), // Allow up to 50 steps for complex project creation
+				maxSteps: 50, // Explicit max steps for multi-step tool calling
 			}),
+			onChunk: async ({ chunk }) => {
+				// Log all chunk types to debug stream events
+				if (chunk.type === "tool-call") {
+					logger.debug(`🔧 Tool call: ${chunk.toolName}`, chunk);
+					// Surface current tool activity per project
+					if (chunk.toolName) {
+						try {
+							const args =
+								((chunk as any).args as any | undefined) ||
+								((chunk as any).input as any | undefined) ||
+								{};
+							if (chunk.toolName === "writeFile" && args.filePath) {
+								setToolStatus(
+									projectId,
+									`Writing ${String(args.filePath).split("/").pop()}`,
+								);
+							} else if (chunk.toolName === "readFile" && args.filePath) {
+								setToolStatus(
+									projectId,
+									`Reading ${String(args.filePath).split("/").pop()}`,
+								);
+							} else if (chunk.toolName === "listFiles") {
+								setToolStatus(projectId, "Inspecting project structure");
+							} else if (chunk.toolName === "runCommand" && args.command) {
+								setToolStatus(
+									projectId,
+									`Running: ${String(args.command).slice(0, 60)}`,
+								);
+							} else if (chunk.toolName === "fetchUrl" && args.url) {
+								setToolStatus(projectId, `Fetching docs: ${args.url}`);
+							} else {
+								setToolStatus(projectId, `Using tool: ${chunk.toolName}`);
+							}
+						} catch (e) {
+							logger.debug("Failed to derive tool status", e as Error);
+						}
+					}
+				} else if (chunk.type === "tool-result") {
+					logger.debug(`📋 Tool result: ${chunk.toolName}`);
+					// Keep last tool status until a new tool starts or stream finishes
+				}
+			},
 			onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {
 				logger.debug(
 					`Step finished - text: ${text.length} chars, tools: ${toolCalls.length}, results: ${toolResults.length}, finish: ${finishReason}`,
 				);
 
-				// Build full message content including tool calls (same format as frontend)
-				// Add tool calls
-				for (const toolCall of toolCalls) {
-					const toolMessage = `\n\n🔧 **Using tool: ${toolCall.toolName}**\n\`\`\`json\n${JSON.stringify((toolCall as any).args, null, 2)}\n\`\`\`\n`;
-					fullMessageContent += toolMessage;
+				// Log tool calls for debugging
+				if (toolCalls.length > 0) {
+					logger.debug(
+						`Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`,
+					);
 				}
 
-				// Add tool results
-				for (const toolResult of toolResults) {
-					const resultMessage = `\n📋 **Result from ${toolResult.toolName}:**\n\`\`\`json\n${JSON.stringify((toolResult as any).result, null, 2)}\n\`\`\`\n`;
-					fullMessageContent += resultMessage;
-					lastEventWasToolResult = true;
-				}
+				// Don't add tool calls/results to message content
+				// The frontend handles tool events from the stream
 
 				// Add spacing before text if we just had tool results
 				if (text.trim().length > 0) {
@@ -467,6 +518,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 						lastEventWasToolResult = false;
 					}
 					fullMessageContent += text;
+				}
+
+				// Mark that we had tool results if there were any
+				if (toolResults.length > 0) {
+					lastEventWasToolResult = true;
 				}
 
 				// Save full content to database with streaming status
@@ -492,32 +548,87 @@ export const POST: APIRoute = async ({ params, request }) => {
 					);
 				}
 			},
-			// NOTE: bootstrapPlanText is appended after AGENTS.md guidelines
+			// NOTE: Full docs are loaded but summarized to save tokens
+			// AI can use readFile tool to access full documentation when needed
 			system: `You are an expert web developer building Astro applications.
 
-CRITICAL RULES:
-1. Use the writeFile tool to create or modify files in the project
-2. ALWAYS write complete, valid file contents - no placeholders or truncated code
-3. Read existing files with readFile before modifying them to understand the current structure
-4. If a tool fails, communicate it to the user and try an alternative approach
-5. Complete ALL files before finishing - don't stop mid-file
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  CRITICAL: COMMUNICATION STYLE ⚠️
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Available tools:
-- readFile: inspect existing code in a file
-- writeFile: create or update a file with new content
-- listFiles: see the project directory structure
-- runCommand: execute shell commands (npm install, build, test, etc.)
-- fetchUrl: fetch external documentation or resources
+BE EXTREMELY CONCISE. Users see your messages in a chat UI.
 
-Workflow for modifying code:
-1. Use listFiles to understand the project structure
-2. Use readFile to inspect files you need to modify
-3. Use writeFile to create or update files with your changes
-4. Use runCommand to install dependencies, run builds, or test changes
+❌ NEVER say:
+- "Now let me..."
+- "First I'll..."
+- "Let me create..."
+- "Now I need to..."
+- "Perfect! Now I'll..."
 
-AGENTS.md guidelines. These are the guidelines for the new project:
+✅ ONLY say:
+- High-level status WHEN NEEDED: "Setting up database", "Creating pages"
+- Final summary: "Created finance tracker with 5 pages and SQLite backend"
+- Errors/blockers ONLY
 
-${agentGuidelines}${bootstrapPlanText}`,
+🔧 Tools are SILENT - The UI shows tool activity automatically.
+DO NOT announce tool calls. Just use them.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# CRITICAL RULES
+
+**Framework Stack:**
+- Astro 5 + TypeScript (required)
+- Tailwind CSS v4 (NO dark: classes, use semantic colors only)
+- pnpm (NOT npm/yarn)
+- shadcn/ui components (add via: pnpm dlx shadcn@latest add [component])
+
+**Semantic Colors** (MUST use these):
+- bg-bg, bg-surface, bg-raised, bg-cta
+- text-strong, text-fg, text-muted
+- border-border
+(Colors adapt to light/dark automatically - NO dark: prefix!)
+
+**Server Logic:**
+- Astro Actions for all server operations
+- API routes ONLY for streaming (SSE, AI)
+
+**Persistence:**
+- Plain SQLite with better-sqlite3 (NOT Drizzle)
+- Simple wrapper in src/lib/db.ts
+
+**Component Usage:**
+- Base components in src/components/ui/ (button, card, input, label)
+- Add more: pnpm dlx shadcn@latest add [component]
+
+# AVAILABLE TOOLS
+
+- **readFile**: inspect existing code in a file
+- **writeFile**: create or update a file with new content
+- **listFiles**: see the project directory structure
+- **runCommand**: execute shell commands (pnpm install, build, shadcn add, etc.)
+- **fetchUrl**: fetch external documentation or resources
+
+# WORKFLOW
+
+1. Use tools to build (listFiles, readFile, writeFile, runCommand)
+2. Provide concise status updates
+3. Summarize what was accomplished
+
+# RULES
+
+1. **Use writeFile** to create or modify files in the project
+2. **ALWAYS write complete, valid file contents** - no placeholders or truncated code
+3. **Read existing files** with readFile before modifying them
+4. **If a tool fails**, try an alternative approach
+5. **Complete ALL files** before finishing - don't stop mid-file
+6. **Use pnpm** for all package operations (NOT npm or yarn)
+7. **Add shadcn components** on-demand with: \`pnpm dlx shadcn@latest add [component]\`
+8. **Use semantic color tokens** (bg-surface, text-fg, border-border) - NO dark: classes
+9. **Use Astro Actions** for server logic (NOT API routes unless streaming)
+10. **Generate complete pages** in src/pages/index.astro with full HTML
+
+${templateDocs}${projectGuidelines}`,
 			messages,
 			onFinish: async ({ text, finishReason }) => {
 				logger.debug(`onFinish called for project ${projectId}`);
@@ -531,6 +642,7 @@ ${agentGuidelines}${bootstrapPlanText}`,
 				// Check if client aborted
 				if (clientAborted) {
 					logger.info(`Client aborted, marking message as stopped`);
+					setToolStatus(projectId, null);
 					if (assistantMessageId && fullMessageContent.trim().length > 0) {
 						Conversation.updateMessage(
 							assistantMessageId!,
@@ -549,6 +661,8 @@ ${agentGuidelines}${bootstrapPlanText}`,
 
 				// Final save to DB with complete status
 				if (finalContent.trim().length > 0) {
+					// Clear tool status when generation fully completes
+					setToolStatus(projectId, null);
 					if (assistantMessageId) {
 						// Mark message as complete in database with full content
 						Conversation.updateMessage(

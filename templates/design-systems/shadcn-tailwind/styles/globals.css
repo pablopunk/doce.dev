@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--radius: 0.625rem;
+}
+
+.dark {
+	--bg-bg: hsl(0 0% 0%);
+	--bg-surface: hsl(0 0% 5%);
+	--bg-raised: hsl(0 0% 10%);
+	--bg-cta: hsl(0 0% 0%);
+
+	--text-strong: hsl(0 0% 92%);
+	--text-fg: hsl(0 0% 80);
+	--text-muted: hsl(0 0% 68%);
+
+	--border: hsl(0 0% 20%);
+	--warning: hsla(40, 100%, 50%, 0.8);
+	--danger: hsla(359, 100%, 50%, 0.8);
+
+	--shadow-sm: inset 0 1px 0 0 hsl(0 0% 100% / 0.05);
+	--shadow-md: inset 0 1px 2px 0 hsl(0 0% 100% / 0.1);
+	--shadow-lg: inset 0 2px 4px 0 hsl(0 0% 100% / 0.15);
+}
+
+.light {
+	--bg-bg: hsl(0 0% 90%);
+	--bg-surface: hsl(0 0% 93%);
+	--bg-raised: hsl(0 0% 95%);
+	--bg-cta: hsl(0 0% 100%);
+
+	--text-strong: hsl(0 0% 8%);
+	--text-fg: hsl(0 0% 20%);
+	--text-muted: hsl(0 0% 32%);
+
+	--border: hsl(0 0% 80%);
+	--warning: hsla(40, 100%, 50%, 0.8);
+	--danger: hsla(359, 100%, 50%, 0.8);
+
+	--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--shadow-md: 0 2px 6px -1px rgb(0 0 0 / 0.1), 0 1px 4px -2px rgb(0 0 0 / 0.1);
+	--shadow-lg:
+		0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* These variables will expose this theme as tailwind classes:
+ * --color-* → bg-*, text-*, border-*
+ * --font-* → font-*
+ * --radius-* → rounded-*
+ */
+@theme inline {
+	--font-sans: ui-sans-serif, system-ui, sans-serif;
+	--font-mono: ui-monospace, "Courier New", monospace;
+
+	--color-bg: var(--bg-bg);
+	--color-surface: var(--bg-surface);
+	--color-raised: var(--bg-raised);
+	--color-cta: var(--bg-cta);
+
+	--color-strong: var(--text-strong);
+	--color-fg: var(--text-fg);
+	--color-muted: var(--text-muted);
+
+	--color-border: var(--border);
+	--color-warning: var(--warning);
+	--color-danger: var(--danger);
+
+	--shadow-sm: var(--shadow-sm);
+	--shadow-md: var(--shadow-md);
+	--shadow-lg: var(--shadow-lg);
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	body {
+		@apply bg-bg text-fg font-sans antialiased;
+	}
+}

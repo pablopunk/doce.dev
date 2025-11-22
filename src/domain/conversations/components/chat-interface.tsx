@@ -55,27 +55,36 @@ interface Message {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
+	streamingStatus?: "streaming" | "complete" | "error" | null;
 }
 
 export function ChatInterface({ projectId }: { projectId: string }) {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [input, setInput] = useState(() => {
-		// Load saved input from localStorage on mount
 		if (typeof window !== "undefined") {
 			const saved = localStorage.getItem(`chat-input-${projectId}`);
 			return saved || "";
 		}
 		return "";
 	});
-	const [isLoading, setIsLoading] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 	const [selectedModel, setSelectedModel] = useState(DEFAULT_AI_MODEL);
 	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
 		null,
 	);
 	const [popoverOpen, setPopoverOpen] = useState(false);
+	const [currentToolAction, setCurrentToolAction] = useState<string | null>(
+		null,
+	);
+	const [hasActiveStream, setHasActiveStream] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const eventSourceRef = useRef<EventSource | null>(null);
+
+	// Only server-side streaming status controls the "Generating..." bubble.
+	// isSubmitting is used just to disable the send button while the POST starts.
+	const isGenerating = hasActiveStream;
 
 	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
 		const iconClass =
@@ -103,16 +112,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setPopoverOpen(false);
 	};
 
-	// Trigger generation for initial project prompt
+	// Trigger generation for initial project prompt (fire-and-forget)
 	const triggerInitialGeneration = async (
 		userPrompt: string,
 		model: string,
 	) => {
-		setIsLoading(true);
-		// Mark that initial generation is in progress
+		setIsSubmitting(true);
 		setInitialGenerationInProgress(projectId, true);
 
-		// Create new AbortController for this request
 		const abortController = new AbortController();
 		abortControllerRef.current = abortController;
 
@@ -122,183 +129,44 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					messages: [{ role: "user", content: userPrompt }],
-					model: model,
+					model,
 				}),
 				signal: abortController.signal,
 			});
 
-			if (!response.ok) throw new Error("Failed to get response");
-
-			const reader = response.body?.getReader();
-			if (!reader) throw new Error("No response body");
-
-			const decoder = new TextDecoder();
-			let buffer = "";
-			let assistantMessage = "";
-			let lastEventWasToolResult = false;
-
-			// Add empty assistant message immediately
-			setMessages((prev) => [
-				...prev,
-				{
-					id: Math.random().toString(),
-					role: "assistant",
-					content: "",
-				},
-			]);
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split("\n");
-
-				// Keep the last incomplete line in the buffer
-				buffer = lines.pop() || "";
-
-				for (const line of lines) {
-					if (!line.trim() || line.startsWith(":")) continue;
-
-					// Parse data: prefix from SSE format
-					if (line.startsWith("data: ")) {
-						const jsonStr = line.slice(6); // Remove 'data: ' prefix
-
-						// Skip [DONE] marker
-						if (jsonStr.trim() === "[DONE]") {
-							continue;
-						}
-
-						try {
-							const data = JSON.parse(jsonStr);
-
-							// Handle different message types from AI SDK
-							if (data.type === "text-delta" && data.delta) {
-								// Add spacing if this is the first text after a tool result
-								if (lastEventWasToolResult) {
-									// Add two line breaks to separate from tool results
-									assistantMessage += "\n\n";
-									lastEventWasToolResult = false;
-								}
-
-								assistantMessage += data.delta;
-
-								// Update the last message (assistant) with new content
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle step transitions to add spacing between thinking steps
-							else if (data.type === "finish-step") {
-								// Mark that a step just finished so we can add spacing before next text
-								lastEventWasToolResult = true;
-							}
-							// Handle tool call events
-							else if (data.type === "tool-call" && data.toolName) {
-								const toolMessage = `\n\n🔧 **Using tool: ${data.toolName}**\n\`\`\`json\n${JSON.stringify(data.args, null, 2)}\n\`\`\`\n`;
-								assistantMessage += toolMessage;
-
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle tool result events
-							else if (data.type === "tool-result" && data.toolName) {
-								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n`;
-								assistantMessage += resultMessage;
-								lastEventWasToolResult = true; // Mark that we just processed a tool result
-
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle step finish to ensure spacing between steps
-							else if (data.type === "finish-step") {
-								// Mark that a step just finished
-								lastEventWasToolResult = true;
-							}
-						} catch (e) {
-							logger.error(
-								"Failed to parse stream data",
-								e instanceof Error ? e : new Error(String(e)),
-								{ line },
-							);
-						}
-					}
-				}
-			}
-
-			// After streaming completes, mark initial generation as complete
-			setInitialGenerationInProgress(projectId, false);
-
-			// Refresh the code preview and reload messages with real IDs
-			refreshCodePreview();
-
-			// Reload messages from server to get proper database IDs
-			await reloadMessages();
-		} catch (error: any) {
+			if (!response.ok) throw new Error("Failed to start generation");
+		} catch (error) {
 			console.error("Chat error:", error);
-
-			// Mark initial generation as complete even on error
 			setInitialGenerationInProgress(projectId, false);
-
-			// Check if the error was due to abort
-			if (error.name === "AbortError") {
-				console.log("Request was aborted by user");
-				// Remove the empty assistant message that was added
-				setMessages((prev) => prev.slice(0, -1));
-			} else {
-				setMessages((prev) => [
-					...prev.slice(0, -1), // Remove the empty assistant message
-					{
-						id: `temp-error-${Date.now()}`,
-						role: "assistant",
-						content: "Error: Failed to generate response. Please try again.",
-					},
-				]);
-			}
 		} finally {
 			abortControllerRef.current = null;
-			setIsLoading(false);
+			setIsSubmitting(false);
+			setCurrentToolAction(null);
 		}
 	};
 
-	// Load chat history on mount
+	// Load history once and subscribe to SSE for live updates
 	useEffect(() => {
+		let es: EventSource | null = null;
+
 		async function loadHistory() {
 			try {
-				console.log(`[ChatInterface] Loading history for project ${projectId}`);
-
 				const { data, error } = await actions.chat.getHistory({ projectId });
 				if (!error && data) {
-					console.log(
-						`[ChatInterface] Loaded ${data.messages?.length || 0} messages, model: ${data.model}`,
-					);
 					setMessages((data.messages || []) as any);
-					if (data.model) {
-						setSelectedModel(data.model);
-					}
+					if (data.model) setSelectedModel(data.model);
 
-					// Check if we have a single user message without a response
-					// This indicates a newly created project that needs generation
+					const hasStreamingAssistant = (data.messages || []).some(
+						(m: any) =>
+							m.role === "assistant" && m.streamingStatus === "streaming",
+					);
+					setHasActiveStream(hasStreamingAssistant);
+
 					if (data.messages?.length === 1 && data.messages[0].role === "user") {
-						console.log(
-							"[ChatInterface] Found initial prompt without response, triggering generation",
+						await triggerInitialGeneration(
+							data.messages[0].content,
+							data.model,
 						);
-						// Trigger generation for the initial prompt
-						triggerInitialGeneration(data.messages[0].content, data.model);
 					}
 				}
 			} catch (error) {
@@ -307,14 +175,68 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				setIsLoadingHistory(false);
 			}
 		}
+
 		loadHistory();
+
+		if (typeof window === "undefined") return;
+
+		try {
+			es = new EventSource(`/api/chat/${projectId}/messages`);
+			eventSourceRef.current = es;
+
+			es.onmessage = (event) => {
+				try {
+					const payload = JSON.parse(event.data) as {
+						type?: string;
+						messages?: Message[];
+					};
+					if (payload.type === "messages" && payload.messages) {
+						setMessages(payload.messages as any);
+
+						const hasStreamingAssistant = payload.messages.some(
+							(m) =>
+								m.role === "assistant" && m.streamingStatus === "streaming",
+						);
+						console.log(
+							"[ChatInterface] SSE hasStreamingAssistant=",
+							hasStreamingAssistant,
+						);
+						setHasActiveStream(hasStreamingAssistant);
+
+						if ((payload as any).toolStatus) {
+							setCurrentToolAction((payload as any).toolStatus as string);
+						} else {
+							setCurrentToolAction(null);
+						}
+					}
+				} catch (err) {
+					console.error("Failed to parse chat SSE event:", err);
+				}
+			};
+
+			es.onerror = (err) => {
+				console.error("Chat SSE error:", err);
+			};
+		} catch (err) {
+			console.error("Failed to open chat SSE stream:", err);
+		}
+
+		return () => {
+			if (es) {
+				try {
+					es.close();
+				} catch {
+					// ignore
+				}
+			}
+			eventSourceRef.current = null;
+		};
 	}, [projectId]);
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
-	// Save input to localStorage whenever it changes
 	useEffect(() => {
 		if (typeof window !== "undefined") {
 			localStorage.setItem(`chat-input-${projectId}`, input);
@@ -325,7 +247,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		messageId: string,
 		deleteFrom: boolean = false,
 	) => {
-		if (isLoading) return; // Don't allow deletion while generating
+		if (isGenerating) return;
 
 		setDeletingMessageId(messageId);
 
@@ -336,14 +258,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			});
 
 			if (!error) {
-				// Remove messages from UI
 				setMessages((prev) => {
 					const messageIndex = prev.findIndex((m) => m.id === messageId);
 					if (messageIndex === -1) return prev;
 
 					return deleteFrom
-						? prev.slice(0, messageIndex) // Delete from this message onwards
-						: prev.filter((m) => m.id !== messageId); // Delete only this message
+						? prev.slice(0, messageIndex)
+						: prev.filter((m) => m.id !== messageId);
 				});
 			} else {
 				console.error("Failed to delete message:", error);
@@ -360,6 +281,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			const { data, error } = await actions.chat.getHistory({ projectId });
 			if (!error && data) {
 				setMessages((data.messages || []) as any);
+				const lastAssistant = (data.messages || [])
+					.slice()
+					.reverse()
+					.find((m: any) => m.role === "assistant");
+				setHasActiveStream(lastAssistant?.streamingStatus === "streaming");
 			}
 		} catch (error) {
 			console.error("Failed to reload messages:", error);
@@ -370,13 +296,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		if (abortControllerRef.current) {
 			abortControllerRef.current.abort();
 			abortControllerRef.current = null;
-			setIsLoading(false);
+			setIsSubmitting(false);
+			setCurrentToolAction(null);
 		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!input.trim() || isLoading) return;
+		if (!input.trim() || isGenerating) return;
 
 		const userMessage: Message = {
 			id: `temp-user-${Date.now()}`,
@@ -386,13 +313,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		setMessages((prev) => [...prev, userMessage]);
 		setInput("");
-		// Clear localStorage when message is sent
 		if (typeof window !== "undefined") {
 			localStorage.removeItem(`chat-input-${projectId}`);
 		}
-		setIsLoading(true);
+		setIsSubmitting(true);
 
-		// Create new AbortController for this request
 		const abortController = new AbortController();
 		abortControllerRef.current = abortController;
 
@@ -410,149 +335,16 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				signal: abortController.signal,
 			});
 
-			if (!response.ok) throw new Error("Failed to get response");
-
-			const reader = response.body?.getReader();
-			if (!reader) throw new Error("No response body");
-
-			const decoder = new TextDecoder();
-			let buffer = "";
-			let assistantMessage = "";
-			let lastEventWasToolResult = false;
-
-			// Add empty assistant message immediately
-			setMessages((prev) => [
-				...prev,
-				{
-					id: Math.random().toString(),
-					role: "assistant",
-					content: "",
-				},
-			]);
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split("\n");
-
-				// Keep the last incomplete line in the buffer
-				buffer = lines.pop() || "";
-
-				for (const line of lines) {
-					if (!line.trim() || line.startsWith(":")) continue;
-
-					// Parse data: prefix from SSE format
-					if (line.startsWith("data: ")) {
-						const jsonStr = line.slice(6); // Remove 'data: ' prefix
-
-						// Skip [DONE] marker
-						if (jsonStr.trim() === "[DONE]") {
-							continue;
-						}
-
-						try {
-							const data = JSON.parse(jsonStr);
-
-							// Handle different message types from AI SDK
-							if (data.type === "text-delta" && data.delta) {
-								// Add spacing if this is the first text after a tool result
-								if (lastEventWasToolResult) {
-									// Add two line breaks to separate from tool results
-									assistantMessage += "\n\n";
-									lastEventWasToolResult = false;
-								}
-
-								assistantMessage += data.delta;
-
-								// Update the last message (assistant) with new content
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle step transitions to add spacing between thinking steps
-							else if (data.type === "finish-step") {
-								// Mark that a step just finished so we can add spacing before next text
-								lastEventWasToolResult = true;
-							}
-							// Handle tool call events
-							else if (data.type === "tool-call" && data.toolName) {
-								const toolMessage = `\n\n🔧 **Using tool: ${data.toolName}**\n\`\`\`json\n${JSON.stringify(data.args, null, 2)}\n\`\`\`\n`;
-								assistantMessage += toolMessage;
-
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle tool result events
-							else if (data.type === "tool-result" && data.toolName) {
-								const resultMessage = `\n📋 **Result from ${data.toolName}:**\n\`\`\`json\n${JSON.stringify(data.result, null, 2)}\n\`\`\`\n`;
-								assistantMessage += resultMessage;
-								lastEventWasToolResult = true; // Mark that we just processed a tool result
-
-								setMessages((prev) => {
-									const updated = [...prev];
-									if (updated[updated.length - 1]?.role === "assistant") {
-										updated[updated.length - 1].content = assistantMessage;
-									}
-									return updated;
-								});
-							}
-							// Handle step finish to ensure spacing between steps
-							else if (data.type === "finish-step") {
-								// Mark that a step just finished
-								lastEventWasToolResult = true;
-							}
-						} catch (e) {
-							logger.error(
-								"Failed to parse stream data",
-								e instanceof Error ? e : new Error(String(e)),
-								{ line },
-							);
-						}
-					}
-				}
-			}
-
-			// After streaming completes, refresh the code preview and reload messages with real IDs
-			refreshCodePreview();
-
-			// Reload messages from server to get proper database IDs
-			await reloadMessages();
-		} catch (error: any) {
+			if (!response.ok) throw new Error("Failed to start generation");
+		} catch (error) {
 			console.error("Chat error:", error);
-
-			// Check if the error was due to abort
-			if (error.name === "AbortError") {
-				console.log("Request was aborted by user");
-				// Remove the empty assistant message that was added
-				setMessages((prev) => prev.slice(0, -1));
-			} else {
-				setMessages((prev) => [
-					...prev.slice(0, -1), // Remove the empty assistant message
-					{
-						id: `temp-error-${Date.now()}`,
-						role: "assistant",
-						content: "Error: Failed to generate response. Please try again.",
-					},
-				]);
-			}
 		} finally {
 			abortControllerRef.current = null;
-			setIsLoading(false);
+			setIsSubmitting(false);
+			setCurrentToolAction(null);
 		}
 	};
 
-	// Component to render message content with collapsible code blocks
 	function MessageContent({
 		content,
 		isStreaming = false,
@@ -564,7 +356,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			new Set(),
 		);
 
-		// Extract complete code blocks and text/streaming content
 		const parts: Array<{
 			type: "text" | "code";
 			content: string;
@@ -573,16 +364,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			index?: number;
 		}> = [];
 
-		// Only match COMPLETE code blocks (with closing ```)
 		const codeBlockRegex =
 			/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*?)```/g;
 
 		let lastIndex = 0;
-		let match;
+		let match: RegExpExecArray | null;
 		let blockIndex = 0;
 
 		while ((match = codeBlockRegex.exec(content)) !== null) {
-			// Add text before code block
 			if (match.index > lastIndex) {
 				parts.push({
 					type: "text",
@@ -590,7 +379,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				});
 			}
 
-			// Add complete code block
 			parts.push({
 				type: "code",
 				language: match[1] || "plaintext",
@@ -602,11 +390,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			lastIndex = match.index + match[0].length;
 		}
 
-		// Add remaining text (including incomplete code blocks during streaming)
 		if (lastIndex < content.length) {
 			const remaining = content.slice(lastIndex);
-
-			// Check if there's an incomplete code block being streamed
 			const incompleteCodeMatch = remaining.match(
 				/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*)/,
 			);
@@ -616,13 +401,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				isStreaming &&
 				incompleteCodeMatch.index !== undefined
 			) {
-				// Add text before the incomplete code block
 				const textBefore = remaining.slice(0, incompleteCodeMatch.index);
 				if (textBefore.trim()) {
 					parts.push({ type: "text", content: textBefore });
 				}
 
-				// Add the incomplete code block as a loading state
 				parts.push({
 					type: "code",
 					language: incompleteCodeMatch[1] || "plaintext",
@@ -656,7 +439,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 								key={i}
 								remarkPlugins={[remarkGfm]}
 								components={{
-									// Render inline code differently from code blocks
 									code: ({ node, className, ...props }: any) => {
 										const isInline = !className?.includes("language-");
 										return isInline ? (
@@ -668,13 +450,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											<code className={className} {...props} />
 										);
 									},
-									// Handle any remaining code blocks in markdown (shouldn't happen with our regex)
 									pre: ({ children }: any) => (
 										<pre className="bg-surface/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
 											{children}
 										</pre>
 									),
-									// Break long words in paragraphs
 									p: ({ children }: any) => (
 										<p className="break-words">{children}</p>
 									),
@@ -685,7 +465,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						);
 					}
 
-					// Show loading state for incomplete code blocks
 					if (part.content === "streaming") {
 						return (
 							<div
@@ -707,7 +486,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						);
 					}
 
-					// Show complete code block with collapsible content
 					return (
 						<Collapsible
 							key={i}
@@ -771,7 +549,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				{messages.map((message, idx) => {
 					const isLastMessage = idx === messages.length - 1;
 					const isStreamingMessage =
-						isLastMessage && isLoading && message.role === "assistant";
+						isLastMessage &&
+						message.role === "assistant" &&
+						message.streamingStatus === "streaming";
+
 					const isDeleting = deletingMessageId === message.id;
 
 					return (
@@ -803,7 +584,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							<ContextMenuContent className="w-72">
 								<ContextMenuItem
 									onClick={() => handleDeleteMessage(message.id, false)}
-									disabled={isLoading || isDeleting}
+									disabled={isGenerating || isDeleting}
 									className="text-danger text-danger focus:text-danger focus:text-danger"
 								>
 									<Trash2 className="mr-2 h-4 w-4" />
@@ -814,7 +595,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<ContextMenuSeparator />
 										<ContextMenuItem
 											onClick={() => handleDeleteMessage(message.id, true)}
-											disabled={isLoading || isDeleting}
+											disabled={isGenerating || isDeleting}
 											className="text-danger text-danger focus:text-danger focus:text-danger"
 										>
 											<Trash2 className="mr-2 h-4 w-4" />
@@ -827,11 +608,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						</ContextMenu>
 					);
 				})}
-				{isLoading && (
+				{isGenerating && (
 					<div className="flex justify-start">
 						<div className="bg-surface rounded-lg px-4 py-2 flex items-center gap-2">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							<span className="text-sm text-muted">Generating...</span>
+							<span className="text-sm text-muted">
+								{currentToolAction || "Generating..."}
+							</span>
 						</div>
 					</div>
 				)}
@@ -925,17 +708,17 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						onChange={(e) => setInput(e.target.value)}
 						placeholder="Enter your prompt here..."
 						className="flex-1 min-h-[60px] max-h-[200px] resize-none"
-						disabled={isLoading}
+						disabled={isGenerating}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
-								if (!isLoading) {
+								if (!isGenerating) {
 									handleSubmit(e);
 								}
 							}
 						}}
 					/>
-					{isLoading ? (
+					{isGenerating ? (
 						<Button
 							type="button"
 							onClick={handleStop}

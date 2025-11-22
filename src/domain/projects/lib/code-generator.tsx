@@ -1,4 +1,5 @@
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
+import { DEFAULT_TEMPLATE_ID } from "@/domain/projects/lib/templates";
 import { writeProjectFiles } from "@/lib/file-system";
 
 interface GeneratedFile {
@@ -107,7 +108,9 @@ function extractCodeBlocks(text: string): GeneratedFile[] {
 export async function generateDefaultProjectStructure(): Promise<
 	GeneratedFile[]
 > {
-	const files = await copyTemplateToProject("astro");
-	console.log(`Loaded ${files.length} files from astro template`);
+	const files = await copyTemplateToProject(DEFAULT_TEMPLATE_ID);
+	console.log(
+		`Loaded ${files.length} files from ${DEFAULT_TEMPLATE_ID} template with shadcn-tailwind design system`,
+	);
 	return files;
 }
