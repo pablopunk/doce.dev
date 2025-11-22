@@ -90,7 +90,7 @@ export async function createPreviewContainer(
     working_dir: /app
     volumes:
       - ./:/app
-    command: ["sh", "-c", "pnpm install && pnpm run dev -- --host 0.0.0.0 --port 3000"]
+    command: ["sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm run dev -- --host 0.0.0.0 --port 3000"]
     environment:
       NODE_ENV: development
 `;
