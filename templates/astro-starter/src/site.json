@@ -1,0 +1,10 @@
+{
+  "name": "Astro Starter",
+  "description": "",
+  "url": "http://localhost:3000",
+  "twitter": {
+    "site": "@pablopunk",
+    "creator": "@pablopunk"
+  },
+  "author": "doce.dev"
+}

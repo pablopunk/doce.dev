@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: ["sh", "-c", "pnpm i && pnpm run dev"]
+    environment:
+      NODE_ENV: development
+      CI: "true"
