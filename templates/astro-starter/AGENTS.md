@@ -30,9 +30,11 @@ This file is copied into project roots to explain how to use and maintain the pr
 
 ## Pages & layouts
 
-- `src/pages/index.astro` → `/`
+- `src/layouts/Layout.astro` is the canonical app shell; all pages should import and wrap content in this layout.
+- `src/pages/index.astro` → `/` (starter landing page expected to be replaced by generators).
 - Dynamic routes: `src/pages/blog/[slug].astro` → `/blog/:slug`
 - Import a layout into pages to share header/footer/meta tags
+- `src/styles/global.css` defines Tailwind v4 and the semantic color tokens used by shadcn/Tailwind utilities.
 
 ## Server-side: Astro Actions
 
