@@ -51,6 +51,7 @@
 		"@radix-ui/react-tooltip": "1.1.6",
 		"@tailwindcss/typography": "^0.5.19",
 		"ai": "latest",
+		"ansi-to-react": "^6.1.6",
 		"autoprefixer": "^10.4.20",
 		"bcryptjs": "latest",
 		"better-sqlite3": "^12.4.1",

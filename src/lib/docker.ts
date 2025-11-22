@@ -72,34 +72,21 @@ export async function createPreviewContainer(
 			`📂 Project path: ${projectPath}\n`,
 		);
 
-		// Ensure a base docker-compose.dev.yml exists for the project. This
-		// defines a generic Node dev service that runs `npm install` and
-		// `npm run dev` on port 3000. The per-preview override below then
-		// injects the concrete host port and Traefik labels.
+		// Ensure docker-compose.dev.yml exists in the project. This file now
+		// lives inside the template itself and should be copied along with the
+		// rest of the project files during creation.
 		const devComposePath = path.join(projectPath, "docker-compose.dev.yml");
 		try {
 			await fs.stat(devComposePath);
 			await Project.appendBuildLog(
 				projectId,
-				`✓ Using existing docker-compose.dev.yml\n`,
+				`✓ Using docker-compose.dev.yml from template\n`,
 			);
 		} catch {
-			const devCompose = `services:
-  app:
-    image: node:20
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: ["sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm run dev -- --host 0.0.0.0 --port 3000"]
-    environment:
-      NODE_ENV: development
-      CI: "true"
-`;
-			await fs.writeFile(devComposePath, devCompose);
-			await Project.appendBuildLog(
-				projectId,
-				`✓ Generated default docker-compose.dev.yml\n`,
-			);
+			const message =
+				"docker-compose.dev.yml not found in project. Make sure the template includes it.";
+			await Project.appendBuildLog(projectId, `✗ ${message}\n`);
+			throw new Error(message);
 		}
 
 		// Generate docker-compose override for this specific instance with port and labels
@@ -324,35 +311,18 @@ export async function createDeploymentContainer(
 async function buildProjectImage(projectId: string): Promise<string> {
 	const imageName = `doce-project-${projectId}:latest`;
 	const projectPath = `/app/projects/${projectId}`;
+	const dockerfilePath = `${projectPath}/Dockerfile`;
 
-	const dockerfile = `
-FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-COPY package*.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile || pnpm install
-
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN pnpm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-RUN npm install -g http-server
-
-COPY --from=builder /app/dist ./dist
-
-EXPOSE 3000
-CMD ["http-server", "dist", "-p", "3000", "--cors"]
-`;
-
-	await fs.writeFile(`${projectPath}/Dockerfile`, dockerfile);
+	// Dockerfile must come from the template (or user).
+	try {
+		await fs.stat(dockerfilePath);
+		console.log(`Using existing Dockerfile for project ${projectId}`);
+	} catch {
+		const message =
+			"Dockerfile not found in project. Make sure the template includes it.";
+		console.error(message);
+		throw new Error(message);
+	}
 
 	const stream = await docker.buildImage(
 		{
@@ -425,8 +395,10 @@ export async function stopPreviewForProject(projectId: string): Promise<void> {
 			cwd: projectPath,
 		});
 		console.log(`Stopped preview for project ${projectId}`);
-	} catch (error) {
-		console.error(`Failed to stop preview for project ${projectId}:`, error);
+	} catch (error: unknown) {
+		if ((error as { code: string }).code !== "ENOENT") {
+			console.error(`Failed to stop preview for project ${projectId}:`, error);
+		}
 	}
 }
 

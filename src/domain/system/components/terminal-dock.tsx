@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Copy, Terminal, X } from "lucide-react";
+import Ansi from "ansi-to-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,8 @@ interface TerminalDockProps {
 	isPreviewRunning: boolean;
 	isExpanded: boolean;
 	onToggle: () => void;
+	previewUrl?: string | null;
+	onPreviewUrlDetected?: (url: string) => void;
 }
 
 export function TerminalDock({
@@ -17,12 +20,64 @@ export function TerminalDock({
 	isPreviewRunning,
 	isExpanded,
 	onToggle,
+	previewUrl,
+	onPreviewUrlDetected,
 }: TerminalDockProps) {
 	const [logs, setLogs] = useState<string[]>([]);
 	const [isConnected, setIsConnected] = useState(false);
 	const [isCopied, setIsCopied] = useState(false);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
+
+	const rewriteLogLine = (line: string) => {
+		let previewOrigin: string | null = null;
+		let previewPort: string | null = null;
+		let previewProtocol: string | null = null;
+
+		if (previewUrl) {
+			try {
+				const url = new URL(previewUrl);
+				previewOrigin = `${url.protocol}//${url.host}`;
+				previewPort = url.port || null;
+				previewProtocol = url.protocol;
+			} catch {
+				previewOrigin = null;
+				previewPort = null;
+				previewProtocol = null;
+			}
+		}
+
+		const ipv4HostRegex = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+		return line.replace(
+			/(https?:\/\/)([^:\s/]+)(?::(\d{2,5}))?([^\s]*)?/g,
+			(match, protocol: string, host: string, _port?: string, path = "") => {
+				const isLocalHost =
+					host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+				const isIpv4 = ipv4HostRegex.test(host) && !isLocalHost;
+
+				if (isLocalHost && previewOrigin) {
+					const rewritten = `${previewOrigin}${path || ""}`;
+					if (onPreviewUrlDetected) {
+						onPreviewUrlDetected(rewritten);
+					}
+					return rewritten;
+				}
+
+				if (isIpv4) {
+					const baseProtocol = previewProtocol ?? protocol;
+					const portPart = previewPort ? `:${previewPort}` : "";
+					const rewritten = `${baseProtocol}//127.0.0.1${portPart}${path || ""}`;
+					if (onPreviewUrlDetected) {
+						onPreviewUrlDetected(rewritten);
+					}
+					return rewritten;
+				}
+
+				return match as string;
+			},
+		);
+	};
 
 	// Auto-scroll to bottom when new logs arrive
 	useEffect(() => {
@@ -44,11 +99,6 @@ export function TerminalDock({
 			return;
 		}
 
-		// Only connect when expanded to save resources
-		if (!isExpanded) {
-			return;
-		}
-
 		// Clear logs on reconnect (component remount means restart happened)
 		setLogs([]);
 
@@ -58,7 +108,7 @@ export function TerminalDock({
 
 		eventSource.onopen = () => {
 			setIsConnected(true);
-			setLogs((prev) => [...prev, "✓ Connected to container logs\n"]);
+			setLogs((prev) => [...prev, "	Connected to container logs\n"]);
 		};
 
 		eventSource.onmessage = (event) => {
@@ -86,7 +136,7 @@ export function TerminalDock({
 			eventSource.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, isPreviewRunning, isExpanded]);
+	}, [projectId, isPreviewRunning]);
 
 	const handleClear = () => {
 		setLogs([]);
@@ -183,7 +233,7 @@ export function TerminalDock({
 						</div>
 					) : (
 						<pre className="whitespace-pre-wrap break-words">
-							{logs.join("")}
+							<Ansi>{logs.map(rewriteLogLine).join("")}</Ansi>
 						</pre>
 					)}
 				</div>

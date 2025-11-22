@@ -110,7 +110,7 @@ export async function generateDefaultProjectStructure(): Promise<
 > {
 	const files = await copyTemplateToProject(DEFAULT_TEMPLATE_ID);
 	console.log(
-		`Loaded ${files.length} files from ${DEFAULT_TEMPLATE_ID} template with shadcn-tailwind design system`,
+		`Loaded ${files.length} files from ${DEFAULT_TEMPLATE_ID} template`,
 	);
 	return files;
 }

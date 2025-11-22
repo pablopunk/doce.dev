@@ -30,13 +30,6 @@ build/
 .env.local
 .env.*.local
 
-# Docker containers and images
-**/docker-compose.yml
-**/Dockerfile
-
-# Generated project files
-/projects/
-
 # Mac system files
 .DS_Store
 
@@ -57,9 +50,6 @@ coverage/
 # Misc
 *.bak
 *.swp
-
-# Lock files - managed by pnpm
-pnpm-lock.yaml
 
 # Public assets cache
 /public/.cache/

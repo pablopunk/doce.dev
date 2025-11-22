@@ -13,7 +13,6 @@ import {
 import { LLMConfig } from "@/domain/llms/models/llm-config";
 import {
 	loadGlobalRules,
-	loadDesignSystemDocs,
 	loadStarterAgentsFile,
 } from "@/domain/projects/lib/prompt-builder";
 import { projects as projectsTable } from "@/lib/db";
@@ -157,18 +156,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	const model = getModel(conversation.model || DEFAULT_AI_MODEL);
 
-	// Load global rules and design system documentation
-	const [globalRules, designSystemDocs, starterAgents] = await Promise.all([
-		loadGlobalRules(),
-		loadDesignSystemDocs(),
-		loadStarterAgentsFile(),
-	]);
-
-	// Load template documentation (global rules + design system + starter template)
+	// Load template documentation (global rules + starter template)
 	let templateDocs = "";
 	try {
 		const globalRules = await loadGlobalRules();
-		const designSystemDocs = await loadDesignSystemDocs();
 		const starterDocs = await loadStarterAgentsFile();
 
 		templateDocs = `
@@ -178,10 +169,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 ### Global Rules (Framework Requirements)
 ${globalRules}
 
-### Design System (shadcn/ui Components)
-${designSystemDocs}
-
-### Starter Template (Astro 5 Base)
+### Starter Template (Astro 5 + UI)
 ${starterDocs}
 `;
 	} catch (error) {
@@ -396,9 +384,10 @@ ${starterDocs}
 	let lastSaveTime = 0;
 	const SAVE_INTERVAL_MS = 300; // Save every 300ms during streaming
 
-	// Track full message content including tool calls (mirroring frontend behavior)
+	// Track full message content (text only) and tools used
 	let fullMessageContent = "";
 	let lastEventWasToolResult = false;
+	const toolsUsed = new Set<string>();
 
 	// Immediate save function - saves to DB and emits event for SSE
 	const saveToDatabase = (
@@ -506,10 +495,15 @@ ${starterDocs}
 					logger.debug(
 						`Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`,
 					);
+					for (const call of toolCalls) {
+						if (call.toolName) {
+							toolsUsed.add(call.toolName);
+						}
+					}
 				}
 
-				// Don't add tool calls/results to message content
-				// The frontend handles tool events from the stream
+				// Don't add raw tool call/result payloads to message content
+				// The frontend shows live tool activity; messages store final text only.
 
 				// Add spacing before text if we just had tool results
 				if (text.trim().length > 0) {
@@ -527,6 +521,7 @@ ${starterDocs}
 
 				// Save full content to database with streaming status
 				saveToDatabase(fullMessageContent, "streaming");
+				// NOTE: toolsUsed is tracked but not persisted per-chunk
 
 				if (toolResults.length > 0) {
 					logger.debug(
@@ -553,7 +548,7 @@ ${starterDocs}
 			system: `You are an expert web developer building Astro applications.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  CRITICAL: COMMUNICATION STYLE ⚠️
+!  CRITICAL: COMMUNICATION STYLE !
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 BE EXTREMELY CONCISE. Users see your messages in a chat UI.
@@ -628,6 +623,15 @@ DO NOT announce tool calls. Just use them.
 9. **Use Astro Actions** for server logic (NOT API routes unless streaming)
 10. **Generate complete pages** in src/pages/index.astro with full HTML
 
+# TOOL CONTEXT (doce.dev Builder)
+
+- Your messages appear inside the doce.dev builder UI, alongside a file tree and a live preview pane.
+- The builder is responsible for installing dependencies, running the dev server inside a Docker container, and exposing the preview to the user.
+- DO NOT tell the user to run local commands like \`pnpm install\`, \`pnpm dev\`, \`npm run dev\`, or similar, unless they explicitly ask for local setup instructions.
+- DO NOT tell the user to visit hard-coded URLs such as \`http://localhost:3000\` or specific ports. The preview runs on a dynamic port managed by the builder.
+- When describing how to use the app, use neutral phrasing like "preview this project in the builder" or "use the preview provided by the tool", not local machine instructions.
+- Treat any Quick Start sections in AGENTS.md as background context only. Do NOT repeat them verbatim in chat unless the user explicitly asks how to run the project locally.
+
 ${templateDocs}${projectGuidelines}`,
 			messages,
 			onFinish: async ({ text, finishReason }) => {
@@ -655,9 +659,18 @@ ${templateDocs}${projectGuidelines}`,
 					return;
 				}
 
-				// Use fullMessageContent which includes tool calls, not just text
-				const finalContent =
+				// Use fullMessageContent for stored message text (no raw tool payloads)
+				let finalContent =
 					fullMessageContent.trim().length > 0 ? fullMessageContent : text;
+
+				// Append a brief tools-used summary if any tools ran
+				if (toolsUsed.size > 0) {
+					const toolList = Array.from(toolsUsed).join(", ");
+					const summary = `\n\n_Tools used: ${toolList}_`;
+					if (!finalContent.includes("Tools used:")) {
+						finalContent += summary;
+					}
+				}
 
 				// Final save to DB with complete status
 				if (finalContent.trim().length > 0) {

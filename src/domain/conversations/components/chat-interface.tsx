@@ -160,7 +160,17 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						(m: any) =>
 							m.role === "assistant" && m.streamingStatus === "streaming",
 					);
+					const hasAssistant = (data.messages || []).some(
+						(m: any) => m.role === "assistant",
+					);
 					setHasActiveStream(hasStreamingAssistant);
+
+					// Initialise generation state for this project based on history
+					if (hasStreamingAssistant) {
+						setInitialGenerationInProgress(projectId, true);
+					} else if (hasAssistant || !data.messages?.length) {
+						setInitialGenerationInProgress(projectId, false);
+					}
 
 					if (data.messages?.length === 1 && data.messages[0].role === "user") {
 						await triggerInitialGeneration(
@@ -197,14 +207,33 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							(m) =>
 								m.role === "assistant" && m.streamingStatus === "streaming",
 						);
+						const hasAssistant = payload.messages.some(
+							(m) => m.role === "assistant",
+						);
+						const toolStatus = (payload as any).toolStatus as
+							| string
+							| null
+							| undefined;
 						console.log(
 							"[ChatInterface] SSE hasStreamingAssistant=",
 							hasStreamingAssistant,
 						);
-						setHasActiveStream(hasStreamingAssistant);
+						// Consider generation "active" if either text is
+						// still streaming or tools are currently running.
+						setHasActiveStream(hasStreamingAssistant || Boolean(toolStatus));
+						// Only mark generation complete once we actually
+						// have at least one assistant message. For the
+						// initial user-only message, keep the previous
+						// in-progress state so preview doesn't auto-start
+						// before the first turn finishes.
+						if (hasStreamingAssistant) {
+							setInitialGenerationInProgress(projectId, true);
+						} else if (hasAssistant) {
+							setInitialGenerationInProgress(projectId, false);
+						}
 
-						if ((payload as any).toolStatus) {
-							setCurrentToolAction((payload as any).toolStatus as string);
+						if (toolStatus) {
+							setCurrentToolAction(toolStatus);
 						} else {
 							setCurrentToolAction(null);
 						}
@@ -356,6 +385,19 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			new Set(),
 		);
 
+		// Extract optional trailing tools-used summary appended by the backend
+		let toolsSummary: string[] = [];
+		let contentWithoutTools = content;
+		const toolsRegex = /\n_Tools used: ([^_]+)_\s*$/;
+		const toolsMatch = toolsRegex.exec(content);
+		if (toolsMatch && toolsMatch.index !== undefined) {
+			toolsSummary = toolsMatch[1]
+				.split(",")
+				.map((tool) => tool.trim())
+				.filter(Boolean);
+			contentWithoutTools = content.slice(0, toolsMatch.index);
+		}
+
 		const parts: Array<{
 			type: "text" | "code";
 			content: string;
@@ -371,11 +413,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		let match: RegExpExecArray | null;
 		let blockIndex = 0;
 
-		while ((match = codeBlockRegex.exec(content)) !== null) {
+		while ((match = codeBlockRegex.exec(contentWithoutTools)) !== null) {
 			if (match.index > lastIndex) {
 				parts.push({
 					type: "text",
-					content: content.slice(lastIndex, match.index),
+					content: contentWithoutTools.slice(lastIndex, match.index),
 				});
 			}
 
@@ -390,8 +432,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			lastIndex = match.index + match[0].length;
 		}
 
-		if (lastIndex < content.length) {
-			const remaining = content.slice(lastIndex);
+		if (lastIndex < contentWithoutTools.length) {
+			const remaining = contentWithoutTools.slice(lastIndex);
 			const incompleteCodeMatch = remaining.match(
 				/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*)/,
 			);

@@ -302,12 +302,11 @@ React components in Astro pages require hydration directives to run on the clien
 - **Usage**: `import { createLogger } from "@/lib/logger"` then `const logger = createLogger("namespace")`
 
 **Code Gen & Templates**:
-- **Template System**: @templates/ contains modular template system
+- **Template System**: @templates/ contains the unified astro-starter template system
   - `AGENTS.md` - Framework-independent rules for ALL generated projects
-  - `astro-starter/AGENTS.md` - Minimal Astro 5 base template (TypeScript, SEO, file-based routing)
-  - `design-systems/shadcn-tailwind/AGENTS.md` - shadcn/ui components with semantic color system
-  - `components.json` - shadcn CLI configuration in astro-starter
-- **Generation Flow**: 
+  - `astro-starter/AGENTS.md` - Base Astro 5 + UI template (TypeScript, SEO, file-based routing, semantic UI components)
+  - `components.json` - shadcn-style UI configuration baked into astro-starter
+- **Generation Flow**:
   1. Copy `astro-starter` template to project
   2. Copy base shadcn components (button, card, input, label, utils) to `src/components/ui/`
   3. AI reads templates/AGENTS.md + astro-starter/AGENTS.md + shadcn-tailwind/AGENTS.md
@@ -331,9 +330,8 @@ React components in Astro pages require hydration directives to run on the clien
 
 ### Architecture
 
-The template system uses a **modular approach** where:
-- **Base template** (`astro-starter`) provides minimal Astro 5 setup
-- **Design system** (`shadcn-tailwind`) provides styled components + semantic color system
+The template system uses a **single, unified approach** where:
+- **Base template** (`astro-starter`) provides Astro 5 setup plus built-in semantic UI components and Tailwind v4 configuration
 - **Global rules** (`GLOBAL_RULES.md`) define framework requirements for ALL projects
 - **AI agent** orchestrates generation using tools (writeFile, runCommand, etc.)
 
@@ -354,17 +352,16 @@ templates/
     └── shadcn-tailwind/
         ├── AGENTS.md            # Design system docs
         ├── components/          # 5 base components (button, card, input, label, utils)
-        └── styles/              # globals.css with semantic colors
+        └── styles/              # global.css with semantic colors
 ```
 
 ### Generation Workflow
 
 1. **User creates project** with prompt (e.g., "Build me a todo app")
-2. **Template generator** copies astro-starter + shadcn base components
+2. **Template generator** copies the astro-starter template (which already includes base UI components and styles)
 3. **Prompt builder** loads:
    - templates/AGENTS.md (framework requirements)
-   - design-systems/shadcn-tailwind/AGENTS.md (shadcn usage + CLI instructions)
-   - astro-starter/AGENTS.md (template specifics)
+   - astro-starter/AGENTS.md (template specifics, including UI usage and customization)
 4. **AI agent receives** complete prompt via @src/pages/api/chat/[projectId].ts
 5. **AI generates** pages, components, actions using tools:
    - `writeFile` - Create/update files
@@ -377,21 +374,23 @@ templates/
 
 - **Prompt Builder**: @src/domain/projects/lib/prompt-builder.ts
   - `loadGlobalRules()` - Framework rules
-  - `loadDesignSystemDocs()` - shadcn docs
-  - `loadStarterAgentsFile()` - Template docs
+  - `loadStarterAgentsFile()` - Template docs (including UI usage/customization)
 - **Template Generator**: @src/domain/projects/lib/template-generator.tsx
-  - Copies base template + design system files
+  - Copies the astro-starter template files (which already include UI components and styles)
 - **Code Generator**: @src/domain/projects/lib/code-generator.tsx
   - Parses AI responses (JSON or code blocks)
   - Writes files via file-system.ts
 
 ### Design System (shadcn/ui)
 
-**Base Components** (included in every project):
+**Base Components** (included in every project under `src/components/ui/`):
 - `button.tsx` - Button with variants (default, outline, ghost, destructive, link)
 - `card.tsx` - Card container (Header, Title, Description, Content, Footer)
 - `input.tsx` - Text input field
+- `textarea.tsx` - Multiline text input
 - `label.tsx` - Form label
+- `badge.tsx` - Small status/lozenge indicator
+- `alert.tsx` - Inline alert/notification container
 - `utils.ts` - cn() utility for className merging
 
 **On-Demand Components** (via CLI):

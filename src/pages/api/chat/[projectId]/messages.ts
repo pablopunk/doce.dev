@@ -1,7 +1,10 @@
 import type { APIRoute } from "astro";
 import { chatEvents } from "@/domain/conversations/lib/events";
 import { Conversation } from "@/domain/conversations/models/conversation";
-import { getToolStatus } from "@/domain/conversations/lib/tool-status";
+import {
+	getToolStatus,
+	setToolStatus,
+} from "@/domain/conversations/lib/tool-status";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("messages-api");
@@ -36,14 +39,65 @@ export const GET: APIRoute = async ({ params }) => {
 			const sendMessages = () => {
 				try {
 					const history = Conversation.getHistory(projectId);
-					const messages = history.messages;
+					let messages = history.messages;
 					logger.debug(
 						`Sending ${messages.length} messages for project ${projectId}`,
 					);
-					const toolStatus = getToolStatus(projectId);
+					// NOTE: We no longer clear toolStatus when there is no
+					// active streaming assistant message. Tools can run before
+					// or after text streaming, and the UI treats toolStatus as
+					// an independent indicator of background activity.
+					const rawToolStatus = getToolStatus(projectId);
 					logger.debug(
-						`SSE toolStatus for project ${projectId}: ${toolStatus}`,
+						`SSE toolStatus for project ${projectId}: ${rawToolStatus}`,
 					);
+
+					// Detect if there is an active streaming assistant message
+					let streamingAssistant = messages.find(
+						(msg: any) =>
+							msg.role === "assistant" && msg.streamingStatus === "streaming",
+					);
+
+					// If the streaming assistant message appears stuck for a long
+					// time, mark it as error and clear tool status so the UI does
+					// not show an infinite spinner.
+					const STALE_STREAM_MS = 2 * 60 * 1000; // 2 minutes
+					if (streamingAssistant && streamingAssistant.createdAt) {
+						const createdAtMs = new Date(
+							streamingAssistant.createdAt,
+						).getTime();
+						if (
+							Number.isFinite(createdAtMs) &&
+							Date.now() - createdAtMs > STALE_STREAM_MS
+						) {
+							logger.warn(
+								`Streaming assistant message ${streamingAssistant.id} is stale; marking as error`,
+							);
+							const updated = Conversation.updateMessage(
+								streamingAssistant.id,
+								streamingAssistant.content || "Error: Generation timed out",
+								"error",
+							);
+							streamingAssistant = updated as any;
+							setToolStatus(projectId, null);
+							// Refresh messages so subsequent logic sees updated status
+							messages = Conversation.getHistory(projectId).messages;
+						}
+					}
+
+					const hasStreamingAssistant = Boolean(
+						messages.find(
+							(msg: any) =>
+								msg.role === "assistant" && msg.streamingStatus === "streaming",
+						),
+					);
+
+					// Tools can run before, during, or after text streaming.
+					// We keep toolStatus as-is here; the chat API clears it on
+					// completion or abort. The UI treats toolStatus as an
+					// independent indicator of background activity.
+					let effectiveToolStatus = rawToolStatus;
+
 					const data = JSON.stringify({
 						type: "messages",
 						messages: messages.map((msg: any) => ({
@@ -53,7 +107,7 @@ export const GET: APIRoute = async ({ params }) => {
 							streamingStatus: msg.streamingStatus,
 							createdAt: msg.createdAt,
 						})),
-						toolStatus,
+						toolStatus: effectiveToolStatus,
 					});
 
 					controller.enqueue(encoder.encode(`data: ${data}\n\n`));

@@ -3,6 +3,8 @@
 import { actions } from "astro:actions";
 import Editor from "@monaco-editor/react";
 import {
+	ChevronLeft,
+	ChevronRight,
 	Code,
 	Eye,
 	Loader2,
@@ -12,7 +14,7 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import AIBlob from "@/components/ui/ai-blob";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,10 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		useState(false);
 	const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("unknown");
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
+	const [logDerivedPreviewUrl, setLogDerivedPreviewUrl] = useState<
+		string | null
+	>(null);
+	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
@@ -180,10 +186,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		const inProgress = initialGenerationInProgress.get(projectId);
 		if (inProgress === false) {
 			setIsFirstGenerationComplete(true);
-		} else if (inProgress === undefined) {
-			// If we don't have info about this project, assume it's complete
-			// (happens when loading an existing project)
-			setIsFirstGenerationComplete(true);
+		} else if (inProgress === true) {
+			setIsFirstGenerationComplete(false);
 		}
 	}, [projectId]);
 
@@ -193,6 +197,8 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			const inProgress = initialGenerationInProgress.get(projectId);
 			if (inProgress === false) {
 				setIsFirstGenerationComplete(true);
+			} else if (inProgress === true) {
+				setIsFirstGenerationComplete(false);
 			}
 		}, 100);
 
@@ -258,6 +264,9 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	// Auto-start preview on first visit when not created yet
 	useEffect(() => {
 		if (hasAutoStarted || isCreatingPreview) return;
+		// Only auto-start after the template has been copied
+		if (!project || project.bootstrapped !== "true") return;
+		// And only after the first generation has finished
 		if (!isFirstGenerationComplete) return;
 
 		if (previewStatus === "not-created" || previewStatus === "unknown") {
@@ -266,7 +275,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		}
 	}, [
 		previewStatus,
-		projectId,
+		project,
 		hasAutoStarted,
 		isCreatingPreview,
 		isFirstGenerationComplete,
@@ -284,15 +293,43 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 	// Reset loading state when preview URL changes and poll for readiness
 	useEffect(() => {
-		if (project?.previewUrl) {
-			setIsIframeLoading(false);
-			setIframeError(false);
-			setPreviewReady(true);
-			console.log(`Preview server ready at ${project.previewUrl}`);
-		} else {
+		const effectiveUrl = project?.previewUrl ?? logDerivedPreviewUrl;
+
+		// If we don't yet have a preview URL from either the project
+		// record or the logs, keep showing the AI/loading states.
+		if (!effectiveUrl) {
 			setPreviewReady(false);
+			setIsIframeLoading(true);
+			setIframeError(false);
+			return;
 		}
-	}, [project?.previewUrl]);
+
+		// Once a preview URL exists and the server is up, mark the
+		// iframe as ready. Any transient network errors will be
+		// handled by the iframe onError handler.
+		setIsIframeLoading(false);
+		setIframeError(false);
+		setPreviewReady(true);
+		console.log(`Preview server ready at ${effectiveUrl}`);
+	}, [project?.previewUrl, logDerivedPreviewUrl]);
+
+	const handleBack = useCallback(() => {
+		if (!iframeRef.current) return;
+		try {
+			iframeRef.current.contentWindow?.history.back();
+		} catch (error) {
+			console.error("Failed to navigate preview back:", error);
+		}
+	}, []);
+
+	const handleForward = useCallback(() => {
+		if (!iframeRef.current) return;
+		try {
+			iframeRef.current.contentWindow?.history.forward();
+		} catch (error) {
+			console.error("Failed to navigate preview forward:", error);
+		}
+	}, []);
 
 	const handleDeploy = async () => {
 		await actions.projects.deployProject({ id: projectId });
@@ -303,6 +340,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		setIsRestarting(true);
 		setPreviewReady(false);
 		setIsIframeLoading(true);
+		setIsTerminalExpanded(true);
 		try {
 			await actions.projects.restartPreview({ id: projectId });
 			setIframeKey((prev) => prev + 1);
@@ -372,7 +410,40 @@ export function CodePreview({ projectId }: { projectId: string }) {
 						</TabsTrigger>
 					</TabsList>
 				</Tabs>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 flex-1 justify-end">
+					{activeTab === "preview" && (
+						<div className="flex items-center gap-1 mr-3 max-w-md flex-1">
+							<Button
+								variant="outline"
+								size="icon"
+								type="button"
+								onClick={handleBack}
+								disabled={!project?.previewUrl && !logDerivedPreviewUrl}
+								title="Go back in preview history"
+							>
+								<ChevronLeft className="h-4 w-4" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								type="button"
+								onClick={handleForward}
+								disabled={!project?.previewUrl && !logDerivedPreviewUrl}
+								title="Go forward in preview history"
+							>
+								<ChevronRight className="h-4 w-4" />
+							</Button>
+							<Input
+								readOnly
+								value={project?.previewUrl ?? logDerivedPreviewUrl ?? ""}
+								placeholder="Preview URL"
+								className="h-8 text-xs font-mono bg-raised text-muted border-border-border cursor-default"
+								title={
+									project?.previewUrl ?? logDerivedPreviewUrl ?? "Preview URL"
+								}
+							/>
+						</div>
+					)}
 					<Button
 						variant="outline"
 						size="sm"
@@ -395,14 +466,17 @@ export function CodePreview({ projectId }: { projectId: string }) {
 			>
 				{activeTab === "preview" && (
 					<div className="h-full min-h-full bg-bg relative">
-						{project?.previewUrl ? (
+						{project?.previewUrl || logDerivedPreviewUrl ? (
 							<>
 								{/* Show iframe only if preview is ready AND first generation is complete */}
 								{previewReady && isFirstGenerationComplete && (
 									<iframe
-										key={`${project.previewUrl}-${iframeKey}`}
-										src={project.previewUrl}
-										className="w-full h-full border-0"
+										ref={iframeRef}
+										key={`${project?.previewUrl ?? logDerivedPreviewUrl ?? ""}-${iframeKey}`}
+										src={
+											project?.previewUrl ?? logDerivedPreviewUrl ?? undefined
+										}
+										className="w-full h-full border-0 bg-white"
 										title="Preview"
 										sandbox="allow-same-origin allow-scripts allow-forms"
 									/>
@@ -416,10 +490,11 @@ export function CodePreview({ projectId }: { projectId: string }) {
 												<AIBlob size={80} className="mx-auto" />
 												<div>
 													<p className="text-sm font-medium">
-														Generating your project...
+														Generating your project workspace...
 													</p>
 													<p className="text-xs text-muted mt-1">
-														This might take a moment
+														We’ll start the live preview as soon as files are
+														ready.
 													</p>
 												</div>
 											</div>
@@ -429,10 +504,10 @@ export function CodePreview({ projectId }: { projectId: string }) {
 												<Loader2 className="h-8 w-8 animate-spin mx-auto text-strong" />
 												<div>
 													<p className="text-sm font-medium">
-														Starting preview...
+														Starting live preview server...
 													</p>
 													<p className="text-xs text-muted mt-1">
-														Waiting for server to respond...
+														This can take a few seconds the first time.
 													</p>
 												</div>
 											</div>
@@ -466,6 +541,20 @@ export function CodePreview({ projectId }: { projectId: string }) {
 											previewStatus === "creating" ||
 											previewStatus === "starting" ||
 											(previewStatus === "running" && !project?.previewUrl);
+
+										// If the project hasn't been bootstrapped yet, don't
+										// show any preview controls – just explain what's
+										// happening.
+										if (!project || project.bootstrapped !== "true") {
+											return (
+												<p className="text-muted">
+													Your project is still being generated. The live
+													preview will be available once initial generation
+													finishes.
+												</p>
+											);
+										}
+
 										return (
 											<>
 												<p className="text-muted">
@@ -674,9 +763,15 @@ const apiKey = import.meta.env.PUBLIC_YOUR_API_KEY
 			<TerminalDock
 				key={iframeKey}
 				projectId={projectId}
-				isPreviewRunning={!!project?.previewUrl}
+				isPreviewRunning={!!(project?.previewUrl || logDerivedPreviewUrl)}
 				isExpanded={isTerminalExpanded}
 				onToggle={() => setIsTerminalExpanded(!isTerminalExpanded)}
+				previewUrl={project?.previewUrl ?? logDerivedPreviewUrl ?? undefined}
+				onPreviewUrlDetected={(url) => {
+					setLogDerivedPreviewUrl(url);
+					setInitialGenerationInProgress(projectId, false);
+					setIsFirstGenerationComplete(true);
+				}}
 			/>
 		</div>
 	);

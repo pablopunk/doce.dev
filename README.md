@@ -39,4 +39,4 @@
 - [ ] Compact context in chat:
   - [ ] Button to compact it
   - [ ] Mechanism to detect when compression is needed (context gets big)
-- [ ] Rethink templates. Maybe we should always bootstrap the minimal starter, and provide components/styles/pages/layouts depending on the prompt.
+- [ ] The chat mentions stuff like "open localhost:3000", which is not true for our tool; let's make it aware of how the project is deployed in dev mode

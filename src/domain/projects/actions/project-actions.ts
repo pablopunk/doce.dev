@@ -16,6 +16,7 @@ import {
 	removeContainer,
 	stopContainer,
 	stopPreviewForProject,
+	pruneDockerNetworks,
 } from "@/lib/docker";
 import {
 	deleteProjectFiles,
@@ -205,6 +206,16 @@ export const server = {
 
 				await deleteProjectFiles(id);
 				await Project.delete(id);
+
+				// Clean up unused Docker networks after deleting a project
+				try {
+					await pruneDockerNetworks();
+				} catch (error) {
+					console.error(
+						"Failed to prune Docker networks after project delete:",
+						error,
+					);
+				}
 
 				return { success: true };
 			} catch (error) {
