@@ -413,26 +413,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				<div className="flex items-center gap-2 flex-1 justify-end">
 					{activeTab === "preview" && (
 						<div className="flex items-center gap-1 mr-3 max-w-md flex-1">
-							<Button
-								variant="outline"
-								size="icon"
-								type="button"
-								onClick={handleBack}
-								disabled={!project?.previewUrl && !logDerivedPreviewUrl}
-								title="Go back in preview history"
-							>
-								<ChevronLeft className="h-4 w-4" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								type="button"
-								onClick={handleForward}
-								disabled={!project?.previewUrl && !logDerivedPreviewUrl}
-								title="Go forward in preview history"
-							>
-								<ChevronRight className="h-4 w-4" />
-							</Button>
 							<Input
 								readOnly
 								value={project?.previewUrl ?? logDerivedPreviewUrl ?? ""}

@@ -18,8 +18,8 @@ export interface AIModel {
  */
 export const AVAILABLE_AI_MODELS: AIModel[] = [
 	{
-		id: "openai/gpt-5-codex",
-		name: "GPT-5 Codex",
+		id: "openai/gpt-5.1-codex",
+		name: "GPT-5.1 Codex",
 		provider: "OpenAI",
 		description:
 			"Specialized for software engineering. Agentic coding with adjustable reasoning.",

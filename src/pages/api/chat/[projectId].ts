@@ -524,8 +524,12 @@ ${starterDocs}
 				// NOTE: toolsUsed is tracked but not persisted per-chunk
 
 				if (toolResults.length > 0) {
+					const toolResultsTrimmed = toolResults.map((t) => ({
+						...t,
+						output: String(t?.output).slice(0, 10),
+					}));
 					logger.debug(
-						`Tool results (full): ${JSON.stringify(toolResults, null, 2)}`,
+						`Tool results (full): ${JSON.stringify(toolResultsTrimmed, null, 2)}`,
 					);
 				}
 
