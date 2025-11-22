@@ -52,7 +52,8 @@ When generating code and explanations, you MUST:
   - Server logic in Actions
   - Persistence in the small SQLite wrapper when needed
 - Keep any written explanation **short, focused on how to use the UI**, and 
-  avoid repeating the same information as comments in code.
+   avoid repeating the same information as comments in code.
+- Periodically run `pnpm build` or `pnpm type-check` (via the available tools) to verify that your changes still build and type-check correctly.
 
 ### Builder / Preview Context
 

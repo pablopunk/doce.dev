@@ -1,7 +1,5 @@
 # AGENTS.md — Project Usage Guide
 
-This file is copied into project roots to explain how to use and maintain the project. Review and update it when you make project-specific changes.
-
 ## Quick Start
 
 - Install: `pnpm install`
@@ -77,28 +75,13 @@ export const server = {
 - To add components: `pnpm dlx shadcn@latest add <component>` (this updates `components.json` and writes files into `src/components/ui/`).
 - Prefer using provided shadcn components; wrap them in small domain components under `src/domain/` when behaviour differs.
 
-Token mapping (shadcn → semantic classes):
-- `bg-background` → `bg-bg`
-- `bg-card` → `bg-surface`
-- `bg-primary` → `bg-cta`
-- `text-foreground` → `text-fg`
-- `text-muted-foreground` → `text-muted`
-- `border` / `border-input` → `border-border`
-
 After adding components, scan generated files and replace tokens if needed to match the project's semantic variables.
 
 ## Tailwind & semantic variables
 
-- Tailwind v4 is configured in `src/styles/` (global CSS). Use CSS variables for semantic colors and tokens that adapt between light/dark modes.
+- Tailwind v4 is configured in `src/styles/global.css`. Use CSS variables for semantic colors and tokens that adapt between light/dark modes.
+- When using shadcn/ui with `cssVariables: true` in `components.json`, shadcn theme tokens are emitted as CSS variables and mapped onto this semantic palette; customize colors by adjusting the Tailwind theme and the variables defined in `global.css` (see https://ui.shadcn.com/docs/theming for details).
 - Do not rely on `dark:` utility classes; prefer semantic classes like `bg-surface`, `text-fg`, `border-border`.
-
-Example (conceptual):
-
-```css
-:root { --bg: /* light */; --fg: /* light */ }
-.dark { --bg: /* dark */; --fg: /* dark */ }
-/* Tailwind utility classes map to these tokens via your CSS or Tailwind config */
-```
 
 ## Persistence
 
@@ -119,7 +102,6 @@ Scripts in `package.json` (template):
 - `preview`: `astro preview`
 - `astro`: `astro` (convenience wrapper for the CLI)
 - `type-check`: `astro check`
-- `format`: run Prettier (e.g. `prettier --write .`)
 
 If you change these scripts in `package.json`, update this file accordingly.
 
