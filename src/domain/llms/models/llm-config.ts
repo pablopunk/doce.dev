@@ -3,7 +3,6 @@
  * Handles AI provider configuration, API keys, and model selection
  */
 
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
 	type AIModel,
 	AVAILABLE_AI_MODELS,
@@ -134,25 +133,11 @@ export class LLMConfig {
 	}
 
 	/**
-	 * Get configured AI model instance ready for use with ai SDK
-	 * Returns a model object that can be passed directly to generateText, streamText, etc.
-	 * Throws error if provider is not configured
+	 * Check if provider API key is configured
+	 * OpenCode SDK handles model instantiation
 	 */
-	static getAIModel() {
+	static hasApiKey(provider: AIProvider = "openrouter"): boolean {
 		const config = LLMConfig.getConfig();
-
-		if (!config.apiKey) {
-			throw new Error(
-				`No ${config.provider} API key configured. Please complete setup at /setup`,
-			);
-		}
-
-		// Currently only OpenRouter is supported
-		if (config.provider === "openrouter") {
-			const openrouter = createOpenRouter({ apiKey: config.apiKey });
-			return openrouter(config.currentModel);
-		}
-
-		throw new Error(`Unsupported AI provider: ${config.provider}`);
+		return Boolean(config.apiKey);
 	}
 }

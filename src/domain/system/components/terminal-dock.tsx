@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Copy, Terminal, X } from "lucide-react";
 import Ansi from "ansi-to-react";
+import { ChevronDown, ChevronUp, Copy, Terminal, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "astro";
 import { Setup } from "@/domain/auth/models/user";
+import "@/lib/startup";
 
 export const onRequest: MiddlewareHandler = async (
 	{ request, redirect },

@@ -169,14 +169,12 @@ export async function createPreviewContainer(
 		// Capture stdout and stderr
 		composeProcess.stdout.on("data", (data) => {
 			const log = data.toString();
-			console.log(log);
 			bufferedLogs.push(log);
 			ensureFlushTimer();
 		});
 
 		composeProcess.stderr.on("data", (data) => {
 			const log = data.toString();
-			console.error(log);
 			bufferedLogs.push(log);
 			ensureFlushTimer();
 		});

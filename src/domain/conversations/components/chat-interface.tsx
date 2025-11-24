@@ -67,23 +67,17 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		}
 		return "";
 	});
-	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 	const [selectedModel, setSelectedModel] = useState(DEFAULT_AI_MODEL);
 	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
 		null,
 	);
 	const [popoverOpen, setPopoverOpen] = useState(false);
-	const [currentToolAction, setCurrentToolAction] = useState<string | null>(
-		null,
-	);
+	const [currentStatus, setCurrentStatus] = useState<string | null>(null);
 	const [hasActiveStream, setHasActiveStream] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
-	const abortControllerRef = useRef<AbortController | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 
-	// Only server-side streaming status controls the "Generating..." bubble.
-	// isSubmitting is used just to disable the send button while the POST starts.
 	const isGenerating = hasActiveStream;
 
 	const getProviderIcon = (provider: string, size: "sm" | "md" = "md") => {
@@ -112,154 +106,146 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setPopoverOpen(false);
 	};
 
-	// Trigger generation for initial project prompt (fire-and-forget)
-	const triggerInitialGeneration = async (
-		userPrompt: string,
-		model: string,
-	) => {
-		setIsSubmitting(true);
-		setInitialGenerationInProgress(projectId, true);
-
-		const abortController = new AbortController();
-		abortControllerRef.current = abortController;
-
+	async function loadHistory() {
 		try {
-			const response = await fetch(`/api/chat/${projectId}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					messages: [{ role: "user", content: userPrompt }],
-					model,
-				}),
-				signal: abortController.signal,
-			});
+			const { data, error } = await actions.chat.getHistory({ projectId });
+			if (!error && data) {
+				setMessages((data.messages || []) as any);
+				if (data.model) setSelectedModel(data.model);
 
-			if (!response.ok) throw new Error("Failed to start generation");
-		} catch (error) {
-			console.error("Chat error:", error);
-			setInitialGenerationInProgress(projectId, false);
-		} finally {
-			abortControllerRef.current = null;
-			setIsSubmitting(false);
-			setCurrentToolAction(null);
-		}
-	};
+				const hasStreamingAssistant = (data.messages || []).some(
+					(m: any) =>
+						m.role === "assistant" && m.streamingStatus === "streaming",
+				);
+				const hasAssistant = (data.messages || []).some(
+					(m: any) => m.role === "assistant",
+				);
+				setHasActiveStream(hasStreamingAssistant);
 
-	// Load history once and subscribe to SSE for live updates
-	useEffect(() => {
-		let es: EventSource | null = null;
+				if (hasStreamingAssistant) {
+					setInitialGenerationInProgress(projectId, true);
+				} else if (hasAssistant || !data.messages?.length) {
+					setInitialGenerationInProgress(projectId, false);
+				}
 
-		async function loadHistory() {
-			try {
-				const { data, error } = await actions.chat.getHistory({ projectId });
-				if (!error && data) {
-					setMessages((data.messages || []) as any);
-					if (data.model) setSelectedModel(data.model);
+				// Auto-send initial message if there's only a user message
+				if (
+					data.messages?.length === 1 &&
+					data.messages[0].role === "user" &&
+					!hasAssistant
+				) {
+					logger.info("Auto-sending initial message to OpenCode");
+					setHasActiveStream(true);
+					setCurrentStatus("Processing initial request...");
+					setInitialGenerationInProgress(projectId, true);
 
-					const hasStreamingAssistant = (data.messages || []).some(
-						(m: any) =>
-							m.role === "assistant" && m.streamingStatus === "streaming",
-					);
-					const hasAssistant = (data.messages || []).some(
-						(m: any) => m.role === "assistant",
-					);
-					setHasActiveStream(hasStreamingAssistant);
+					try {
+						const { error: sendError } = await actions.sessions.sendMessage({
+							projectId,
+							message: data.messages[0].content,
+							model: data.model,
+						});
 
-					// Initialise generation state for this project based on history
-					if (hasStreamingAssistant) {
-						setInitialGenerationInProgress(projectId, true);
-					} else if (hasAssistant || !data.messages?.length) {
+						if (sendError) {
+							console.error("Failed to send initial message:", sendError);
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							setInitialGenerationInProgress(projectId, false);
+						}
+					} catch (err) {
+						console.error("Failed to send initial message:", err);
+						setHasActiveStream(false);
+						setCurrentStatus(null);
 						setInitialGenerationInProgress(projectId, false);
 					}
-
-					if (data.messages?.length === 1 && data.messages[0].role === "user") {
-						await triggerInitialGeneration(
-							data.messages[0].content,
-							data.model,
-						);
-					}
 				}
-			} catch (error) {
-				console.error("Failed to load chat history:", error);
-			} finally {
-				setIsLoadingHistory(false);
 			}
+		} catch (error) {
+			console.error("Failed to load chat history:", error);
+		} finally {
+			setIsLoadingHistory(false);
 		}
+	}
 
+	useEffect(() => {
 		loadHistory();
 
 		if (typeof window === "undefined") return;
 
 		try {
-			es = new EventSource(`/api/chat/${projectId}/messages`);
+			const es = new EventSource(`/api/sessions/${projectId}/events`);
 			eventSourceRef.current = es;
 
 			es.onmessage = (event) => {
 				try {
-					const payload = JSON.parse(event.data) as {
-						type?: string;
-						messages?: Message[];
-					};
-					if (payload.type === "messages" && payload.messages) {
-						setMessages(payload.messages as any);
+					const payload = JSON.parse(event.data);
 
-						const hasStreamingAssistant = payload.messages.some(
-							(m) =>
-								m.role === "assistant" && m.streamingStatus === "streaming",
-						);
-						const hasAssistant = payload.messages.some(
-							(m) => m.role === "assistant",
-						);
-						const toolStatus = (payload as any).toolStatus as
-							| string
-							| null
-							| undefined;
-						console.log(
-							"[ChatInterface] SSE hasStreamingAssistant=",
-							hasStreamingAssistant,
-						);
-						// Consider generation "active" if either text is
-						// still streaming or tools are currently running.
-						setHasActiveStream(hasStreamingAssistant || Boolean(toolStatus));
-						// Only mark generation complete once we actually
-						// have at least one assistant message. For the
-						// initial user-only message, keep the previous
-						// in-progress state so preview doesn't auto-start
-						// before the first turn finishes.
-						if (hasStreamingAssistant) {
-							setInitialGenerationInProgress(projectId, true);
-						} else if (hasAssistant) {
+					switch (payload.type) {
+						case "connected":
+							logger.info(
+								`Connected to SSE (session: ${payload.sessionId || "pending"})`,
+							);
+							break;
+
+						case "ping":
+							// Keep-alive ping, ignore
+							break;
+
+						case "session.created":
+							logger.info(
+								`Session created: ${payload.sessionId}, reconnecting...`,
+							);
+							// Connection will close and reconnect automatically
+							break;
+
+						case "message.updated":
+							loadHistory();
+							setHasActiveStream(true);
+							setCurrentStatus("Generating response...");
+							break;
+
+						case "messages.synced":
+							loadHistory();
+							break;
+
+						case "session.idle":
+							setHasActiveStream(false);
+							setCurrentStatus(null);
 							setInitialGenerationInProgress(projectId, false);
-						}
+							refreshCodePreview();
+							break;
 
-						if (toolStatus) {
-							setCurrentToolAction(toolStatus);
-						} else {
-							setCurrentToolAction(null);
-						}
+						case "error":
+							logger.error("Session error:", payload.message);
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							break;
+
+						default:
+							logger.debug("Unhandled event type:", payload.type);
 					}
 				} catch (err) {
-					console.error("Failed to parse chat SSE event:", err);
+					console.error("Failed to parse session SSE event:", err);
 				}
 			};
 
 			es.onerror = (err) => {
-				console.error("Chat SSE error:", err);
+				console.error("Session SSE error:", err);
+			};
+
+			return () => {
+				if (es) {
+					try {
+						es.close();
+					} catch {
+						// ignore
+					}
+				}
+				eventSourceRef.current = null;
 			};
 		} catch (err) {
-			console.error("Failed to open chat SSE stream:", err);
+			console.error("Failed to open session SSE stream:", err);
 		}
-
-		return () => {
-			if (es) {
-				try {
-					es.close();
-				} catch {
-					// ignore
-				}
-			}
-			eventSourceRef.current = null;
-		};
 	}, [projectId]);
 
 	useEffect(() => {
@@ -305,28 +291,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		}
 	};
 
-	const reloadMessages = async () => {
+	const handleStop = async () => {
 		try {
-			const { data, error } = await actions.chat.getHistory({ projectId });
-			if (!error && data) {
-				setMessages((data.messages || []) as any);
-				const lastAssistant = (data.messages || [])
-					.slice()
-					.reverse()
-					.find((m: any) => m.role === "assistant");
-				setHasActiveStream(lastAssistant?.streamingStatus === "streaming");
-			}
+			await actions.sessions.abort({ projectId });
+			setHasActiveStream(false);
+			setCurrentStatus(null);
 		} catch (error) {
-			console.error("Failed to reload messages:", error);
-		}
-	};
-
-	const handleStop = () => {
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort();
-			abortControllerRef.current = null;
-			setIsSubmitting(false);
-			setCurrentToolAction(null);
+			console.error("Failed to abort session:", error);
 		}
 	};
 
@@ -345,32 +316,26 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		if (typeof window !== "undefined") {
 			localStorage.removeItem(`chat-input-${projectId}`);
 		}
-		setIsSubmitting(true);
 
-		const abortController = new AbortController();
-		abortControllerRef.current = abortController;
+		setHasActiveStream(true);
+		setCurrentStatus("Sending message...");
 
 		try {
-			const response = await fetch(`/api/chat/${projectId}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					messages: [...messages, userMessage].map((m) => ({
-						role: m.role,
-						content: m.content,
-					})),
-					model: selectedModel,
-				}),
-				signal: abortController.signal,
+			const { error } = await actions.sessions.sendMessage({
+				projectId,
+				message: input,
+				model: selectedModel,
 			});
 
-			if (!response.ok) throw new Error("Failed to start generation");
+			if (error) {
+				console.error("Failed to send message:", error);
+				setHasActiveStream(false);
+				setCurrentStatus(null);
+			}
 		} catch (error) {
-			console.error("Chat error:", error);
-		} finally {
-			abortControllerRef.current = null;
-			setIsSubmitting(false);
-			setCurrentToolAction(null);
+			console.error("Failed to send message:", error);
+			setHasActiveStream(false);
+			setCurrentStatus(null);
 		}
 	};
 
@@ -384,19 +349,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(
 			new Set(),
 		);
-
-		// Extract optional trailing tools-used summary appended by the backend
-		let toolsSummary: string[] = [];
-		let contentWithoutTools = content;
-		const toolsRegex = /\n_Tools used: ([^_]+)_\s*$/;
-		const toolsMatch = toolsRegex.exec(content);
-		if (toolsMatch && toolsMatch.index !== undefined) {
-			toolsSummary = toolsMatch[1]
-				.split(",")
-				.map((tool) => tool.trim())
-				.filter(Boolean);
-			contentWithoutTools = content.slice(0, toolsMatch.index);
-		}
 
 		const parts: Array<{
 			type: "text" | "code";
@@ -413,11 +365,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		let match: RegExpExecArray | null;
 		let blockIndex = 0;
 
-		while ((match = codeBlockRegex.exec(contentWithoutTools)) !== null) {
+		while ((match = codeBlockRegex.exec(content)) !== null) {
 			if (match.index > lastIndex) {
 				parts.push({
 					type: "text",
-					content: contentWithoutTools.slice(lastIndex, match.index),
+					content: content.slice(lastIndex, match.index),
 				});
 			}
 
@@ -432,8 +384,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			lastIndex = match.index + match[0].length;
 		}
 
-		if (lastIndex < contentWithoutTools.length) {
-			const remaining = contentWithoutTools.slice(lastIndex);
+		if (lastIndex < content.length) {
+			const remaining = content.slice(lastIndex);
 			const incompleteCodeMatch = remaining.match(
 				/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*)/,
 			);
@@ -518,9 +470,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 										<Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
 										<span className="font-mono font-medium truncate">
 											{part.file || `${part.language} code`}
-										</span>
-										<span className="text-xs text-muted flex-shrink-0">
-											{part.content.split("\n").length} lines
 										</span>
 									</div>
 								</div>
@@ -655,7 +604,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						<div className="bg-surface rounded-lg px-4 py-2 flex items-center gap-2">
 							<Loader2 className="h-4 w-4 animate-spin" />
 							<span className="text-sm text-muted">
-								{currentToolAction || "Generating..."}
+								{currentStatus || "Generating..."}
 							</span>
 						</div>
 					</div>

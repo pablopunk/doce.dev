@@ -46,6 +46,7 @@ export const conversations = sqliteTable("conversations", {
 		.notNull()
 		.references(() => projects.id, { onDelete: "cascade" }),
 	model: text("model").default("anthropic/claude-4.5-sonnet"),
+	opencodeSessionId: text("opencode_session_id"),
 	createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 	updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });

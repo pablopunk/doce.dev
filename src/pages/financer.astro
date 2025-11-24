@@ -1,0 +1,10 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { FinancerApp } from "@/domain/financer/components/financer-app";
+---
+
+<BaseLayout title="Financer" fullWidth>
+  <section class="py-8">
+    <FinancerApp client:load />
+  </section>
+</BaseLayout>

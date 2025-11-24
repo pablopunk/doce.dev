@@ -9,10 +9,11 @@ const envSchema = z.object({
 
 const rawEnv = envSchema.parse(process.env);
 const dockerHost = rawEnv.DOCKER_HOST;
-const dataPath = rawEnv.DATA_PATH;
+// Resolve to absolute path
+const dataPath = path.resolve(process.cwd(), rawEnv.DATA_PATH);
 
-const projectsDir = path.join(rawEnv.DATA_PATH, "projects");
-const dbPath = path.join(rawEnv.DATA_PATH, "doce.db");
+const projectsDir = path.join(dataPath, "projects");
+const dbPath = path.join(dataPath, "doce.db");
 
 mkdirSync(rawEnv.DATA_PATH, { recursive: true });
 mkdirSync(projectsDir, { recursive: true });

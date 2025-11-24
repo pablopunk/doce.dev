@@ -1,9 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
-import { generateText } from "ai";
 import { Conversation } from "@/domain/conversations/models/conversation";
-import { LLMConfig } from "@/domain/llms/models/llm-config";
-import { generateDefaultProjectStructure } from "@/domain/projects/lib/code-generator";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
 import { DEFAULT_TEMPLATE_ID } from "@/domain/projects/lib/templates";
 import { Project } from "@/domain/projects/models/project";
@@ -13,10 +10,10 @@ import {
 	createPreviewContainer,
 	getPreviewState,
 	listProjectContainers,
+	pruneDockerNetworks,
 	removeContainer,
 	stopContainer,
 	stopPreviewForProject,
-	pruneDockerNetworks,
 } from "@/lib/docker";
 import {
 	deleteProjectFiles,
@@ -111,23 +108,9 @@ export const server = {
 			const projectDescription = description || prompt;
 			const shouldBootstrapFromTemplate = fromTemplate ?? !!prompt;
 
-			// If a prompt is provided, generate project name with AI first
+			// If a prompt is provided, generate project name from it
 			if (prompt && !name) {
-				try {
-					const model = LLMConfig.getAIModel();
-
-					const nameResult = await generateText({
-						model,
-						system:
-							"You generate concise, descriptive project names. Return ONLY the project name, nothing else. Keep it short (1-4 words) and SEO friendly.",
-						prompt: `Generate a project name for the following description: ${prompt}`,
-					});
-
-					projectName = slugifyProjectName(nameResult.text);
-				} catch (error) {
-					console.error("Failed to generate project name:", error);
-					projectName = slugifyProjectName(prompt.slice(0, 50));
-				}
+				projectName = slugifyProjectName(prompt.slice(0, 50));
 			}
 
 			const projectResult = await Project.create(
@@ -151,13 +134,8 @@ export const server = {
 						bootstrapped: "true",
 					});
 
-					const aiModelId = LLMConfig.getAIModelId();
 					if (prompt) {
-						Conversation.createWithInitialMessage(
-							projectResult.id,
-							prompt,
-							aiModelId,
-						);
+						Conversation.createWithInitialMessage(projectResult.id, prompt);
 
 						console.log(
 							`Project ${projectResult.id} created with initial prompt using template ${TEMPLATE_ID}. Generation will start when user visits project page.`,
@@ -278,12 +256,9 @@ export const server = {
 					return { success: true, filesCreated: 0, skipped: true };
 				}
 
-				const files = await generateDefaultProjectStructure();
-				// Write to filesystem only (single source of truth)
-				await writeProjectFiles(id, files);
 				await Project.updateFields(id, { bootstrapped: "true" });
 
-				return { success: true, filesCreated: files.length };
+				return { success: true, filesCreated: 0 };
 			} catch (error) {
 				console.error("Failed to generate project:", error);
 				if (error instanceof ActionError) {

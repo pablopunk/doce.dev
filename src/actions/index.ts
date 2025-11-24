@@ -2,6 +2,7 @@ import { server as authActions } from "@/domain/auth/actions/auth-actions";
 import { server as conversationActions } from "@/domain/conversations/actions/conversation-actions";
 import { server as llmActions } from "@/domain/llms/actions/llm-actions";
 import { server as projectActions } from "@/domain/projects/actions/project-actions";
+import { server as sessionActions } from "@/domain/sessions/actions/session-actions";
 import {
 	admin as adminActions,
 	deployments as deploymentActions,
@@ -14,6 +15,7 @@ export const server = {
 	config: llmActions,
 	deployments: deploymentActions,
 	projects: projectActions,
+	sessions: sessionActions,
 	setup: authActions,
 	stats: statsActions,
 };

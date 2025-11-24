@@ -19,13 +19,7 @@ export default defineConfig({
 			},
 		},
 		ssr: {
-			external: [
-				"ai",
-				"@ai-sdk/anthropic",
-				"@ai-sdk/openai",
-				"dockerode",
-				"better-sqlite3",
-			],
+			external: ["@opencode-ai/sdk", "dockerode", "better-sqlite3"],
 		},
 		server: {
 			watch: {

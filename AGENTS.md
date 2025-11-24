@@ -5,7 +5,7 @@
 ## Overview
 Self-hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
 
-**Stack**: Astro (Node adapter) • Drizzle ORM (w/ local sqlite) • `ai` SDK with OpenRouter • Docker
+**Stack**: Astro (Node adapter) • Drizzle ORM (w/ local sqlite) • OpenCode SDK • Docker
 
 **Run**: `pnpm install && pnpm run dev` → http://localhost:4321
 
@@ -93,14 +93,15 @@ src/
 **Domains**:
 - `projects/` - Project CRUD, preview, deployment, file management
 - `llms/` - AI model configuration, API key management
-- `conversations/` - Chat history, messages
+- `conversations/` - Chat history, messages (synced from OpenCode sessions)
+- `sessions/` - OpenCode session management, AI interactions
 - `auth/` - User management, setup wizard
 - `system/` - System stats, deployments, admin operations
 
 **Frontend**: `layouts/` (BaseLayout.astro) → `pages/` (.astro pages) → `components/` (.tsx React + ui/ shadcn)
 
 **API**: Astro Actions for all server operations. API routes (`pages/api/`) are ONLY for special cases where Actions are insufficient (streaming responses, SSE, etc.):
-- Chat: @src/pages/api/chat/[projectId].ts (AI streaming with tool calling)
+- Session Events: @src/pages/api/sessions/[projectId]/events.ts (Server-Sent Events for OpenCode session updates)
 - Logs: @src/pages/api/projects/[id]/logs.ts (Server-Sent Events for Docker logs)
 
 ## 💡 Adding a New Feature
@@ -474,7 +475,8 @@ pnpm type-check
 **Current Actions**:
 - `actions.projects.*` - Project operations (see @src/domain/projects/actions/project-actions.ts)
 - `actions.config.*` - AI configuration (see @src/domain/llms/actions/llm-actions.ts)
-- `actions.chat.*` - Chat operations (see @src/domain/conversations/actions/conversation-actions.ts)
+- `actions.chat.*` - Chat history operations (see @src/domain/conversations/actions/conversation-actions.ts)
+- `actions.sessions.*` - OpenCode session management (see @src/domain/sessions/actions/session-actions.ts)
 - `actions.setup.*` - Setup wizard (see @src/domain/auth/actions/auth-actions.ts)
 - `actions.deployments.*` - Deployment management (see @src/domain/system/actions/system-actions.ts)
 - `actions.stats.*` - System statistics (see @src/domain/system/actions/system-actions.ts)
@@ -491,9 +493,37 @@ All actions exported via @src/actions/index.ts
 
 **Streaming Endpoints** (use API routes, not Actions):
 - `src/pages/api/projects/[id]/logs.ts` - Server-Sent Events for Docker logs
-- `src/pages/api/chat/[projectId].ts` - AI streaming with tool calling
+- `src/pages/api/sessions/[projectId]/events.ts` - Server-Sent Events for OpenCode session updates
 
 Actions don't support streaming responses - use traditional API routes for SSE/streaming.
+
+## OpenCode Integration
+
+**Architecture**: Chat interface is a view layer that connects to OpenCode server sessions. All AI interactions, tool calling, and file operations are handled by OpenCode SDK.
+
+**OpenCode Server** (`src/lib/opencode/`):
+- Singleton server instance started on app init
+- Runs on http://127.0.0.1:4096
+- API keys synced from DB to OpenCode auth
+- Each project maps to an OpenCode session
+
+**Session Flow**:
+1. User sends message via ChatInterface
+2. `actions.sessions.sendMessage()` called
+3. Creates/gets OpenCode session for project
+4. Sends prompt to OpenCode via SDK
+5. OpenCode handles tool calling (file read/write, commands, etc.)
+6. Session events streamed via SSE to `/api/sessions/[projectId]/events`
+7. Messages synced back to local DB for persistence
+8. UI updates via SSE, remains in sync on page refresh
+
+**Key Files**:
+- **Server**: @src/lib/opencode/index.ts - OpenCode server management + auth sync
+- **Startup**: @src/lib/startup.ts - Initialize OpenCode server on app start
+- **Session Model**: @src/domain/sessions/models/session.ts - Session CRUD + prompt sending
+- **Session Actions**: @src/domain/sessions/actions/session-actions.ts - Astro actions for sessions
+- **SSE Endpoint**: @src/pages/api/sessions/[projectId]/events.ts - Real-time session updates
+- **Chat UI**: @src/domain/conversations/components/chat-interface.tsx - React interface
 
 ## Debugging
 
