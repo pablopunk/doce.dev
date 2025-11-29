@@ -1,33 +1,23 @@
-import type { Session as OpencodeSession, Part } from "@opencode-ai/sdk";
+import type { Session as OpencodeSession } from "@opencode-ai/sdk";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import * as db from "@/lib/db";
-import { getProjectPath } from "@/lib/file-system";
 import { createLogger } from "@/lib/logger";
-import { getOpencodeClient, getOpencodeServer } from "@/lib/opencode";
+import { getProjectOpencodeClient } from "@/lib/opencode";
 
 const logger = createLogger("session-model");
+const PROJECT_CONTAINER_DIRECTORY = "/app";
 
 export class Session {
-	static async ensureServerRunning(): Promise<void> {
-		try {
-			await getOpencodeServer();
-		} catch (error) {
-			logger.error("Failed to start OpenCode server", error as Error);
-			throw error;
-		}
-	}
-
 	static async getOrCreateForProject(
 		projectId: string,
 		model?: string,
 	): Promise<OpencodeSession> {
-		await Session.ensureServerRunning();
+		const client = await getProjectOpencodeClient(projectId);
 
 		let conversation = Conversation.getByProjectId(projectId);
 
 		if (conversation?.opencodeSessionId) {
 			try {
-				const client = getOpencodeClient();
 				const { data, error } = await client.session.get({
 					path: { id: conversation.opencodeSessionId },
 				});
@@ -54,12 +44,8 @@ export class Session {
 			conversation = Conversation.create(projectId, model);
 		}
 
-		const projectPath = await getProjectPath(projectId);
-
-		const client = getOpencodeClient();
-
 		logger.info(
-			`Creating OpenCode session for project ${projectId} at ${projectPath}`,
+			`Creating OpenCode session for project ${projectId} inside container`,
 		);
 
 		const { data, error } = await client.session.create({
@@ -67,13 +53,12 @@ export class Session {
 				title: `Project ${projectId}`,
 			},
 			query: {
-				directory: projectPath,
+				directory: PROJECT_CONTAINER_DIRECTORY,
 			},
 		});
 
 		if (error || !data) {
 			logger.error("Failed to create OpenCode session", error as any);
-			logger.error(`Project path was: ${projectPath}`);
 			logger.error(`Error details: ${JSON.stringify(error, null, 2)}`);
 			throw new Error(
 				`Failed to create OpenCode session: ${JSON.stringify(error)}`,
@@ -92,82 +77,186 @@ export class Session {
 	}
 
 	static async sendPrompt(
+		projectId: string,
 		sessionId: string,
 		message: string,
 		model: string,
-		conversationId: string,
 	): Promise<void> {
-		const client = getOpencodeClient();
-
-		Conversation.saveMessage(conversationId, "user", message);
-
-		const assistantMsg = Conversation.saveMessage(
-			conversationId,
-			"assistant",
-			"",
-			"streaming",
-		);
+		const client = await getProjectOpencodeClient(projectId);
 
 		try {
 			const [provider, modelId] = model.includes("/")
 				? model.split("/")
 				: ["openrouter", model];
 
-			const { data, error } = await client.session.prompt({
+			await client.session.prompt({
 				path: { id: sessionId },
 				body: {
 					model: { providerID: provider, modelID: modelId },
 					parts: [{ type: "text", text: message }],
 				},
 			});
-
-			if (error) {
-				logger.error("Failed to send prompt", error as any);
-				throw new Error(`Failed to send prompt`);
-			}
-
-			if (data?.parts) {
-				const textContent = data.parts
-					.filter((part: Part) => part.type === "text")
-					.map((part: any) => part.text)
-					.join("\n");
-
-				Conversation.updateMessage(
-					assistantMsg.id,
-					textContent || "No response",
-					"complete",
-				);
-			}
 		} catch (error) {
 			logger.error("Failed to send prompt", error as Error);
-			Conversation.updateMessage(
-				assistantMsg.id,
-				`Error: ${(error as Error).message}`,
-				"error",
-			);
 			throw error;
 		}
 	}
 
-	static async abortSession(sessionId: string): Promise<void> {
-		const client = getOpencodeClient();
+	static async abortSession(
+		projectId: string,
+		sessionId: string,
+	): Promise<void> {
+		const client = await getProjectOpencodeClient(projectId);
 		await client.session.abort({
 			path: { id: sessionId },
 		});
 		logger.info(`Aborted OpenCode session ${sessionId}`);
 	}
 
-	static async getMessages(sessionId: string) {
-		const client = getOpencodeClient();
-		const { data, error } = await client.session.messages({
+	static async getMessages(
+		projectId: string,
+		sessionId: string,
+	): Promise<{
+		messages: any[];
+		initialPrompt?: string | null;
+	}> {
+		const client = await getProjectOpencodeClient(projectId);
+		// The OpenCode SDK can be configured with either
+
+		//   - responseStyle: "fields" (default) → { data, error, ... }
+		//   - responseStyle: "data" → raw data value
+		// so we normalise both shapes here.
+		const result: any = await client.session.messages({
 			path: { id: sessionId },
 		});
+
+		const data = result?.data ?? result;
+		const error = result?.error;
 
 		if (error) {
 			logger.error("Failed to get messages", error as any);
 			throw new Error(`Failed to get messages`);
 		}
 
-		return data || [];
+		if (!data) {
+			return { messages: [] };
+		}
+
+		let baseMessages: any[] | null = null;
+		let columnarInitialPrompt: string | null | undefined;
+
+		if (Array.isArray(data)) {
+			if (isColumnarMessagesTable(data)) {
+				const decoded = decodeColumnarMessagesTable(data);
+				baseMessages = decoded.messages;
+				columnarInitialPrompt = decoded.initialPrompt ?? null;
+			} else {
+				baseMessages = data;
+			}
+		} else if (Array.isArray((data as any).messages)) {
+			baseMessages = (data as any).messages;
+		} else {
+			try {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const maybeIterable = data as any;
+				if (Symbol.iterator in maybeIterable) {
+					baseMessages = Array.from(maybeIterable);
+				}
+			} catch (_err) {
+				// ignore
+			}
+		}
+
+		if (!baseMessages) {
+			logger.warn("session.messages returned unexpected shape", data as any);
+			return { messages: [], initialPrompt: columnarInitialPrompt };
+		}
+
+		return {
+			messages: baseMessages,
+			initialPrompt: columnarInitialPrompt ?? null,
+		};
 	}
+}
+
+type ColumnarDecodeResult = {
+	messages: any[];
+	initialPrompt?: string | null;
+};
+
+function isColumnarMessagesTable(value: unknown): value is any[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		return false;
+	}
+
+	const schema = value[0];
+	return (
+		schema !== null &&
+		typeof schema === "object" &&
+		"messages" in schema &&
+		typeof (schema as Record<string, unknown>).messages === "number"
+	);
+}
+
+function decodeColumnarMessagesTable(table: any[]): ColumnarDecodeResult {
+	const cache = new Map<number, any>();
+
+	const resolveIndex = (index: number): any => {
+		if (cache.has(index)) {
+			return cache.get(index);
+		}
+
+		const raw = table[index];
+		let resolved: any;
+
+		if (typeof raw === "number") {
+			resolved = raw;
+		} else if (Array.isArray(raw)) {
+			resolved = raw.map(resolveValue);
+		} else if (raw && typeof raw === "object") {
+			resolved = Object.fromEntries(
+				Object.entries(raw).map(([key, value]) => [key, resolveValue(value)]),
+			);
+		} else {
+			resolved = raw;
+		}
+
+		cache.set(index, resolved);
+		return resolved;
+	};
+
+	const resolveValue = (value: any): any => {
+		if (
+			typeof value === "number" &&
+			Number.isInteger(value) &&
+			value >= 0 &&
+			value < table.length
+		) {
+			return resolveIndex(value);
+		}
+
+		if (Array.isArray(value)) {
+			return value.map(resolveValue);
+		}
+
+		if (value && typeof value === "object") {
+			return Object.fromEntries(
+				Object.entries(value).map(([key, nested]) => [
+					key,
+					resolveValue(nested),
+				]),
+			);
+		}
+
+		return value;
+	};
+
+	const schema: any = resolveIndex(0) ?? {};
+	const initialPromptValue =
+		typeof schema.initialPrompt === "string" ? schema.initialPrompt : null;
+
+	return {
+		messages: Array.isArray(schema?.messages) ? schema.messages : [],
+		initialPrompt: initialPromptValue,
+	};
 }

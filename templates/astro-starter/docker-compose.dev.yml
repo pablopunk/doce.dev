@@ -10,3 +10,7 @@ services:
     environment:
       NODE_ENV: development
       CI: "true"
+      OPENCODE_HOST: ${OPENCODE_HOST:-0.0.0.0}
+      OPENCODE_PORT: ${OPENCODE_PORT:-4096}
+      OPENCODE_HOST_PORT: ${OPENCODE_HOST_PORT:-4096}
+      OPENCODE_DATA_DIR: ${OPENCODE_DATA_DIR:-/app/.opencode}

@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS projects (
     user_id VARCHAR(255),
     status VARCHAR(50) DEFAULT 'draft',
     preview_url VARCHAR(500),
-    deployed_url VARCHAR(500)
+    deployed_url VARCHAR(500),
+    opencode_host VARCHAR(255),
+    opencode_port INTEGER
 );
 
 -- Conversations table

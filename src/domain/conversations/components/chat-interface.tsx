@@ -27,7 +27,6 @@ import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
-	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Label } from "@/components/ui/label";
@@ -51,15 +50,201 @@ import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("chat-interface");
 
-interface Message {
+interface ChatMessage {
 	id: string;
-	role: "user" | "assistant";
+	role: "user" | "assistant" | "system";
 	content: string;
-	streamingStatus?: "streaming" | "complete" | "error" | null;
+	tools?: string[];
+	// Raw OpenCode message/part payload for richer UIs later
+	_raw?: any;
+}
+
+interface AgentTodoItem {
+	id: string;
+	content: string;
+	status: string;
+	priority: string;
+}
+
+function formatTodoLabel(value: string): string {
+	return value
+		.split(/[\s_-]+/)
+		.filter(Boolean)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+const TODO_STATUS_STYLES: Record<string, string> = {
+	pending: "text-muted border-border/70",
+	in_progress: "text-warning border-border/70",
+	completed: "text-strong border-border/70",
+	cancelled: "text-danger border-border/70",
+};
+
+const TODO_PRIORITY_STYLES: Record<string, string> = {
+	high: "text-danger border-border/70",
+	medium: "text-strong border-border/70",
+	low: "text-muted border-border/70",
+};
+
+function coerceTodos(value: unknown): AgentTodoItem[] | null {
+	if (!value) return null;
+
+	if (Array.isArray(value)) {
+		return value as AgentTodoItem[];
+	}
+
+	if (typeof value === "string") {
+		try {
+			const parsed = JSON.parse(value);
+			return Array.isArray(parsed) ? (parsed as AgentTodoItem[]) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	if (typeof value === "object") {
+		const obj = value as Record<string, unknown>;
+		if (Array.isArray(obj.todos)) {
+			return obj.todos as AgentTodoItem[];
+		}
+	}
+
+	return null;
+}
+
+function parseTodosFromToolPart(part: any): AgentTodoItem[] | null {
+	if (!part || part.type !== "tool") return null;
+
+	const toolNameRaw =
+		typeof part.tool === "string"
+			? part.tool
+			: typeof part.tool?.name === "string"
+				? part.tool.name
+				: "";
+
+	if (!toolNameRaw.toLowerCase().startsWith("todo")) {
+		return null;
+	}
+
+	const metadataTodos = coerceTodos(part.state?.metadata?.todos);
+	if (metadataTodos) return metadataTodos;
+
+	const outputTodos = coerceTodos(part.state?.output);
+	if (outputTodos) return outputTodos;
+
+	const inputTodos = coerceTodos(part.state?.input);
+	if (inputTodos) return inputTodos;
+
+	return null;
+}
+
+function extractTodosFromMessages(messages: any[]): AgentTodoItem[] | null {
+	let latest: AgentTodoItem[] | null = null;
+
+	for (const message of messages) {
+		const parts = Array.isArray(message.parts)
+			? message.parts
+			: Array.isArray(message.message?.parts)
+				? message.message.parts
+				: [];
+
+		for (const part of parts) {
+			const parsed = parseTodosFromToolPart(part);
+			if (parsed && parsed.length > 0) {
+				latest = parsed;
+			}
+		}
+	}
+
+	return latest;
+}
+
+function parseMessageContent(rawMessage: any): {
+	text: string;
+	tools: string[];
+} {
+	if (!rawMessage) {
+		return { text: "", tools: [] };
+	}
+
+	const parts = Array.isArray(rawMessage.parts)
+		? rawMessage.parts
+		: Array.isArray(rawMessage.message?.parts)
+			? rawMessage.message.parts
+			: [];
+
+	const segments: string[] = [];
+	const toolNames: string[] = [];
+
+	for (const part of parts) {
+		if (!part || typeof part !== "object") continue;
+
+		if (part.type === "text" && typeof part.text === "string") {
+			const trimmed = part.text.trim();
+			if (trimmed) {
+				segments.push(trimmed);
+			}
+			continue;
+		}
+
+		if (part.type === "tool") {
+			const toolName =
+				typeof part.tool === "string"
+					? part.tool
+					: typeof part.tool?.name === "string"
+						? part.tool.name
+						: "tool";
+			toolNames.push(toolName);
+		}
+	}
+
+	if (segments.length === 0) {
+		const summary = rawMessage.info?.summary;
+		if (summary) {
+			const summarySegments: string[] = [];
+			if (summary.title) summarySegments.push(summary.title);
+			if (summary.body) summarySegments.push(summary.body);
+			if (summarySegments.length > 0) {
+				segments.push(summarySegments.join("\n"));
+			}
+
+			if (Array.isArray(summary.diffs) && summary.diffs.length > 0) {
+				const diffLines = summary.diffs.slice(0, 3).map((diff: any) => {
+					const file = diff.file || diff.path;
+					if (!file) return null;
+					return `- ${file}`;
+				});
+				const cleaned = diffLines.filter(Boolean);
+				if (cleaned.length > 0) {
+					segments.push(cleaned.join("\n"));
+				}
+			}
+		}
+	}
+
+	if (
+		segments.length === 0 &&
+		typeof rawMessage.info?.finish === "string" &&
+		toolNames.length === 0
+	) {
+		segments.push(`(${rawMessage.info.finish.replace(/-/g, " ")})`);
+	}
+
+	const uniqueToolNames = Array.from(new Set(toolNames));
+	const visibleTools = uniqueToolNames.filter(
+		(tool) => !tool.toLowerCase().startsWith("todo"),
+	);
+
+	return {
+		text: segments.join("\n\n"),
+		tools: visibleTools,
+	};
 }
 
 export function ChatInterface({ projectId }: { projectId: string }) {
-	const [messages, setMessages] = useState<Message[]>([]);
+	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [todos, setTodos] = useState<AgentTodoItem[] | null>(null);
 	const [input, setInput] = useState(() => {
 		if (typeof window !== "undefined") {
 			const saved = localStorage.getItem(`chat-input-${projectId}`);
@@ -76,7 +261,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	const [currentStatus, setCurrentStatus] = useState<string | null>(null);
 	const [hasActiveStream, setHasActiveStream] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
-	const eventSourceRef = useRef<EventSource | null>(null);
+	const hasLoadedRef = useRef(false);
 
 	const isGenerating = hasActiveStream;
 
@@ -107,34 +292,64 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	};
 
 	async function loadHistory() {
+		// Only show the global "Loading chat..." spinner on the first load.
+		if (!hasLoadedRef.current) {
+			setIsLoadingHistory(true);
+		}
+
 		try {
 			const { data, error } = await actions.chat.getHistory({ projectId });
 			if (!error && data) {
-				setMessages((data.messages || []) as any);
-				if (data.model) setSelectedModel(data.model);
+				const rawMessages = (data.messages || []) as any[];
 
-				const hasStreamingAssistant = (data.messages || []).some(
-					(m: any) =>
-						m.role === "assistant" && m.streamingStatus === "streaming",
-				);
-				const hasAssistant = (data.messages || []).some(
-					(m: any) => m.role === "assistant",
-				);
-				setHasActiveStream(hasStreamingAssistant);
+				// Map raw OpenCode messages into a simple shape for the UI.
+				const mapped: ChatMessage[] = rawMessages
+					.map((m: any) => {
+						const role =
+							(m.info?.role as ChatMessage["role"]) ||
+							(m.role as ChatMessage["role"]) ||
+							"assistant";
 
-				if (hasStreamingAssistant) {
-					setInitialGenerationInProgress(projectId, true);
-				} else if (hasAssistant || !data.messages?.length) {
-					setInitialGenerationInProgress(projectId, false);
+						const { text, tools } = parseMessageContent(m);
+
+						return {
+							id: m.id || crypto.randomUUID(),
+							role,
+							content: text,
+							tools,
+							_raw: m,
+						};
+					})
+					.filter(
+						(message) =>
+							message.role !== "assistant" ||
+							message.content.trim().length > 0 ||
+							(message.tools && message.tools.length > 0),
+					);
+
+				const latestTodos = extractTodosFromMessages(rawMessages);
+				setTodos(latestTodos && latestTodos.length > 0 ? latestTodos : null);
+
+				if (mapped.length > 0) {
+					setMessages(mapped);
+					if (data.model) setSelectedModel(data.model);
+					return;
 				}
 
-				// Auto-send initial message if there's only a user message
-				if (
-					data.messages?.length === 1 &&
-					data.messages[0].role === "user" &&
-					!hasAssistant
-				) {
-					logger.info("Auto-sending initial message to OpenCode");
+				// No OpenCode messages yet: fall back to the
+				// project's stored initial prompt if available.
+				if (data.initialPrompt) {
+					const initialMessage: ChatMessage = {
+						id: `initial-${projectId}`,
+						role: "user",
+						content: data.initialPrompt,
+					};
+
+					setTodos(null);
+					setMessages([initialMessage]);
+					if (data.model) setSelectedModel(data.model);
+
+					logger.info("Auto-sending initial project prompt to OpenCode");
 					setHasActiveStream(true);
 					setCurrentStatus("Processing initial request...");
 					setInitialGenerationInProgress(projectId, true);
@@ -142,12 +357,17 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					try {
 						const { error: sendError } = await actions.sessions.sendMessage({
 							projectId,
-							message: data.messages[0].content,
-							model: data.model,
+							message: data.initialPrompt,
+							model: data.model || selectedModel,
 						});
 
 						if (sendError) {
 							console.error("Failed to send initial message:", sendError);
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							setInitialGenerationInProgress(projectId, false);
+						} else {
+							await loadHistory();
 							setHasActiveStream(false);
 							setCurrentStatus(null);
 							setInitialGenerationInProgress(projectId, false);
@@ -158,12 +378,18 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						setCurrentStatus(null);
 						setInitialGenerationInProgress(projectId, false);
 					}
+				} else {
+					setTodos(null);
+					setMessages([]);
 				}
 			}
 		} catch (error) {
 			console.error("Failed to load chat history:", error);
 		} finally {
-			setIsLoadingHistory(false);
+			if (!hasLoadedRef.current) {
+				hasLoadedRef.current = true;
+				setIsLoadingHistory(false);
+			}
 		}
 	}
 
@@ -172,80 +398,70 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		if (typeof window === "undefined") return;
 
-		try {
-			const es = new EventSource(`/api/sessions/${projectId}/events`);
-			eventSourceRef.current = es;
+		const es = new EventSource(`/api/sessions/${projectId}/events`);
 
-			es.onmessage = (event) => {
-				try {
-					const payload = JSON.parse(event.data);
+		es.onmessage = (event) => {
+			try {
+				const payload = JSON.parse(event.data);
 
-					switch (payload.type) {
-						case "connected":
-							logger.info(
-								`Connected to SSE (session: ${payload.sessionId || "pending"})`,
-							);
-							break;
+				switch (payload.type) {
+					case "server.connected":
+						logger.info(
+							`Connected to SSE (session: ${payload.sessionId || "unknown"})`,
+						);
+						break;
 
-						case "ping":
-							// Keep-alive ping, ignore
-							break;
+					case "message.part.updated":
+						setHasActiveStream(true);
+						setCurrentStatus("Generating response...");
+						break;
 
-						case "session.created":
-							logger.info(
-								`Session created: ${payload.sessionId}, reconnecting...`,
-							);
-							// Connection will close and reconnect automatically
-							break;
+					case "message.updated":
+					case "messages.synced":
+						// Finalize current assistant message and refresh history
+						loadHistory();
+						setHasActiveStream(false);
+						setCurrentStatus(null);
+						setInitialGenerationInProgress(projectId, false);
+						refreshCodePreview();
+						break;
 
-						case "message.updated":
-							loadHistory();
-							setHasActiveStream(true);
-							setCurrentStatus("Generating response...");
-							break;
+					case "session.idle":
+						setHasActiveStream(false);
+						setCurrentStatus(null);
+						setInitialGenerationInProgress(projectId, false);
+						refreshCodePreview();
+						break;
 
-						case "messages.synced":
-							loadHistory();
-							break;
-
-						case "session.idle":
-							setHasActiveStream(false);
-							setCurrentStatus(null);
-							setInitialGenerationInProgress(projectId, false);
-							refreshCodePreview();
-							break;
-
-						case "error":
-							logger.error("Session error:", payload.message);
-							setHasActiveStream(false);
-							setCurrentStatus(null);
-							break;
-
-						default:
-							logger.debug("Unhandled event type:", payload.type);
+					case "todo.updated": {
+						const todoItems = Array.isArray(payload.properties?.todos)
+							? (payload.properties.todos as AgentTodoItem[])
+							: [];
+						setTodos(todoItems.length > 0 ? todoItems : null);
+						break;
 					}
-				} catch (err) {
-					console.error("Failed to parse session SSE event:", err);
-				}
-			};
 
-			es.onerror = (err) => {
-				console.error("Session SSE error:", err);
-			};
+					case "error":
+						logger.error("Session error:", payload.message);
+						setHasActiveStream(false);
+						setCurrentStatus(null);
+						break;
 
-			return () => {
-				if (es) {
-					try {
-						es.close();
-					} catch {
-						// ignore
-					}
+					default:
+						logger.debug("Session event:", payload);
 				}
-				eventSourceRef.current = null;
-			};
-		} catch (err) {
-			console.error("Failed to open session SSE stream:", err);
-		}
+			} catch (err) {
+				console.error("Failed to parse session SSE event:", err);
+			}
+		};
+
+		es.onerror = (err) => {
+			console.error("Session SSE error:", err);
+		};
+
+		return () => {
+			es.close();
+		};
 	}, [projectId]);
 
 	useEffect(() => {
@@ -305,7 +521,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		e.preventDefault();
 		if (!input.trim() || isGenerating) return;
 
-		const userMessage: Message = {
+		const userMessage: ChatMessage = {
 			id: `temp-user-${Date.now()}`,
 			role: "user",
 			content: input,
@@ -331,6 +547,11 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				console.error("Failed to send message:", error);
 				setHasActiveStream(false);
 				setCurrentStatus(null);
+			} else {
+				await loadHistory();
+				setHasActiveStream(false);
+				setCurrentStatus(null);
+				setInitialGenerationInProgress(projectId, false);
 			}
 		} catch (error) {
 			console.error("Failed to send message:", error);
@@ -537,14 +758,49 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						</div>
 					</div>
 				)}
-				{messages.map((message, idx) => {
-					const isLastMessage = idx === messages.length - 1;
-					const isStreamingMessage =
-						isLastMessage &&
-						message.role === "assistant" &&
-						message.streamingStatus === "streaming";
-
+				{todos && todos.length > 0 && (
+					<div className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+						<div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted">
+							<span>Agent To-Dos</span>
+							<span>{todos.length}</span>
+						</div>
+						<div className="space-y-2">
+							{todos.map((todo) => {
+								const statusClass =
+									TODO_STATUS_STYLES[todo.status] ??
+									"text-muted border-border/70";
+								const priorityClass =
+									TODO_PRIORITY_STYLES[todo.priority] ??
+									"text-muted border-border/70";
+								return (
+									<div
+										key={todo.id}
+										className="flex flex-col gap-2 rounded-xl border border-border/70 bg-raised px-3 py-2"
+									>
+										<p className="text-sm text-strong">{todo.content}</p>
+										<div className="flex flex-wrap items-center gap-2">
+											<span
+												className={`text-[11px] uppercase tracking-wide border rounded-full px-2 py-0.5 ${statusClass}`}
+											>
+												{formatTodoLabel(todo.status)}
+											</span>
+											<span
+												className={`text-[11px] uppercase tracking-wide border rounded-full px-2 py-0.5 ${priorityClass}`}
+											>
+												Priority: {formatTodoLabel(todo.priority)}
+											</span>
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				)}
+				{messages.map((message) => {
 					const isDeleting = deletingMessageId === message.id;
+					const toolNames = message.tools ?? [];
+					const textContent = (message.content || "").trim();
+					const hasTextContent = textContent.length > 0;
 
 					return (
 						<ContextMenu key={message.id}>
@@ -553,25 +809,41 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
 								>
 									<div
-										className={`max-w-[80%] rounded-lg px-4 py-2 overflow-hidden cursor-context-menu ${
+										className={`max-w-[80%] rounded-lg px-4 py-3 overflow-hidden cursor-context-menu ${
 											message.role === "user"
 												? "bg-strong text-surface"
 												: "bg-surface text-strong"
 										} ${isDeleting ? "opacity-50" : ""}`}
 									>
 										{message.role === "assistant" ? (
-											<MessageContent
-												content={message.content}
-												isStreaming={isStreamingMessage}
-											/>
+											hasTextContent ? (
+												<MessageContent content={message.content} />
+											) : null
 										) : (
 											<div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap break-words">
 												{message.content}
 											</div>
 										)}
+										{toolNames.length > 0 && (
+											<div
+												className={`flex flex-wrap gap-2 ${
+													hasTextContent ? "mt-3" : ""
+												}`}
+											>
+												{toolNames.map((tool, index) => (
+													<span
+														key={`${message.id}-tool-${index}-${tool}`}
+														className="text-[11px] uppercase tracking-wide border border-border/70 rounded-full px-2 py-0.5 text-muted bg-raised"
+													>
+														{tool}
+													</span>
+												))}
+											</div>
+										)}
 									</div>
 								</div>
 							</ContextMenuTrigger>
+
 							<ContextMenuContent className="w-72">
 								<ContextMenuItem
 									onClick={() => handleDeleteMessage(message.id, false)}
@@ -581,20 +853,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 									<Trash2 className="mr-2 h-4 w-4" />
 									Delete this message only
 								</ContextMenuItem>
-								{idx > 0 && (
-									<>
-										<ContextMenuSeparator />
-										<ContextMenuItem
-											onClick={() => handleDeleteMessage(message.id, true)}
-											disabled={isGenerating || isDeleting}
-											className="text-danger text-danger focus:text-danger focus:text-danger"
-										>
-											<Trash2 className="mr-2 h-4 w-4" />
-											<ChevronDown className="mr-2 h-4 w-4" />
-											Delete from here onwards
-										</ContextMenuItem>
-									</>
-								)}
 							</ContextMenuContent>
 						</ContextMenu>
 					);

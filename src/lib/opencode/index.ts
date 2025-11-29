@@ -1,5 +1,7 @@
 import type { OpencodeClient } from "@opencode-ai/sdk";
 import { createOpencode, createOpencodeClient } from "@opencode-ai/sdk";
+import { Project } from "@/domain/projects/models/project";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("opencode");
@@ -8,6 +10,15 @@ type OpencodeServer = {
 	url: string;
 	close(): void;
 };
+
+const projectClientCache = new Map<
+	string,
+	{ baseUrl: string; client: OpencodeClient }
+>();
+
+export function clearProjectOpencodeClient(projectId: string) {
+	projectClientCache.delete(projectId);
+}
 
 let opencodeInstance: {
 	server: OpencodeServer;
@@ -102,10 +113,78 @@ export function getOpencodeClient(): OpencodeClient {
 		logger.info("Creating OpenCode client (connecting to existing server)");
 		clientOnlyInstance = createOpencodeClient({
 			baseUrl: "http://127.0.0.1:4096",
+			// Ensure we get plain JSON payloads from the SDK
+			responseStyle: "data" as any,
+			parseAs: "data" as any,
 		});
 	}
 
 	return clientOnlyInstance;
+}
+
+export async function getProjectOpencodeClient(
+	projectId: string,
+): Promise<OpencodeClient> {
+	const endpoint = await resolveProjectOpencodeEndpoint(projectId);
+	const baseUrl = `http://${endpoint.host}:${endpoint.port}`;
+	const cached = projectClientCache.get(projectId);
+	if (cached?.baseUrl === baseUrl) {
+		return cached.client;
+	}
+
+	const client = createOpencodeClient({
+		baseUrl,
+		responseStyle: "data" as any,
+		parseAs: "data" as any,
+	});
+	projectClientCache.set(projectId, { baseUrl, client });
+	return client;
+}
+
+async function resolveProjectOpencodeEndpoint(projectId: string): Promise<{
+	host: string;
+	port: number;
+}> {
+	const project = await Project.getById(projectId);
+	if (!project) {
+		throw new Error(`Project ${projectId} not found`);
+	}
+
+	const host = project.opencodeHost ?? "localhost";
+	const port = project.opencodePort ?? null;
+
+	if (port == null) {
+		throw new Error(
+			"Project preview is not running. Start the preview to enable chat.",
+		);
+	}
+
+	return { host, port };
+}
+
+export async function syncProjectOpencodeAuth(
+	projectId: string,
+): Promise<void> {
+	const config = LLMConfig.getConfig();
+	const apiKey = config.apiKey;
+	const provider = config.provider || "openrouter";
+	if (!apiKey) {
+		return;
+	}
+
+	try {
+		const client = await getProjectOpencodeClient(projectId);
+		await client.auth.set({
+			path: { id: provider },
+			body: { type: "api", key: apiKey },
+		});
+		logger.info(`Synced ${provider} API key to project ${projectId} OpenCode server`);
+	} catch (error) {
+		logger.error(
+			`Failed to sync ${provider} API key to project ${projectId} OpenCode server`,
+			error as Error,
+		);
+	}
 }
 
 export async function closeOpencodeServer(): Promise<void> {

@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { promisify } from "util";
 import { Project } from "@/domain/projects/models/project";
+import { clearProjectOpencodeClient, syncProjectOpencodeAuth } from "@/lib/opencode";
 import env from "./env";
 
 const execAsync = promisify(exec);
@@ -24,7 +25,8 @@ export async function createPreviewContainer(
 	projectId: string,
 ): Promise<{ containerId: string; url: string; port: number }> {
 	const containerName = `doce-preview-${projectId}`;
-	const port = await findAvailablePort();
+	const appPort = await findAvailablePort();
+	const opencodePort = await findAvailablePort([appPort]);
 	const subdomain = `preview-${projectId.slice(0, 8)}`;
 
 	try {
@@ -43,8 +45,10 @@ export async function createPreviewContainer(
 				);
 				const existingPort = parseInt(
 					info.HostConfig.PortBindings["3000/tcp"]?.[0]?.HostPort ||
-						port.toString(),
+						appPort.toString(),
 				);
+				await syncOpencodeBindingFromContainer(existingContainer, projectId);
+				await syncProjectOpencodeAuth(projectId);
 				return {
 					containerId: existingContainer.id,
 					url: `http://localhost:${existingPort}`,
@@ -72,9 +76,6 @@ export async function createPreviewContainer(
 			`📂 Project path: ${projectPath}\n`,
 		);
 
-		// Ensure docker-compose.dev.yml exists in the project. This file now
-		// lives inside the template itself and should be copied along with the
-		// rest of the project files during creation.
 		const devComposePath = path.join(projectPath, "docker-compose.dev.yml");
 		try {
 			await fs.stat(devComposePath);
@@ -89,12 +90,17 @@ export async function createPreviewContainer(
 			throw new Error(message);
 		}
 
-		// Generate docker-compose override for this specific instance with port and labels
 		const composeOverride = `services:
   app:
     container_name: ${containerName}
     ports:
-      - "${port}:3000"
+      - "${appPort}:3000"
+      - "${opencodePort}:4096"
+    environment:
+      OPENCODE_HOST: "0.0.0.0"
+      OPENCODE_PORT: "4096"
+      OPENCODE_HOST_PORT: "${opencodePort}"
+      OPENCODE_DATA_DIR: "/app/.opencode"
     labels:
       traefik.enable: "true"
       traefik.http.routers.${subdomain}.rule: "PathPrefix(\`/preview/${projectId}\`)"
@@ -116,8 +122,11 @@ export async function createPreviewContainer(
 			`✓ Generated docker-compose override\n`,
 		);
 
-		// Use docker-compose via command line (more reliable than docker SDK for compose)
-		// Start containers with docker-compose (use dev config for preview)
+		await Project.updateFields(projectId, {
+			opencodeHost: "localhost",
+			opencodePort,
+		});
+
 		await Project.appendBuildLog(
 			projectId,
 			`⟳ Running docker-compose up...\n\n`,
@@ -136,9 +145,6 @@ export async function createPreviewContainer(
 			{ cwd: projectPath },
 		);
 
-		// Buffer logs in memory and flush them to the database periodically
-		// instead of writing on every chunk. This avoids hammering SQLite with
-		// tiny writes while docker-compose is noisy.
 		let bufferedLogs: string[] = [];
 		const flushIntervalMs = 500;
 		let flushTimer: NodeJS.Timeout | null = null;
@@ -166,7 +172,6 @@ export async function createPreviewContainer(
 			}, flushIntervalMs);
 		};
 
-		// Capture stdout and stderr
 		composeProcess.stdout.on("data", (data) => {
 			const log = data.toString();
 			bufferedLogs.push(log);
@@ -179,7 +184,6 @@ export async function createPreviewContainer(
 			ensureFlushTimer();
 		});
 
-		// Wait for the process to complete
 		await new Promise<void>((resolve, reject) => {
 			composeProcess.on("close", async (code) => {
 				processClosed = true;
@@ -188,7 +192,6 @@ export async function createPreviewContainer(
 					flushTimer = null;
 				}
 
-				// Final flush of any remaining logs
 				await flushLogs();
 
 				if (code === 0) {
@@ -211,7 +214,6 @@ export async function createPreviewContainer(
 			`⟳ Waiting for container to be ready...\n`,
 		);
 
-		// Wait for the container to appear and be running
 		let attempts = 0;
 		let container;
 		while (attempts < 30) {
@@ -223,8 +225,10 @@ export async function createPreviewContainer(
 					await Project.appendBuildLog(projectId, `✓ Container is running\n`);
 					await Project.appendBuildLog(
 						projectId,
-						`🚀 Preview available at http://localhost:${port}\n`,
+						`🚀 Preview available at http://localhost:${appPort}\n`,
 					);
+					await syncOpencodeBindingFromContainer(container, projectId);
+					await syncProjectOpencodeAuth(projectId);
 					break;
 				}
 			}
@@ -240,10 +244,8 @@ export async function createPreviewContainer(
 			throw new Error("Container failed to start within timeout");
 		}
 
-		// For local development, use direct port access
-		// In production with Traefik, this would be the path-based URL
-		const url = `http://localhost:${port}`;
-		return { containerId: container.id, url, port };
+		const url = `http://localhost:${appPort}`;
+		return { containerId: container.id, url, port: appPort };
 	} catch (error) {
 		console.error("Failed to create preview container:", error);
 		await Project.appendBuildLog(
@@ -253,7 +255,6 @@ export async function createPreviewContainer(
 		throw error;
 	}
 }
-
 export async function createDeploymentContainer(
 	projectId: string,
 ): Promise<{ containerId: string; url: string; deploymentId: string }> {
@@ -392,6 +393,11 @@ export async function stopPreviewForProject(projectId: string): Promise<void> {
 		await execAsync(`docker-compose -f docker-compose.dev.yml down`, {
 			cwd: projectPath,
 		});
+		await Project.updateFields(projectId, {
+			opencodeHost: null,
+			opencodePort: null,
+		});
+		clearProjectOpencodeClient(projectId);
 		console.log(`Stopped preview for project ${projectId}`);
 	} catch (error: unknown) {
 		if ((error as { code: string }).code !== "ENOENT") {
@@ -412,6 +418,26 @@ export async function getContainerStatus(
 	}
 }
 
+
+async function syncOpencodeBindingFromContainer(
+	container: Docker.Container,
+	projectId: string,
+): Promise<void> {
+	try {
+		const info = await container.inspect();
+		const binding = info.HostConfig.PortBindings["4096/tcp"]?.[0]?.HostPort;
+		if (binding) {
+			await Project.updateFields(projectId, {
+				opencodeHost: "localhost",
+				opencodePort: parseInt(binding, 10),
+			});
+			clearProjectOpencodeClient(projectId);
+		}
+	} catch (error) {
+		console.error("Failed to sync opencode port", error);
+	}
+}
+
 async function getContainerByName(
 	name: string,
 ): Promise<Docker.Container | null> {
@@ -426,10 +452,16 @@ async function getContainerByName(
 	}
 }
 
-async function findAvailablePort(): Promise<number> {
+async function findAvailablePort(exclude: number[] = []): Promise<number> {
 	const basePort = 10000;
 	const maxPort = 20000;
-	return basePort + Math.floor(Math.random() * (maxPort - basePort));
+
+	while (true) {
+		const candidate = basePort + Math.floor(Math.random() * (maxPort - basePort));
+		if (!exclude.includes(candidate)) {
+			return candidate;
+		}
+	}
 }
 
 /**

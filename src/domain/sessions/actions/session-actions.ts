@@ -14,11 +14,7 @@ export const server = {
 				const session = await Session.getOrCreateForProject(projectId, model);
 				return { sessionId: session.id };
 			} catch (error) {
-				console.error("Failed to get/create session:", error);
-				throw new ActionError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to get/create session",
-				});
+				handleSessionError(error);
 			}
 		},
 	}),
@@ -32,23 +28,11 @@ export const server = {
 		handler: async ({ projectId, message, model }) => {
 			try {
 				const session = await Session.getOrCreateForProject(projectId, model);
-				const conversation = Conversation.getByProjectId(projectId);
 
-				if (!conversation) {
-					throw new ActionError({
-						code: "NOT_FOUND",
-						message: "Conversation not found",
-					});
-				}
-
-				await Session.sendPrompt(session.id, message, model, conversation.id);
+				await Session.sendPrompt(projectId, session.id, message, model);
 				return { success: true };
 			} catch (error) {
-				console.error("Failed to send message:", error);
-				throw new ActionError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to send message",
-				});
+				handleSessionError(error);
 			}
 		},
 	}),
@@ -68,15 +52,31 @@ export const server = {
 					});
 				}
 
-				await Session.abortSession(conversation.opencodeSessionId);
+				await Session.abortSession(projectId, conversation.opencodeSessionId);
 				return { success: true };
 			} catch (error) {
-				console.error("Failed to abort session:", error);
-				throw new ActionError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to abort session",
-				});
+				handleSessionError(error);
 			}
 		},
 	}),
 };
+
+function handleSessionError(error: unknown): never {
+	const message =
+		error instanceof Error
+			? error.message
+			: "Failed to communicate with OpenCode";
+
+	if (message.toLowerCase().includes("preview is not running")) {
+		throw new ActionError({
+			code: "BAD_REQUEST",
+			message: "Preview is not running. Start the preview to chat.",
+		});
+	}
+
+	console.error("Session error:", error);
+	throw new ActionError({
+		code: "INTERNAL_SERVER_ERROR",
+		message: "Failed to communicate with OpenCode",
+	});
+}

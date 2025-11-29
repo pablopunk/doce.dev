@@ -1,6 +1,8 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Conversation } from "@/domain/conversations/models/conversation";
+import { LLMConfig } from "@/domain/llms/models/llm-config";
+import { opencodePrompt } from "@/lib/opencode/prompts";
 import { copyTemplateToProject } from "@/domain/projects/lib/template-generator";
 import { DEFAULT_TEMPLATE_ID } from "@/domain/projects/lib/templates";
 import { Project } from "@/domain/projects/models/project";
@@ -78,6 +80,30 @@ function slugifyProjectName(source: string): string {
 	return base || "project";
 }
 
+// Stateless helper for naming and similar one-off prompts
+async function generateProjectNameWithAI(
+	prompt: string,
+): Promise<string | null> {
+	try {
+		const modelId = LLMConfig.getAIModelId();
+		const name = await opencodePrompt({
+			prompt: [
+				"You generate concise, descriptive project names.",
+				"Return ONLY the project name, nothing else.",
+				"Keep it short (1-4 words) and SEO friendly.",
+				"User description:",
+				prompt,
+			].join("\n"),
+			modelId,
+		});
+
+		return name.trim() || null;
+	} catch (error) {
+		console.error("Failed to generate project name with OpenCode:", error);
+		return null;
+	}
+}
+
 // Track active project sessions with timeouts
 const activeProjects = new Map<string, NodeJS.Timeout>();
 const INACTIVITY_TIMEOUT = 60000; // 60 seconds
@@ -108,9 +134,20 @@ export const server = {
 			const projectDescription = description || prompt;
 			const shouldBootstrapFromTemplate = fromTemplate ?? !!prompt;
 
-			// If a prompt is provided, generate project name from it
+			// If a prompt is provided, generate project name with AI first
 			if (prompt && !name) {
-				projectName = slugifyProjectName(prompt.slice(0, 50));
+				try {
+					const aiName = await generateProjectNameWithAI(prompt);
+					if (aiName) {
+						projectName = slugifyProjectName(aiName);
+					}
+				} catch (error) {
+					console.error(
+						"Failed to generate project name with OpenCode:",
+						error,
+					);
+					projectName = slugifyProjectName(prompt.slice(0, 50));
+				}
 			}
 
 			const projectResult = await Project.create(
@@ -135,7 +172,7 @@ export const server = {
 					});
 
 					if (prompt) {
-						Conversation.createWithInitialMessage(projectResult.id, prompt);
+						Conversation.createForProject(projectResult.id);
 
 						console.log(
 							`Project ${projectResult.id} created with initial prompt using template ${TEMPLATE_ID}. Generation will start when user visits project page.`,

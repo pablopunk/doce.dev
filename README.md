@@ -41,3 +41,4 @@
   - [ ] Mechanism to detect when compression is needed (context gets big)
 - [ ] The chat mentions stuff like "open localhost:3000", which is not true for our tool; let's make it aware of how the project is deployed in dev mode
 - [ ] shadcn mcp?
+- [ ] Break large components into smaller components, nesting them in the large component directory

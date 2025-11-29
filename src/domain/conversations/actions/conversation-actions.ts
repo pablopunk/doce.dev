@@ -4,6 +4,7 @@ import {
 	Conversation,
 	type ConversationModel,
 } from "@/domain/conversations/models/conversation";
+import { Project } from "@/domain/projects/models/project";
 
 export const server = {
 	/**
@@ -15,8 +16,13 @@ export const server = {
 		}),
 		handler: async ({ projectId }) => {
 			try {
-				const history = Conversation.getHistory(projectId);
-				return history;
+				const history = await Conversation.getHistory(projectId);
+				const project = await Project.getById(projectId);
+				return {
+					...history,
+					initialPrompt:
+						project?.initialPrompt ?? history.initialPrompt ?? null,
+				};
 			} catch (error) {
 				console.error("Failed to get chat history:", error);
 				throw new ActionError({
@@ -28,39 +34,17 @@ export const server = {
 	}),
 
 	/**
-	 * Delete a message and all messages after it
+	 * Message deletion previously manipulated the local DB transcript.
+	 * Now that the chat history is owned entirely by OpenCode, this
+	 * action becomes a no-op kept only for UI backward compatibility.
 	 */
 	deleteMessage: defineAction({
 		input: z.object({
 			projectId: z.string(),
 			messageId: z.string(),
 		}),
-		handler: async ({ projectId, messageId }) => {
-			try {
-				Conversation.deleteMessage(projectId, messageId);
-				return { success: true };
-			} catch (error) {
-				if (error instanceof Error) {
-					if (error.message === "Conversation not found") {
-						throw new ActionError({
-							code: "NOT_FOUND",
-							message: "Conversation not found",
-						});
-					}
-					if (error.message === "Message not found") {
-						throw new ActionError({
-							code: "NOT_FOUND",
-							message: "Message not found",
-						});
-					}
-				}
-
-				console.error("Failed to delete message:", error);
-				throw new ActionError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to delete message",
-				});
-			}
+		handler: async () => {
+			return { success: true };
 		},
 	}),
 };

@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import { createLogger } from "@/lib/logger";
-import { getOpencodeClient, getOpencodeServer } from "@/lib/opencode";
+import { getProjectOpencodeClient } from "@/lib/opencode";
 
 const logger = createLogger("session-events");
 
@@ -9,45 +9,33 @@ export const maxDuration = 300;
 
 export const GET: APIRoute = async ({ params }) => {
 	const projectId = params.projectId;
-	logger.info(`SSE request for project ${projectId}`);
 
 	if (!projectId) {
 		logger.error("No project ID provided");
 		return new Response("Project ID required", { status: 400 });
 	}
 
+	logger.info(`SSE request for project ${projectId}`);
+
+	let opencodeClient;
 	try {
-		await getOpencodeServer();
-		logger.info("OpenCode server is running");
+		opencodeClient = await getProjectOpencodeClient(projectId);
 	} catch (error) {
-		logger.error("Failed to start OpenCode server", error as Error);
-		return new Response("OpenCode server not available", { status: 503 });
+		logger.error(
+			"Failed to connect to project OpenCode server",
+			error as Error,
+		);
+		return new Response("Project preview is not running", { status: 503 });
 	}
-
-	let conversation = Conversation.getByProjectId(projectId);
-
-	// If no conversation exists yet, create one (this happens on new projects)
-	if (!conversation) {
-		logger.info(`No conversation found for project ${projectId}, creating one`);
-		conversation = Conversation.create(projectId);
-	}
-
-	// Session will be created lazily when first message is sent
-	// For now, just keep the connection alive and wait
-	if (!conversation.opencodeSessionId) {
-		logger.info(`No OpenCode session yet for project ${projectId}, waiting...`);
-	}
-
-	const sessionId = conversation.opencodeSessionId;
-	logger.info(
-		`Starting SSE stream for project ${projectId} (session: ${sessionId || "pending"})`,
-	);
 
 	const encoder = new TextEncoder();
 
 	const stream = new ReadableStream({
 		async start(controller) {
-			const sendEvent = (data: any) => {
+			let closed = false;
+
+			const sendEvent = (data: unknown) => {
+				if (closed) return;
 				try {
 					const message = `data: ${JSON.stringify(data)}\n\n`;
 					controller.enqueue(encoder.encode(message));
@@ -57,137 +45,81 @@ export const GET: APIRoute = async ({ params }) => {
 			};
 
 			try {
-				const client = getOpencodeClient();
-				logger.info("Got OpenCode client, subscribing to events...");
+				const client = opencodeClient;
+				logger.info("Connecting to project OpenCode events...");
+
+				// Initial state: we may or may not have a session yet.
+				let conversation = Conversation.getByProjectId(projectId);
+				let sessionId: string | null = conversation?.opencodeSessionId ?? null;
 
 				sendEvent({
-					type: "connected",
+					type: "server.connected",
 					projectId,
-					sessionId: sessionId || null,
+					sessionId,
 				});
-
-				// If no session yet, poll for session creation
-				if (!sessionId) {
-					logger.info("No session yet, polling for session creation...");
-
-					// Poll every 2 seconds for session creation
-					let currentSessionId: string | null = null;
-					const pollInterval = setInterval(async () => {
-						const updatedConv = Conversation.getByProjectId(projectId);
-						if (updatedConv?.opencodeSessionId && !currentSessionId) {
-							currentSessionId = updatedConv.opencodeSessionId;
-							clearInterval(pollInterval);
-							logger.info(
-								`Session created: ${currentSessionId}, reconnecting...`,
-							);
-							sendEvent({
-								type: "session.created",
-								sessionId: currentSessionId,
-							});
-							// Close this connection - client will reconnect
-							controller.close();
-						}
-					}, 2000);
-
-					// Keep connection alive with pings
-					const _pingInterval = setInterval(() => {
-						sendEvent({ type: "ping" });
-					}, 30000);
-
-					// Cleanup handled by cancel()
-					return;
-				}
 
 				const events = await client.event.subscribe();
 				logger.info("Subscribed to OpenCode events successfully");
 
 				if (
 					!events ||
-					typeof events.stream?.[Symbol.asyncIterator] !== "function"
+					typeof (events as any).stream?.[Symbol.asyncIterator] !== "function"
 				) {
 					throw new Error("Event stream not available or not iterable");
 				}
 
-				for await (const globalEvent of events.stream) {
-					// GlobalEvent has structure: { directory: string, payload: Event }
-					// Event has structure: { type: string, properties: { info: Message | Session } }
-					const event = (globalEvent as any).payload;
+				for await (const rawEvent of (events as any).stream) {
+					if (closed) break;
 
-					if (!event) {
-						continue;
+					const event: any = rawEvent;
+
+					// Extract session ID from payload
+					const info = event.properties?.info ?? event.info ?? {};
+					const directSessionId =
+						event.properties?.sessionID ||
+						event.properties?.sessionId ||
+						event.properties?.session_id ||
+						event.properties?.session?.id ||
+						null;
+
+					const eventSessionId =
+						directSessionId ||
+						info.sessionID ||
+						info.sessionId ||
+						info.session_id ||
+						info.id ||
+						info.session?.id ||
+						null;
+
+					// Refresh canonical session ID from DB if we don't know it yet.
+					if (!sessionId) {
+						conversation = Conversation.getByProjectId(projectId);
+						sessionId = conversation?.opencodeSessionId ?? null;
 					}
 
-					// Extract sessionID from the event payload
-					const eventSessionId = event.properties?.info?.sessionID;
-
-					if (!eventSessionId || eventSessionId !== sessionId) {
-						// Skip events from other sessions
+					if (!sessionId || !eventSessionId || eventSessionId !== sessionId) {
+						// Ignore events from other sessions or before the session is known.
 						continue;
 					}
 
 					logger.info(
-						`Processing event: ${event.type} for session ${sessionId}`,
+						`Forwarding event ${event.type} for session ${sessionId}`,
 					);
 
-					sendEvent({
-						type: event.type,
-						...event.properties,
-					});
-
-					if (event.type === "message.updated") {
-						try {
-							const messages = await client.session.messages({
-								path: { id: sessionId },
-							});
-
-							if (messages.data) {
-								const textMessages = messages.data.map((msg) => {
-									const textParts = msg.parts
-										.filter((p: any) => p.type === "text")
-										.map((p: any) => p.text)
-										.join("\n");
-
-									return {
-										id: msg.info.id,
-										role: msg.info.role,
-										content: textParts,
-										streamingStatus:
-											msg.info.role === "assistant" &&
-											!(msg.info as any).time?.completed
-												? "streaming"
-												: "complete",
-									};
-								});
-
-								Conversation.deleteMessagesFromIndex(conversation.id, 0);
-
-								for (const msg of textMessages) {
-									Conversation.saveMessage(
-										conversation.id,
-										msg.role as "user" | "assistant",
-										msg.content,
-										msg.streamingStatus as any,
-									);
-								}
-
-								sendEvent({
-									type: "messages.synced",
-									count: textMessages.length,
-								});
-							}
-						} catch (syncError) {
-							logger.error("Failed to sync messages", syncError as Error);
-						}
-					}
+					sendEvent(event);
 				}
 			} catch (error) {
-				logger.error("SSE stream error", error as Error);
-				sendEvent({ type: "error", message: (error as Error).message });
-				controller.close();
+				if (!closed) {
+					logger.error("SSE stream error", error as Error);
+					const message = (error as Error).message || "Unknown error";
+					sendEvent({ type: "error", message });
+					controller.close();
+					closed = true;
+				}
 			}
 		},
 		cancel() {
-			logger.info(`SSE stream cancelled for session ${sessionId}`);
+			logger.info(`SSE stream cancelled for project ${projectId}`);
 		},
 	});
 

@@ -5,7 +5,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Config table
 export const config = sqliteTable("config", {
@@ -37,6 +37,8 @@ export const projects = sqliteTable("projects", {
 	buildLogs: text("build_logs"),
 	initialPrompt: text("initial_prompt"),
 	bootstrapped: text("bootstrapped").default("false"),
+	opencodeHost: text("opencode_host"),
+	opencodePort: integer("opencode_port"),
 });
 
 // Conversations table

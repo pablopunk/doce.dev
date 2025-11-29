@@ -5,18 +5,16 @@
 
 import { DEFAULT_AI_MODEL } from "@/domain/llms/models/ai-models";
 import * as db from "@/lib/db";
-import type {
-	ConversationInDatabase,
-	MessageInDatabase,
-} from "@/lib/db/providers/drizzle/schema";
+import type { ConversationInDatabase } from "@/lib/db/providers/drizzle/schema";
 
 // Domain types - always import from here, never from @/lib/db
 export type ConversationModel = ConversationInDatabase;
-export type Message = MessageInDatabase;
 
 export interface ChatHistory {
-	messages: Message[];
+	// Raw messages from OpenCode session API
+	messages: any[];
 	model: string;
+	initialPrompt?: string | null;
 }
 
 /**
@@ -53,17 +51,15 @@ export class Conversation {
 	}
 
 	/**
-	 * Create a new conversation with an initial user message
-	 * Used for project creation with prompt
+	 * Create a new conversation for a project.
+	 * The actual chat transcript lives in OpenCode; we only
+	 * persist the conversation metadata + selected model.
 	 */
-	static createWithInitialMessage(
+	static createForProject(
 		projectId: string,
-		initialPrompt: string,
 		model?: string,
 	): ConversationModel {
-		const conversation = Conversation.create(projectId, model);
-		Conversation.saveMessage(conversation.id, "user", initialPrompt);
-		return conversation;
+		return Conversation.create(projectId, model);
 	}
 
 	/**
@@ -76,109 +72,31 @@ export class Conversation {
 	}
 
 	/**
-	 * Get chat history for a project
+	 * Get chat history for a project.
+	 *
+	 * This no longer reads from the local DB. Instead, it
+	 * ensures an OpenCode session exists for the project and
+	 * returns the messages from the OpenCode session API.
 	 */
-	static getHistory(projectId: string): ChatHistory {
+	static async getHistory(projectId: string): Promise<ChatHistory> {
+		const session = await import("@/domain/sessions/models/session").then(
+			(m) => m.Session,
+		);
+
+		const opencodeSession = await session.getOrCreateForProject(projectId);
+		const { messages, initialPrompt } = await session.getMessages(
+			projectId,
+			opencodeSession.id,
+		);
+
+		// Model is still stored on the conversation row; fall back
+		// to DEFAULT_AI_MODEL if none is set.
 		const conversation = Conversation.getByProjectId(projectId);
-
-		if (!conversation) {
-			return {
-				messages: [],
-				model: DEFAULT_AI_MODEL,
-			};
-		}
-
-		const messages = db.messages.getByConversationId(conversation.id);
 
 		return {
 			messages,
-			model: conversation.model || DEFAULT_AI_MODEL,
+			model: conversation?.model || DEFAULT_AI_MODEL,
+			initialPrompt,
 		};
-	}
-
-	/**
-	 * Save a message to a conversation
-	 */
-	static saveMessage(
-		conversationId: string,
-		role: "user" | "assistant" | "system",
-		content: string,
-		streamingStatus?: "streaming" | "complete" | "error",
-	): Message {
-		const id = crypto.randomUUID();
-		const message = db.messages.create({
-			id,
-			conversationId,
-			role,
-			content,
-			streamingStatus: streamingStatus || "complete",
-		});
-		if (!message) throw new Error("Failed to save message");
-		return message;
-	}
-
-	/**
-	 * Update a message
-	 */
-	static updateMessage(
-		messageId: string,
-		content: string,
-		streamingStatus?: "streaming" | "complete" | "error",
-	): Message {
-		const updated = db.messages.update(messageId, { content, streamingStatus });
-		if (!updated) throw new Error(`Message ${messageId} not found`);
-		return updated;
-	}
-
-	/**
-	 * Delete a message and all messages after it
-	 * Business logic: deleting from a specific index in conversation history
-	 */
-	static deleteMessage(projectId: string, messageId: string): void {
-		const conversation = Conversation.getByProjectId(projectId);
-
-		if (!conversation) {
-			throw new Error("Conversation not found");
-		}
-
-		const messages = db.messages.getByConversationId(conversation.id);
-		const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-
-		if (messageIndex === -1) {
-			throw new Error("Message not found");
-		}
-
-		// Delete this message and all after it
-		Conversation.deleteMessagesFromIndex(conversation.id, messageIndex);
-	}
-
-	/**
-	 * Delete messages from a specific index onwards
-	 * Business logic for conversation history management
-	 */
-	static deleteMessagesFromIndex(
-		conversationId: string,
-		messageIndex: number,
-	): number {
-		const allMessages = db.messages.getByConversationId(conversationId);
-
-		if (messageIndex < allMessages.length) {
-			const messagesToDelete = allMessages.slice(messageIndex);
-			const ids = messagesToDelete.map((m) => m.id);
-
-			if (ids.length > 0) {
-				db.messages.deleteMany(ids);
-				return ids.length;
-			}
-		}
-
-		return 0;
-	}
-
-	/**
-	 * Delete a single message by ID
-	 */
-	static deleteMessageById(messageId: string): void {
-		db.messages.delete(messageId);
 	}
 }
