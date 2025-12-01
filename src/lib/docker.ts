@@ -5,7 +5,10 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { promisify } from "util";
 import { Project } from "@/domain/projects/models/project";
-import { clearProjectOpencodeClient, syncProjectOpencodeAuth } from "@/lib/opencode";
+import {
+	clearProjectOpencodeClient,
+	syncProjectOpencodeAuth,
+} from "@/lib/opencode";
 import env from "./env";
 
 const execAsync = promisify(exec);
@@ -418,7 +421,6 @@ export async function getContainerStatus(
 	}
 }
 
-
 async function syncOpencodeBindingFromContainer(
 	container: Docker.Container,
 	projectId: string,
@@ -457,7 +459,8 @@ async function findAvailablePort(exclude: number[] = []): Promise<number> {
 	const maxPort = 20000;
 
 	while (true) {
-		const candidate = basePort + Math.floor(Math.random() * (maxPort - basePort));
+		const candidate =
+			basePort + Math.floor(Math.random() * (maxPort - basePort));
 		if (!exclude.includes(candidate)) {
 			return candidate;
 		}
@@ -577,13 +580,40 @@ export async function cleanupOldContainers(
  * Prune unused Docker networks
  * This prevents "all predefined address pools have been fully subnetted" errors
  */
+
+let isPruningNetworks = false;
+
+/**
+ * Prune unused Docker networks
+ * This prevents "all predefined address pools have been fully subnetted" errors
+ * Includes concurrency protection to prevent "prune operation is already running" errors
+ */
 export async function pruneDockerNetworks(): Promise<void> {
+	if (isPruningNetworks) {
+		console.log("Docker network prune already in progress, skipping...");
+		return;
+	}
+
+	isPruningNetworks = true;
+
 	try {
 		const { stdout } = await execAsync("docker network prune -f");
 		console.log("Pruned unused Docker networks:", stdout.trim());
-	} catch (error) {
+	} catch (error: any) {
+		// Ignore "already running" errors specifically
+		if (
+			error.message?.includes("already running") ||
+			error.stderr?.includes("already running")
+		) {
+			console.log(
+				"Docker prune already running (caught from daemon), skipping",
+			);
+			return;
+		}
 		console.error("Failed to prune Docker networks:", error);
-		throw error;
+		// Don't throw, just log error to prevent breaking the request flow
+	} finally {
+		isPruningNetworks = false;
 	}
 }
 
