@@ -42,3 +42,4 @@
 - [ ] The chat mentions stuff like "open localhost:3000", which is not true for our tool; let's make it aware of how the project is deployed in dev mode
 - [ ] shadcn mcp?
 - [ ] Break large components into smaller components, nesting them in the large component directory
+- [ ] One-click integrations. Databases, APIs, etc, can be additions to the docker-compose of one project. AI should be able to add them to the project.
