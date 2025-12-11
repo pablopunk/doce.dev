@@ -91,14 +91,16 @@ export const GET: APIRoute = async ({ params }) => {
 						info.session?.id ||
 						null;
 
-					// Refresh canonical session ID from DB if we don't know it yet.
-					if (!sessionId) {
+					if (!sessionId && eventSessionId) {
+						// First time we learn the session ID, persist it
 						conversation = Conversation.getByProjectId(projectId);
-						sessionId = conversation?.opencodeSessionId ?? null;
+						if (conversation) {
+							Conversation.updateSessionId(conversation.id, eventSessionId);
+						}
+						sessionId = eventSessionId;
 					}
 
 					if (!sessionId || !eventSessionId || eventSessionId !== sessionId) {
-						// Ignore events from other sessions or before the session is known.
 						continue;
 					}
 

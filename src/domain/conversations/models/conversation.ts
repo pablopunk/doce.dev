@@ -29,6 +29,15 @@ export class Conversation {
 		return db.conversations.getByProjectId(projectId) ?? null;
 	}
 
+	static updateSessionId(conversationId: string, sessionId: string): void {
+		const updated = db.conversations.update(conversationId, {
+			opencodeSessionId: sessionId,
+		});
+		if (!updated) {
+			throw new Error(`Conversation ${conversationId} not found`);
+		}
+	}
+
 	/**
 	 * Get conversation by ID
 	 */
@@ -77,26 +86,47 @@ export class Conversation {
 	 * This no longer reads from the local DB. Instead, it
 	 * ensures an OpenCode session exists for the project and
 	 * returns the messages from the OpenCode session API.
+	 *
+	 * If the OpenCode server isn't ready yet, returns empty messages
+	 * so the UI can still show the initial prompt.
 	 */
 	static async getHistory(projectId: string): Promise<ChatHistory> {
-		const session = await import("@/domain/sessions/models/session").then(
-			(m) => m.Session,
-		);
-
-		const opencodeSession = await session.getOrCreateForProject(projectId);
-		const { messages, initialPrompt } = await session.getMessages(
-			projectId,
-			opencodeSession.id,
-		);
-
 		// Model is still stored on the conversation row; fall back
 		// to DEFAULT_AI_MODEL if none is set.
 		const conversation = Conversation.getByProjectId(projectId);
 
-		return {
-			messages,
-			model: conversation?.model || DEFAULT_AI_MODEL,
-			initialPrompt,
-		};
+		try {
+			const session = await import("@/domain/sessions/models/session").then(
+				(m) => m.Session,
+			);
+
+			const opencodeSession = await session.getOrCreateForProject(projectId);
+			const { messages, initialPrompt } = await session.getMessages(
+				projectId,
+				opencodeSession.id,
+			);
+
+			return {
+				messages,
+				model: conversation?.model || DEFAULT_AI_MODEL,
+				initialPrompt,
+			};
+		} catch (error) {
+			// If OpenCode server isn't ready yet, return empty messages
+			// The UI will show the initial prompt from the project
+			const errorMessage = (error as Error).message || "";
+			if (
+				errorMessage.includes("preview is not running") ||
+				errorMessage.includes("fetch failed") ||
+				errorMessage.includes("ECONNREFUSED")
+			) {
+				return {
+					messages: [],
+					model: conversation?.model || DEFAULT_AI_MODEL,
+					initialPrompt: null, // Will be filled from project by action
+				};
+			}
+			throw error;
+		}
 	}
 }

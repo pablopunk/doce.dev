@@ -6,7 +6,7 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
-    command: ["sh", "-c", "pnpm i && pnpm run dev"]
+    command: ["sh", "-c", "opencode serve --hostname 0.0.0.0 --port 4096"]
     environment:
       NODE_ENV: development
       CI: "true"

@@ -2,6 +2,48 @@ import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { Conversation } from "@/domain/conversations/models/conversation";
 import { Session } from "@/domain/sessions/models/session";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("session-actions");
+
+// Helper to check if error is retryable (server not ready)
+function isRetryableError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message.toLowerCase() : "";
+	return (
+		message.includes("fetch failed") ||
+		message.includes("econnrefused") ||
+		message.includes("socket") ||
+		message.includes("preview is not running")
+	);
+}
+
+// Retry wrapper for session operations
+async function withRetry<T>(
+	operation: () => Promise<T>,
+	maxRetries = 5,
+	delayMs = 2000,
+): Promise<T> {
+	let lastError: unknown;
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await operation();
+		} catch (error) {
+			lastError = error;
+
+			if (!isRetryableError(error) || attempt === maxRetries) {
+				throw error;
+			}
+
+			logger.info(
+				`OpenCode not ready, retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})`,
+			);
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+	}
+
+	throw lastError;
+}
 
 export const server = {
 	getOrCreate: defineAction({
@@ -11,7 +53,9 @@ export const server = {
 		}),
 		handler: async ({ projectId, model }) => {
 			try {
-				const session = await Session.getOrCreateForProject(projectId, model);
+				const session = await withRetry(() =>
+					Session.getOrCreateForProject(projectId, model),
+				);
 				return { sessionId: session.id };
 			} catch (error) {
 				handleSessionError(error);
@@ -27,7 +71,9 @@ export const server = {
 		}),
 		handler: async ({ projectId, message, model }) => {
 			try {
-				const session = await Session.getOrCreateForProject(projectId, model);
+				const session = await withRetry(() =>
+					Session.getOrCreateForProject(projectId, model),
+				);
 
 				await Session.sendPrompt(projectId, session.id, message, model);
 				return { success: true };

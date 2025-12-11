@@ -9,6 +9,7 @@ import {
 	clearProjectOpencodeClient,
 	syncProjectOpencodeAuth,
 } from "@/lib/opencode";
+import { publishPreviewStatus } from "@/lib/preview-status-bus";
 import env from "./env";
 
 const execAsync = promisify(exec);
@@ -639,6 +640,127 @@ async function ensureDockerImage(imageName: string): Promise<void> {
 			});
 		});
 	}
+}
+
+/**
+ * Start the Astro dev server in a container.
+ * This is called after AI finishes generating code.
+ */
+export async function startDevServer(projectId: string): Promise<void> {
+	const containerName = `doce-preview-${projectId}`;
+	const previewState = await getPreviewState(projectId);
+
+	if (!previewState) {
+		throw new Error("Preview container is not running");
+	}
+
+	const logPrefix = `[DevServer]`;
+	const appendDevLog = async (message: string) => {
+		try {
+			await Project.appendBuildLog(projectId, `${logPrefix} ${message}\n`);
+		} catch (error) {
+			console.error("Failed to append dev log", error);
+		}
+	};
+
+	const execInContainer = async (
+		script: string,
+		options?: { detach?: boolean },
+	) => {
+		const command = `docker exec ${options?.detach ? "-d " : ""}${containerName} sh -c ${JSON.stringify(
+			script,
+		)}`;
+		return execAsync(command);
+	};
+
+	try {
+		console.log(`Starting dev server in container for project ${projectId}`);
+		publishPreviewStatus(projectId, {
+			status: "starting",
+			previewUrl: previewState.url,
+		});
+
+		if (await isAstroDevRunning(containerName)) {
+			await appendDevLog("astro dev already running, skipping restart");
+			publishPreviewStatus(projectId, {
+				status: "running",
+				previewUrl: previewState.url,
+			});
+			return;
+		}
+
+		await appendDevLog("Installing dependencies (pnpm install)...");
+		await execInContainer(
+			"cd /app || exit 1; if [ ! -f package.json ]; then echo 'package.json not found, skipping install'; else COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --prefer-offline --no-frozen-lockfile >> /tmp/pnpm-install.log 2>&1; fi",
+		);
+
+		await appendDevLog("Launching astro dev server...");
+		await execInContainer(
+			"cd /app || exit 1; if [ -f /tmp/astro-dev.pid ] && kill -0 $(cat /tmp/astro-dev.pid) >/dev/null 2>&1; then kill $(cat /tmp/astro-dev.pid) || true; fi; touch /tmp/astro-dev.log; ( COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm run dev -- --host 0.0.0.0 --port 3000 >> /tmp/astro-dev.log 2>&1 ) & echo $! > /tmp/astro-dev.pid",
+		);
+
+		await appendDevLog("Waiting for dev server to respond...");
+		await waitForPreviewReady(previewState.url);
+		await appendDevLog("astro dev is live.");
+
+		publishPreviewStatus(projectId, {
+			status: "running",
+			previewUrl: previewState.url,
+		});
+	} catch (error) {
+		await appendDevLog(
+			error instanceof Error
+				? `Failed to start dev server: ${error.message}`
+				: "Failed to start dev server",
+		);
+		publishPreviewStatus(projectId, {
+			status: "failed",
+			previewUrl: null,
+			error:
+				error instanceof Error ? error.message : "Failed to start dev server",
+		});
+		throw error;
+	}
+}
+
+async function isAstroDevRunning(containerName: string): Promise<boolean> {
+	try {
+		const { stdout } = await execAsync(
+			`docker exec ${containerName} sh -c ${JSON.stringify(
+				"ps -ef | grep 'astro dev' | grep -v grep",
+			)}`,
+		);
+		return stdout.trim().length > 0;
+	} catch {
+		return false;
+	}
+}
+
+async function waitForPreviewReady(
+	url: string,
+	timeoutMs: number = 120000,
+	intervalMs: number = 2000,
+): Promise<void> {
+	const start = Date.now();
+	while (Date.now() - start < timeoutMs) {
+		try {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), 5000);
+			const response = await fetch(url, {
+				method: "GET",
+				signal: controller.signal,
+			});
+			clearTimeout(timeout);
+			const contentType = response.headers.get("content-type") ?? "";
+			if (response.ok && contentType.includes("text/html")) {
+				return;
+			}
+		} catch (error) {
+			// Retry until timeout
+		}
+		await new Promise((resolve) => setTimeout(resolve, intervalMs));
+	}
+	throw new Error("Dev server did not become ready in time");
 }
 
 /**

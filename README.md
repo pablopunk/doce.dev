@@ -42,3 +42,7 @@
 - [ ] The chat mentions stuff like "open localhost:3000", which is not true for our tool; let's make it aware of how the project is deployed in dev mode
 - [ ] shadcn mcp?
 - [ ] Break large components into smaller components, nesting them in the large component directory
+- [ ] Add chrome-devtools mcp to each project and a headless chrome so they can inspect their own preview
+- [ ] Remote projects.
+  - [ ] Connect to a remove opencode server
+  - [ ] Preview and settings can be obtained from opencode (?)

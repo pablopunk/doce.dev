@@ -35,13 +35,15 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "type-check": "astro check"
+    "type-check": "astro check",
+    "opencode:start": "node opencode-server.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^9.5.1",
     "@astrojs/react": "^4.4.2",
     "@astrojs/sitemap": "^3.6.0",
     "@hookform/resolvers": "^5.2.2",
+    "@opencode-ai/sdk": "^1.0.107",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",

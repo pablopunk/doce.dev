@@ -115,7 +115,9 @@ export function getOpencodeClient(): OpencodeClient {
 			baseUrl: "http://127.0.0.1:4096",
 			// Ensure we get plain JSON payloads from the SDK
 			responseStyle: "data" as any,
-			parseAs: "data" as any,
+			headers: {
+				Accept: "application/json",
+			},
 		});
 	}
 
@@ -135,7 +137,9 @@ export async function getProjectOpencodeClient(
 	const client = createOpencodeClient({
 		baseUrl,
 		responseStyle: "data" as any,
-		parseAs: "data" as any,
+		headers: {
+			Accept: "application/json",
+		},
 	});
 	projectClientCache.set(projectId, { baseUrl, client });
 	return client;
@@ -164,6 +168,8 @@ async function resolveProjectOpencodeEndpoint(projectId: string): Promise<{
 
 export async function syncProjectOpencodeAuth(
 	projectId: string,
+	maxRetries = 15,
+	retryDelayMs = 2000,
 ): Promise<void> {
 	const config = LLMConfig.getConfig();
 	const apiKey = config.apiKey;
@@ -172,18 +178,31 @@ export async function syncProjectOpencodeAuth(
 		return;
 	}
 
-	try {
-		const client = await getProjectOpencodeClient(projectId);
-		await client.auth.set({
-			path: { id: provider },
-			body: { type: "api", key: apiKey },
-		});
-		logger.info(`Synced ${provider} API key to project ${projectId} OpenCode server`);
-	} catch (error) {
-		logger.error(
-			`Failed to sync ${provider} API key to project ${projectId} OpenCode server`,
-			error as Error,
-		);
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			const client = await getProjectOpencodeClient(projectId);
+			await client.auth.set({
+				path: { id: provider },
+				body: { type: "api", key: apiKey },
+			});
+			logger.info(
+				`Synced ${provider} API key to project ${projectId} OpenCode server`,
+			);
+			return;
+		} catch (error) {
+			const isLastAttempt = attempt === maxRetries;
+			if (isLastAttempt) {
+				logger.error(
+					`Failed to sync ${provider} API key to project ${projectId} OpenCode server after ${maxRetries} attempts`,
+					error as Error,
+				);
+			} else {
+				logger.info(
+					`OpenCode server not ready for project ${projectId}, retrying in ${retryDelayMs}ms (attempt ${attempt}/${maxRetries})`,
+				);
+				await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+			}
+		}
 	}
 }
 

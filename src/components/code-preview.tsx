@@ -11,7 +11,7 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import AIBlob from "@/components/ui/ai-blob";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectLifecycle } from "@/domain/projects/hooks/use-project-lifecycle";
 import { TerminalDock } from "@/domain/system/components/terminal-dock";
+import type { PreviewStatusPayload } from "@/lib/preview-status-bus";
 
 const projectFetcher = async (_key: string, id: string) => {
 	const { data, error } = await actions.projects.getProject({ id });
@@ -44,6 +45,16 @@ const fileContentFetcher = async (_key: string, id: string, path: string) => {
 	return data;
 };
 
+const PREVIEW_STATUS_MESSAGES: Record<PreviewStatusPayload["status"], string> =
+	{
+		"not-created": "Waiting for preview container...",
+		creating: "Copying starter files...",
+		starting: "Booting container & installing deps...",
+		running: "Starting Astro dev server...",
+		failed: "Preview failed",
+		unknown: "Preview status unknown",
+	};
+
 function getLanguageFromPath(path: string): string {
 	if (path.endsWith(".ts") || path.endsWith(".tsx")) return "typescript";
 	if (path.endsWith(".js") || path.endsWith(".jsx")) return "javascript";
@@ -60,6 +71,9 @@ let globalRefreshFn: (() => void) | null = null;
 // Track whether initial generation is in progress per project
 const initialGenerationStatus = new Map<string, boolean>();
 
+// Track in-flight dev server start requests to avoid duplicate triggers
+const activeDevServerRequests = new Set<string>();
+
 export function refreshCodePreview() {
 	if (globalRefreshFn) {
 		globalRefreshFn();
@@ -73,6 +87,33 @@ export function setInitialGenerationInProgress(
 	initialGenerationStatus.set(projectId, inProgress);
 }
 
+/**
+ * Start the dev server for a project after AI finishes generating code.
+ * This is called from the chat interface when session.idle is received.
+ */
+export async function startDevServerForProject(
+	projectId: string,
+): Promise<void> {
+	if (activeDevServerRequests.has(projectId)) {
+		return;
+	}
+
+	activeDevServerRequests.add(projectId);
+	try {
+		console.log(`Starting dev server for project ${projectId}`);
+		const { error } = await actions.projects.startDevServer({ id: projectId });
+		if (error) {
+			console.error("Failed to start dev server:", error);
+		} else {
+			console.log(`Dev server started for project ${projectId}`);
+		}
+	} catch (error) {
+		console.error("Failed to start dev server:", error);
+	} finally {
+		activeDevServerRequests.delete(projectId);
+	}
+}
+
 export function CodePreview({ projectId }: { projectId: string }) {
 	// Track project lifecycle for container management
 	useProjectLifecycle(projectId);
@@ -80,18 +121,37 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const [activeTab, setActiveTab] = useState<"preview" | "code" | "env">(
 		"preview",
 	);
+
 	const [envVars, setEnvVars] = useState<Record<string, string>>({});
 	const [isSavingEnv, setIsSavingEnv] = useState(false);
 	const [isTerminalExpanded, setIsTerminalExpanded] = useState(false);
 	const [iframeKey, setIframeKey] = useState(0);
 	const [previewReady, setPreviewReady] = useState(false);
+	const [previewStatus, setPreviewStatus] =
+		useState<PreviewStatusPayload | null>(null);
+	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
+	const statusEventRef = useRef<EventSource | null>(null);
+	const statusReconnectTimer = useRef<NodeJS.Timeout | null>(null);
+
+	const statusMessage = previewStatus
+		? PREVIEW_STATUS_MESSAGES[previewStatus.status] ||
+			PREVIEW_STATUS_MESSAGES.unknown
+		: "Preparing your live preview...";
+
+	const statusHint =
+		previewStatus?.status === "running"
+			? "Waiting for the Astro dev server to respond..."
+			: "We'll load the preview as soon as it's ready.";
+
+	const restartLabel =
+		previewStatus?.status === "failed" ? "Retry preview" : "Restart preview";
 
 	const { data: project, mutate } = useSWR(
 		["project", projectId],
 		([_key, id]) => projectFetcher(_key, id),
 		{
-			refreshInterval: 0, // Disable auto-refresh to prevent input clearing
+			refreshInterval: 0,
 			revalidateOnFocus: false,
 		},
 	);
@@ -169,12 +229,73 @@ export function CodePreview({ projectId }: { projectId: string }) {
 
 	// Restart preview whenever this component is visited
 	useEffect(() => {
-		void restartPreview(false);
+		if (!project?.previewUrl) {
+			void restartPreview(false);
+		}
+	}, [project?.previewUrl, projectId]);
+
+	// Subscribe to preview status events via SSE for richer feedback
+	useEffect(() => {
+		let cancelled = false;
+
+		const connect = () => {
+			if (cancelled) return;
+
+			const es = new EventSource(`/api/projects/${projectId}/status`);
+			statusEventRef.current = es;
+
+			es.onmessage = (event) => {
+				if (!event.data || cancelled) return;
+				try {
+					const payload = JSON.parse(event.data);
+					if (payload?.message === "connected") {
+						return;
+					}
+					setPreviewStatus(payload as PreviewStatusPayload);
+					if (payload?.error) {
+						setPreviewError(payload.error);
+					}
+					if (payload?.status === "running") {
+						setPreviewError(null);
+						refreshCodePreview();
+					} else if (payload?.status === "failed" && payload?.error) {
+						setPreviewReady(false);
+					}
+				} catch (err) {
+					console.error("Failed to parse preview status event:", err);
+				}
+			};
+
+			es.onerror = () => {
+				if (statusEventRef.current) {
+					statusEventRef.current.close();
+					statusEventRef.current = null;
+				}
+				if (!cancelled) {
+					statusReconnectTimer.current = setTimeout(connect, 3000);
+				}
+			};
+		};
+
+		connect();
+
+		return () => {
+			cancelled = true;
+			if (statusReconnectTimer.current) {
+				clearTimeout(statusReconnectTimer.current);
+				statusReconnectTimer.current = null;
+			}
+			if (statusEventRef.current) {
+				statusEventRef.current.close();
+				statusEventRef.current = null;
+			}
+		};
 	}, [projectId]);
 
 	// Poll the preview URL until it serves HTML
 	useEffect(() => {
 		setPreviewReady(false);
+		setPreviewError(null);
 
 		const url = project?.previewUrl;
 		if (!url) return;
@@ -190,12 +311,17 @@ export function CodePreview({ projectId }: { projectId: string }) {
 				const contentType = response.headers.get("content-type") || "";
 				if (response.ok && contentType.includes("text/html")) {
 					setPreviewReady(true);
+					setPreviewError(null);
 					if (intervalId !== undefined) {
 						window.clearInterval(intervalId);
 					}
+				} else if (response.status >= 500) {
+					setPreviewError(`Server responded with ${response.status}`);
 				}
-			} catch {
-				// Keep showing loading blob on error
+			} catch (error) {
+				if (!cancelled) {
+					setPreviewError((error as Error).message);
+				}
 			}
 		};
 
@@ -227,6 +353,7 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		} catch (error) {
 			console.error("Failed to restart preview:", error);
 		}
+		void startDevServerForProject(projectId);
 	};
 
 	const handleSaveEnv = async () => {
@@ -318,22 +445,43 @@ export function CodePreview({ projectId }: { projectId: string }) {
 								sandbox="allow-same-origin allow-scripts allow-forms"
 							/>
 						) : (
-							<div className="absolute inset-0 bg-bg flex items-center justify-center">
-								<div className="text-center space-y-6">
+							<div className="absolute inset-0 bg-bg flex items-center justify-center px-6">
+								<div className="text-center space-y-5 max-w-sm">
 									<AIBlob size={80} className="mx-auto" />
 									<div>
-										<p className="text-sm font-medium">
-											Preparing your live preview...
+										<p className="text-sm font-medium">{statusMessage}</p>
+										<p
+											className={`text-xs mt-1 ${
+												previewError ? "text-danger" : "text-muted"
+											}`}
+										>
+											{previewError ?? statusHint}
 										</p>
-										<p className="text-xs text-muted mt-1">
-											We9ll load the preview as soon as it9Bs ready.
-										</p>
+									</div>
+									<div className="flex items-center justify-center gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setIsTerminalExpanded(true)}
+										>
+											View logs
+										</Button>
+										{project?.previewUrl && (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => void restartPreview(true)}
+											>
+												{restartLabel}
+											</Button>
+										)}
 									</div>
 								</div>
 							</div>
 						)}
 					</div>
 				)}
+
 				{activeTab === "code" && (
 					<div className="h-full flex bg-surface/30">
 						<div className="w-64 border-r border-border-border bg-surface/80 flex flex-col">

@@ -14,6 +14,7 @@ import {
 	listProjectContainers,
 	pruneDockerNetworks,
 	removeContainer,
+	startDevServer,
 	stopContainer,
 	stopPreviewForProject,
 } from "@/lib/docker";
@@ -370,9 +371,9 @@ export const server = {
 						status: "preview",
 					});
 
-					// publish running
+					// publish container ready but dev server still booting
 					try {
-						publishPreviewStatus(id, { status: "running", previewUrl: url });
+						publishPreviewStatus(id, { status: "starting", previewUrl: url });
 					} catch (e) {
 						/* best-effort */
 					}
@@ -534,9 +535,9 @@ export const server = {
 					status: "preview",
 				});
 
-				// Container is back up and running
+				// Container is back up, dev server boot still pending
 				try {
-					publishPreviewStatus(id, { status: "running", previewUrl: url });
+					publishPreviewStatus(id, { status: "starting", previewUrl: url });
 				} catch (e) {
 					/* best-effort */
 				}
@@ -735,6 +736,37 @@ export const server = {
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to save environment variables",
+				});
+			}
+		},
+	}),
+
+	/**
+	 * Start the Astro dev server inside the preview container.
+	 * Called after AI finishes generating code.
+	 */
+	startDevServer: defineAction({
+		input: z.object({
+			id: z.string(),
+		}),
+		handler: async ({ id }) => {
+			try {
+				const project = await Project.getById(id);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				await startDevServer(id);
+
+				return { success: true };
+			} catch (error) {
+				console.error("Failed to start dev server:", error);
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to start dev server",
 				});
 			}
 		},

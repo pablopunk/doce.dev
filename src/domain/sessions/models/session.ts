@@ -3,6 +3,7 @@ import { Conversation } from "@/domain/conversations/models/conversation";
 import * as db from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { getProjectOpencodeClient } from "@/lib/opencode";
+import { Project } from "@/domain/projects/models/project";
 
 const logger = createLogger("session-model");
 const PROJECT_CONTAINER_DIRECTORY = "/app";
@@ -18,15 +19,18 @@ export class Session {
 
 		if (conversation?.opencodeSessionId) {
 			try {
-				const { data, error } = await client.session.get({
+				// Handle both responseStyle: "data" (raw) and "fields" ({ data, error })
+				const result: any = await client.session.get({
 					path: { id: conversation.opencodeSessionId },
 				});
+				const sessionData = result?.data ?? result;
+				const sessionError = result?.error;
 
-				if (!error && data) {
+				if (!sessionError && sessionData?.id) {
 					logger.info(
 						`Found existing OpenCode session ${conversation.opencodeSessionId} for project ${projectId}`,
 					);
-					return data;
+					return sessionData;
 				}
 
 				logger.warn(
@@ -48,7 +52,8 @@ export class Session {
 			`Creating OpenCode session for project ${projectId} inside container`,
 		);
 
-		const { data, error } = await client.session.create({
+		// Handle both responseStyle: "data" (raw) and "fields" ({ data, error })
+		const result: any = await client.session.create({
 			body: {
 				title: `Project ${projectId}`,
 			},
@@ -57,9 +62,11 @@ export class Session {
 			},
 		});
 
-		if (error || !data) {
+		const data = result?.data ?? result;
+		const error = result?.error;
+
+		if (error || !data?.id) {
 			logger.error("Failed to create OpenCode session", error as any);
-			logger.error(`Error details: ${JSON.stringify(error, null, 2)}`);
 			throw new Error(
 				`Failed to create OpenCode session: ${JSON.stringify(error)}`,
 			);
@@ -73,6 +80,10 @@ export class Session {
 			`Created new OpenCode session ${data.id} for project ${projectId}`,
 		);
 
+		// NOTE: Initial prompt is sent by the chat interface, not here.
+		// This avoids duplicate messages when both session creation and
+		// chat interface try to send the initial prompt.
+
 		return data;
 	}
 
@@ -85,14 +96,12 @@ export class Session {
 		const client = await getProjectOpencodeClient(projectId);
 
 		try {
-			const [provider, modelId] = model.includes("/")
-				? model.split("/")
-				: ["openrouter", model];
-
+			// All models are accessed through OpenRouter
+			// The model ID is the full path like "openai/gpt-5.1-codex"
 			await client.session.prompt({
 				path: { id: sessionId },
 				body: {
-					model: { providerID: provider, modelID: modelId },
+					model: { providerID: "openrouter", modelID: model },
 					parts: [{ type: "text", text: message }],
 				},
 			});

@@ -527,6 +527,11 @@ Actions don't support streaming responses - use traditional API routes for SSE/s
 
 ## Debugging
 
+**MCP Chrome DevTools Testing**:
+- When the MCP `chrome-devtools` tool is available, you may run `pnpm dev` and attach through that tool to browse the UI like an end user.
+- Use this to click through flows, inspect console/network output, and verify fixes interactively before finishing a task.
+- Stop the dev server once validation is done so the port is freed for other work.
+
 **DB**: `sqlite3 ./data/doce.db "SELECT id, name, preview_url FROM projects;"`
 
 **Docker**:

@@ -16,6 +16,7 @@ import remarkGfm from "remark-gfm";
 import {
 	refreshCodePreview,
 	setInitialGenerationInProgress,
+	startDevServerForProject,
 } from "@/components/code-preview";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,11 +51,19 @@ import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("chat-interface");
 
+interface ToolInfo {
+	name: string;
+	// Short description of what the tool did (e.g., file path, command)
+	detail?: string;
+	// Status: running, completed, error
+	status?: "running" | "completed" | "error";
+}
+
 interface ChatMessage {
 	id: string;
 	role: "user" | "assistant" | "system";
 	content: string;
-	tools?: string[];
+	tools?: ToolInfo[];
 	// Raw OpenCode message/part payload for richer UIs later
 	_raw?: any;
 }
@@ -160,9 +169,99 @@ function extractTodosFromMessages(messages: any[]): AgentTodoItem[] | null {
 	return latest;
 }
 
+/**
+ * Extract a short detail string from tool input/state for display.
+ */
+function extractToolDetail(toolName: string, part: any): string | undefined {
+	const input = part.state?.input ?? part.input ?? {};
+	const normalizedName = toolName.toLowerCase();
+
+	// File operations - show the file path
+	if (
+		normalizedName === "read" ||
+		normalizedName === "write" ||
+		normalizedName === "edit"
+	) {
+		const filePath = input.filePath || input.path || input.file;
+		if (filePath) {
+			// Show just the filename or last part of path
+			const parts = filePath.split("/");
+			return parts[parts.length - 1];
+		}
+	}
+
+	// Bash - show a truncated command
+	if (normalizedName === "bash" || normalizedName === "shell") {
+		const cmd = input.command || input.cmd;
+		if (cmd) {
+			// Truncate long commands
+			return cmd.length > 30 ? `${cmd.slice(0, 27)}...` : cmd;
+		}
+	}
+
+	// Glob/Grep - show the pattern
+	if (normalizedName === "glob" || normalizedName === "grep") {
+		const pattern = input.pattern || input.glob;
+		if (pattern) {
+			return pattern.length > 25 ? `${pattern.slice(0, 22)}...` : pattern;
+		}
+	}
+
+	// List - show the directory
+	if (normalizedName === "list") {
+		const path = input.path || input.directory;
+		if (path) {
+			const parts = path.split("/");
+			return parts[parts.length - 1] || path;
+		}
+		return "cwd";
+	}
+
+	// Task/Agent - show description
+	if (normalizedName === "task" || normalizedName === "agent") {
+		const desc = input.description || input.task;
+		if (desc) {
+			return desc.length > 30 ? `${desc.slice(0, 27)}...` : desc;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Determine tool status from the part state.
+ */
+function extractToolStatus(
+	part: any,
+): "running" | "completed" | "error" | undefined {
+	const state = part.state;
+	if (!state) return undefined;
+
+	// Check for error in output
+	if (state.error || state.output?.error) {
+		return "error";
+	}
+
+	// If output exists and is not empty, it's completed
+	if (
+		state.output !== undefined &&
+		state.output !== null &&
+		state.output !== ""
+	) {
+		return "completed";
+	}
+
+	// If only input exists, it's still running
+	if (state.input !== undefined) {
+		return "running";
+	}
+
+	return undefined;
+}
+
 function parseMessageContent(rawMessage: any): {
 	text: string;
-	tools: string[];
+	tools: ToolInfo[];
 } {
 	if (!rawMessage) {
 		return { text: "", tools: [] };
@@ -175,7 +274,8 @@ function parseMessageContent(rawMessage: any): {
 			: [];
 
 	const segments: string[] = [];
-	const toolNames: string[] = [];
+	const toolInfos: ToolInfo[] = [];
+	const seenTools = new Set<string>();
 
 	for (const part of parts) {
 		if (!part || typeof part !== "object") continue;
@@ -195,7 +295,25 @@ function parseMessageContent(rawMessage: any): {
 					: typeof part.tool?.name === "string"
 						? part.tool.name
 						: "tool";
-			toolNames.push(toolName);
+
+			// Skip todo tools from display
+			if (toolName.toLowerCase().startsWith("todo")) {
+				continue;
+			}
+
+			const detail = extractToolDetail(toolName, part);
+			const status = extractToolStatus(part);
+
+			// Create a unique key to avoid duplicating the same tool+detail combo
+			const key = `${toolName}:${detail || ""}`;
+			if (!seenTools.has(key)) {
+				seenTools.add(key);
+				toolInfos.push({
+					name: toolName,
+					detail,
+					status,
+				});
+			}
 		}
 	}
 
@@ -226,19 +344,14 @@ function parseMessageContent(rawMessage: any): {
 	if (
 		segments.length === 0 &&
 		typeof rawMessage.info?.finish === "string" &&
-		toolNames.length === 0
+		toolInfos.length === 0
 	) {
 		segments.push(`(${rawMessage.info.finish.replace(/-/g, " ")})`);
 	}
 
-	const uniqueToolNames = Array.from(new Set(toolNames));
-	const visibleTools = uniqueToolNames.filter(
-		(tool) => !tool.toLowerCase().startsWith("todo"),
-	);
-
 	return {
 		text: segments.join("\n\n"),
-		tools: visibleTools,
+		tools: toolInfos,
 	};
 }
 
@@ -366,12 +479,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							setHasActiveStream(false);
 							setCurrentStatus(null);
 							setInitialGenerationInProgress(projectId, false);
-						} else {
-							await loadHistory();
-							setHasActiveStream(false);
-							setCurrentStatus(null);
-							setInitialGenerationInProgress(projectId, false);
 						}
+						// Don't reset hasActiveStream here - let SSE handle completion
+						// The session.idle event will trigger setHasActiveStream(false)
 					} catch (err) {
 						console.error("Failed to send initial message:", err);
 						setHasActiveStream(false);
@@ -398,69 +508,213 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 		if (typeof window === "undefined") return;
 
-		const es = new EventSource(`/api/sessions/${projectId}/events`);
+		let es: EventSource | null = null;
+		let reconnectAttempts = 0;
+		let reconnectTimer: NodeJS.Timeout | null = null;
+		let isMounted = true;
 
-		es.onmessage = (event) => {
-			try {
-				const payload = JSON.parse(event.data);
+		const connect = () => {
+			if (!isMounted) return;
 
-				switch (payload.type) {
-					case "server.connected":
-						logger.info(
-							`Connected to SSE (session: ${payload.sessionId || "unknown"})`,
-						);
-						break;
+			es = new EventSource(`/api/sessions/${projectId}/events`);
 
-					case "message.part.updated":
-						setHasActiveStream(true);
-						setCurrentStatus("Generating response...");
-						break;
+			es.onopen = () => {
+				logger.info("SSE connection opened");
+				reconnectAttempts = 0; // Reset on successful connection
+			};
 
-					case "message.updated":
-					case "messages.synced":
-						// Finalize current assistant message and refresh history
-						loadHistory();
-						setHasActiveStream(false);
-						setCurrentStatus(null);
-						setInitialGenerationInProgress(projectId, false);
-						refreshCodePreview();
-						break;
+			es.onmessage = (event) => {
+				try {
+					const payload = JSON.parse(event.data);
 
-					case "session.idle":
-						setHasActiveStream(false);
-						setCurrentStatus(null);
-						setInitialGenerationInProgress(projectId, false);
-						refreshCodePreview();
-						break;
+					switch (payload.type) {
+						case "server.connected":
+							logger.info(
+								`Connected to SSE (session: ${payload.sessionId || "unknown"})`,
+							);
+							break;
 
-					case "todo.updated": {
-						const todoItems = Array.isArray(payload.properties?.todos)
-							? (payload.properties.todos as AgentTodoItem[])
-							: [];
-						setTodos(todoItems.length > 0 ? todoItems : null);
-						break;
+						case "message.part.updated": {
+							setHasActiveStream(true);
+							// Extract more detailed status from the part
+							const part = payload.properties?.part;
+							if (part?.type === "text" && part.text) {
+								// AI is writing text
+								setCurrentStatus("Writing response...");
+							} else if (part?.type === "tool") {
+								// AI is using a tool - show which one
+								const toolName =
+									typeof part.tool === "string"
+										? part.tool
+										: part.tool?.name || "tool";
+								const input = part.state?.input ?? {};
+
+								// Create a descriptive status based on the tool
+								let detail = "";
+								const normalizedTool = toolName.toLowerCase();
+								if (
+									normalizedTool === "read" ||
+									normalizedTool === "write" ||
+									normalizedTool === "edit"
+								) {
+									const filePath = input.filePath || input.path || "";
+									const fileName = filePath.split("/").pop() || filePath;
+									detail = fileName ? `: ${fileName}` : "";
+								} else if (
+									normalizedTool === "bash" ||
+									normalizedTool === "shell"
+								) {
+									const cmd = input.command || input.cmd || "";
+									detail = cmd
+										? `: ${cmd.length > 20 ? cmd.slice(0, 17) + "..." : cmd}`
+										: "";
+								} else if (
+									normalizedTool === "glob" ||
+									normalizedTool === "grep"
+								) {
+									const pattern = input.pattern || "";
+									detail = pattern ? `: ${pattern}` : "";
+								}
+
+								setCurrentStatus(`Running ${toolName}${detail}`);
+							} else {
+								setCurrentStatus("Processing...");
+							}
+							break;
+						}
+
+						case "tool.execute": {
+							// Tool is about to execute
+							setHasActiveStream(true);
+							const toolName = payload.properties?.name || "tool";
+							const input = payload.properties?.input ?? {};
+
+							let detail = "";
+							const normalizedTool = toolName.toLowerCase();
+							if (
+								normalizedTool === "read" ||
+								normalizedTool === "write" ||
+								normalizedTool === "edit"
+							) {
+								const filePath = input.filePath || input.path || "";
+								const fileName = filePath.split("/").pop() || filePath;
+								detail = fileName ? `: ${fileName}` : "";
+							} else if (
+								normalizedTool === "bash" ||
+								normalizedTool === "shell"
+							) {
+								const cmd = input.command || input.cmd || "";
+								detail = cmd
+									? `: ${cmd.length > 20 ? cmd.slice(0, 17) + "..." : cmd}`
+									: "";
+							}
+
+							setCurrentStatus(`Running ${toolName}${detail}`);
+							break;
+						}
+
+						case "tool.result":
+							// Tool finished, update status
+							setCurrentStatus("Processing results...");
+							break;
+
+						case "session.updated": {
+							// Check for session status
+							const status = payload.properties?.info?.status;
+							if (status === "completed" || status === "idle") {
+								setHasActiveStream(false);
+								setCurrentStatus(null);
+								setInitialGenerationInProgress(projectId, false);
+								startDevServerForProject(projectId);
+								refreshCodePreview();
+								loadHistory();
+							} else if (status === "busy" || status === "running") {
+								setHasActiveStream(true);
+								if (!currentStatus) {
+									setCurrentStatus("Processing...");
+								}
+							}
+							break;
+						}
+
+						case "message.updated":
+						case "messages.synced":
+							// Finalize current assistant message and refresh history
+							loadHistory();
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							setInitialGenerationInProgress(projectId, false);
+							refreshCodePreview();
+							break;
+
+						case "session.idle":
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							setInitialGenerationInProgress(projectId, false);
+							// Start the dev server after AI finishes generating code
+							startDevServerForProject(projectId);
+							refreshCodePreview();
+							break;
+
+						case "todo.updated": {
+							const todoItems = Array.isArray(payload.properties?.todos)
+								? (payload.properties.todos as AgentTodoItem[])
+								: [];
+							setTodos(todoItems.length > 0 ? todoItems : null);
+							break;
+						}
+
+						case "file.edited":
+							// File was edited - show brief notification
+							setCurrentStatus(
+								`Edited: ${payload.properties?.file?.split("/").pop() || "file"}`,
+							);
+							break;
+
+						case "error":
+							logger.error("Session error:", payload.message);
+							setHasActiveStream(false);
+							setCurrentStatus(null);
+							break;
+
+						default:
+							logger.debug("Session event:", payload);
 					}
-
-					case "error":
-						logger.error("Session error:", payload.message);
-						setHasActiveStream(false);
-						setCurrentStatus(null);
-						break;
-
-					default:
-						logger.debug("Session event:", payload);
+				} catch (err) {
+					console.error("Failed to parse session SSE event:", err);
 				}
-			} catch (err) {
-				console.error("Failed to parse session SSE event:", err);
-			}
+			};
+
+			es.onerror = () => {
+				if (!isMounted) return;
+
+				es?.close();
+				es = null;
+
+				// Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+				const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+				reconnectAttempts++;
+
+				logger.info(
+					`SSE disconnected, reconnecting in ${delay}ms (attempt ${reconnectAttempts})`,
+				);
+
+				reconnectTimer = setTimeout(() => {
+					if (isMounted) {
+						connect();
+					}
+				}, delay);
+			};
 		};
 
-		es.onerror = (err) => {
-			console.error("Session SSE error:", err);
-		};
+		connect();
 
 		return () => {
-			es.close();
+			isMounted = false;
+			if (reconnectTimer) {
+				clearTimeout(reconnectTimer);
+			}
+			es?.close();
 		};
 	}, [projectId]);
 
@@ -547,12 +801,9 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				console.error("Failed to send message:", error);
 				setHasActiveStream(false);
 				setCurrentStatus(null);
-			} else {
-				await loadHistory();
-				setHasActiveStream(false);
-				setCurrentStatus(null);
-				setInitialGenerationInProgress(projectId, false);
 			}
+			// Don't reset hasActiveStream here - let SSE handle completion
+			// The session.idle event will trigger setHasActiveStream(false)
 		} catch (error) {
 			console.error("Failed to send message:", error);
 			setHasActiveStream(false);
@@ -798,7 +1049,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				)}
 				{messages.map((message) => {
 					const isDeleting = deletingMessageId === message.id;
-					const toolNames = message.tools ?? [];
+					const toolInfos = message.tools ?? [];
 					const textContent = (message.content || "").trim();
 					const hasTextContent = textContent.length > 0;
 
@@ -824,18 +1075,34 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 												{message.content}
 											</div>
 										)}
-										{toolNames.length > 0 && (
+										{toolInfos.length > 0 && (
 											<div
 												className={`flex flex-wrap gap-2 ${
 													hasTextContent ? "mt-3" : ""
 												}`}
 											>
-												{toolNames.map((tool, index) => (
+												{toolInfos.map((tool, index) => (
 													<span
-														key={`${message.id}-tool-${index}-${tool}`}
-														className="text-[11px] uppercase tracking-wide border border-border/70 rounded-full px-2 py-0.5 text-muted bg-raised"
+														key={`${message.id}-tool-${index}-${tool.name}`}
+														className={`text-[11px] tracking-wide border border-border/70 rounded-full px-2 py-0.5 bg-raised ${
+															tool.status === "error"
+																? "text-danger"
+																: tool.status === "running"
+																	? "text-warning"
+																	: "text-muted"
+														}`}
+														title={
+															tool.detail
+																? `${tool.name}: ${tool.detail}`
+																: tool.name
+														}
 													>
-														{tool}
+														<span className="uppercase">{tool.name}</span>
+														{tool.detail && (
+															<span className="ml-1 text-[10px] opacity-70 normal-case">
+																{tool.detail}
+															</span>
+														)}
 													</span>
 												))}
 											</div>

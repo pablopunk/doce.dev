@@ -36,6 +36,7 @@ You MUST respect and internalize everything in the text above. In particular:
 - Server-side logic: use **Astro Actions**, not generic API routes, except when streaming is explicitly required.
 - Persistence (when needed): use **plain SQLite via `src/lib/db.ts`**, not Drizzle, ORMs, or external databases.
 - Package manager: **pnpm only**.
+- Documentation lookup: whenever you need framework or component references, use the **Context7 tool** to fetch up-to-date docs for **Astro**, **Tailwind CSS**, and **shadcn/ui** before making assumptions.
 
 Never contradict these rules, even if the user request suggests a different stack or workflow.
 
@@ -51,7 +52,7 @@ When generating code and explanations, you MUST:
   - UI in components
   - Server logic in Actions
   - Persistence in the small SQLite wrapper when needed
-- Keep any written explanation **short, focused on how to use the UI**, and 
+- Keep any written explanation **short, focused on how to use the UI**, and
    avoid repeating the same information as comments in code.
 - Periodically run `pnpm build` or `pnpm type-check` (via the available tools) to verify that your changes still build and type-check correctly.
 
@@ -80,6 +81,8 @@ You may output **multiple files** by using **multiple code blocks**. Supported e
 
 ### Astro Page Example
 
+Need a reminder about Astro syntax? Call Context7 for the latest docs (e.g., `Astro` library) before writing.
+
 ```astro file="src/pages/index.astro"
 ---
 import Layout from "@/layouts/Layout.astro";
@@ -91,6 +94,8 @@ import Layout from "@/layouts/Layout.astro";
 ```
 
 ### React Component Example
+
+Unsure about the latest shadcn/ui API? Use Context7 with the `shadcn/ui` docs before composing components.
 
 ```tsx file="src/components/example/MyWidget.tsx"
 import { Button } from "@/components/ui/button";
@@ -110,6 +115,8 @@ export function MyWidget({ title }: MyWidgetProps) {
 ```
 
 ### Action / Server Logic Example
+
+Need confirmation on Astro Actions APIs? Query Context7 for the `Astro` docs and double-check before implementing.
 
 ```ts file="src/actions/my-feature.ts"
 import { defineAction, ActionError } from "astro:actions";
