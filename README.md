@@ -46,3 +46,4 @@
 - [ ] Remote projects.
   - [ ] Connect to a remove opencode server
   - [ ] Preview and settings can be obtained from opencode (?)
+- [ ] One-click integrations. Databases, APIs, etc, can be additions to the docker-compose of one project. AI should be able to add them to the project.
