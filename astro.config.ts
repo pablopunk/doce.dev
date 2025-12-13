@@ -15,5 +15,11 @@ export default defineConfig({
   vite: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     plugins: [tailwindcss() as any],
+    server: {
+      watch: {
+        // Ignore project data directory to prevent restarts when projects are created
+        ignored: ["**/data/**"],
+      },
+    },
   },
 });

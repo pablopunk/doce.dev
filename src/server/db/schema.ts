@@ -4,6 +4,7 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  username: text("username").notNull(),
   passwordHash: text("password_hash").notNull(),
 });
 
@@ -48,6 +49,9 @@ export const projects = sqliteTable("projects", {
     .notNull()
     .default("created"),
   pathOnDisk: text("path_on_disk").notNull(),
+  initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
+    .notNull()
+    .default(false),
 });
 
 // Type exports

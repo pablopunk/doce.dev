@@ -1,0 +1,91 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Settings } from "lucide-react";
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { PreviewPanel } from "@/components/preview/PreviewPanel";
+import { TerminalDock } from "@/components/terminal/TerminalDock";
+import { getProjectById } from "@/server/projects/projects.model";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const { id, slug } = Astro.params;
+
+if (!id) {
+  return Astro.redirect("/");
+}
+
+const project = await getProjectById(id);
+
+// Project not found or doesn't belong to user
+if (!project || project.ownerUserId !== user.id) {
+  return Astro.redirect("/");
+}
+
+// Redirect if slug doesn't match (canonical URL)
+if (project.slug !== slug) {
+  return Astro.redirect(`/projects/${project.id}/${project.slug}`);
+}
+---
+
+<AppLayout title={project.name}>
+  <div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-4 py-2 border-b bg-background">
+      <div class="flex items-center gap-4">
+        <a href="/">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </a>
+        <div>
+          <h1 class="text-lg font-semibold">{project.name}</h1>
+          <p class="text-xs text-muted-foreground">/{project.slug}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-muted-foreground">
+          {project.model || "Default model"}
+        </span>
+        <a href="/settings">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Settings className="h-4 w-4" />
+          </Button>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Chat panel (left) -->
+      <div class="w-1/2 border-r flex flex-col">
+        <ChatPanel
+          projectId={project.id}
+          client:load
+        />
+      </div>
+
+      <!-- Preview panel (right) -->
+      <div class="w-1/2 flex flex-col">
+        <div class="flex-1 overflow-hidden">
+          <PreviewPanel
+            projectId={project.id}
+            client:load
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Terminal dock (bottom) -->
+    <TerminalDock projectId={project.id} defaultOpen={false} client:load />
+  </div>
+</AppLayout>
+
+<script>
+  // Handle project page state synchronization
+  // The PreviewPanel component handles presence and status updates
+  // This script can be used for additional page-level logic if needed
+</script>

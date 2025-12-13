@@ -19,7 +19,7 @@ if (result?.data?.success) {
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold">doce.dev</CardTitle>
         <CardDescription>
-          Enter your password to continue.
+          Sign in to continue.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -31,14 +31,25 @@ if (result?.data?.success) {
           )}
 
           <div class="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              placeholder="Username"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div class="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               name="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="Password"
               required
-              autoFocus
             />
           </div>
 

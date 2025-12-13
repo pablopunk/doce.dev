@@ -11,6 +11,9 @@ const PUBLIC_ROUTES = ["/setup", "/login"];
 // Routes that should redirect to dashboard if already logged in
 const AUTH_ROUTES = ["/setup", "/login"];
 
+// Routes that handle their own authentication (API routes)
+const SELF_AUTH_PREFIXES = ["/api/"];
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
 
@@ -57,8 +60,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect("/");
   }
 
+  // Skip middleware auth for API routes (they handle auth internally)
+  const isSelfAuthRoute = SELF_AUTH_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
+
   // If not logged in and on protected route, redirect to login
-  if (!user && !PUBLIC_ROUTES.includes(pathname)) {
+  if (!user && !PUBLIC_ROUTES.includes(pathname) && !isSelfAuthRoute) {
     return context.redirect("/login");
   }
 

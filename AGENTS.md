@@ -100,3 +100,6 @@ It's basically a UI on top of the opencode SDK. Users can create a project with 
 * There should be a data/ directory containing the db file and all projects (in folders)
 * Projects are just folders with a docker-compose.yml that exposes PWD and exposes the development port
 * Since we can have several projects running at the same time, all exposed ports should be different/random, but persisted
+* Containers run on-demand: they start when a user views a project page and stop after 3 minutes of inactivity
+* The host app proxies all opencode API calls - browser never connects directly to container ports
+* Use `@opencode-ai/sdk` for opencode server communication

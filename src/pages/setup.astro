@@ -38,6 +38,17 @@ if (result?.data?.success) {
           )}
 
           <div class="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              placeholder="admin"
+              required
+            />
+          </div>
+
+          <div class="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
@@ -46,9 +57,6 @@ if (result?.data?.success) {
               placeholder="Enter a secure password"
               required
             />
-            <p class="text-xs text-muted-foreground">
-              Minimum 8 characters
-            </p>
           </div>
 
           <div class="space-y-2">

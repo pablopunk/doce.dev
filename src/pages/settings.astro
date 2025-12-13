@@ -4,11 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
 import { actions } from "astro:actions";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
+import { getProjectsByUserId } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -25,6 +27,10 @@ const settings = await db
   .limit(1);
 
 const currentSettings = settings[0];
+
+// Get project count for delete all section
+const projects = await getProjectsByUserId(user.id);
+const projectCount = projects.length;
 ---
 
 <AppLayout title="Settings">
@@ -122,6 +128,8 @@ const currentSettings = settings[0];
           </form>
         </CardContent>
       </Card>
+
+      <DeleteAllProjectsSection projectCount={projectCount} client:load />
     </div>
   </main>
 </AppLayout>
