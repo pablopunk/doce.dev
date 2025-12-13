@@ -105,6 +105,34 @@ export const server = {
 			}
 		},
 	}),
+
+	getStatus: defineAction({
+		input: z.object({
+			projectId: z.string(),
+		}),
+		handler: async ({ projectId }) => {
+			try {
+				const conversation = Conversation.getByProjectId(projectId);
+
+				if (!conversation?.opencodeSessionId) {
+					// No session yet - return unknown
+					return { status: "unknown" };
+				}
+
+				const status = await Session.getStatus(
+					projectId,
+					conversation.opencodeSessionId,
+				);
+				return status;
+			} catch (error) {
+				// If we can't get status, return unknown rather than throwing
+				logger.warn("Failed to get session status", {
+					error: error instanceof Error ? error.message : String(error),
+				});
+				return { status: "unknown" };
+			}
+		},
+	}),
 };
 
 function handleSessionError(error: unknown): never {

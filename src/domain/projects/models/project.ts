@@ -6,7 +6,7 @@
 import * as db from "@/lib/db";
 import type { ProjectInDatabase } from "@/lib/db/providers/drizzle/schema";
 import { listProjectFiles, readProjectFile } from "@/lib/file-system";
-import { filterIgnoredFiles, shouldIgnoreFile } from "../lib/file-filters";
+import { shouldIgnoreFile } from "../lib/file-filters";
 
 export type ProjectModel = ProjectInDatabase;
 export type FileData = {

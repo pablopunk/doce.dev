@@ -137,16 +137,11 @@ export const server = {
 
 			// If a prompt is provided, generate project name with AI first
 			if (prompt && !name) {
-				try {
-					const aiName = await generateProjectNameWithAI(prompt);
-					if (aiName) {
-						projectName = slugifyProjectName(aiName);
-					}
-				} catch (error) {
-					console.error(
-						"Failed to generate project name with OpenCode:",
-						error,
-					);
+				const aiName = await generateProjectNameWithAI(prompt);
+				if (aiName) {
+					projectName = slugifyProjectName(aiName);
+				} else {
+					// Fallback: use the first 50 chars of the prompt as the name
 					projectName = slugifyProjectName(prompt.slice(0, 50));
 				}
 			}

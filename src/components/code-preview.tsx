@@ -11,7 +11,7 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import AIBlob from "@/components/ui/ai-blob";
 import { Button } from "@/components/ui/button";
@@ -227,12 +227,31 @@ export function CodePreview({ projectId }: { projectId: string }) {
 		}
 	}, [envData]);
 
+	// Define restartPreview as callback before use
+	const restartPreview = useCallback(
+		async (expandTerminal: boolean = false) => {
+			setPreviewReady(false);
+			if (expandTerminal) {
+				setIsTerminalExpanded(true);
+			}
+			try {
+				await actions.projects.restartPreview({ id: projectId });
+				setIframeKey((prev) => prev + 1);
+				await mutate();
+			} catch (error) {
+				console.error("Failed to restart preview:", error);
+			}
+			void startDevServerForProject(projectId);
+		},
+		[projectId, mutate],
+	);
+
 	// Restart preview whenever this component is visited
 	useEffect(() => {
 		if (!project?.previewUrl) {
 			void restartPreview(false);
 		}
-	}, [project?.previewUrl, projectId]);
+	}, [project?.previewUrl, restartPreview]);
 
 	// Subscribe to preview status events via SSE for richer feedback
 	useEffect(() => {
@@ -339,21 +358,6 @@ export function CodePreview({ projectId }: { projectId: string }) {
 	const handleDeploy = async () => {
 		await actions.projects.deployProject({ id: projectId });
 		mutate();
-	};
-
-	const restartPreview = async (expandTerminal: boolean = false) => {
-		setPreviewReady(false);
-		if (expandTerminal) {
-			setIsTerminalExpanded(true);
-		}
-		try {
-			await actions.projects.restartPreview({ id: projectId });
-			setIframeKey((prev) => prev + 1);
-			await mutate();
-		} catch (error) {
-			console.error("Failed to restart preview:", error);
-		}
-		void startDevServerForProject(projectId);
 	};
 
 	const handleSaveEnv = async () => {

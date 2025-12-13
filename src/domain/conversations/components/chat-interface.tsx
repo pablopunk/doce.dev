@@ -8,28 +8,21 @@ import {
 	Send,
 	Settings2,
 	Square,
-	Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
 	refreshCodePreview,
-	setInitialGenerationInProgress,
 	startDevServerForProject,
 } from "@/components/code-preview";
+import AIBlob from "@/components/ui/ai-blob";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { Label } from "@/components/ui/label";
 import {
 	Popover,
@@ -47,15 +40,14 @@ import {
 	AVAILABLE_AI_MODELS,
 	DEFAULT_AI_MODEL,
 } from "@/domain/llms/models/ai-models";
+import { useProjectStateOptional } from "@/domain/projects/hooks/use-project-state";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("chat-interface");
 
 interface ToolInfo {
 	name: string;
-	// Short description of what the tool did (e.g., file path, command)
 	detail?: string;
-	// Status: running, completed, error
 	status?: "running" | "completed" | "error";
 }
 
@@ -64,8 +56,7 @@ interface ChatMessage {
 	role: "user" | "assistant" | "system";
 	content: string;
 	tools?: ToolInfo[];
-	// Raw OpenCode message/part payload for richer UIs later
-	_raw?: any;
+	_raw?: unknown;
 }
 
 interface AgentTodoItem {
@@ -122,43 +113,49 @@ function coerceTodos(value: unknown): AgentTodoItem[] | null {
 	return null;
 }
 
-function parseTodosFromToolPart(part: any): AgentTodoItem[] | null {
-	if (!part || part.type !== "tool") return null;
+function parseTodosFromToolPart(part: unknown): AgentTodoItem[] | null {
+	if (!part || typeof part !== "object") return null;
+	const p = part as Record<string, unknown>;
+	if (p.type !== "tool") return null;
 
 	const toolNameRaw =
-		typeof part.tool === "string"
-			? part.tool
-			: typeof part.tool?.name === "string"
-				? part.tool.name
+		typeof p.tool === "string"
+			? p.tool
+			: typeof (p.tool as Record<string, unknown>)?.name === "string"
+				? (p.tool as Record<string, unknown>).name
 				: "";
 
-	if (!toolNameRaw.toLowerCase().startsWith("todo")) {
+	if (!(toolNameRaw as string).toLowerCase().startsWith("todo")) {
 		return null;
 	}
 
-	const metadataTodos = coerceTodos(part.state?.metadata?.todos);
+	const state = p.state as Record<string, unknown> | undefined;
+	const metadataTodos = coerceTodos(
+		(state?.metadata as Record<string, unknown> | undefined)?.todos,
+	);
 	if (metadataTodos) return metadataTodos;
 
-	const outputTodos = coerceTodos(part.state?.output);
+	const outputTodos = coerceTodos(state?.output);
 	if (outputTodos) return outputTodos;
 
-	const inputTodos = coerceTodos(part.state?.input);
+	const inputTodos = coerceTodos(state?.input);
 	if (inputTodos) return inputTodos;
 
 	return null;
 }
 
-function extractTodosFromMessages(messages: any[]): AgentTodoItem[] | null {
+function extractTodosFromMessages(messages: unknown[]): AgentTodoItem[] | null {
 	let latest: AgentTodoItem[] | null = null;
 
 	for (const message of messages) {
-		const parts = Array.isArray(message.parts)
-			? message.parts
-			: Array.isArray(message.message?.parts)
-				? message.message.parts
+		const msg = message as Record<string, unknown>;
+		const parts = Array.isArray(msg.parts)
+			? msg.parts
+			: Array.isArray((msg.message as Record<string, unknown>)?.parts)
+				? (msg.message as Record<string, unknown>).parts
 				: [];
 
-		for (const part of parts) {
+		for (const part of parts as unknown[]) {
 			const parsed = parseTodosFromToolPart(part);
 			if (parsed && parsed.length > 0) {
 				latest = parsed;
@@ -169,47 +166,44 @@ function extractTodosFromMessages(messages: any[]): AgentTodoItem[] | null {
 	return latest;
 }
 
-/**
- * Extract a short detail string from tool input/state for display.
- */
-function extractToolDetail(toolName: string, part: any): string | undefined {
-	const input = part.state?.input ?? part.input ?? {};
+function extractToolDetail(
+	toolName: string,
+	part: Record<string, unknown>,
+): string | undefined {
+	const state = part.state as Record<string, unknown> | undefined;
+	const input = (state?.input ?? part.input ?? {}) as Record<string, unknown>;
 	const normalizedName = toolName.toLowerCase();
 
-	// File operations - show the file path
 	if (
 		normalizedName === "read" ||
 		normalizedName === "write" ||
 		normalizedName === "edit"
 	) {
-		const filePath = input.filePath || input.path || input.file;
+		const filePath = (input.filePath || input.path || input.file) as
+			| string
+			| undefined;
 		if (filePath) {
-			// Show just the filename or last part of path
 			const parts = filePath.split("/");
 			return parts[parts.length - 1];
 		}
 	}
 
-	// Bash - show a truncated command
 	if (normalizedName === "bash" || normalizedName === "shell") {
-		const cmd = input.command || input.cmd;
+		const cmd = (input.command || input.cmd) as string | undefined;
 		if (cmd) {
-			// Truncate long commands
 			return cmd.length > 30 ? `${cmd.slice(0, 27)}...` : cmd;
 		}
 	}
 
-	// Glob/Grep - show the pattern
 	if (normalizedName === "glob" || normalizedName === "grep") {
-		const pattern = input.pattern || input.glob;
+		const pattern = (input.pattern || input.glob) as string | undefined;
 		if (pattern) {
 			return pattern.length > 25 ? `${pattern.slice(0, 22)}...` : pattern;
 		}
 	}
 
-	// List - show the directory
 	if (normalizedName === "list") {
-		const path = input.path || input.directory;
+		const path = (input.path || input.directory) as string | undefined;
 		if (path) {
 			const parts = path.split("/");
 			return parts[parts.length - 1] || path;
@@ -217,9 +211,8 @@ function extractToolDetail(toolName: string, part: any): string | undefined {
 		return "cwd";
 	}
 
-	// Task/Agent - show description
 	if (normalizedName === "task" || normalizedName === "agent") {
-		const desc = input.description || input.task;
+		const desc = (input.description || input.task) as string | undefined;
 		if (desc) {
 			return desc.length > 30 ? `${desc.slice(0, 27)}...` : desc;
 		}
@@ -228,21 +221,19 @@ function extractToolDetail(toolName: string, part: any): string | undefined {
 	return undefined;
 }
 
-/**
- * Determine tool status from the part state.
- */
 function extractToolStatus(
-	part: any,
+	part: Record<string, unknown>,
 ): "running" | "completed" | "error" | undefined {
-	const state = part.state;
+	const state = part.state as Record<string, unknown> | undefined;
 	if (!state) return undefined;
 
-	// Check for error in output
-	if (state.error || state.output?.error) {
+	if (
+		state.error ||
+		(state.output as Record<string, unknown> | undefined)?.error
+	) {
 		return "error";
 	}
 
-	// If output exists and is not empty, it's completed
 	if (
 		state.output !== undefined &&
 		state.output !== null &&
@@ -251,7 +242,6 @@ function extractToolStatus(
 		return "completed";
 	}
 
-	// If only input exists, it's still running
 	if (state.input !== undefined) {
 		return "running";
 	}
@@ -259,7 +249,7 @@ function extractToolStatus(
 	return undefined;
 }
 
-function parseMessageContent(rawMessage: any): {
+function parseMessageContent(rawMessage: unknown): {
 	text: string;
 	tools: ToolInfo[];
 } {
@@ -267,44 +257,44 @@ function parseMessageContent(rawMessage: any): {
 		return { text: "", tools: [] };
 	}
 
-	const parts = Array.isArray(rawMessage.parts)
-		? rawMessage.parts
-		: Array.isArray(rawMessage.message?.parts)
-			? rawMessage.message.parts
+	const msg = rawMessage as Record<string, unknown>;
+	const parts = Array.isArray(msg.parts)
+		? msg.parts
+		: Array.isArray((msg.message as Record<string, unknown>)?.parts)
+			? (msg.message as Record<string, unknown>).parts
 			: [];
 
 	const segments: string[] = [];
 	const toolInfos: ToolInfo[] = [];
 	const seenTools = new Set<string>();
 
-	for (const part of parts) {
+	for (const part of parts as unknown[]) {
 		if (!part || typeof part !== "object") continue;
+		const p = part as Record<string, unknown>;
 
-		if (part.type === "text" && typeof part.text === "string") {
-			const trimmed = part.text.trim();
+		if (p.type === "text" && typeof p.text === "string") {
+			const trimmed = p.text.trim();
 			if (trimmed) {
 				segments.push(trimmed);
 			}
 			continue;
 		}
 
-		if (part.type === "tool") {
+		if (p.type === "tool") {
 			const toolName =
-				typeof part.tool === "string"
-					? part.tool
-					: typeof part.tool?.name === "string"
-						? part.tool.name
+				typeof p.tool === "string"
+					? p.tool
+					: typeof (p.tool as Record<string, unknown>)?.name === "string"
+						? ((p.tool as Record<string, unknown>).name as string)
 						: "tool";
 
-			// Skip todo tools from display
 			if (toolName.toLowerCase().startsWith("todo")) {
 				continue;
 			}
 
-			const detail = extractToolDetail(toolName, part);
-			const status = extractToolStatus(part);
+			const detail = extractToolDetail(toolName, p);
+			const status = extractToolStatus(p);
 
-			// Create a unique key to avoid duplicating the same tool+detail combo
 			const key = `${toolName}:${detail || ""}`;
 			if (!seenTools.has(key)) {
 				seenTools.add(key);
@@ -318,21 +308,24 @@ function parseMessageContent(rawMessage: any): {
 	}
 
 	if (segments.length === 0) {
-		const summary = rawMessage.info?.summary;
+		const info = msg.info as Record<string, unknown> | undefined;
+		const summary = info?.summary as Record<string, unknown> | undefined;
 		if (summary) {
 			const summarySegments: string[] = [];
-			if (summary.title) summarySegments.push(summary.title);
-			if (summary.body) summarySegments.push(summary.body);
+			if (summary.title) summarySegments.push(summary.title as string);
+			if (summary.body) summarySegments.push(summary.body as string);
 			if (summarySegments.length > 0) {
 				segments.push(summarySegments.join("\n"));
 			}
 
 			if (Array.isArray(summary.diffs) && summary.diffs.length > 0) {
-				const diffLines = summary.diffs.slice(0, 3).map((diff: any) => {
-					const file = diff.file || diff.path;
-					if (!file) return null;
-					return `- ${file}`;
-				});
+				const diffLines = (summary.diffs as Record<string, unknown>[])
+					.slice(0, 3)
+					.map((diff) => {
+						const file = diff.file || diff.path;
+						if (!file) return null;
+						return `- ${file}`;
+					});
 				const cleaned = diffLines.filter(Boolean);
 				if (cleaned.length > 0) {
 					segments.push(cleaned.join("\n"));
@@ -341,21 +334,60 @@ function parseMessageContent(rawMessage: any): {
 		}
 	}
 
-	if (
-		segments.length === 0 &&
-		typeof rawMessage.info?.finish === "string" &&
-		toolInfos.length === 0
-	) {
-		segments.push(`(${rawMessage.info.finish.replace(/-/g, " ")})`);
-	}
-
+	// Don't add placeholder text for empty messages - they'll be filtered out
 	return {
 		text: segments.join("\n\n"),
 		tools: toolInfos,
 	};
 }
 
-export function ChatInterface({ projectId }: { projectId: string }) {
+// Compact tool group component
+function ToolGroup({ tools }: { tools: ToolInfo[] }) {
+	if (tools.length === 0) return null;
+
+	return (
+		<div className="bg-raised border border-border rounded-xl px-3 py-2 space-y-1">
+			{tools.map((tool, index) => (
+				<div
+					key={`${tool.name}-${tool.detail || index}`}
+					className="flex items-center gap-2 text-xs"
+				>
+					<span
+						className={`uppercase font-medium w-12 flex-shrink-0 ${
+							tool.status === "error"
+								? "text-danger"
+								: tool.status === "running"
+									? "text-warning"
+									: "text-muted"
+						}`}
+					>
+						{tool.name}
+					</span>
+					{tool.detail && (
+						<span className="text-fg font-mono truncate">{tool.detail}</span>
+					)}
+					{tool.status === "running" && (
+						<Loader2 className="h-3 w-3 animate-spin text-warning ml-auto flex-shrink-0" />
+					)}
+				</div>
+			))}
+		</div>
+	);
+}
+
+interface ChatInterfaceProps {
+	projectId: string;
+	initialPrompt?: string | null;
+	isSquircleMode?: boolean;
+}
+
+export function ChatInterface({
+	projectId,
+	initialPrompt,
+	isSquircleMode = false,
+}: ChatInterfaceProps) {
+	const projectState = useProjectStateOptional();
+
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [todos, setTodos] = useState<AgentTodoItem[] | null>(null);
 	const [input, setInput] = useState(() => {
@@ -367,14 +399,14 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 	});
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 	const [selectedModel, setSelectedModel] = useState(DEFAULT_AI_MODEL);
-	const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
-		null,
-	);
 	const [popoverOpen, setPopoverOpen] = useState(false);
 	const [currentStatus, setCurrentStatus] = useState<string | null>(null);
 	const [hasActiveStream, setHasActiveStream] = useState(false);
+	const [containerReady, setContainerReady] = useState(false);
+	const [waitingForContainer, setWaitingForContainer] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const hasLoadedRef = useRef(false);
+	const hasSentInitialPromptRef = useRef(false);
 
 	const isGenerating = hasActiveStream;
 
@@ -404,8 +436,73 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		setPopoverOpen(false);
 	};
 
-	async function loadHistory() {
-		// Only show the global "Loading chat..." spinner on the first load.
+	// Ensure container is ready before proceeding
+	const ensureContainerReady = useCallback(async (): Promise<boolean> => {
+		setWaitingForContainer(true);
+		projectState?.setContainerStatus("starting");
+
+		try {
+			// Check current status
+			const { data: statusData } = await actions.projects.getPreviewStatus({
+				id: projectId,
+			});
+
+			if (statusData?.status === "running") {
+				setContainerReady(true);
+				setWaitingForContainer(false);
+				projectState?.setContainerStatus("running");
+				return true;
+			}
+
+			// Start container if not running
+			logger.info("Container not running, starting...");
+			const { error: createError } = await actions.projects.createPreview({
+				id: projectId,
+			});
+
+			if (createError) {
+				logger.error("Failed to create preview:", createError);
+				projectState?.setContainerStatus("failed");
+				projectState?.setError(
+					createError.message || "Failed to start container",
+				);
+				setWaitingForContainer(false);
+				return false;
+			}
+
+			// Poll for container to be ready
+			let attempts = 0;
+			while (attempts < 30) {
+				await new Promise((r) => setTimeout(r, 2000));
+				const { data: pollStatus } = await actions.projects.getPreviewStatus({
+					id: projectId,
+				});
+
+				if (pollStatus?.status === "running") {
+					setContainerReady(true);
+					setWaitingForContainer(false);
+					projectState?.setContainerStatus("running");
+					return true;
+				}
+				attempts++;
+			}
+
+			projectState?.setContainerStatus("failed");
+			projectState?.setError("Container startup timeout");
+			setWaitingForContainer(false);
+			return false;
+		} catch (err) {
+			logger.error("Error ensuring container ready:", err as Error);
+			projectState?.setContainerStatus("failed");
+			projectState?.setError(
+				err instanceof Error ? err.message : "Unknown error",
+			);
+			setWaitingForContainer(false);
+			return false;
+		}
+	}, [projectId, projectState]);
+
+	const loadHistory = useCallback(async () => {
 		if (!hasLoadedRef.current) {
 			setIsLoadingHistory(true);
 		}
@@ -413,20 +510,21 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		try {
 			const { data, error } = await actions.chat.getHistory({ projectId });
 			if (!error && data) {
-				const rawMessages = (data.messages || []) as any[];
+				const rawMessages = (data.messages || []) as unknown[];
 
-				// Map raw OpenCode messages into a simple shape for the UI.
 				const mapped: ChatMessage[] = rawMessages
-					.map((m: any) => {
+					.map((m) => {
+						const msg = m as Record<string, unknown>;
+						const info = msg.info as Record<string, unknown> | undefined;
 						const role =
-							(m.info?.role as ChatMessage["role"]) ||
-							(m.role as ChatMessage["role"]) ||
+							(info?.role as ChatMessage["role"]) ||
+							(msg.role as ChatMessage["role"]) ||
 							"assistant";
 
 						const { text, tools } = parseMessageContent(m);
 
 						return {
-							id: m.id || crypto.randomUUID(),
+							id: (msg.id as string) || crypto.randomUUID(),
 							role,
 							content: text,
 							tools,
@@ -446,65 +544,147 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				if (mapped.length > 0) {
 					setMessages(mapped);
 					if (data.model) setSelectedModel(data.model);
+					// If we have messages, check if session is busy
+					// Default to "ready" to show split view with preview
+					try {
+						const { data: sessionStatus } = await actions.sessions.getStatus({
+							projectId,
+						});
+						if (sessionStatus?.status === "busy") {
+							projectState?.setPhase("generating");
+							setHasActiveStream(true);
+						} else {
+							// idle, completed, unknown, or any other status - show ready
+							projectState?.setPhase("ready");
+						}
+					} catch {
+						// If we can't get session status, assume ready if we have messages
+						projectState?.setPhase("ready");
+					}
 					return;
 				}
 
-				// No OpenCode messages yet: fall back to the
-				// project's stored initial prompt if available.
-				if (data.initialPrompt) {
+				// No OpenCode messages yet - check for initial prompt
+				// But if there's an existing session, wait for container instead of re-sending
+				const promptToSend = data.initialPrompt || initialPrompt;
+				if (
+					promptToSend &&
+					!hasSentInitialPromptRef.current &&
+					!data.hasExistingSession
+				) {
 					const initialMessage: ChatMessage = {
 						id: `initial-${projectId}`,
 						role: "user",
-						content: data.initialPrompt,
+						content: promptToSend,
 					};
 
 					setTodos(null);
 					setMessages([initialMessage]);
 					if (data.model) setSelectedModel(data.model);
 
-					logger.info("Auto-sending initial project prompt to OpenCode");
+					// Show loading state immediately
+					hasSentInitialPromptRef.current = true;
 					setHasActiveStream(true);
-					setCurrentStatus("Processing initial request...");
-					setInitialGenerationInProgress(projectId, true);
+					setCurrentStatus("Starting environment...");
+
+					logger.info(
+						"Ensuring container is ready before sending initial prompt",
+					);
+
+					const ready = await ensureContainerReady();
+					if (!ready) {
+						logger.error("Container not ready, cannot send initial prompt");
+						hasSentInitialPromptRef.current = false;
+						setHasActiveStream(false);
+						setCurrentStatus(null);
+						return;
+					}
+
+					// Now send the initial prompt
+					logger.info("Container ready, sending initial prompt to OpenCode");
+					projectState?.setPhase("generating");
+					setCurrentStatus("Processing request...");
 
 					try {
 						const { error: sendError } = await actions.sessions.sendMessage({
 							projectId,
-							message: data.initialPrompt,
+							message: promptToSend,
 							model: data.model || selectedModel,
 						});
 
 						if (sendError) {
-							console.error("Failed to send initial message:", sendError);
+							logger.error("Failed to send initial message:", sendError);
 							setHasActiveStream(false);
 							setCurrentStatus(null);
-							setInitialGenerationInProgress(projectId, false);
+							hasSentInitialPromptRef.current = false;
 						}
-						// Don't reset hasActiveStream here - let SSE handle completion
-						// The session.idle event will trigger setHasActiveStream(false)
 					} catch (err) {
-						console.error("Failed to send initial message:", err);
+						logger.error("Failed to send initial message:", err as Error);
 						setHasActiveStream(false);
 						setCurrentStatus(null);
-						setInitialGenerationInProgress(projectId, false);
+						hasSentInitialPromptRef.current = false;
+					}
+				} else if (data.hasExistingSession) {
+					// Project has been generated before but container isn't ready yet
+					// Show loading state and wait for container, then reload history
+					if (promptToSend) {
+						const initialMessage: ChatMessage = {
+							id: `initial-${projectId}`,
+							role: "user",
+							content: promptToSend,
+						};
+						setMessages([initialMessage]);
+					}
+					setHasActiveStream(true);
+					setCurrentStatus("Reconnecting to session...");
+
+					// For existing projects, go to ready state immediately to show split view
+					// The preview will show loading state while container starts
+					projectState?.setPhase("ready");
+
+					// Wait for container to be ready, then reload history
+					const ready = await ensureContainerReady();
+					if (ready) {
+						// Container is ready, reload to get actual messages
+						setCurrentStatus("Loading history...");
+						// Reset the loaded ref so we can reload
+						hasLoadedRef.current = false;
+						loadHistory();
+					} else {
+						setHasActiveStream(false);
+						setCurrentStatus(null);
 					}
 				} else {
 					setTodos(null);
 					setMessages([]);
+					// No initial prompt and no existing session - this is an empty project
+					projectState?.setPhase("ready");
 				}
 			}
-		} catch (error) {
-			console.error("Failed to load chat history:", error);
+		} catch (err) {
+			logger.error("Failed to load chat history:", err as Error);
 		} finally {
 			if (!hasLoadedRef.current) {
 				hasLoadedRef.current = true;
 				setIsLoadingHistory(false);
 			}
 		}
-	}
+	}, [
+		projectId,
+		initialPrompt,
+		selectedModel,
+		ensureContainerReady,
+		projectState,
+	]);
 
+	// SSE connection effect
 	useEffect(() => {
-		loadHistory();
+		// Don't connect SSE until container is ready
+		if (!containerReady && !hasLoadedRef.current) {
+			// Start loading history which will trigger container setup
+			loadHistory();
+			return;
+		}
 
 		if (typeof window === "undefined") return;
 
@@ -520,7 +700,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 			es.onopen = () => {
 				logger.info("SSE connection opened");
-				reconnectAttempts = 0; // Reset on successful connection
+				reconnectAttempts = 0;
 			};
 
 			es.onmessage = (event) => {
@@ -536,43 +716,44 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 						case "message.part.updated": {
 							setHasActiveStream(true);
-							// Extract more detailed status from the part
-							const part = payload.properties?.part;
+							const part = payload.properties?.part as
+								| Record<string, unknown>
+								| undefined;
 							if (part?.type === "text" && part.text) {
-								// AI is writing text
 								setCurrentStatus("Writing response...");
 							} else if (part?.type === "tool") {
-								// AI is using a tool - show which one
 								const toolName =
 									typeof part.tool === "string"
 										? part.tool
-										: part.tool?.name || "tool";
-								const input = part.state?.input ?? {};
+										: (part.tool as Record<string, unknown>)?.name || "tool";
+								const input = ((part.state as Record<string, unknown>)?.input ??
+									{}) as Record<string, unknown>;
 
-								// Create a descriptive status based on the tool
 								let detail = "";
-								const normalizedTool = toolName.toLowerCase();
+								const normalizedTool = (toolName as string).toLowerCase();
 								if (
 									normalizedTool === "read" ||
 									normalizedTool === "write" ||
 									normalizedTool === "edit"
 								) {
-									const filePath = input.filePath || input.path || "";
+									const filePath = (input.filePath ||
+										input.path ||
+										"") as string;
 									const fileName = filePath.split("/").pop() || filePath;
 									detail = fileName ? `: ${fileName}` : "";
 								} else if (
 									normalizedTool === "bash" ||
 									normalizedTool === "shell"
 								) {
-									const cmd = input.command || input.cmd || "";
+									const cmd = (input.command || input.cmd || "") as string;
 									detail = cmd
-										? `: ${cmd.length > 20 ? cmd.slice(0, 17) + "..." : cmd}`
+										? `: ${cmd.length > 20 ? `${cmd.slice(0, 17)}...` : cmd}`
 										: "";
 								} else if (
 									normalizedTool === "glob" ||
 									normalizedTool === "grep"
 								) {
-									const pattern = input.pattern || "";
+									const pattern = (input.pattern || "") as string;
 									detail = pattern ? `: ${pattern}` : "";
 								}
 
@@ -584,28 +765,30 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						}
 
 						case "tool.execute": {
-							// Tool is about to execute
 							setHasActiveStream(true);
 							const toolName = payload.properties?.name || "tool";
-							const input = payload.properties?.input ?? {};
+							const input = (payload.properties?.input ?? {}) as Record<
+								string,
+								unknown
+							>;
 
 							let detail = "";
-							const normalizedTool = toolName.toLowerCase();
+							const normalizedTool = (toolName as string).toLowerCase();
 							if (
 								normalizedTool === "read" ||
 								normalizedTool === "write" ||
 								normalizedTool === "edit"
 							) {
-								const filePath = input.filePath || input.path || "";
+								const filePath = (input.filePath || input.path || "") as string;
 								const fileName = filePath.split("/").pop() || filePath;
 								detail = fileName ? `: ${fileName}` : "";
 							} else if (
 								normalizedTool === "bash" ||
 								normalizedTool === "shell"
 							) {
-								const cmd = input.command || input.cmd || "";
+								const cmd = (input.command || input.cmd || "") as string;
 								detail = cmd
-									? `: ${cmd.length > 20 ? cmd.slice(0, 17) + "..." : cmd}`
+									? `: ${cmd.length > 20 ? `${cmd.slice(0, 17)}...` : cmd}`
 									: "";
 							}
 
@@ -614,44 +797,37 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						}
 
 						case "tool.result":
-							// Tool finished, update status
 							setCurrentStatus("Processing results...");
 							break;
 
 						case "session.updated": {
-							// Check for session status
 							const status = payload.properties?.info?.status;
 							if (status === "completed" || status === "idle") {
 								setHasActiveStream(false);
 								setCurrentStatus(null);
-								setInitialGenerationInProgress(projectId, false);
+								projectState?.transitionToReady();
 								startDevServerForProject(projectId);
 								refreshCodePreview();
 								loadHistory();
 							} else if (status === "busy" || status === "running") {
 								setHasActiveStream(true);
-								if (!currentStatus) {
-									setCurrentStatus("Processing...");
-								}
+								setCurrentStatus((prev) => prev || "Processing...");
 							}
 							break;
 						}
 
 						case "message.updated":
 						case "messages.synced":
-							// Finalize current assistant message and refresh history
 							loadHistory();
 							setHasActiveStream(false);
 							setCurrentStatus(null);
-							setInitialGenerationInProgress(projectId, false);
 							refreshCodePreview();
 							break;
 
 						case "session.idle":
 							setHasActiveStream(false);
 							setCurrentStatus(null);
-							setInitialGenerationInProgress(projectId, false);
-							// Start the dev server after AI finishes generating code
+							projectState?.transitionToReady();
 							startDevServerForProject(projectId);
 							refreshCodePreview();
 							break;
@@ -665,7 +841,6 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						}
 
 						case "file.edited":
-							// File was edited - show brief notification
 							setCurrentStatus(
 								`Edited: ${payload.properties?.file?.split("/").pop() || "file"}`,
 							);
@@ -681,7 +856,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 							logger.debug("Session event:", payload);
 					}
 				} catch (err) {
-					console.error("Failed to parse session SSE event:", err);
+					logger.error("Failed to parse session SSE event:", err as Error);
 				}
 			};
 
@@ -691,8 +866,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 				es?.close();
 				es = null;
 
-				// Exponential backoff: 1s, 2s, 4s, 8s, max 30s
-				const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+				const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000);
 				reconnectAttempts++;
 
 				logger.info(
@@ -716,58 +890,28 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			}
 			es?.close();
 		};
-	}, [projectId]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [projectId, containerReady, loadHistory, projectState]);
 
+	// Auto-scroll to bottom when messages change
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages]);
+	});
 
+	// Persist input to localStorage
 	useEffect(() => {
 		if (typeof window !== "undefined") {
 			localStorage.setItem(`chat-input-${projectId}`, input);
 		}
 	}, [input, projectId]);
 
-	const handleDeleteMessage = async (
-		messageId: string,
-		deleteFrom: boolean = false,
-	) => {
-		if (isGenerating) return;
-
-		setDeletingMessageId(messageId);
-
-		try {
-			const { error } = await actions.chat.deleteMessage({
-				projectId,
-				messageId,
-			});
-
-			if (!error) {
-				setMessages((prev) => {
-					const messageIndex = prev.findIndex((m) => m.id === messageId);
-					if (messageIndex === -1) return prev;
-
-					return deleteFrom
-						? prev.slice(0, messageIndex)
-						: prev.filter((m) => m.id !== messageId);
-				});
-			} else {
-				console.error("Failed to delete message:", error);
-			}
-		} catch (error) {
-			console.error("Failed to delete message:", error);
-		} finally {
-			setDeletingMessageId(null);
-		}
-	};
-
 	const handleStop = async () => {
 		try {
 			await actions.sessions.abort({ projectId });
 			setHasActiveStream(false);
 			setCurrentStatus(null);
-		} catch (error) {
-			console.error("Failed to abort session:", error);
+		} catch (err) {
+			logger.error("Failed to abort session:", err as Error);
 		}
 	};
 
@@ -798,14 +942,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			});
 
 			if (error) {
-				console.error("Failed to send message:", error);
+				logger.error("Failed to send message:", error as Error);
 				setHasActiveStream(false);
 				setCurrentStatus(null);
 			}
-			// Don't reset hasActiveStream here - let SSE handle completion
-			// The session.idle event will trigger setHasActiveStream(false)
-		} catch (error) {
-			console.error("Failed to send message:", error);
+		} catch (err) {
+			logger.error("Failed to send message:", err as Error);
 			setHasActiveStream(false);
 			setCurrentStatus(null);
 		}
@@ -834,10 +976,13 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			/```(\w+)?(?:\s+file=["']([^"']+)["'])?\s*\n([\s\S]*?)```/g;
 
 		let lastIndex = 0;
-		let match: RegExpExecArray | null;
+		let match: RegExpExecArray | null = null;
 		let blockIndex = 0;
 
-		while ((match = codeBlockRegex.exec(content)) !== null) {
+		while (true) {
+			match = codeBlockRegex.exec(content);
+			if (match === null) break;
+
 			if (match.index > lastIndex) {
 				parts.push({
 					type: "text",
@@ -902,10 +1047,10 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					if (part.type === "text") {
 						return (
 							<ReactMarkdown
-								key={i}
+								key={`text-${part.content.slice(0, 20)}-${i}`}
 								remarkPlugins={[remarkGfm]}
 								components={{
-									code: ({ node, className, ...props }: any) => {
+									code: ({ className, ...props }: { className?: string }) => {
 										const isInline = !className?.includes("language-");
 										return isInline ? (
 											<code
@@ -916,12 +1061,12 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 											<code className={className} {...props} />
 										);
 									},
-									pre: ({ children }: any) => (
+									pre: ({ children }) => (
 										<pre className="bg-surface/30 p-4 rounded-md overflow-x-auto text-xs max-w-full">
 											{children}
 										</pre>
 									),
-									p: ({ children }: any) => (
+									p: ({ children }) => (
 										<p className="break-words">{children}</p>
 									),
 								}}
@@ -934,8 +1079,8 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 					if (part.content === "streaming") {
 						return (
 							<div
-								key={i}
-								className="border border-border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full"
+								key={`streaming-${part.file || part.language || "code"}`}
+								className="border border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full"
 							>
 								<div className="w-full flex items-center justify-between p-3 min-w-0">
 									<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
@@ -951,13 +1096,16 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 
 					return (
 						<Collapsible
-							key={i}
+							key={`code-${part.index}`}
 							open={expandedBlocks.has(part.index!)}
 							onOpenChange={() => toggleBlock(part.index!)}
 						>
-							<div className="border border-border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full">
+							<div className="border border-border rounded-md overflow-hidden bg-bg/50 not-prose max-w-full">
 								<CollapsibleTrigger asChild>
-									<button className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors min-w-0">
+									<button
+										type="button"
+										className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors min-w-0"
+									>
 										<div className="flex items-center gap-2 text-sm min-w-0 flex-1">
 											<FileCode className="h-4 w-4 flex-shrink-0" />
 											<span className="font-mono font-medium truncate">
@@ -987,8 +1135,33 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 		);
 	}
 
+	// Show loading state while waiting for container
+	if (waitingForContainer && messages.length === 0) {
+		return (
+			<div
+				className={`flex-1 flex flex-col ${isSquircleMode ? "" : "border-r border-border"} min-w-0`}
+			>
+				<div className="flex-1 flex items-center justify-center p-4">
+					<div className="text-center space-y-6">
+						<AIBlob size={80} className="mx-auto" />
+						<div>
+							<p className="text-lg font-medium text-strong">
+								Starting preview environment...
+							</p>
+							<p className="text-sm text-muted mt-2">
+								Setting up your development container
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
-		<div className="flex-1 flex flex-col border-r border-border-border min-w-0">
+		<div
+			className={`flex-1 flex flex-col ${isSquircleMode ? "" : "border-r border-border"} min-w-0`}
+		>
 			<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 				{messages.length === 0 && !isLoadingHistory && (
 					<div className="h-full flex items-center justify-center text-center">
@@ -1047,87 +1220,101 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 						</div>
 					</div>
 				)}
-				{messages.map((message) => {
-					const isDeleting = deletingMessageId === message.id;
-					const toolInfos = message.tools ?? [];
-					const textContent = (message.content || "").trim();
-					const hasTextContent = textContent.length > 0;
+				{(() => {
+					// Group consecutive tool-only assistant messages
+					const groupedMessages: Array<{
+						type: "user" | "assistant-text" | "assistant-tools";
+						messages: ChatMessage[];
+						allTools: ToolInfo[];
+					}> = [];
 
-					return (
-						<ContextMenu key={message.id}>
-							<ContextMenuTrigger asChild>
-								<div
-									className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-								>
-									<div
-										className={`max-w-[80%] rounded-lg px-4 py-3 overflow-hidden cursor-context-menu ${
-											message.role === "user"
-												? "bg-strong text-surface"
-												: "bg-surface text-strong"
-										} ${isDeleting ? "opacity-50" : ""}`}
-									>
-										{message.role === "assistant" ? (
-											hasTextContent ? (
-												<MessageContent content={message.content} />
-											) : null
-										) : (
-											<div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap break-words">
-												{message.content}
-											</div>
-										)}
-										{toolInfos.length > 0 && (
-											<div
-												className={`flex flex-wrap gap-2 ${
-													hasTextContent ? "mt-3" : ""
-												}`}
-											>
-												{toolInfos.map((tool, index) => (
-													<span
-														key={`${message.id}-tool-${index}-${tool.name}`}
-														className={`text-[11px] tracking-wide border border-border/70 rounded-full px-2 py-0.5 bg-raised ${
-															tool.status === "error"
-																? "text-danger"
-																: tool.status === "running"
-																	? "text-warning"
-																	: "text-muted"
-														}`}
-														title={
-															tool.detail
-																? `${tool.name}: ${tool.detail}`
-																: tool.name
-														}
-													>
-														<span className="uppercase">{tool.name}</span>
-														{tool.detail && (
-															<span className="ml-1 text-[10px] opacity-70 normal-case">
-																{tool.detail}
-															</span>
-														)}
-													</span>
-												))}
-											</div>
-										)}
+					for (const message of messages) {
+						const toolInfos = message.tools ?? [];
+						const textContent = (message.content || "").trim();
+						const hasTextContent = textContent.length > 0;
+						const isToolOnly =
+							message.role === "assistant" &&
+							!hasTextContent &&
+							toolInfos.length > 0;
+
+						if (message.role === "user") {
+							groupedMessages.push({
+								type: "user",
+								messages: [message],
+								allTools: [],
+							});
+						} else if (isToolOnly) {
+							// Check if we can merge with previous tool-only group
+							const lastGroup = groupedMessages[groupedMessages.length - 1];
+							if (lastGroup?.type === "assistant-tools") {
+								lastGroup.messages.push(message);
+								lastGroup.allTools.push(...toolInfos);
+							} else {
+								groupedMessages.push({
+									type: "assistant-tools",
+									messages: [message],
+									allTools: [...toolInfos],
+								});
+							}
+						} else {
+							// Assistant message with text content
+							groupedMessages.push({
+								type: "assistant-text",
+								messages: [message],
+								allTools: toolInfos,
+							});
+						}
+					}
+
+					return groupedMessages.map((group, groupIndex) => {
+						if (group.type === "user") {
+							const message = group.messages[0];
+							return (
+								<div key={message.id} className="flex justify-end">
+									<div className="max-w-[85%] rounded-2xl px-4 py-3 overflow-hidden bg-strong text-surface">
+										<div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap break-words">
+											{message.content}
+										</div>
 									</div>
 								</div>
-							</ContextMenuTrigger>
+							);
+						}
 
-							<ContextMenuContent className="w-72">
-								<ContextMenuItem
-									onClick={() => handleDeleteMessage(message.id, false)}
-									disabled={isGenerating || isDeleting}
-									className="text-danger text-danger focus:text-danger focus:text-danger"
+						if (group.type === "assistant-tools") {
+							// Render all tools from consecutive tool-only messages in one bubble
+							return (
+								<div
+									key={`tools-${groupIndex}-${group.messages[0].id}`}
+									className="flex justify-start"
 								>
-									<Trash2 className="mr-2 h-4 w-4" />
-									Delete this message only
-								</ContextMenuItem>
-							</ContextMenuContent>
-						</ContextMenu>
-					);
-				})}
+									<div className="max-w-[85%] rounded-2xl px-4 py-3 overflow-hidden bg-surface text-strong">
+										<ToolGroup tools={group.allTools} />
+									</div>
+								</div>
+							);
+						}
+
+						// Assistant message with text
+						const message = group.messages[0];
+						const textContent = (message.content || "").trim();
+						return (
+							<div key={message.id} className="flex justify-start">
+								<div className="max-w-[85%] rounded-2xl px-4 py-3 overflow-hidden bg-surface text-strong">
+									{textContent && <MessageContent content={textContent} />}
+									{group.allTools.length > 0 && (
+										<div className={textContent ? "mt-3" : ""}>
+											<ToolGroup tools={group.allTools} />
+										</div>
+									)}
+								</div>
+							</div>
+						);
+					});
+				})()}
 				{isGenerating && (
 					<div className="flex justify-start">
-						<div className="bg-surface rounded-lg px-4 py-2 flex items-center gap-2">
-							<Loader2 className="h-4 w-4 animate-spin" />
+						<div className="bg-surface rounded-2xl px-4 py-3 flex items-center gap-3">
+							<Loader2 className="h-4 w-4 animate-spin text-muted" />
 							<span className="text-sm text-muted">
 								{currentStatus || "Generating..."}
 							</span>
@@ -1138,7 +1325,7 @@ export function ChatInterface({ projectId }: { projectId: string }) {
 			</div>
 			<form
 				onSubmit={handleSubmit}
-				className="border-t border-border-border p-4 space-y-3"
+				className={`border-t border-border p-4 space-y-3 ${isSquircleMode ? "bg-surface/50" : ""}`}
 			>
 				<div className="flex items-center gap-2">
 					<Popover open={popoverOpen} onOpenChange={setPopoverOpen}>

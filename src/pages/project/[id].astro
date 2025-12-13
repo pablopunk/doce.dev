@@ -1,8 +1,6 @@
 ---
-import "../../styles/global.css";
-import { CodePreview } from "@/components/code-preview";
-import { ChatInterface } from "@/domain/conversations/components/chat-interface";
 import { Project } from "@/domain/projects/models/project";
+import { ProjectPage } from "@/domain/projects/components/project-page";
 import BaseLayout from "@/layouts/BaseLayout.astro";
 
 const { id } = Astro.params;
@@ -18,14 +16,5 @@ if (!project) {
 ---
 
 <BaseLayout title={project.name} fullWidth projectName={project.name}>
-  <main class="flex h-full flex-col max-h-[calc(100vh-3.5rem)] min-h-[calc(100vh-3.5rem)]">
-    <div class="flex flex-1 overflow-hidden">
-      <div class="w-1/3 flex">
-        <ChatInterface client:load projectId={id} />
-      </div>
-      <div class="w-2/3 flex overflow-hidden">
-        <CodePreview client:load projectId={id} />
-      </div>
-    </div>
-  </main>
+  <ProjectPage client:load projectId={id} initialPrompt={project.initialPrompt} />
 </BaseLayout>

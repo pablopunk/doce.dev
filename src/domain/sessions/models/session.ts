@@ -122,6 +122,26 @@ export class Session {
 		logger.info(`Aborted OpenCode session ${sessionId}`);
 	}
 
+	static async getStatus(
+		projectId: string,
+		sessionId: string,
+	): Promise<{ status: string }> {
+		const client = await getProjectOpencodeClient(projectId);
+		const result: any = await client.session.get({
+			path: { id: sessionId },
+		});
+		const data = result?.data ?? result;
+		const error = result?.error;
+
+		if (error || !data) {
+			logger.error("Failed to get session status", error as any);
+			throw new Error("Failed to get session status");
+		}
+
+		// Session info contains status field
+		return { status: data.info?.status || "unknown" };
+	}
+
 	static async getMessages(
 		projectId: string,
 		sessionId: string,

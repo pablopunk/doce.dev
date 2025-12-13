@@ -11,6 +11,7 @@ export const server = {
 	/**
 	 * Get chat history for a project.
 	 * Returns initial prompt even if OpenCode server isn't ready yet.
+	 * Also returns hasExistingSession to indicate if the project has been generated before.
 	 */
 	getHistory: defineAction({
 		input: z.object({
@@ -25,21 +26,26 @@ export const server = {
 				});
 			}
 
+			const conversation = Conversation.getByProjectId(projectId);
+			// If there's an opencodeSessionId, this project has been generated before
+			const hasExistingSession = !!conversation?.opencodeSessionId;
+
 			try {
 				const history = await Conversation.getHistory(projectId);
 				return {
 					...history,
 					initialPrompt: project.initialPrompt ?? history.initialPrompt ?? null,
+					hasExistingSession,
 				};
 			} catch (error) {
 				// If OpenCode isn't ready, return empty messages with initial prompt
 				// so the UI can display the user's request
 				console.error("Failed to get chat history:", error);
-				const conversation = Conversation.getByProjectId(projectId);
 				return {
 					messages: [],
 					model: conversation?.model || DEFAULT_AI_MODEL,
 					initialPrompt: project.initialPrompt ?? null,
+					hasExistingSession,
 				};
 			}
 		},
