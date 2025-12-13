@@ -1,589 +1,102 @@
-# AGENTS.md — doce.dev
-
-> **Maintenance Note**: When updating this file, avoid listing specific counts, implementation details, or enumerations that will become outdated quickly. Instead, reference source files with `@path/to/file.ts` notation.
-
-## Overview
-Self-hosted AI website builder: Astro 5 + React islands + Tailwind v4 + TypeScript + SQLite + Docker.
-
-**Stack**: Astro (Node adapter) • Drizzle ORM (w/ local sqlite) • OpenCode SDK • Docker
-
-**Run**: `pnpm install && pnpm run dev` → http://localhost:4321
-
-**Environment**: Variables defined in `.env` (gitignored). See @src/lib/env.ts for schema and defaults:
-- `DOCKER_HOST` - Docker socket path (default: `/var/run/docker.sock`)
-- `DATA_PATH` - Data directory for DB and projects (default: `./data`)
-
-**Setup**: `/setup` → create admin user → configure AI provider (keys in DB, not env vars)
-
-## 🎨 Design System
-
-**Pure B&W**: Monochromatic design with inverted light/dark modes. Light/Dark/System toggle in TopNav (localStorage + system preference).
-
-**Typography**:
-- `font-sans` → Geist variable font (100-900 weight)
-- `font-mono` → Geist Mono variable font (for code)
-
-**Color System** (defined in `src/styles/global.css`):
-
-**Background Layers** (elevation hierarchy, darkest to lightest):
-- `bg-bg` → Page background
-- `bg-surface` → Cards, panels
-- `bg-raised` → Elevated surfaces, inputs
-- `bg-cta` → Primary buttons, CTAs (inverted: darkest in dark mode, lightest in light mode)
-
-**Text Hierarchy**:
-- `text-strong` → Headings, emphasis (highest contrast)
-- `text-fg` → Default body text
-- `text-muted` → Secondary text, captions
-
-**Borders & Accents**:
-- `border-border` → Standard borders
-
-**Semantic Colors**:
-- `warning` → Yellow alerts
-- `danger` → Red errors/destructive actions
-
-**Available Utilities**:
-- Backgrounds: `bg-{bg|surface|raised|cta|warning|danger}`
-- Text: `text-{strong|fg|muted|warning|danger}`
-- Borders: `border-{border|strong|danger}`
-- Rings: `ring-{strong|danger}`
-
-**Design Patterns**:
-- Default button: `bg-cta text-strong border border-border`
-- Card: `bg-surface text-fg`
-- Input: `bg-raised text-fg border border-border`
-- Scale-on-press buttons: `active:scale-[0.98]`
-- Hover brightness: `hover:brightness-110`
-
-**IMPORTANT**: NO `dark:` classes allowed. All colors automatically adapt via CSS variables in `.dark` and `.light` classes.
-
-**Theme Hook**: `src/hooks/use-theme.ts`
-
-## 🏗️ Architecture (MCA Pattern)
-
-**Flow**: Component → Action → Model → DB Provider
-
-**Pattern**: MCA (Model-Component-Actions) with provider abstraction for infrastructure.
-
-**Structure**:
-```
-src/
-├── domain/{feature}/        # Business features (MCA pattern)
-│   ├── models/              # Business logic + DB interaction
-│   ├── actions/             # Server-side Astro actions
-│   ├── components/          # React UI components
-│   ├── hooks/               # Domain-specific React hooks (optional)
-│   └── lib/                 # Domain-specific utilities (optional)
-├── lib/                     # Infrastructure providers
-│   ├── db/                  # Database abstraction layer
-│   ├── logger/              # Logger abstraction layer
-│   ├── docker/              # Docker utilities
-│   └── file-system.ts       # File operations
-├── actions/
-│   └── index.ts             # Re-exports all domain actions
-├── components/
-│   ├── ui/                  # shadcn components (shared)
-│   └── [shared].tsx         # Global shared components
-├── hooks/                   # Global hooks (theme, mobile, toast)
-├── layouts/                 # Astro layouts
-└── pages/                   # Astro pages + API routes
-```
-
-**Domains**:
-- `projects/` - Project CRUD, preview, deployment, file management
-- `llms/` - AI model configuration, API key management
-- `conversations/` - Chat history, messages (synced from OpenCode sessions)
-- `sessions/` - OpenCode session management, AI interactions
-- `auth/` - User management, setup wizard
-- `system/` - System stats, deployments, admin operations
-
-**Frontend**: `layouts/` (BaseLayout.astro) → `pages/` (.astro pages) → `components/` (.tsx React + ui/ shadcn)
-
-**API**: Astro Actions for all server operations. API routes (`pages/api/`) are ONLY for special cases where Actions are insufficient (streaming responses, SSE, etc.):
-- Session Events: @src/pages/api/sessions/[projectId]/events.ts (Server-Sent Events for OpenCode session updates)
-- Logs: @src/pages/api/projects/[id]/logs.ts (Server-Sent Events for Docker logs)
-
-## 💡 Adding a New Feature
-
-### MCA Pattern (Recommended)
-
-For features with business logic, follow the MCA pattern:
-
-**1. Model**: Create `domain/my-feature/models/my-feature.ts`
-```typescript
-import * as db from "@/lib/db";
-
-export interface MyFeatureData {
-  id: string;
-  name: string;
-}
-
-export class MyFeature {
-  static async getAll(): Promise<MyFeatureData[]> {
-    // Call DB provider functions
-    return db.myFeature.getAll() as MyFeatureData[];
-  }
-
-  static async create(name: string): Promise<MyFeatureData> {
-    return db.myFeature.create(name) as MyFeatureData;
-  }
-}
-```
-
-**2. Actions**: Create `domain/my-feature/actions/my-feature-actions.ts`
-```typescript
-import { defineAction, ActionError } from "astro:actions";
-import { z } from "astro:schema";
-import { MyFeature } from "@/domain/my-feature/models/my-feature";
-
-export const server = {
-  getAll: defineAction({
-    handler: async () => {
-      const items = await MyFeature.getAll();
-      return items;
-    },
-  }),
-
-  create: defineAction({
-    input: z.object({ name: z.string() }),
-    handler: async ({ name }) => {
-      const item = await MyFeature.create(name);
-      return item;
-    },
-  }),
-};
-```
-
-**3. Component**: Create `domain/my-feature/components/my-feature-list.tsx`
-```typescript
-import { actions } from "astro:actions";
-
-export function MyFeatureList() {
-  const handleCreate = async () => {
-    const { data, error } = await actions.myFeature.create({ name: "Test" });
-    if (error) {
-      console.error(error.code, error.message);
-      return;
-    }
-    console.log(data);
-  };
-  // ...
-}
-```
-
-**4. Export**: Update `src/actions/index.ts`
-```typescript
-import { server as myFeatureActions } from "@/domain/my-feature/actions/my-feature-actions";
-
-export const server = {
-  // ... existing
-  myFeature: myFeatureActions,
-};
-```
-
-**5. Page**: Create `pages/my-feature.astro`
-```astro
----
-import { MyFeatureList } from "@/domain/my-feature/components/my-feature-list";
-import BaseLayout from "@/layouts/BaseLayout.astro";
----
-
-<BaseLayout title="My Feature">
-  <MyFeatureList client:load />
-</BaseLayout>
-```
-
-### Domain Structure Details
-
-**models/** - Business logic and data access
-- Define interfaces/types
-- Create model classes with static methods
-- Call DB provider functions (`@/lib/db`)
-- Keep functions small (<20 lines)
-
-**actions/** - Server-side Astro actions
-- Define with `defineAction()` and Zod validation
-- Call model methods (NOT DB directly)
-- Use `ActionError` for errors
-- Export as `export const server = {...}`
-
-**components/** - React UI components
-- Import `actions` from `astro:actions`
-- Use shadcn/ui components from `@/components/ui/`
-- Require hydration directives in Astro pages (e.g., `client:load`)
-
-**hooks/** - Domain-specific React hooks (optional)
-- Custom hooks for domain state management
-- Example: `use-project-lifecycle.ts`
-
-**lib/** - Domain-specific utilities (optional)
-- Helper functions specific to the domain
-- Example: `projects/lib/code-generator.tsx`
-
-### Astro Hydration Directives
-
-React components in Astro pages require hydration directives to run on the client:
-
-- `client:load` - Hydrate immediately on page load (use for interactive components)
-- `client:idle` - Hydrate when main thread is idle (use for non-critical interactivity)
-- `client:visible` - Hydrate when component scrolled into viewport (use for below-fold content)
-- `client:only` - Skip SSR, render only on client (use for browser-only code)
-
-**Note**: Do NOT use `"use client"` directive (that's Next.js, not needed in Astro)
-
-## Rules
-
-**DO**:
-- Organize by domain (feature) • Small functions (<20 lines) • Type-safe
-- Models call DB provider • Actions call models • Components call actions
-- Use Drizzle ORM for data access • Keep business logic in domain models
-- Use Astro Actions for server functions • Zod schemas for validation
-- Use BaseLayout • React components with `client:load` • Import `actions` from `astro:actions`
-
-**DON'T**:
-- Direct DB access from actions • Business logic in DB provider or actions
-- Skip the model layer • Put business logic in DB provider
-- `innerHTML` or string DOM manipulation
-- Duplicate HTML • Full pages in `.astro` without layouts
-- Use `fetch()` for internal APIs (use Actions instead)
-- Create API routes for non-streaming endpoints (use Actions)
-
-## Data & Infrastructure
-
-**DB Provider** (`src/lib/db/`) - **Using Drizzle ORM**:
-- **Schema**: `src/lib/db/providers/drizzle/schema.ts` - Pure schema definitions (no business logic)
-- **DB Instance**: `src/lib/db/providers/drizzle/db.ts` - Drizzle instance + SQLite connection
-- **CRUD Operations**: `src/lib/db/providers/drizzle/tables/*.ts` - Clean operations, one file per model
-- **API**: `src/lib/db/index.ts` - Exports namespaced operations + backward compat wrappers
-- **Tables**: `config`, `users`, `projects`, `conversations`, `messages`, `files`, `deployments`
-- **Access from models**: `import * as db from "@/lib/db"` then call `db.projects.getById()`, `db.files.upsert()`, etc.
-- **Type Safety**: Full TypeScript types exported from schema (`User`, `Project`, `NewProject`, etc.)
-- **Migrations**: Managed by Drizzle Kit (see below)
-- **Config**: `drizzle.config.ts` at project root
-
-**Database Migrations** (Drizzle Kit):
-- **Development**: `pnpm db:push` - Direct schema sync, no migration files (rapid prototyping)
-- **Production Workflow**:
-  1. Make schema changes in `src/lib/db/providers/drizzle/schema.ts`
-  2. Run `pnpm db:generate` locally (creates migration SQL files in `/drizzle`)
-  3. Commit migration files to git
-  4. Deploy: `pnpm deploy` (auto-generates migrations if needed, applies them, builds, previews)
-- **Pull from DB**: `pnpm db:pull` - Generate TypeScript schema from existing database
-- **Studio**: `pnpm db:studio` - Visual database browser at https://local.drizzle.studio
-- **Migration files**: Stored in `/drizzle` folder (auto-generated, version-controlled)
-- **History tracking**: Drizzle maintains `__drizzle_migrations` table automatically
-- **Commands**:
-  - `db:push` - Best for development, pushes schema changes directly to DB
-  - `db:generate` - Generates SQL migration files from schema changes
-  - `db:migrate` - Applies pending migrations to database
-  - `db:pull` - Introspects database and generates schema.ts
-  - `db:studio` - Opens Drizzle Studio for visual DB management
-  - `deploy` - Production deployment: generate migrations → apply → build → preview
-
-**Config**: `ai_provider`, `{provider}_api_key`, `default_ai_model`, `setup_complete` (stored in DB via `db.config` operations)
-
-**Files**: Mirrored in DB + filesystem • Use `writeProjectFiles`/`listProjectFiles` (`src/lib/file-system.ts`)
-
-**Docker**:
-- **Preview**: `doce-preview-{projectId}` on random ports 10000-20000
-- **Deployment**: `doce-deploy-{projectId}`
-- **Port Allocation**: Random selection from range (see @src/lib/docker.ts `findAvailablePort()`)
-- **Constants**: @src/lib/docker/constants.ts
-- **Source of Truth**: Docker state is authoritative; DB `preview_url` is cache (see @src/lib/docker.ts `getPreviewState()`)
-
-**AI Models**:
-- **Available Models**: See @src/domain/llms/models/ai-models.ts for all supported models
-- **Configuration**: Managed by @src/domain/llms/models/llm-config.ts
-- **Icons**: Provider logos in @src/components/ui/svgs/
-
-**Logger Provider** (`src/lib/logger/`):
-- **Location**: `src/lib/logger/providers/pino.ts`
-- **API**: `src/lib/logger/index.ts`
-- **Usage**: `import { createLogger } from "@/lib/logger"` then `const logger = createLogger("namespace")`
-
-**Code Gen & Templates**:
-- **Template System**: @templates/ contains the unified astro-starter template system
-  - `AGENTS.md` - Framework-independent rules for ALL generated projects
-  - `astro-starter/AGENTS.md` - Base Astro 5 + UI template (TypeScript, SEO, file-based routing, semantic UI components)
-  - `components.json` - shadcn-style UI configuration baked into astro-starter
-- **Generation Flow**:
-  1. Copy `astro-starter` template to project
-  2. Copy base shadcn components (button, card, input, label, utils) to `src/components/ui/`
-  3. AI reads templates/AGENTS.md + astro-starter/AGENTS.md + shadcn-tailwind/AGENTS.md
-  4. AI generates pages in `src/pages/`
-  5. AI adds components on-demand: `pnpm dlx shadcn@latest add [component]`
-  6. AI sets up Astro Actions for server logic
-  7. AI configures plain SQLite if persistence needed
-- **Prompt Builder**: @src/domain/projects/lib/prompt-builder.ts assembles complete AI prompt
-- **Template Generator**: @src/domain/projects/lib/template-generator.tsx copies templates + design system
-- **Parser**: @src/domain/projects/lib/code-generator.tsx (tries JSON first, then extracts code blocks)
-- **File Operations**: @src/lib/file-system.ts (writes files to disk + DB)
-- **CRITICAL Rules**:
-  - Always generate `src/pages/index.astro` as complete page with full HTML
-  - Use semantic colors (`bg-surface`, `text-fg`, `border-border`) - NO `dark:` classes
-  - Use `pnpm` for all operations (NOT npm or yarn)
-  - Add shadcn components via CLI: `pnpm dlx shadcn@latest add [component]`
-  - Use Astro Actions for server logic (NOT API routes unless streaming)
-  - Use plain SQLite with better-sqlite3 for persistence (NOT Drizzle in generated projects)
-
-## 🎯 Template System (AI Project Generation)
-
-### Architecture
-
-The template system uses a **single, unified approach** where:
-- **Base template** (`astro-starter`) provides Astro 5 setup plus built-in semantic UI components and Tailwind v4 configuration
-- **Global rules** (`GLOBAL_RULES.md`) define framework requirements for ALL projects
-- **AI agent** orchestrates generation using tools (writeFile, runCommand, etc.)
-
-### Template Structure
-
-```
-templates/
-├── AGENTS.md                    # Framework rules (pnpm, Tailwind v4, Astro Actions, SQLite)
-├── astro-starter/               # Minimal Astro 5 base
-│   ├── AGENTS.md                # Template-specific guidelines
-│   ├── components.json          # shadcn CLI config
-│   ├── src/
-│   │   ├── pages/
-│   │   ├── layouts/
-│   │   └── components/
-│   └── package.json
-└── design-systems/
-    └── shadcn-tailwind/
-        ├── AGENTS.md            # Design system docs
-        ├── components/          # 5 base components (button, card, input, label, utils)
-        └── styles/              # global.css with semantic colors
-```
-
-### Generation Workflow
-
-1. **User creates project** with prompt (e.g., "Build me a todo app")
-2. **Template generator** copies the astro-starter template (which already includes base UI components and styles)
-3. **Prompt builder** loads:
-   - templates/AGENTS.md (framework requirements)
-   - astro-starter/AGENTS.md (template specifics, including UI usage and customization)
-4. **AI agent receives** complete prompt via @src/pages/api/chat/[projectId].ts
-5. **AI generates** pages, components, actions using tools:
-   - `writeFile` - Create/update files
-   - `runCommand` - Install deps, add shadcn components, run builds
-   - `listFiles` - Inspect project structure
-   - `readFile` - Read existing files
-6. **Result**: Working project with styled UI, server logic, and optional persistence
-
-### Key Files
-
-- **Prompt Builder**: @src/domain/projects/lib/prompt-builder.ts
-  - `loadGlobalRules()` - Framework rules
-  - `loadStarterAgentsFile()` - Template docs (including UI usage/customization)
-- **Template Generator**: @src/domain/projects/lib/template-generator.tsx
-  - Copies the astro-starter template files (which already include UI components and styles)
-- **Code Generator**: @src/domain/projects/lib/code-generator.tsx
-  - Parses AI responses (JSON or code blocks)
-  - Writes files via file-system.ts
-
-### Design System (shadcn/ui)
-
-**Base Components** (included in every project under `src/components/ui/`):
-- `button.tsx` - Button with variants (default, outline, ghost, destructive, link)
-- `card.tsx` - Card container (Header, Title, Description, Content, Footer)
-- `input.tsx` - Text input field
-- `textarea.tsx` - Multiline text input
-- `label.tsx` - Form label
-- `badge.tsx` - Small status/lozenge indicator
-- `alert.tsx` - Inline alert/notification container
-- `utils.ts` - cn() utility for className merging
-
-**On-Demand Components** (via CLI):
-```bash
-pnpm dlx shadcn@latest add dialog dropdown-menu select
-```
-
-**Color Token Mapping** (shadcn → doce.dev semantic):
-- `bg-background` → `bg-bg` (page background)
-- `bg-card` → `bg-surface` (cards, panels)
-- `bg-primary` → `bg-cta` (primary buttons)
-- `text-foreground` → `text-fg` (default text)
-- `text-muted-foreground` → `text-muted` (secondary text)
-- `border` → `border-border` (borders)
-
-### templates/AGENTS.md
-
-All generated projects MUST follow these rules (enforced via AI prompt):
-
-**Framework Stack**:
-- Astro 5 (file-based routing, static by default)
-- TypeScript (required)
-- Tailwind CSS v4 (NO `dark:` classes, semantic colors only)
-- pnpm (NOT npm or yarn)
-
-**Server Logic**:
-- Astro Actions for all server operations
-- API routes ONLY for streaming (SSE, AI responses)
-
-**Persistence**:
-- Plain SQLite with better-sqlite3 (NOT Drizzle ORM in generated projects)
-- Simple wrapper in `src/lib/db.ts`
-
-**Styling**:
-- Semantic color tokens automatically adapt to light/dark mode
-- Use `@theme` directive (not `:root`) for Tailwind v4
-- NO `dark:` classes anywhere in generated code
-
-**Component Usage**:
-- Base components already included in `src/components/ui/`
-- Add more via shadcn CLI as needed
-- All components use semantic color system
-
-### Testing Generated Projects
-
-```bash
-# Navigate to generated project
-cd data/projects/{projectId}
-
-# Install dependencies
-pnpm install
-
-# Add shadcn component (if needed)
-pnpm dlx shadcn@latest add dialog
-
-# Run dev server
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Type check
-pnpm type-check
-```
-
-## Middleware
-
-**Location**: @src/middleware.ts
-
-**Purpose**: Astro middleware that runs on every request:
-- Redirects to `/setup` if setup is not complete
-- Logs all Astro Action errors for debugging (400+ status codes)
-- Allows `/setup` routes to bypass authentication
-
-**Docs**: https://docs.astro.build/en/guides/middleware/
-
-## Actions Structure
-
-**Main Export**: `src/actions/index.ts` re-exports all domain actions
-
-**Current Actions**:
-- `actions.projects.*` - Project operations (see @src/domain/projects/actions/project-actions.ts)
-- `actions.config.*` - AI configuration (see @src/domain/llms/actions/llm-actions.ts)
-- `actions.chat.*` - Chat history operations (see @src/domain/conversations/actions/conversation-actions.ts)
-- `actions.sessions.*` - OpenCode session management (see @src/domain/sessions/actions/session-actions.ts)
-- `actions.setup.*` - Setup wizard (see @src/domain/auth/actions/auth-actions.ts)
-- `actions.deployments.*` - Deployment management (see @src/domain/system/actions/system-actions.ts)
-- `actions.stats.*` - System statistics (see @src/domain/system/actions/system-actions.ts)
-- `actions.admin.*` - Admin operations (see @src/domain/system/actions/system-actions.ts)
-
-All actions exported via @src/actions/index.ts
-
-**Why Actions?**
-- ✅ **Type-safe**: Full TypeScript from server to client
-- ✅ **Validated**: Automatic Zod validation on all inputs
-- ✅ **Standardized**: ActionError with codes (NOT_FOUND, BAD_REQUEST, UNAUTHORIZED, etc.)
-- ✅ **Debuggable**: HTTP access at `/_actions/{module}.{action}` for testing
-- ✅ **Simple**: No manual JSON parsing, no fetch boilerplate
-
-**Streaming Endpoints** (use API routes, not Actions):
-- `src/pages/api/projects/[id]/logs.ts` - Server-Sent Events for Docker logs
-- `src/pages/api/sessions/[projectId]/events.ts` - Server-Sent Events for OpenCode session updates
-
-Actions don't support streaming responses - use traditional API routes for SSE/streaming.
-
-## OpenCode Integration
-
-**Architecture**: Chat interface is a view layer that connects to OpenCode server sessions. All AI interactions, tool calling, and file operations are handled by OpenCode SDK.
-
-**OpenCode Server** (`src/lib/opencode/`):
-- Singleton server instance started on app init
-- Runs on http://127.0.0.1:4096
-- API keys synced from DB to OpenCode auth
-- Each project maps to an OpenCode session
-
-**Session Flow**:
-1. User sends message via ChatInterface
-2. `actions.sessions.sendMessage()` called
-3. Creates/gets OpenCode session for project
-4. Sends prompt to OpenCode via SDK
-5. OpenCode handles tool calling (file read/write, commands, etc.)
-6. Session events streamed via SSE to `/api/sessions/[projectId]/events`
-7. Messages synced back to local DB for persistence
-8. UI updates via SSE, remains in sync on page refresh
-
-**Key Files**:
-- **Server**: @src/lib/opencode/index.ts - OpenCode server management + auth sync
-- **Startup**: @src/lib/startup.ts - Initialize OpenCode server on app start
-- **Session Model**: @src/domain/sessions/models/session.ts - Session CRUD + prompt sending
-- **Session Actions**: @src/domain/sessions/actions/session-actions.ts - Astro actions for sessions
-- **SSE Endpoint**: @src/pages/api/sessions/[projectId]/events.ts - Real-time session updates
-- **Chat UI**: @src/domain/conversations/components/chat-interface.tsx - React interface
-
-## Debugging
-
-**MCP Chrome DevTools Testing**:
-- When the MCP `chrome-devtools` tool is available, you may run `pnpm dev` and attach through that tool to browse the UI like an end user.
-- Use this to click through flows, inspect console/network output, and verify fixes interactively before finishing a task.
-- Stop the dev server once validation is done so the port is freed for other work.
-
-**DB**: `sqlite3 ./data/doce.db "SELECT id, name, preview_url FROM projects;"`
-
-**Docker**:
-- `docker ps --filter "name=doce-preview"`
-- `docker logs doce-preview-{id} --tail 50`
-
-**Actions**:
-```bash
-curl -X POST http://localhost:4321/_actions/projects.getProjects \
-  -H "Content-Type: application/json" -d '{}'
-```
-
-**API Routes**: Only for streaming
-- Logs: `src/pages/api/projects/[id]/logs.ts`
-- Chat: `src/pages/api/chat/[projectId].ts`
-
-**Common Issues**:
-- **Preview not starting** → Check Docker logs, verify `preview_url` in DB
-- **Build fails** → Check import paths (`@/domain/...` not `@/domains/...`)
-- **Actions fail** → Check `src/actions/index.ts` exports all domain actions
-- **TypeScript errors** → Model types must match DB schema (snake_case)
-
-## Guidelines
-
-**Development**:
-- Use **pnpm** for package management
-- Run `pnpm format` to format code with Biome
-- Run `pnpm build` frequently to catch errors
-- Run `pnpm type-check` to catch type errors
-- Follow MCA pattern for all new features
-- Keep functions small (<20 lines) and focused
-
-**Database**:
-- Schema defined in @src/lib/db/providers/drizzle/schema.ts
-- Migrations managed by Drizzle Kit (see Database Migrations section)
-- Access via model layer, not directly from actions
-
-**AI Models**:
-- Add new models to @src/domain/llms/models/ai-models.ts
-- **Icons**: UI uses `lucide-react` for interface icons. Provider logos in @src/components/ui/svgs/ (manually added SVG components)
-
-**Testing**:
-- Actions: `curl -X POST http://localhost:4321/_actions/{domain}.{action} -H "Content-Type: application/json" -d '{}'`
-- Docker: Always check Docker state first (source of truth)
-- Database: `sqlite3 ./data/doce.db` for direct queries
-
-**Best Practices**:
-- Use Actions, not fetch: `actions.projects.getProjects()` not `fetch('/api/projects')`
-- Components in domain folders, not global `components/`
-- Shared UI components in `components/ui/` only
-- Provider abstraction for infrastructure (DB, Logger, Docker)
-
----
-
-**Architecture**: MCA (Model-Component-Actions) pattern with provider abstraction. All new features follow domain organization.
+# doce.dev
+
+> Delicious Open Code Environments
+
+## About this project
+
+This project aims to provide a web UI that's easily self-hosted so users can build and deploy their own websites using AI agents.
+
+It's basically a UI on top of the opencode SDK. Users can create a project with a prompt that describe their website, and that will:
+
+* Create a new project in the DB
+* Spin up a docker container with pnpm/node/opencode installed
+* Run the opencode server on the docker container
+* Connect to the opencode server and start the agent with the initial prompt, which should bootstrap the website
+* Our UI should basically be a split between a chat interface on the left and the web preview on the right
+* Since our chat is just a UI for the opencode server, it will always be on-par with opencode features, with tool calls, subagents, etc
+* User can keep sending messages to interact with the opencode agent, asking to modify the website or whatever they want
+
+## Rules for agentic development
+
+* Always use the tool `context7` to get appropiate documentation for every part of the stack you're working on
+* When asked to manually test something in the browser/UI, you can use the tool `chrome-devtools` to navigate pages and debug logs/network requests
+* When possible, split task into smaller To Dos so they can be tackled by subagents
+* Always read @AGENTS.md and update it when it's needed, either one adding new features/architecture that make it incomplete or when modifying existing ones that make it outdated
+* All code modifications/additions should adhere to clean code principles defined below
+* Always use `pnpm` for everything, never `npm` nor `yarn` nor `bun`
+* When debugging problems, be proactive (with read-only actions please), i.e. you can always get more info running DB queries yourself, checking docker logs from the CLI, running the server yourself in the background piping the logs to a file... Be creative, without making destructive operations just for debugging.
+
+## Clean code
+
+* Separate domains with folders. Nest as much as you want/need.
+* Use abstractions for everything that's not in the domain of the file you're working on.
+* Functions should have one purpose only, and have as few lines as possible. When performing complex operations, or just several actions, break them into smaller functions. Again, nest as much as you want.
+* Function code should declare what it's doing, instead of how it's doing it, i.e. a function that calls 10 smaller functions in a row is more readable than a function that does 10 things with simple logic.
+* Files should have one clear purpose, defined by the name of the file.
+* Avoid complex UI components, always break them into smaller components, in nested folders if needed.
+* Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
+
+## Architecture (check context7 for more details on each component)
+
+* pnpm
+* typescript
+* astro v5 for the framework
+  * use astro actions for server-side operations, like CRUD, api calls, etc
+  * use astro pages for the UI
+  * use react for the UI components
+  * use layouts as top-level components so each page should be inside a layout
+* shadcn/ui is the main UI framework:
+  * choose CSS Variables instead of utility classes
+  * use their components whenever you can
+  * use their icons whenever you can
+  * all
+* tailwindcss for styling
+  * v4 without any config in js
+* drizzle for the database ORM
+  * use sqlite with a file both for dev and production
+  * abstract everything db-related into model files, i.e. each model (e.g. User or Project) should have its own file with all the operations
+  * handle migrations and bootstrapping a new db
+* pino for logging. Use it for development and production
+* zod for validation
+
+## UI Overview
+
+* Setup (first time, admin user creation and openrouter API key setup)
+* Navbar
+  * Logo
+  * Dark/Light mode toggle
+  * Settings
+* Dashboard
+  * Prompt input to create a new project
+    * Model selector from opencode's models
+  * Projects grid
+* Project
+  * Chat UI (opencode frontend)
+    * Shows all history, including messages and tool calls (in a compact way)
+    * Shows opencode's To Do list
+    * Allows sending messages and images to opencode
+  * Preview UI
+    * Shows the website preview, which is just a `pnpm run dev` server inside the project's docker container
+    * Shows the website's URL
+    * Terminal dock on the bottom. Logs from the docker container are streamed via SSE.
+* Settings
+  * Openrouter API key
+  * Default model
+  * Delete all projects
+
+## Other features
+
+* Use openrouter for all models. For now we'll just list these for the initial prompt and the chat UI:
+  * `openai/gpt-5.2` (openai's top model)
+  * `openai/gpt-4.1-mini` (openai's fastest model)
+  * `anthropic/claude-opus-4.5` (anthropic's top model)
+  * `anthropic/claude-haiku-4.5` (anthropic's fastest model)
+  * `google/gemini-3-pro` (google's top model)
+  * `google/gemini-2.5-flash` (google's fastest model)
+* Projects are automatically named with AI, with a quick model that uses the prompt to generate a small name
+* For small operations (like naming project, and future AI-led things), use a fast model like `google/gemini-2.5-flash`
+* Projects are deleted from the grid optimistically
+* Even though we use astro actions for everything, we'll use astro's API routes for other stuff like streaming and SSE
+* There should be a data/ directory containing the db file and all projects (in folders)
+* Projects are just folders with a docker-compose.yml that exposes PWD and exposes the development port
+* Since we can have several projects running at the same time, all exposed ports should be different/random, but persisted

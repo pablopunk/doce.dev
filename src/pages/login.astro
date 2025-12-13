@@ -1,0 +1,52 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { actions } from "astro:actions";
+
+const result = Astro.getActionResult(actions.auth.login);
+
+if (result?.data?.success) {
+  return Astro.redirect("/");
+}
+---
+
+<AppLayout title="Login">
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <Card className="w-full max-w-md">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">doce.dev</CardTitle>
+        <CardDescription>
+          Enter your password to continue.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form method="POST" action={actions.auth.login} class="space-y-4">
+          {result?.error && (
+            <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {result.error.message}
+            </div>
+          )}
+
+          <div class="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Enter your password"
+              required
+              autoFocus
+            />
+          </div>
+
+          <Button type="submit" className="w-full">
+            Login
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  </main>
+</AppLayout>

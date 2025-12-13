@@ -1,7 +1,0 @@
-.pnpm-store
-node_modules
-dist
-.output
-.DS_Store
-.astro
-.next

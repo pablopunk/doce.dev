@@ -1,0 +1,112 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { actions } from "astro:actions";
+import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/settings/openrouter";
+
+const result = Astro.getActionResult(actions.setup.createAdmin);
+
+if (result?.data?.success) {
+	return Astro.redirect("/");
+}
+---
+
+<AppLayout title="Setup">
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <Card className="w-full max-w-md">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">Welcome to doce.dev</CardTitle>
+        <CardDescription>
+          Set up your admin account and OpenRouter API key to get started.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form method="POST" action={actions.setup.createAdmin} class="space-y-4">
+          {result?.error && (
+            <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {result.error.message}
+            </div>
+          )}
+
+          <div class="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Enter a secure password"
+              required
+            />
+            <p class="text-xs text-muted-foreground">
+              Minimum 8 characters
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              placeholder="Confirm your password"
+              required
+            />
+          </div>
+
+          <div class="space-y-2">
+            <Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
+            <Input
+              id="openrouterApiKey"
+              name="openrouterApiKey"
+              type="password"
+              placeholder="sk-or-..."
+              required
+            />
+            <p class="text-xs text-muted-foreground">
+              Get your API key from{" "}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-primary underline"
+              >
+                openrouter.ai/keys
+              </a>
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Label htmlFor="defaultModel">Default Model</Label>
+            <select
+              id="defaultModel"
+              name="defaultModel"
+              class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {AVAILABLE_MODELS.map((model) => (
+                <option
+                  value={model.id}
+                  selected={model.id === DEFAULT_MODEL}
+                >
+                  {model.name} ({model.provider}) - {model.tier === "top" ? "Top Tier" : "Fast"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button type="submit" className="w-full">
+            Create Admin Account
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  </main>
+</AppLayout>

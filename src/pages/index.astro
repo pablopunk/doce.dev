@@ -1,3 +1,60 @@
 ---
-return Astro.redirect("/dashboard");
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Settings, Plus } from "lucide-react";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
 ---
+
+<AppLayout title="Dashboard">
+  <main class="container mx-auto p-8">
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold">doce.dev</h1>
+        <p class="text-muted-foreground">Delicious Open Code Environments</p>
+      </div>
+      <a href="/settings">
+        <Button variant="ghost" size="icon">
+          <Settings className="h-5 w-5" />
+        </Button>
+      </a>
+    </div>
+
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle>Create a new project</CardTitle>
+        <CardDescription>
+          Describe your website and let AI build it for you.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form class="flex gap-4">
+          <input
+            type="text"
+            name="prompt"
+            placeholder="A landing page for my SaaS product..."
+            class="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <Button type="submit" disabled>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Project
+          </Button>
+        </form>
+        <p class="mt-2 text-xs text-muted-foreground">
+          Project creation coming in M1. Complete auth setup is done!
+        </p>
+      </CardContent>
+    </Card>
+
+    <div>
+      <h2 class="mb-4 text-xl font-semibold">Your Projects</h2>
+      <div class="rounded-lg border border-dashed border-muted-foreground/25 p-8 text-center">
+        <p class="text-muted-foreground">No projects yet. Create one above to get started!</p>
+      </div>
+    </div>
+  </main>
+</AppLayout>
