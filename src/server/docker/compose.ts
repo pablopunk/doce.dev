@@ -1,7 +1,7 @@
 import { spawn, execSync } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { appendToLogFile, writeHostMarker } from "./logs";
+import { appendToLogFile, writeHostMarker, captureContainerLogs } from "./logs";
 
 // Cache the detected compose command
 let composeCommand: string[] | null = null;
@@ -133,6 +133,13 @@ export async function composeUp(
     await appendToLogFile(logsDir, result.stderr);
   }
   await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+
+  // Capture container logs (e.g., pnpm dev output) after containers start
+  if (result.success) {
+    // Wait a bit for containers to start outputting logs
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await captureContainerLogs(projectId, projectPath);
+  }
 
   return result;
 }

@@ -1,6 +1,6 @@
 import { logger } from "@/server/logger";
 import { composeUp, composeDown } from "@/server/docker/compose";
-import { writeHostMarker } from "@/server/docker/logs";
+import { writeHostMarker, captureContainerLogs } from "@/server/docker/logs";
 import {
   getProjectById,
   updateProjectStatus,
@@ -26,6 +26,8 @@ export interface ProjectPresence {
   viewers: Map<string, number>; // viewerId -> lastSeenAt
   stopAt?: number; // Scheduled stop time
   startedAt?: number; // When we started the starting process
+  lastLogCapture?: number; // When we last captured container logs
+  logCaptureInterval?: ReturnType<typeof setInterval>; // Interval for capturing logs
   isStarting: boolean;
   isStopping: boolean;
   isDeleting: boolean;
@@ -186,11 +188,21 @@ export async function handlePresenceHeartbeat(
     // Cancel any scheduled stop
     delete presence.stopAt;
 
-    // Check current health
-    const [previewReady, opencodeReady] = await Promise.all([
-      checkPreviewReady(project.devPort),
-      checkOpencodeReady(project.opencodePort),
-    ]);
+     // Check current health and periodically capture container logs
+     const [previewReady, opencodeReady] = await Promise.all([
+       checkPreviewReady(project.devPort),
+       checkOpencodeReady(project.opencodePort),
+     ]);
+
+     // Periodically capture container logs (every 5 seconds) when starting or running
+     const now = Date.now();
+     const lastCapture = presence.lastLogCapture ?? 0;
+     if (now - lastCapture > 5000 && (presence.isStarting || project.status === "running")) {
+       presence.lastLogCapture = now;
+       captureContainerLogs(projectId, project.pathOnDisk).catch((err) => {
+         logger.debug({ error: err, projectId }, "Failed to capture container logs");
+       });
+     }
 
     // Reconcile status based on health checks
     let status = project.status;

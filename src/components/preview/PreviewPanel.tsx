@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
+import { TerminalDock } from "@/components/terminal/TerminalDock";
 
 interface PresenceResponse {
   projectId: string;
@@ -208,38 +209,44 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 relative bg-background">
-        {state === "ready" && previewUrl ? (
-          <iframe
-            key={iframeKey}
-            src={previewUrl}
-            className="absolute inset-0 w-full h-full border-0"
-            title="Preview"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            {state === "initializing" || state === "starting" ? (
-              <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin" />
-                <p>{message || "Starting preview server..."}</p>
-              </div>
-            ) : state === "error" ? (
-              <div className="flex flex-col items-center gap-4 text-center p-4">
-                <AlertTriangle className="h-8 w-8 text-red-500" />
-                <div>
-                  <p className="font-medium text-red-500">Failed to start</p>
-                  <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                    {message || "Check the terminal for details."}
-                  </p>
+      {/* Content and Terminal */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Preview iframe */}
+        <div className="flex-1 relative bg-background">
+          {state === "ready" && previewUrl ? (
+            <iframe
+              key={iframeKey}
+              src={previewUrl}
+              className="absolute inset-0 w-full h-full border-0"
+              title="Preview"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              {state === "initializing" || state === "starting" ? (
+                <div className="flex flex-col items-center gap-4 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <p>{message || "Starting preview server..."}</p>
                 </div>
-                <Button variant="outline" onClick={handleRetry}>
-                  Try Again
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        )}
+              ) : state === "error" ? (
+                <div className="flex flex-col items-center gap-4 text-center p-4">
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <div>
+                    <p className="font-medium text-red-500">Failed to start</p>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                      {message || "Check the terminal for details."}
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={handleRetry}>
+                    Try Again
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* Terminal dock */}
+        <TerminalDock projectId={projectId} defaultOpen={false} />
       </div>
     </div>
   );

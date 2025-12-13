@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { execSync } from "node:child_process";
 import { logger } from "@/server/logger";
 
 const LOG_FILE_NAME = "docker.log";
@@ -48,6 +49,42 @@ export async function appendToLogFile(
     await fs.appendFile(getLogFilePath(logsDir), text);
   } catch (err) {
     logger.warn({ error: err, logsDir }, "Failed to append to log file");
+  }
+}
+
+/**
+ * Get container logs from the preview service and append them to the log file.
+ * This captures logs from the app container (e.g., pnpm dev output).
+ */
+export async function captureContainerLogs(
+  projectId: string,
+  projectPath: string
+): Promise<void> {
+  try {
+    const logsDir = path.join(projectPath, "logs");
+    await ensureLogsDir(logsDir);
+
+    // Get logs from docker compose preview service only
+    const projectName = `doce_${projectId}`;
+    const cmd = `docker compose --project-name ${projectName} logs --no-log-prefix preview`;
+
+    try {
+      const output = execSync(cmd, {
+        cwd: projectPath,
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      if (output && output.trim()) {
+        const timestamp = new Date().toISOString();
+        const prefix = `[app logs ${timestamp}]\n`;
+        await fs.appendFile(getLogFilePath(logsDir), prefix + output + "\n");
+      }
+    } catch (error) {
+      // Container may not be running yet, ignore
+    }
+  } catch (err) {
+    logger.debug({ error: err, projectId }, "Failed to capture container logs");
   }
 }
 

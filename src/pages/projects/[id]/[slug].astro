@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Settings } from "lucide-react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
-import { TerminalDock } from "@/components/terminal/TerminalDock";
 import { getProjectById } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
@@ -68,21 +67,16 @@ if (project.slug !== slug) {
         />
       </div>
 
-      <!-- Preview panel (right) - only shown when project is built -->
-      {project.initialPromptCompleted && (
-        <div id="preview-container" class="w-1/2 flex flex-col">
-          <div class="flex-1 overflow-hidden">
-            <PreviewPanel
-              projectId={project.id}
-              client:load
-            />
-          </div>
-        </div>
-      )}
-    </div>
-
-    <!-- Terminal dock (bottom) -->
-    <TerminalDock projectId={project.id} defaultOpen={false} client:load />
+       <!-- Preview panel (right) - only shown when project is built -->
+       {project.initialPromptCompleted && (
+         <div id="preview-container" class="w-1/2 flex flex-col">
+           <PreviewPanel
+             projectId={project.id}
+             client:load
+           />
+         </div>
+       )}
+     </div>
   </div>
 </AppLayout>
 
