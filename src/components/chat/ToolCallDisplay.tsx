@@ -38,14 +38,20 @@ export function ToolCallDisplay({
   const ToolIcon = isThinking ? Brain : Wrench;
   const displayName = isThinking ? "Thinking..." : toolCall.name;
 
+  const formatOutput = (value: unknown): string => {
+    if (typeof value === "string") {
+      return value;
+    }
+    return JSON.stringify(value, null, 2);
+  };
+
   return (
     <div className="border rounded-md overflow-hidden text-sm">
       <button
-        onClick={isThinking ? undefined : onToggle}
+        onClick={onToggle}
         className={cn(
           "w-full flex items-center gap-2 px-3 py-2 bg-muted/50 transition-colors text-left",
-          !isThinking && "hover:bg-muted cursor-pointer",
-          isThinking && "cursor-default"
+          "hover:bg-muted cursor-pointer"
         )}
       >
         <ToolIcon className={cn("h-3.5 w-3.5", isThinking ? "text-purple-500" : "text-muted-foreground")} />
@@ -55,33 +61,40 @@ export function ToolCallDisplay({
         </span>
       </button>
 
-      {isExpanded && !isThinking && (
+      {isExpanded && (
         <div className="p-3 space-y-2 text-xs">
-          {toolCall.input !== undefined && toolCall.input !== null && (
-            <div>
-              <div className="font-medium text-muted-foreground mb-1">Input:</div>
-              <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-                {JSON.stringify(toolCall.input, null, 2)}
-              </pre>
-            </div>
+          {isThinking && toolCall.output !== undefined && toolCall.output !== null && (
+            <pre className="bg-muted p-2 rounded overflow-x-auto max-h-64 whitespace-pre-wrap">
+              {formatOutput(toolCall.output)}
+            </pre>
           )}
-          {toolCall.output !== undefined && toolCall.output !== null && (
-            <div>
-              <div className="font-medium text-muted-foreground mb-1">Output:</div>
-              <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-                {typeof toolCall.output === "string"
-                  ? toolCall.output.slice(0, 500)
-                  : JSON.stringify(toolCall.output, null, 2).slice(0, 500)}
-              </pre>
-            </div>
-          )}
-          {toolCall.error !== undefined && (
-            <div>
-              <div className="font-medium text-red-500 mb-1">Error:</div>
-              <pre className="bg-red-50 dark:bg-red-950/20 p-2 rounded overflow-x-auto max-h-32 text-red-600">
-                {JSON.stringify(toolCall.error, null, 2)}
-              </pre>
-            </div>
+          {!isThinking && (
+            <>
+              {toolCall.input !== undefined && toolCall.input !== null && (
+                <div>
+                  <div className="font-medium text-muted-foreground mb-1">Input:</div>
+                  <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+                    {formatOutput(toolCall.input)}
+                  </pre>
+                </div>
+              )}
+              {toolCall.output !== undefined && toolCall.output !== null && (
+                <div>
+                  <div className="font-medium text-muted-foreground mb-1">Output:</div>
+                  <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+                    {formatOutput(toolCall.output).slice(0, 500)}
+                  </pre>
+                </div>
+              )}
+              {toolCall.error !== undefined && (
+                <div>
+                  <div className="font-medium text-red-500 mb-1">Error:</div>
+                  <pre className="bg-red-50 dark:bg-red-950/20 p-2 rounded overflow-x-auto max-h-32 text-red-600">
+                    {formatOutput(toolCall.error)}
+                  </pre>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

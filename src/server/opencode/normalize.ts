@@ -68,6 +68,7 @@ export interface NormalizationState {
   currentAssistantMessageId: string | null;
   toolCallCounter: number;
   activeToolCalls: Map<string, string>; // upstream id -> our toolCallId
+  reasoningContent: Map<string, string>; // reasoningKey -> accumulated text
 }
 
 export function createNormalizationState(): NormalizationState {
@@ -75,6 +76,7 @@ export function createNormalizationState(): NormalizationState {
     currentAssistantMessageId: null,
     toolCallCounter: 0,
     activeToolCalls: new Map(),
+    reasoningContent: new Map(),
   };
 }
 
@@ -164,6 +166,7 @@ export function normalizeEvent(
           state.toolCallCounter++;
           toolCallId = generateToolCallId(state.toolCallCounter);
           state.activeToolCalls.set(reasoningKey, toolCallId);
+          state.reasoningContent.set(reasoningKey, "");
           
           // Emit start event
           return {
@@ -177,6 +180,13 @@ export function normalizeEvent(
             } satisfies ToolStartPayload,
           };
         }
+        
+        // Accumulate reasoning text
+        if (part.text) {
+          const currentText = state.reasoningContent.get(reasoningKey) || "";
+          state.reasoningContent.set(reasoningKey, currentText + part.text);
+        }
+        
         // Reasoning updates don't need to be emitted - just the start/finish
       }
       
@@ -187,13 +197,16 @@ export function normalizeEvent(
         
         if (toolCallId) {
           state.activeToolCalls.delete(reasoningKey);
+          const reasoningText = state.reasoningContent.get(reasoningKey) || "";
+          state.reasoningContent.delete(reasoningKey);
+          
           return {
             type: "chat.tool.finish",
             projectId,
             time,
             payload: {
               toolCallId,
-              output: null,
+              output: reasoningText || null,
             } satisfies ToolFinishPayload,
           };
         }
