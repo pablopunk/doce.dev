@@ -11,6 +11,7 @@ interface PresenceResponse {
   opencodeReady: boolean;
   message: string | null;
   nextPollMs: number;
+  initialPromptCompleted?: boolean;
 }
 
 interface PreviewPanelProps {
@@ -25,6 +26,7 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isProjectBuilt, setIsProjectBuilt] = useState(false);
   const viewerIdRef = useRef<string | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +66,7 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
     (data: PresenceResponse) => {
       setPreviewUrl(data.previewUrl);
       setMessage(data.message);
+      setIsProjectBuilt(data.initialPromptCompleted ?? false);
       onStatusChange?.(data);
 
       // State machine
@@ -170,6 +173,14 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
             {state === "ready" && "Preview"}
             {state === "error" && (message || "Error")}
           </span>
+          {state === "ready" && (
+            <div className="flex items-center gap-1 ml-4 pl-4 border-l">
+              <div className={`h-2 w-2 rounded-full ${isProjectBuilt ? "bg-green-500" : "bg-red-500"}`} />
+              <span className="text-xs text-muted-foreground">
+                {isProjectBuilt ? "Built" : "Building"}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {state === "ready" && (

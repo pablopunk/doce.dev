@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { getProjectById, isProjectOwnedByUser } from "@/server/projects/projects.model";
+import {
+  getProjectById,
+  isProjectOwnedByUser,
+  markInitialPromptCompleted,
+} from "@/server/projects/projects.model";
 import {
   normalizeEvent,
   parseSSEData,
@@ -76,6 +80,41 @@ export const GET: APIRoute = async ({ params, cookies }) => {
   let isClosed = false;
   let dataBuffer = "";
 
+  // Track if we've already marked initial prompt as completed for this connection
+  let hasMarkedInitialPromptCompleted = project.initialPromptCompleted;
+
+  /**
+   * Check if the session has become idle and mark initial prompt as completed if needed.
+   * This is called server-side so it works even if client disconnects.
+   */
+  const checkInitialPromptCompletion = async (
+    parsed: { type: string; properties?: Record<string, unknown> }
+  ) => {
+    // Check session.status events for idle status
+    // The event format is: {"type":"session.status","properties":{"sessionID":"...","status":{"type":"idle"}}}
+    if (parsed.type !== "session.status") return;
+
+    const statusObj = parsed.properties?.status as { type?: string } | undefined;
+    const status = statusObj?.type;
+
+    // Already marked as completed - no need to check again
+    if (hasMarkedInitialPromptCompleted) return;
+
+    // Session is idle = agent has finished responding
+    if (status === "idle") {
+      // Re-fetch project to get latest state (in case it was updated elsewhere)
+      const currentProject = await getProjectById(projectId);
+      if (!currentProject) return;
+
+      // Only mark completed if initial prompt was sent but not yet completed
+      if (currentProject.initialPromptSent && !currentProject.initialPromptCompleted) {
+        logger.info({ projectId }, "Initial prompt completed - marking in database");
+        await markInitialPromptCompleted(projectId);
+        hasMarkedInitialPromptCompleted = true;
+      }
+    }
+  };
+
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (event: object) => {
@@ -134,6 +173,11 @@ export const GET: APIRoute = async ({ params, cookies }) => {
               const parsed = parseSSEData(data);
 
               if (parsed) {
+                // Check for initial prompt completion (server-side detection)
+                checkInitialPromptCompletion(parsed).catch((error) => {
+                  logger.error({ error, projectId }, "Error checking initial prompt completion");
+                });
+
                 const normalized = normalizeEvent(projectId, parsed, state);
                 sendEvent(normalized);
               }

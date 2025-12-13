@@ -106,17 +106,24 @@ export function normalizeEvent(
   const { type, properties = {} } = upstreamEvent;
 
   switch (type) {
-    case "session.updated": {
-      const info = properties.info as { status?: string; cost?: number } | undefined;
+    case "session.status": {
+      // session.status events contain the actual session state (idle, busy, etc)
+      const statusObj = properties.status as { type?: string } | undefined;
       return {
         type: "chat.session.status",
         projectId,
         time,
         payload: {
-          status: info?.status ?? "unknown",
-          cost: info?.cost,
+          status: statusObj?.type ?? "unknown",
+          cost: undefined,
         } satisfies SessionStatusPayload,
       };
+    }
+
+    case "session.updated": {
+      // session.updated events contain session metadata, not status
+      // We skip these as they don't affect the chat UI status
+      break;
     }
 
     case "message.part.updated": {

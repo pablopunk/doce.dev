@@ -52,6 +52,9 @@ export const projects = sqliteTable("projects", {
   initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
     .notNull()
     .default(false),
+  initialPromptCompleted: integer("initial_prompt_completed", { mode: "boolean" })
+    .notNull()
+    .default(false),
 });
 
 // Type exports

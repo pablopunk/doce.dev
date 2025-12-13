@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `initial_prompt_completed` integer DEFAULT false NOT NULL;

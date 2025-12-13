@@ -42,6 +42,7 @@ export interface PresenceResponse {
   nextPollMs: number;
   // Initial prompt fields
   initialPromptSent: boolean;
+  initialPromptCompleted: boolean;
   prompt: string;
   model: string | null;
 }
@@ -162,21 +163,22 @@ export async function handlePresenceHeartbeat(
     const presence = getPresence(projectId);
 
     // Check if project is being deleted
-    if (presence.isDeleting) {
-      return {
-        projectId,
-        status: "stopping",
-        viewerCount: 0,
-        previewUrl: `http://127.0.0.1:${project.devPort}`,
-        previewReady: false,
-        opencodeReady: false,
-        message: "Project is being deleted...",
-        nextPollMs: 2000,
-        initialPromptSent: project.initialPromptSent,
-        prompt: project.prompt,
-        model: project.model,
-      };
-    }
+     if (presence.isDeleting) {
+       return {
+         projectId,
+         status: "stopping",
+         viewerCount: 0,
+         previewUrl: `http://127.0.0.1:${project.devPort}`,
+         previewReady: false,
+         opencodeReady: false,
+         message: "Project is being deleted...",
+         nextPollMs: 2000,
+         initialPromptSent: project.initialPromptSent,
+         initialPromptCompleted: project.initialPromptCompleted,
+         prompt: project.prompt,
+         model: project.model,
+       };
+     }
 
     // Update viewer presence
     presence.viewers.set(viewerId, Date.now());
@@ -277,6 +279,7 @@ export async function handlePresenceHeartbeat(
       message,
       nextPollMs,
       initialPromptSent: project.initialPromptSent,
+      initialPromptCompleted: project.initialPromptCompleted,
       prompt: project.prompt,
       model: project.model,
     };

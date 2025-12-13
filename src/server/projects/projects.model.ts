@@ -135,3 +135,13 @@ export async function markInitialPromptSent(id: string): Promise<void> {
     .set({ initialPromptSent: true })
     .where(eq(projects.id, id));
 }
+
+/**
+ * Mark a project's initial prompt as completed (finished execution).
+ */
+export async function markInitialPromptCompleted(id: string): Promise<void> {
+  await db
+    .update(projects)
+    .set({ initialPromptCompleted: true })
+    .where(eq(projects.id, id));
+}
