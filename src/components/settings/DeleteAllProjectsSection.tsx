@@ -57,10 +57,10 @@ export function DeleteAllProjectsSection({
       });
 
       const data = await response.json();
-      // Handle Astro Action response format (can be {data} or [data])
+      // Astro Actions return [data, ok, error] format
       const resultData = Array.isArray(data) ? data[0] : data.data;
 
-      if (response.ok && resultData?.success) {
+      if (resultData?.success) {
         const jobId = resultData.jobId as string | undefined;
         if (!jobId) {
           throw new Error("Missing jobId from server");
@@ -72,11 +72,7 @@ export function DeleteAllProjectsSection({
           message: `Deletion scheduled (job ${jobId}). Monitor progress in /queue.`,
         });
       } else {
-        const error = Array.isArray(data) ? data[1] : data.error;
-        setResult({
-          success: false,
-          message: error?.message ?? "Failed to delete projects",
-        });
+        throw new Error("Failed to delete projects");
       }
     } catch (error) {
       setResult({
