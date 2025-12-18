@@ -38,12 +38,12 @@ const jobs = await listJobs({
   projectId: projectIdParam || undefined,
   q: qParam || undefined,
   limit: 100,
-});
+} as any);
 
 const hasActive = jobs.some((j) => j.state === "running");
 ---
 
-<AppLayout>
+<AppLayout title="Queue">
   <div class="px-8 py-6 max-w-7xl mx-auto">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-semibold">Queue</h1>
@@ -103,8 +103,8 @@ const hasActive = jobs.some((j) => j.state === "running");
   </div>
 </AppLayout>
 
-<script>
-  const request = async (action, data = {}) => {
+<script define:vars={{ hasActive }} is:inline>
+  const request = async (action, data) => {
     const res = await fetch(action, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -169,7 +169,6 @@ const hasActive = jobs.some((j) => j.state === "running");
     }
   });
 
-  const hasActive = (window as any).__HAS_ACTIVE__ || false;
   if (hasActive) {
     setTimeout(() => {
       window.location.reload();
