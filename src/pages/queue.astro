@@ -40,6 +40,76 @@ const jobs = await listJobs({
   limit: 100,
 });
 
+const hasActive = jobs.some((j) => j.state === "running");
+---
+
+<AppLayout>
+  <div class="px-8 py-6 max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-semibold">Queue</h1>
+      <button data-queue-toggle class="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/80">
+        {paused ? "Paused" : "Running"}
+      </button>
+    </div>
+    
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b">
+            <th class="text-left py-2 px-2">ID</th>
+            <th class="text-left py-2 px-2">Type</th>
+            <th class="text-left py-2 px-2">State</th>
+            <th class="text-left py-2 px-2">Project</th>
+            <th class="text-left py-2 px-2">Created</th>
+            <th class="text-left py-2 px-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((job) => (
+            <tr class="border-b hover:bg-muted/50">
+              <td class="py-2 px-2 font-mono text-xs">{job.id.slice(0, 8)}</td>
+              <td class="py-2 px-2">{job.type}</td>
+              <td class="py-2 px-2">
+                <span class={`px-2 py-1 rounded text-xs ${
+                  job.state === "succeeded" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" :
+                  job.state === "failed" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100" :
+                  job.state === "running" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100" :
+                  "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+                }`}>
+                  {job.state}
+                </span>
+              </td>
+              <td class="py-2 px-2 text-xs text-muted-foreground">{job.projectId}</td>
+              <td class="py-2 px-2 text-xs text-muted-foreground">{new Date(job.createdAt).toLocaleString()}</td>
+              <td class="py-2 px-2 space-x-2 flex">
+                {job.state === "queued" && (
+                  <button data-action="runNow" data-job-id={job.id} class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">Run Now</button>
+                )}
+                {(job.state === "queued" || job.state === "running") && (
+                  <button data-action="cancel" data-job-id={job.id} class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Cancel</button>
+                )}
+                {job.state === "failed" && (
+                  <button data-action="retry" data-job-id={job.id} class="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600">Retry</button>
+                )}
+                {job.state === "running" && (
+                  <button data-action="forceUnlock" data-job-id={job.id} class="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600">Force Unlock</button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</AppLayout>
+
+<script>
+  const request = async (action, data = {}) => {
+    const res = await fetch(action, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
     const payload = await res.json().catch(() => ({}));
     const resultData = Array.isArray(payload) ? payload[0] : payload.data;
@@ -99,6 +169,7 @@ const jobs = await listJobs({
     }
   });
 
+  const hasActive = (window as any).__HAS_ACTIVE__ || false;
   if (hasActive) {
     setTimeout(() => {
       window.location.reload();
