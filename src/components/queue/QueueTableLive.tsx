@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { QueueJob } from "@/server/db/schema";
+import { QueuePlayerControl } from "./QueuePlayerControl";
 
 interface QueueStreamData {
   type: "init" | "update";
@@ -118,16 +119,20 @@ export function QueueTableLive({ initialJobs, initialPaused, filters = {} }: Que
     }
   };
 
+  const stats = {
+    queued: jobs.filter((j) => j.state === "queued").length,
+    running: jobs.filter((j) => j.state === "running").length,
+  };
+
   return (
     <div className="px-8 py-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Queue</h1>
-        <button
-          onClick={handleToggleQueue}
-          className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/80"
-        >
-          {paused ? "Paused" : "Running"}
-        </button>
+        <QueuePlayerControl
+          paused={paused}
+          stats={stats}
+          onToggleQueue={handleToggleQueue}
+        />
       </div>
 
       <div className="overflow-x-auto">
