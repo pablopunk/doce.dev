@@ -1,0 +1,107 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { listJobs, isQueuePaused } from "@/server/queue/queue.model";
+import type { QueueJob } from "@/server/db/schema";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const search = Astro.url.searchParams;
+
+const stateParam = search.get("state") ?? "";
+const typeParam = search.get("type") ?? "";
+const projectIdParam = search.get("projectId") ?? "";
+const qParam = search.get("q") ?? "";
+
+const allowedStates = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
+const state = allowedStates.includes(stateParam as (typeof allowedStates)[number])
+  ? (stateParam as QueueJob["state"])
+  : undefined;
+
+const allowedTypes = [
+  "project.delete",
+  "projects.deleteAllForUser",
+  "docker.ensureRunning",
+  "docker.stop",
+] as const;
+const type = allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
+  ? (typeParam as QueueJob["type"])
+  : undefined;
+
+const paused = await isQueuePaused();
+
+const jobs = await listJobs({
+  state: state ?? undefined,
+  type: type as any,
+  projectId: projectIdParam || undefined,
+  q: qParam || undefined,
+  limit: 100,
+});
+
+
+    const payload = await res.json().catch(() => ({}));
+    const resultData = Array.isArray(payload) ? payload[0] : payload.data;
+    const error = Array.isArray(payload) ? payload[1] : payload.error;
+
+    if (!res.ok || (resultData && resultData.success === false) || error) {
+      throw new Error(error?.message ?? "Request failed");
+    }
+  };
+
+  document.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const toggle = target.closest("[data-queue-toggle]");
+    if (toggle) {
+      const paused = toggle.textContent?.includes("Paused");
+      const action = paused ? "/_actions/queue.resume" : "/_actions/queue.pause";
+      try {
+        await request(action);
+        window.location.reload();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Failed");
+      }
+      return;
+    }
+
+    const btn = target.closest("[data-action]");
+    if (!btn) return;
+
+    const action = btn.getAttribute("data-action");
+    const jobId = btn.getAttribute("data-job-id");
+    if (!action || !jobId) return;
+
+    if (action === "forceUnlock") {
+      if (!confirm("Force unlock is destructive. Continue?")) return;
+    }
+
+    if (action === "cancel") {
+      if (!confirm("Cancel this job?")) return;
+    }
+
+    try {
+      if (action === "cancel") {
+        await request("/_actions/queue.cancel", { jobId });
+      } else if (action === "retry") {
+        await request("/_actions/queue.retry", { jobId });
+      } else if (action === "runNow") {
+        await request("/_actions/queue.runNow", { jobId });
+      } else if (action === "forceUnlock") {
+        await request("/_actions/queue.forceUnlock", { jobId });
+      }
+
+      window.location.reload();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed");
+    }
+  });
+
+  if (hasActive) {
+    setTimeout(() => {
+      window.location.reload();
+    }, 4000);
+  }
+</script>

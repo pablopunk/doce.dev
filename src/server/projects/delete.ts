@@ -8,10 +8,6 @@ import {
 } from "./projects.model";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { getProjectPath } from "./create";
-import {
-  markProjectDeleting,
-  removeProjectPresence,
-} from "@/server/presence/manager";
 
 export interface DeleteProjectResult {
   success: boolean;
@@ -39,7 +35,7 @@ export async function deleteProject(
   }
 
   // Mark as deleting to prevent new starts
-  markProjectDeleting(projectId);
+  // (presence system now primarily relies on DB status)
 
   const projectPath = getProjectPath(projectId);
 
@@ -89,8 +85,7 @@ export async function deleteProject(
     };
   }
 
-  // Clean up presence tracking
-  removeProjectPresence(projectId);
+  // Clean up presence tracking (in-memory presence is reconciled on demand)
 
   return { success: true };
 }

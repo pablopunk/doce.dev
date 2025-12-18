@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Users table - single admin user
 export const users = sqliteTable("users", {
@@ -44,7 +50,15 @@ export const projects = sqliteTable("projects", {
   devPort: integer("dev_port").notNull(),
   opencodePort: integer("opencode_port").notNull(),
   status: text("status", {
-    enum: ["created", "starting", "running", "stopping", "stopped", "error"],
+    enum: [
+      "created",
+      "starting",
+      "running",
+      "stopping",
+      "stopped",
+      "error",
+      "deleting",
+    ],
   })
     .notNull()
     .default("created"),
@@ -57,6 +71,55 @@ export const projects = sqliteTable("projects", {
     .default(false),
 });
 
+// Queue jobs table (durable background tasks)
+export const queueJobs = sqliteTable(
+  "queue_jobs",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(),
+    state: text("state", {
+      enum: ["queued", "running", "succeeded", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("queued"),
+    projectId: text("project_id"),
+    payloadJson: text("payload_json").notNull(),
+    priority: integer("priority").notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    runAt: integer("run_at", { mode: "timestamp" }).notNull(),
+    lockedAt: integer("locked_at", { mode: "timestamp" }),
+    lockExpiresAt: integer("lock_expires_at", { mode: "timestamp" }),
+    lockedBy: text("locked_by"),
+    dedupeKey: text("dedupe_key"),
+    dedupeActive: text("dedupe_active"),
+    cancelRequestedAt: integer("cancel_requested_at", { mode: "timestamp" }),
+    cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
+    lastError: text("last_error"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    projectIdIdx: index("queue_jobs_project_id_idx").on(table.projectId),
+    runnableIdx: index("queue_jobs_runnable_idx").on(
+      table.state,
+      table.runAt,
+      table.lockExpiresAt
+    ),
+    dedupeIdx: uniqueIndex("queue_jobs_dedupe_idx").on(
+      table.dedupeKey,
+      table.dedupeActive
+    ),
+  })
+);
+
+// Queue settings table (single row)
+export const queueSettings = sqliteTable("queue_settings", {
+  id: integer("id").primaryKey(),
+  paused: integer("paused", { mode: "boolean" }).notNull().default(false),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -66,3 +129,7 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
+export type QueueJob = typeof queueJobs.$inferSelect;
+export type NewQueueJob = typeof queueJobs.$inferInsert;
+export type QueueSettings = typeof queueSettings.$inferSelect;
+export type NewQueueSettings = typeof queueSettings.$inferInsert;

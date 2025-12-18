@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,6 +39,7 @@ export function DeleteAllProjectsSection({
     success: boolean;
     message: string;
   } | null>(null);
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
 
   const isConfirmed = confirmText.toLowerCase() === CONFIRMATION_TEXT;
 
@@ -56,20 +57,25 @@ export function DeleteAllProjectsSection({
       });
 
       const data = await response.json();
+      // Handle Astro Action response format (can be {data} or [data])
+      const resultData = Array.isArray(data) ? data[0] : data.data;
 
-      if (response.ok && data.data?.success) {
+      if (response.ok && resultData?.success) {
+        const jobId = resultData.jobId as string | undefined;
+        if (!jobId) {
+          throw new Error("Missing jobId from server");
+        }
+
+        setDeleteJobId(jobId);
         setResult({
           success: true,
-          message: `Successfully deleted ${data.data.deleted} project(s).`,
+          message: `Deletion scheduled (job ${jobId}). Monitor progress in /queue.`,
         });
-        // Reload the page after a short delay to show the message
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
       } else {
+        const error = Array.isArray(data) ? data[1] : data.error;
         setResult({
           success: false,
-          message: data.error?.message ?? "Failed to delete projects",
+          message: error?.message ?? "Failed to delete projects",
         });
       }
     } catch (error) {
@@ -83,11 +89,52 @@ export function DeleteAllProjectsSection({
     }
   };
 
+  useEffect(() => {
+    if (!deleteJobId) return;
+
+    let isCancelled = false;
+
+    const interval = setInterval(async () => {
+      if (isCancelled) return;
+
+      try {
+        const res = await fetch(`/api/queue/jobs/${deleteJobId}`);
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          job?: { state: string; lastError?: string | null };
+        };
+
+        const state = data.job?.state;
+
+        if (state === "succeeded") {
+          window.location.reload();
+        }
+
+        if (state === "failed" || state === "cancelled") {
+          setResult({
+            success: false,
+            message: data.job?.lastError || `Deletion job ${state}`,
+          });
+          setDeleteJobId(null);
+        }
+      } catch {
+        // ignore
+      }
+    }, 2000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [deleteJobId]);
+
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     if (!open) {
       setConfirmText("");
       setResult(null);
+      setDeleteJobId(null);
     }
   };
 

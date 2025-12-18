@@ -1,0 +1,150 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getJobById } from "@/server/queue/queue.model";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const jobId = Astro.params.id;
+if (!jobId) {
+  return Astro.redirect("/queue");
+}
+
+const job = await getJobById(jobId);
+if (!job) {
+  return Astro.redirect("/queue");
+}
+
+const canCancel = job.state === "queued" || job.state === "running";
+const canRunNow = job.state === "queued";
+const canForceUnlock = job.state === "running";
+const canRetry = job.state === "failed" || job.state === "cancelled" || job.state === "succeeded";
+---
+
+<AppLayout title={`Queue Job ${job.id}`}>
+  <main class="container mx-auto max-w-4xl p-8">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold">Job</h1>
+        <p class="font-mono text-xs text-muted-foreground break-all">{job.id}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/queue" class="rounded-md border px-3 py-2 text-sm">Back</a>
+        {canCancel && (
+          <button class="rounded-md border px-3 py-2 text-sm" data-action="cancel" data-job-id={job.id}>
+            Cancel
+          </button>
+        )}
+        {canRunNow && (
+          <button class="rounded-md border px-3 py-2 text-sm" data-action="runNow" data-job-id={job.id}>
+            Run now
+          </button>
+        )}
+        {canRetry && (
+          <button class="rounded-md border px-3 py-2 text-sm" data-action="retry" data-job-id={job.id}>
+            Retry
+          </button>
+        )}
+        {canForceUnlock && (
+          <button class="rounded-md border px-3 py-2 text-sm" data-action="forceUnlock" data-job-id={job.id}>
+            Force unlock
+          </button>
+        )}
+      </div>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="rounded-lg border p-4">
+        <h2 class="font-semibold mb-2">Summary</h2>
+        <dl class="space-y-1 text-sm">
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Type</dt><dd class="font-mono text-xs">{job.type}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">State</dt><dd>{job.state}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Attempts</dt><dd>{job.attempts}/{job.maxAttempts}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Project</dt><dd class="font-mono text-xs">{job.projectId ?? "—"}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Run At</dt><dd class="font-mono text-xs">{job.runAt.toISOString()}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Created</dt><dd class="font-mono text-xs">{job.createdAt.toISOString()}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Updated</dt><dd class="font-mono text-xs">{job.updatedAt.toISOString()}</dd></div>
+        </dl>
+      </div>
+
+      <div class="rounded-lg border p-4">
+        <h2 class="font-semibold mb-2">Lock</h2>
+        <dl class="space-y-1 text-sm">
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Locked By</dt><dd class="font-mono text-xs">{job.lockedBy ?? "—"}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Locked At</dt><dd class="font-mono text-xs">{job.lockedAt?.toISOString() ?? "—"}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Lease Expires</dt><dd class="font-mono text-xs">{job.lockExpiresAt?.toISOString() ?? "—"}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Cancel Requested</dt><dd class="font-mono text-xs">{job.cancelRequestedAt?.toISOString() ?? "—"}</dd></div>
+          <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Cancelled At</dt><dd class="font-mono text-xs">{job.cancelledAt?.toISOString() ?? "—"}</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-lg border p-4">
+      <h2 class="font-semibold mb-2">Payload</h2>
+      <pre class="whitespace-pre-wrap text-xs bg-muted/50 p-3 rounded-md overflow-auto">{job.payloadJson}</pre>
+    </div>
+
+    {job.lastError && (
+      <div class="mt-6 rounded-lg border border-destructive/40 p-4">
+        <h2 class="font-semibold mb-2 text-destructive">Last Error</h2>
+        <pre class="whitespace-pre-wrap text-xs text-destructive">{job.lastError}</pre>
+      </div>
+    )}
+  </main>
+</AppLayout>
+
+<script>
+  const request = async (path: string, body?: any) => {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : JSON.stringify({}),
+    });
+
+    const payload = await res.json().catch(() => ({}));
+    const resultData = Array.isArray(payload) ? payload[0] : payload.data;
+    const error = Array.isArray(payload) ? payload[1] : payload.error;
+
+    if (!res.ok || (resultData && resultData.success === false) || error) {
+      throw new Error(error?.message ?? "Request failed");
+    }
+  };
+
+  document.addEventListener("click", async (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const btn = target.closest("[data-action]");
+    if (!btn) return;
+
+    const action = btn.getAttribute("data-action");
+    const jobId = btn.getAttribute("data-job-id");
+    if (!action || !jobId) return;
+
+    if (action === "forceUnlock") {
+      if (!confirm("Force unlock is destructive. Continue?")) return;
+    }
+
+    if (action === "cancel") {
+      if (!confirm("Cancel this job?")) return;
+    }
+
+    try {
+      if (action === "cancel") {
+        await request("/_actions/queue.cancel", { jobId });
+      } else if (action === "retry") {
+        await request("/_actions/queue.retry", { jobId });
+      } else if (action === "runNow") {
+        await request("/_actions/queue.runNow", { jobId });
+      } else if (action === "forceUnlock") {
+        await request("/_actions/queue.forceUnlock", { jobId });
+      }
+
+      window.location.reload();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed");
+    }
+  });
+</script>

@@ -1,12 +1,7 @@
 import { logger } from "@/server/logger";
-import { composeUp, composeDown } from "@/server/docker/compose";
-import { writeHostMarker, captureContainerLogs } from "@/server/docker/logs";
-import {
-  getProjectById,
-  updateProjectStatus,
-  type ProjectStatus,
-} from "@/server/projects/projects.model";
-import * as path from "node:path";
+import { getProjectById, updateProjectStatus, type ProjectStatus } from "@/server/projects/projects.model";
+import { checkOpencodeReady, checkPreviewReady } from "@/server/projects/health";
+import { enqueueDockerEnsureRunning, enqueueDockerStop } from "@/server/queue/enqueue";
 
 // Constants from PLAN.md section 9.7.2
 const PRESENCE_HEARTBEAT_MS = 15_000;
@@ -14,7 +9,6 @@ const IDLE_TIMEOUT_MS = 180_000; // 3 minutes
 const REAPER_INTERVAL_MS = 30_000;
 const STOP_GRACE_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const HEALTH_CHECK_TIMEOUT_MS = 2_000;
 
 export interface ViewerRecord {
   viewerId: string;
@@ -26,11 +20,7 @@ export interface ProjectPresence {
   viewers: Map<string, number>; // viewerId -> lastSeenAt
   stopAt?: number; // Scheduled stop time
   startedAt?: number; // When we started the starting process
-  lastLogCapture?: number; // When we last captured container logs
-  logCaptureInterval?: ReturnType<typeof setInterval>; // Interval for capturing logs
   isStarting: boolean;
-  isStopping: boolean;
-  isDeleting: boolean;
 }
 
 export interface PresenceResponse {
@@ -87,52 +77,12 @@ function getPresence(projectId: string): ProjectPresence {
       projectId,
       viewers: new Map(),
       isStarting: false,
-      isStopping: false,
-      isDeleting: false,
     };
     presenceMap.set(projectId, presence);
   }
   return presence;
 }
 
-/**
- * Check if the preview server is ready.
- */
-export async function checkPreviewReady(devPort: number): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
-
-    const response = await fetch(`http://127.0.0.1:${devPort}`, {
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-    // Any HTTP response means the server is up
-    return response.status >= 100 && response.status < 600;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if the opencode server is ready.
- */
-export async function checkOpencodeReady(opencodePort: number): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
-
-    const response = await fetch(`http://127.0.0.1:${opencodePort}/doc`, {
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-    return response.status === 200;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Calculate next poll interval based on how long we've been starting.
@@ -164,23 +114,22 @@ export async function handlePresenceHeartbeat(
 
     const presence = getPresence(projectId);
 
-    // Check if project is being deleted
-     if (presence.isDeleting) {
-       return {
-         projectId,
-         status: "stopping",
-         viewerCount: 0,
-         previewUrl: `http://127.0.0.1:${project.devPort}`,
-         previewReady: false,
-         opencodeReady: false,
-         message: "Project is being deleted...",
-         nextPollMs: 2000,
-         initialPromptSent: project.initialPromptSent,
-         initialPromptCompleted: project.initialPromptCompleted,
-         prompt: project.prompt,
-         model: project.model,
-       };
-     }
+    if (project.status === "deleting") {
+      return {
+        projectId,
+        status: "deleting",
+        viewerCount: 0,
+        previewUrl: `http://127.0.0.1:${project.devPort}`,
+        previewReady: false,
+        opencodeReady: false,
+        message: "Project is being deleted...",
+        nextPollMs: 2000,
+        initialPromptSent: project.initialPromptSent,
+        initialPromptCompleted: project.initialPromptCompleted,
+        prompt: project.prompt,
+        model: project.model,
+      };
+    }
 
     // Update viewer presence
     presence.viewers.set(viewerId, Date.now());
@@ -194,15 +143,6 @@ export async function handlePresenceHeartbeat(
        checkOpencodeReady(project.opencodePort),
      ]);
 
-     // Periodically capture container logs (every 5 seconds) when starting or running
-     const now = Date.now();
-     const lastCapture = presence.lastLogCapture ?? 0;
-     if (now - lastCapture > 5000 && (presence.isStarting || project.status === "running")) {
-       presence.lastLogCapture = now;
-       captureContainerLogs(projectId, project.pathOnDisk).catch((err) => {
-         logger.debug({ error: err, projectId }, "Failed to capture container logs");
-       });
-     }
 
     // Reconcile status based on health checks
     let status = project.status;
@@ -254,15 +194,18 @@ export async function handlePresenceHeartbeat(
       presence.isStarting = true;
       presence.startedAt = Date.now();
 
-      // Start containers in background (don't await)
-      startProjectContainers(projectId, project.pathOnDisk).catch((err) => {
-        logger.error({ error: err, projectId }, "Failed to start containers");
-      });
-
-      status = "starting";
-      await updateProjectStatus(projectId, "starting");
-      message = "Starting containers...";
-      nextPollMs = 500;
+      try {
+        await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
+        status = "starting";
+        message = "Starting containers...";
+        nextPollMs = 500;
+      } catch (error) {
+        await updateProjectStatus(projectId, "error");
+        status = "error";
+        message = "Failed to start containers. Open terminal for details.";
+        nextPollMs = 2000;
+        logger.error({ error, projectId }, "Failed to enqueue container start");
+      }
     } else if (status === "running" && !previewReady && !opencodeReady) {
       // Containers crashed or were stopped externally
       await updateProjectStatus(projectId, "stopped");
@@ -271,14 +214,19 @@ export async function handlePresenceHeartbeat(
       // Trigger restart
       presence.isStarting = true;
       presence.startedAt = Date.now();
-      startProjectContainers(projectId, project.pathOnDisk).catch((err) => {
-        logger.error({ error: err, projectId }, "Failed to restart containers");
-      });
 
-      status = "starting";
-      await updateProjectStatus(projectId, "starting");
-      message = "Restarting containers...";
-      nextPollMs = 500;
+      try {
+        await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
+        status = "starting";
+        message = "Restarting containers...";
+        nextPollMs = 500;
+      } catch (error) {
+        await updateProjectStatus(projectId, "error");
+        status = "error";
+        message = "Failed to restart containers. Open terminal for details.";
+        nextPollMs = 2000;
+        logger.error({ error, projectId }, "Failed to enqueue container restart");
+      }
     }
 
     return {
@@ -300,44 +248,6 @@ export async function handlePresenceHeartbeat(
   }
 }
 
-/**
- * Start project containers.
- */
-async function startProjectContainers(
-  projectId: string,
-  projectPath: string
-): Promise<void> {
-  const logsDir = path.join(projectPath, "logs");
-  await writeHostMarker(logsDir, "starting via presence heartbeat");
-
-  const result = await composeUp(projectId, projectPath);
-
-  if (!result.success) {
-    logger.error(
-      { projectId, exitCode: result.exitCode, stderr: result.stderr.slice(0, 500) },
-      "Docker compose up failed"
-    );
-    await updateProjectStatus(projectId, "error");
-
-    const presence = getPresence(projectId);
-    presence.isStarting = false;
-  }
-}
-
-/**
- * Mark a project as being deleted (prevents new starts).
- */
-export function markProjectDeleting(projectId: string): void {
-  const presence = getPresence(projectId);
-  presence.isDeleting = true;
-}
-
-/**
- * Remove presence tracking for a project.
- */
-export function removeProjectPresence(projectId: string): void {
-  presenceMap.delete(projectId);
-}
 
 /**
  * Stop project containers due to inactivity.
@@ -349,7 +259,7 @@ async function stopProjectForInactivity(projectId: string): Promise<void> {
     const presence = getPresence(projectId);
 
     // Double-check we should stop
-    if (presence.viewers.size > 0 || presence.isDeleting) {
+    if (presence.viewers.size > 0) {
       return;
     }
 
@@ -358,27 +268,9 @@ async function stopProjectForInactivity(projectId: string): Promise<void> {
       return;
     }
 
-    logger.info({ projectId }, "Stopping project due to inactivity");
+    logger.info({ projectId }, "Scheduling project stop due to inactivity");
 
-    presence.isStopping = true;
-    await updateProjectStatus(projectId, "stopping");
-
-    const logsDir = path.join(project.pathOnDisk, "logs");
-    await writeHostMarker(logsDir, "stopping due to inactivity");
-
-    const result = await composeDown(projectId, project.pathOnDisk);
-
-    if (result.success) {
-      await updateProjectStatus(projectId, "stopped");
-    } else {
-      logger.error(
-        { projectId, exitCode: result.exitCode },
-        "Failed to stop containers"
-      );
-      await updateProjectStatus(projectId, "error");
-    }
-
-    presence.isStopping = false;
+    await enqueueDockerStop({ projectId, reason: "idle" });
   } finally {
     release();
   }
@@ -392,7 +284,7 @@ function runReaper(): void {
 
   for (const [projectId, presence] of presenceMap) {
     // Skip if operations in progress
-    if (presence.isStarting || presence.isStopping || presence.isDeleting) {
+    if (presence.isStarting) {
       continue;
     }
 

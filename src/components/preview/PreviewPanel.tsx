@@ -73,7 +73,7 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
       // State machine
       if (data.previewReady && data.status === "running") {
         setState("ready");
-      } else if (data.status === "error") {
+      } else if (data.status === "error" || data.status === "deleting") {
         setState("error");
       } else if (
         data.status === "starting" ||

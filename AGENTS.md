@@ -83,6 +83,10 @@ It's basically a UI on top of the opencode SDK. Users can create a project with 
   * Openrouter API key
   * Default model
   * Delete all projects
+* Queue (admin)
+  * View background jobs
+  * Pause/resume worker
+  * Cancel/retry/force-unlock jobs
 
 ## Other features
 
@@ -96,6 +100,11 @@ It's basically a UI on top of the opencode SDK. Users can create a project with 
 * Projects are automatically named with AI, with a quick model that uses the prompt to generate a small name
 * For small operations (like naming project, and future AI-led things), use a fast model like `google/gemini-2.5-flash`
 * Projects are deleted from the grid optimistically
+* Destructive / lifecycle operations run via a DB-backed queue
+  * Tables: `queue_jobs`, `queue_settings`
+  * Worker: in-process loop started from `src/middleware.ts`
+  * Orchestration rule: only queue handlers run `docker compose`
+  * Admin UI: `/queue` (controls + job inspection)
 * Even though we use astro actions for everything, we'll use astro's API routes for other stuff like streaming and SSE
 * There should be a data/ directory containing the db file and all projects (in folders)
 * Projects are just folders with a docker-compose.yml that exposes PWD and exposes the development port

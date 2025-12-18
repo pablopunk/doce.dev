@@ -15,6 +15,7 @@ const statusColors: Record<string, string> = {
   running: "bg-green-500",
   stopping: "bg-yellow-500",
   stopped: "bg-gray-500",
+  deleting: "bg-red-500",
   error: "bg-red-500",
 };
 
@@ -24,13 +25,17 @@ const statusLabels: Record<string, string> = {
   running: "Running",
   stopping: "Stopping...",
   stopped: "Stopped",
+  deleting: "Deleting...",
   error: "Error",
 };
 
 export function ProjectCard({ project, onDelete, isDeleting }: ProjectCardProps) {
   const previewUrl = `http://localhost:${project.devPort}`;
   const isRunning = project.status === "running";
-  const isLoading = project.status === "starting" || project.status === "stopping";
+  const isLoading =
+    project.status === "starting" ||
+    project.status === "stopping" ||
+    project.status === "deleting";
 
   return (
     <Card className="group relative overflow-hidden">
@@ -82,7 +87,7 @@ export function ProjectCard({ project, onDelete, isDeleting }: ProjectCardProps)
             size="icon"
             className="text-muted-foreground hover:text-destructive"
             onClick={() => onDelete?.(project.id)}
-            disabled={isDeleting || isLoading}
+            disabled={isDeleting || project.status === "deleting"}
             data-delete-project={project.id}
           >
             {isDeleting ? (

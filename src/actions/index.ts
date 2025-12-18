@@ -12,15 +12,25 @@ import {
 } from "@/server/settings/openrouter";
 import { createProjectFromPrompt } from "@/server/projects/create";
 import {
-	deleteProject,
-	stopProject,
-	deleteAllProjectsForUser,
-} from "@/server/projects/delete";
+	enqueueDeleteAllProjectsForUser,
+	enqueueDockerStop,
+	enqueueProjectDelete,
+} from "@/server/queue/enqueue";
+import {
+	cancelQueuedJob,
+	forceUnlock,
+	getJobById,
+	retryJob,
+	runNow,
+	requestCancel,
+	setQueuePaused,
+} from "@/server/queue/queue.model";
 import {
 	getProjectsByUserId,
 	getProjectById,
 	isProjectOwnedByUser,
 	updateProjectModel,
+	updateProjectStatus,
 } from "@/server/projects/projects.model";
 import { eq } from "drizzle-orm";
 
@@ -351,15 +361,18 @@ export const server = {
 					});
 				}
 
-				const result = await deleteProject(input.projectId);
-				if (!result.success) {
-					throw new ActionError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: result.error ?? "Failed to delete project",
-					});
+				try {
+					await updateProjectStatus(input.projectId, "deleting");
+				} catch {
+					// ignore
 				}
 
-				return { success: true };
+				const job = await enqueueProjectDelete({
+					projectId: input.projectId,
+					requestedByUserId: user.id,
+				});
+
+				return { success: true, jobId: job.id };
 			},
 		}),
 
@@ -384,15 +397,12 @@ export const server = {
 					});
 				}
 
-				const result = await stopProject(input.projectId);
-				if (!result.success) {
-					throw new ActionError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: result.error ?? "Failed to stop project",
-					});
-				}
+				const job = await enqueueDockerStop({
+					projectId: input.projectId,
+					reason: "user",
+				});
 
-				return { success: true };
+				return { success: true, jobId: job.id };
 			},
 		}),
 
@@ -433,16 +443,141 @@ export const server = {
 					});
 				}
 
-				const result = await deleteAllProjectsForUser(user.id);
+				const job = await enqueueDeleteAllProjectsForUser({ userId: user.id });
 
-				if (!result.success) {
+				return { success: true, jobId: job.id };
+			},
+		}),
+	},
+
+	queue: {
+		cancel: defineAction({
+			input: z.object({
+				jobId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
 					throw new ActionError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: `Deleted ${result.deleted} projects, but some failed: ${result.errors.join(", ")}`,
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
 					});
 				}
 
-				return { success: true, deleted: result.deleted };
+				const job = await getJobById(input.jobId);
+				if (!job) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Job not found",
+					});
+				}
+
+				if (job.state === "queued") {
+					await cancelQueuedJob(job.id);
+					return { success: true, state: "cancelled" };
+				}
+
+				await requestCancel(job.id);
+				return { success: true, state: "cancelling" };
+			},
+		}),
+
+		retry: defineAction({
+			input: z.object({
+				jobId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				const newJobId = randomBytes(16).toString("hex");
+				const newJob = await retryJob(input.jobId, newJobId);
+				return { success: true, jobId: newJob.id };
+			},
+		}),
+
+		runNow: defineAction({
+			input: z.object({
+				jobId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				const updated = await runNow(input.jobId);
+				if (!updated) {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: "Job is not queued",
+					});
+				}
+
+				return { success: true };
+			},
+		}),
+
+		pause: defineAction({
+			handler: async (_input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				await setQueuePaused(true);
+				return { success: true };
+			},
+		}),
+
+		resume: defineAction({
+			handler: async (_input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				await setQueuePaused(false);
+				return { success: true };
+			},
+		}),
+
+		forceUnlock: defineAction({
+			input: z.object({
+				jobId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				const updated = await forceUnlock(input.jobId);
+				if (!updated) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Job not found",
+					});
+				}
+
+				return { success: true };
 			},
 		}),
 	},

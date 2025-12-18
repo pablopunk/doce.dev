@@ -5,8 +5,7 @@ import { logger } from "@/server/logger";
 import { generateProjectName } from "@/server/settings/openrouter";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { generateUniqueSlug } from "./slug";
-import { createProject, updateProjectStatus } from "./projects.model";
-import { composeUp } from "@/server/docker/compose";
+import { createProject } from "./projects.model";
 import type { Project } from "@/server/db/schema";
 
 // Paths relative to project root
@@ -129,37 +128,9 @@ export async function createProjectFromPrompt(
 
   logger.info({ projectId, name, slug }, "Created project in database");
 
-  // Start Docker containers
-  try {
-    await updateProjectStatus(projectId, "starting");
-
-    const result = await composeUp(projectId, projectPath);
-
-    if (result.success) {
-      // Note: We don't set to "running" here - that's done by health checks in presence endpoint
-      logger.info({ projectId }, "Docker compose up succeeded");
-      return { project, started: true };
-    } else {
-      await updateProjectStatus(projectId, "error");
-      logger.error(
-        { projectId, exitCode: result.exitCode, stderr: result.stderr.slice(0, 500) },
-        "Docker compose up failed"
-      );
-      return {
-        project,
-        started: false,
-        error: `Docker compose failed: ${result.stderr.slice(0, 200)}`,
-      };
-    }
-  } catch (err) {
-    await updateProjectStatus(projectId, "error");
-    logger.error({ error: err, projectId }, "Failed to start Docker containers");
-    return {
-      project,
-      started: false,
-      error: err instanceof Error ? err.message : "Unknown error starting containers",
-    };
-  }
+  // Docker containers are started on-demand via the queue worker
+  // (triggered by presence heartbeats / project page visits).
+  return { project, started: false };
 }
 
 /**
