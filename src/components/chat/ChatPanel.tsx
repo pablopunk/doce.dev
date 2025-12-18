@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChatMessage, type Message } from "./ChatMessage";
-import { ToolCallDisplay, type ToolCall } from "./ToolCallDisplay";
+import { type ToolCall } from "./ToolCallDisplay";
+import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
 import { Loader2 } from "lucide-react";
 
@@ -521,6 +522,37 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
     });
   };
 
+  const groupConsecutiveTools = (items: ChatItem[]): (ChatItem | { type: "toolGroup"; id: string; data: ToolCall[] })[] => {
+    const grouped: (ChatItem | { type: "toolGroup"; id: string; data: ToolCall[] })[] = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      
+      if (item.type === "tool") {
+        // Collect consecutive tool items
+        const toolGroup: ToolCall[] = [item.data as ToolCall];
+        
+        while (i + 1 < items.length && items[i + 1]?.type === "tool") {
+          i++;
+          const nextItem = items[i];
+          if (nextItem) {
+            toolGroup.push(nextItem.data as ToolCall);
+          }
+        }
+        
+        grouped.push({
+          type: "toolGroup",
+          id: `group_${toolGroup.map(t => t.id).join('_')}`,
+          data: toolGroup,
+        });
+      } else {
+        grouped.push(item);
+      }
+    }
+    
+    return grouped;
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
@@ -537,18 +569,17 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
           </div>
         ) : (
           <div className="divide-y">
-            {items.map((item) =>
+            {groupConsecutiveTools(items).map((item) =>
               item.type === "message" ? (
                 <ChatMessage key={item.id} message={item.data as Message} />
-              ) : (
-                <div key={item.id} className="p-4">
-                  <ToolCallDisplay
-                    toolCall={item.data as ToolCall}
-                    isExpanded={expandedTools.has(item.id)}
-                    onToggle={() => toggleToolExpanded(item.id)}
-                  />
-                </div>
-              )
+              ) : item.type === "toolGroup" ? (
+                <ToolCallGroup
+                  key={item.id}
+                  toolCalls={item.data as ToolCall[]}
+                  expandedTools={expandedTools}
+                  onToggle={toggleToolExpanded}
+                />
+              ) : null
             )}
           </div>
         )}

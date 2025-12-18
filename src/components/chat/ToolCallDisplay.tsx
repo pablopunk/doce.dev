@@ -38,6 +38,30 @@ export function ToolCallDisplay({
   const ToolIcon = isThinking ? Brain : Wrench;
   const displayName = isThinking ? "Thinking..." : toolCall.name;
 
+  // Extract file name from input for file-related tools
+  const getFileContext = (): string | null => {
+    if (!toolCall.input || typeof toolCall.input !== "object") return null;
+
+    const input = toolCall.input as Record<string, unknown>;
+    const fileRelatedTools = ["read", "write", "edit", "delete", "list"];
+    
+    if (!fileRelatedTools.includes(toolCall.name)) return null;
+
+    // For most tools, look for filePath or path
+    if (typeof input.filePath === "string") {
+      return input.filePath.split("/").pop() || null;
+    }
+    if (typeof input.path === "string") {
+      const path = input.path as string;
+      // For list tool, show the full path or just the last part if it's deep
+      return path.split("/").pop() || path;
+    }
+    
+    return null;
+  };
+
+  const fileContext = getFileContext();
+
   const formatOutput = (value: unknown): string => {
     if (typeof value === "string") {
       return value;
@@ -55,7 +79,14 @@ export function ToolCallDisplay({
         )}
       >
         <ToolIcon className={cn("h-3.5 w-3.5", isThinking ? "text-purple-500" : "text-muted-foreground")} />
-        <span className="flex-1 font-mono text-xs">{displayName}</span>
+        <span className="flex-1 font-mono text-xs">
+          {displayName}
+          {fileContext && (
+            <span className="ml-2 text-muted-foreground text-xs font-normal">
+              {fileContext}
+            </span>
+          )}
+        </span>
         <span className={cn("flex items-center gap-1", statusColor)}>
           {statusIcon}
         </span>
