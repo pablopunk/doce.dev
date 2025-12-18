@@ -7,6 +7,7 @@ import {
   failJob,
   getJobCancelRequestedAt,
   heartbeatLease,
+  rescheduleJob,
   scheduleRetry,
   toErrorMessage,
 } from "./queue.model";
@@ -15,6 +16,12 @@ import { handleProjectDelete } from "./handlers/projectDelete";
 import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
 import { handleDockerEnsureRunning } from "./handlers/dockerEnsureRunning";
 import { handleDockerStop } from "./handlers/dockerStop";
+import { handleProjectCreate } from "./handlers/projectCreate";
+import { handleDockerComposeUp } from "./handlers/dockerComposeUp";
+import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
+import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
+import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
+import { handleOpencodeWaitIdle } from "./handlers/opencodeWaitIdle";
 
 export interface QueueWorkerOptions {
   concurrency: number;
@@ -26,17 +33,37 @@ export interface QueueWorkerHandle {
   stop: () => Promise<void>;
 }
 
+/**
+ * Thrown by handlers to reschedule the job without error.
+ */
+export class RescheduleError extends Error {
+  constructor(public readonly delayMs: number) {
+    super("reschedule");
+  }
+}
+
 export interface QueueJobContext {
   job: QueueJob;
   workerId: string;
   throwIfCancelRequested: () => Promise<void>;
+  /**
+   * Reschedule this job to run again after a delay.
+   * Does not increment attempts or set error.
+   */
+  reschedule: (delayMs: number) => never;
 }
 
 const handlerByType: Record<QueueJobType, (ctx: QueueJobContext) => Promise<void>> = {
+  "project.create": handleProjectCreate,
   "project.delete": handleProjectDelete,
   "projects.deleteAllForUser": handleDeleteAllForUser,
+  "docker.composeUp": handleDockerComposeUp,
+  "docker.waitReady": handleDockerWaitReady,
   "docker.ensureRunning": handleDockerEnsureRunning,
   "docker.stop": handleDockerStop,
+  "opencode.sessionCreate": handleOpencodeSessionCreate,
+  "opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
+  "opencode.waitIdle": handleOpencodeWaitIdle,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -123,11 +150,25 @@ async function runJob(
       throw new Error(`No handler for job type: ${job.type}`);
     }
 
-    await handler({ job, workerId, throwIfCancelRequested });
+    const reschedule = (delayMs: number): never => {
+      throw new RescheduleError(delayMs);
+    };
+
+    await handler({ job, workerId, throwIfCancelRequested, reschedule });
 
     await completeJob(job.id, workerId);
     logger.info({ jobId: job.id, type: job.type }, "Queue job succeeded");
   } catch (error) {
+    // Handle reschedule (not an error, just re-queue)
+    if (error instanceof RescheduleError) {
+      await rescheduleJob(job.id, workerId, error.delayMs);
+      logger.debug(
+        { jobId: job.id, type: job.type, delayMs: error.delayMs },
+        "Queue job rescheduled"
+      );
+      return;
+    }
+
     const message = toErrorMessage(error);
 
     if (message === "cancel_requested") {

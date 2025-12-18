@@ -145,3 +145,16 @@ export async function markInitialPromptCompleted(id: string): Promise<void> {
     .set({ initialPromptCompleted: true })
     .where(eq(projects.id, id));
 }
+
+/**
+ * Update a project's bootstrap session ID.
+ */
+export async function updateBootstrapSessionId(
+  id: string,
+  sessionId: string
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ bootstrapSessionId: sessionId })
+    .where(eq(projects.id, id));
+}

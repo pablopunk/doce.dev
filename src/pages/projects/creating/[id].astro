@@ -1,0 +1,213 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { getProjectById } from "@/server/projects/projects.model";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const projectId = Astro.params.id;
+
+if (!projectId) {
+  return Astro.redirect("/");
+}
+
+// Check if project already exists (job might have completed)
+const project = await getProjectById(projectId);
+if (project) {
+  return Astro.redirect(`/projects/${project.id}/${project.slug}`);
+}
+---
+
+<AppLayout title="Creating Project">
+  <div class="flex flex-col h-screen">
+    <header class="flex items-center justify-between px-4 py-2 border-b bg-background">
+      <div class="flex items-center gap-4">
+        <a href="/">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </a>
+        <div>
+          <h1 class="text-lg font-semibold">Creating Project</h1>
+          <p class="text-xs text-muted-foreground font-mono">{projectId}</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 flex flex-col items-center justify-center p-8">
+      <div class="text-center max-w-md" id="status-container">
+        <div class="mb-6">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" id="status-loader" />
+          <CheckCircle className="h-12 w-12 mx-auto text-green-500 hidden" id="status-success" />
+          <XCircle className="h-12 w-12 mx-auto text-destructive hidden" id="status-error" />
+        </div>
+        
+        <h2 class="text-xl font-semibold mb-2" id="status-title">Setting up your project...</h2>
+        <p class="text-muted-foreground mb-4" id="status-message">
+          This may take a minute or two while we prepare your development environment.
+        </p>
+        
+        <div class="text-sm text-muted-foreground space-y-1" id="progress-steps">
+          <div class="flex items-center gap-2 justify-center" data-step="project.create">
+            <Clock className="h-4 w-4" />
+            <span>Creating project files</span>
+          </div>
+          <div class="flex items-center gap-2 justify-center text-muted-foreground/50" data-step="docker.composeUp">
+            <Clock className="h-4 w-4" />
+            <span>Starting containers</span>
+          </div>
+          <div class="flex items-center gap-2 justify-center text-muted-foreground/50" data-step="docker.waitReady">
+            <Clock className="h-4 w-4" />
+            <span>Waiting for services</span>
+          </div>
+          <div class="flex items-center gap-2 justify-center text-muted-foreground/50" data-step="opencode.sessionCreate">
+            <Clock className="h-4 w-4" />
+            <span>Initializing AI agent</span>
+          </div>
+          <div class="flex items-center gap-2 justify-center text-muted-foreground/50" data-step="opencode.sendInitialPrompt">
+            <Clock className="h-4 w-4" />
+            <span>Sending your prompt</span>
+          </div>
+        </div>
+
+        <div class="mt-8 hidden" id="error-container">
+          <p class="text-destructive text-sm mb-4" id="error-message"></p>
+          <div class="flex gap-2 justify-center">
+            <a href="/">
+              <Button variant="outline">Back to Dashboard</Button>
+            </a>
+            <a href="/queue">
+              <Button variant="ghost">View Queue</Button>
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</AppLayout>
+
+<script is:inline define:vars={{ projectId }}>
+  const JOB_STEPS = [
+    "project.create",
+    "docker.composeUp",
+    "docker.waitReady",
+    "opencode.sessionCreate",
+    "opencode.sendInitialPrompt",
+    "opencode.waitIdle",
+  ];
+
+  // Track status of each step
+  const stepStatus = {};
+  JOB_STEPS.forEach(step => stepStatus[step] = "pending");
+
+  function updateStepStatus(stepType, status) {
+    const stepEl = document.querySelector(`[data-step="${stepType}"]`);
+    if (!stepEl) return;
+
+    stepStatus[stepType] = status;
+
+    stepEl.classList.remove("text-muted-foreground/50", "text-primary", "text-green-500", "text-destructive");
+    
+    if (status === "running" || status === "queued") {
+      stepEl.classList.add("text-primary");
+      if (status === "running") {
+        stepEl.querySelector("svg").classList.add("animate-spin");
+      }
+    } else if (status === "succeeded") {
+      stepEl.classList.add("text-green-500");
+      stepEl.querySelector("svg").classList.remove("animate-spin");
+    } else if (status === "failed") {
+      stepEl.classList.add("text-destructive");
+      stepEl.querySelector("svg").classList.remove("animate-spin");
+    }
+  }
+
+  function showError(errorMessage) {
+    document.getElementById("status-loader").classList.add("hidden");
+    document.getElementById("status-error").classList.remove("hidden");
+    document.getElementById("status-title").textContent = "Project creation failed";
+    document.getElementById("status-message").textContent = errorMessage || "An error occurred while creating your project.";
+    document.getElementById("error-container").classList.remove("hidden");
+    document.getElementById("error-message").textContent = errorMessage || "";
+  }
+
+  async function checkProjectAndRedirect() {
+    try {
+      const response = await fetch(`/_actions/projects.get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data?.project) {
+          const project = data.data.project;
+          // Check if initial prompt has been sent (chain is far enough along)
+          if (project.initialPromptSent) {
+            window.location.href = `/projects/${project.id}/${project.slug}`;
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore - project not ready yet
+    }
+    return false;
+  }
+
+  function connectToJobsStream() {
+    const eventSource = new EventSource(`/api/queue/jobs-stream?projectId=${projectId}`);
+    
+    eventSource.addEventListener("job", (event) => {
+      const job = JSON.parse(event.data);
+      
+      // Only process jobs for this project
+      if (job.projectId !== projectId) return;
+      
+      const stepType = job.type;
+      if (!JOB_STEPS.includes(stepType)) return;
+
+      // Update step status based on job state
+      if (job.state === "succeeded") {
+        updateStepStatus(stepType, "succeeded");
+        
+        // If initialPrompt was sent, we can redirect
+        if (stepType === "opencode.sendInitialPrompt") {
+          checkProjectAndRedirect();
+        }
+      } else if (job.state === "failed" || job.state === "cancelled") {
+        updateStepStatus(stepType, "failed");
+        showError(job.lastError);
+        eventSource.close();
+      } else if (job.state === "running") {
+        updateStepStatus(stepType, "running");
+      } else if (job.state === "queued") {
+        // Mark as pending/waiting
+        updateStepStatus(stepType, "queued");
+      }
+    });
+
+    eventSource.addEventListener("error", () => {
+      // Reconnect on error
+      eventSource.close();
+      setTimeout(connectToJobsStream, 2000);
+    });
+
+    // Also poll for project periodically as a fallback
+    const pollInterval = setInterval(async () => {
+      const found = await checkProjectAndRedirect();
+      if (found) {
+        clearInterval(pollInterval);
+        eventSource.close();
+      }
+    }, 3000);
+  }
+
+  // Start listening
+  connectToJobsStream();
+</script>

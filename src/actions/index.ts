@@ -10,10 +10,10 @@ import {
 	AVAILABLE_MODELS,
 	DEFAULT_MODEL,
 } from "@/server/settings/openrouter";
-import { createProjectFromPrompt } from "@/server/projects/create";
 import {
 	enqueueDeleteAllProjectsForUser,
 	enqueueDockerStop,
+	enqueueProjectCreate,
 	enqueueProjectDelete,
 } from "@/server/queue/enqueue";
 import {
@@ -253,7 +253,7 @@ export const server = {
 					});
 				}
 
-				// Get user settings to get the API key
+				// Get user settings to verify API key exists
 				const settings = await db
 					.select()
 					.from(userSettings)
@@ -268,26 +268,21 @@ export const server = {
 					});
 				}
 
-				const result = await createProjectFromPrompt({
-					prompt: input.prompt,
-					model: input.model ?? userSettingsData.defaultModel,
-					ownerUserId: user.id,
-					openrouterApiKey: userSettingsData.openrouterApiKey,
-				});
+				// Generate project ID upfront so we can return it immediately
+				const projectId = randomBytes(12).toString("hex");
 
-				if (!result.started && result.error) {
-					// Project was created but Docker failed to start
-					// We still return the project so user can see it and retry
-					return {
-						success: true,
-						project: result.project,
-						warning: result.error,
-					};
-				}
+				// Enqueue the project creation job
+				const job = await enqueueProjectCreate({
+					projectId,
+					ownerUserId: user.id,
+					prompt: input.prompt,
+					model: input.model ?? userSettingsData.defaultModel ?? null,
+				});
 
 				return {
 					success: true,
-					project: result.project,
+					projectId,
+					jobId: job.id,
 				};
 			},
 		}),

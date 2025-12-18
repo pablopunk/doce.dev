@@ -346,6 +346,32 @@ export async function scheduleRetry(
     .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
+/**
+ * Reschedule a job to run again later without incrementing attempts or setting error.
+ * Used for "wait" jobs that need to poll until a condition is met.
+ */
+export async function rescheduleJob(
+  jobId: string,
+  workerId: string,
+  delayMs: number
+): Promise<void> {
+  const now = new Date();
+
+  await db
+    .update(queueJobs)
+    .set({
+      state: "queued",
+      runAt: new Date(Date.now() + delayMs),
+      lockedAt: null,
+      lockExpiresAt: null,
+      lockedBy: null,
+      updatedAt: now,
+      // Note: attempts is NOT decremented - it was already incremented on claim.
+      // But we don't set lastError, so this looks like a normal reschedule.
+    })
+    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+}
+
 export async function failJob(
   jobId: string,
   workerId: string,

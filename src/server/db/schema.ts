@@ -69,6 +69,7 @@ export const projects = sqliteTable("projects", {
   initialPromptCompleted: integer("initial_prompt_completed", { mode: "boolean" })
     .notNull()
     .default(false),
+  bootstrapSessionId: text("bootstrap_session_id"),
 });
 
 // Queue jobs table (durable background tasks)

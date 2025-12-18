@@ -31,11 +31,13 @@ const defaultModel = settings[0]?.defaultModel ?? DEFAULT_MODEL;
 const result = Astro.getActionResult(actions.projects.create);
 const formError = result?.error?.message;
 const formSuccess = result?.data?.success;
-const newProject = result?.data?.project;
+// Type assertion needed because action return type changed
+const resultData = (result?.data ?? {}) as Record<string, unknown>;
+const projectId = resultData.projectId as string | undefined;
 
-// If project was created, redirect to it
-if (formSuccess && newProject) {
-  return Astro.redirect(`/projects/${newProject.id}/${newProject.slug}`);
+// If project creation was enqueued, redirect to waiting page
+if (formSuccess && projectId) {
+  return Astro.redirect(`/projects/creating/${projectId}`);
 }
 ---
 

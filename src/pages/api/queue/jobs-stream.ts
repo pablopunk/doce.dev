@@ -21,10 +21,16 @@ export const GET: APIRoute = async ({ request, locals }) => {
     : undefined;
 
   const allowedTypes = [
+    "project.create",
     "project.delete",
     "projects.deleteAllForUser",
+    "docker.composeUp",
+    "docker.waitReady",
     "docker.ensureRunning",
     "docker.stop",
+    "opencode.sessionCreate",
+    "opencode.sendInitialPrompt",
+    "opencode.waitIdle",
   ] as const;
   const type = allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
     ? (typeParam as QueueJob["type"])
