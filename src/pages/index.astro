@@ -60,37 +60,37 @@ if (formSuccess && newProject) {
           Describe your website and let AI build it for you.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form method="post" action={actions.projects.create} class="space-y-4" id="create-form">
-          <div class="flex gap-4">
-            <input
-              type="text"
-              name="prompt"
-              placeholder="A landing page for my SaaS product..."
-              required
-              class="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            <select
-              name="model"
-              class="rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {AVAILABLE_MODELS.map((model) => (
-                <option value={model.id} selected={model.id === defaultModel}>
-                  {model.name} ({model.provider})
-                </option>
-              ))}
-            </select>
-            <Button type="submit" id="submit-btn">
-              <Plus className="mr-2 h-4 w-4" />
-              <span id="btn-text">Create Project</span>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin hidden" id="btn-loader" />
-            </Button>
-          </div>
-          {formError && (
-            <p class="text-sm text-destructive">{formError}</p>
-          )}
-        </form>
-      </CardContent>
+       <CardContent>
+         <form method="post" action={actions.projects.create} class="space-y-4" id="create-form">
+           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+             <input
+               type="text"
+               name="prompt"
+               placeholder="A landing page for my SaaS product..."
+               required
+               class="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+             />
+             <select
+               name="model"
+               class="rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+             >
+               {AVAILABLE_MODELS.map((model) => (
+                 <option value={model.id} selected={model.id === defaultModel}>
+                   {model.name} ({model.provider})
+                 </option>
+               ))}
+             </select>
+             <Button type="submit" id="submit-btn" size="lg">
+               <Plus />
+               <span id="btn-text">Create Project</span>
+               <Loader2 className="animate-spin hidden" id="btn-loader" />
+             </Button>
+           </div>
+           {formError && (
+             <p class="text-sm text-destructive">{formError}</p>
+           )}
+         </form>
+       </CardContent>
     </Card>
 
     <div>
