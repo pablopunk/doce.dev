@@ -49,8 +49,10 @@ export function CreateProjectForm({
       if (result.error) {
         setError(result.error.message);
         setIsLoading(false);
+      } else if (result.data?.projectId) {
+        // Redirect to project setup page
+        window.location.href = `/projects/creating/${result.data.projectId}`;
       }
-      // On success, Astro redirects (no cleanup needed)
     } catch (err) {
       setError("Failed to create project");
       setIsLoading(false);
