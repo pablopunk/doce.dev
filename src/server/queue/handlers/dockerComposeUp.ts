@@ -1,6 +1,6 @@
 import { logger } from "@/server/logger";
 import { composeUp } from "@/server/docker/compose";
-import { getProjectByIdIncludeDeleted, updateProjectStatus } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueDockerWaitReady } from "../enqueue";
@@ -19,23 +19,30 @@ export async function handleDockerComposeUp(ctx: QueueJobContext): Promise<void>
     return;
   }
 
-  await updateProjectStatus(project.id, "starting");
+  try {
+    await updateProjectStatus(project.id, "starting");
+    await updateProjectSetupPhase(project.id, "starting_docker");
 
-  await ctx.throwIfCancelRequested();
+    await ctx.throwIfCancelRequested();
 
-  const result = await composeUp(project.id, project.pathOnDisk);
-  if (!result.success) {
-    await updateProjectStatus(project.id, "error");
-    throw new Error(`compose up failed: ${result.stderr.slice(0, 500)}`);
+    const result = await composeUp(project.id, project.pathOnDisk);
+    if (!result.success) {
+      await updateProjectStatus(project.id, "error");
+      await updateProjectSetupPhase(project.id, "failed");
+      throw new Error(`compose up failed: ${result.stderr.slice(0, 500)}`);
+    }
+
+    logger.info({ projectId: project.id }, "Docker compose up succeeded");
+
+    // Enqueue next step: wait for services to be ready
+    await enqueueDockerWaitReady({
+      projectId: project.id,
+      startedAt: Date.now(),
+    });
+
+    logger.debug({ projectId: project.id }, "Enqueued docker.waitReady");
+  } catch (error) {
+    await updateProjectSetupPhase(project.id, "failed");
+    throw error;
   }
-
-  logger.info({ projectId: project.id }, "Docker compose up succeeded");
-
-  // Enqueue next step: wait for services to be ready
-  await enqueueDockerWaitReady({
-    projectId: project.id,
-    startedAt: Date.now(),
-  });
-
-  logger.debug({ projectId: project.id }, "Enqueued docker.waitReady");
 }

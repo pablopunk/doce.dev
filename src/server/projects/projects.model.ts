@@ -3,6 +3,7 @@ import { projects, type Project, type NewProject } from "@/server/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
 export type ProjectStatus = Project["status"];
+export type SetupPhase = Project["setupPhase"];
 
 /**
  * Create a new project in the database.
@@ -156,5 +157,18 @@ export async function updateBootstrapSessionId(
   await db
     .update(projects)
     .set({ bootstrapSessionId: sessionId })
+    .where(eq(projects.id, id));
+}
+
+/**
+ * Update a project's setup phase.
+ */
+export async function updateProjectSetupPhase(
+  id: string,
+  setupPhase: SetupPhase
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ setupPhase })
     .where(eq(projects.id, id));
 }

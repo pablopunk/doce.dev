@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { generateProjectName } from "@/server/settings/openrouter";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { generateUniqueSlug } from "@/server/projects/slug";
-import { createProject } from "@/server/projects/projects.model";
+import { createProject, updateProjectSetupPhase } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueDockerComposeUp } from "../enqueue";
@@ -43,86 +43,93 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
   logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
-  await ctx.throwIfCancelRequested();
+  try {
+    await updateProjectSetupPhase(projectId, "creating_files");
+    await ctx.throwIfCancelRequested();
 
-  // Get user's OpenRouter API key
-  const settings = await db
-    .select()
-    .from(userSettings)
-    .where(eq(userSettings.userId, ownerUserId))
-    .limit(1);
+    // Get user's OpenRouter API key
+    const settings = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, ownerUserId))
+      .limit(1);
 
-  const openrouterApiKey = settings[0]?.openrouterApiKey;
-  if (!openrouterApiKey) {
-    throw new Error("User has no OpenRouter API key configured");
+    const openrouterApiKey = settings[0]?.openrouterApiKey;
+    if (!openrouterApiKey) {
+      throw new Error("User has no OpenRouter API key configured");
+    }
+
+    await ctx.throwIfCancelRequested();
+
+    // Generate project name using AI
+    const name = await generateProjectName(openrouterApiKey, prompt);
+    logger.debug({ projectId, name }, "Generated project name");
+
+    await ctx.throwIfCancelRequested();
+
+    // Generate unique slug
+    const slug = await generateUniqueSlug(name);
+    logger.debug({ projectId, slug }, "Generated unique slug");
+
+    // Allocate ports
+    const { devPort, opencodePort } = await allocateProjectPorts();
+    logger.debug({ projectId, devPort, opencodePort }, "Allocated ports");
+
+    await ctx.throwIfCancelRequested();
+
+    // Get paths
+    const projectPath = getProjectPath(projectId);
+    const relativePath = getProjectRelativePath(projectId);
+
+    // Ensure projects directory exists
+    await fs.mkdir(getProjectsPath(), { recursive: true });
+
+    // Copy template to project directory
+    await copyTemplate(projectPath);
+    logger.debug({ projectId, projectPath }, "Copied template");
+
+    await ctx.throwIfCancelRequested();
+
+     // Write .env file with ports
+     await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
+     logger.debug({ projectId, devPort, opencodePort }, "Wrote .env file");
+
+     // Update opencode.json with the selected model
+     if (model) {
+       await updateOpencodeJsonWithModel(projectPath, model);
+       logger.debug({ projectId, model }, "Updated opencode.json with model");
+     }
+
+     // Create logs directory
+     await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
+
+     await ctx.throwIfCancelRequested();
+
+    // Create DB record
+    await createProject({
+      id: projectId,
+      ownerUserId,
+      createdAt: new Date(),
+      name,
+      slug,
+      prompt,
+      model,
+      devPort,
+      opencodePort,
+      status: "created",
+      setupPhase: "creating_files",
+      pathOnDisk: relativePath,
+    });
+
+    logger.info({ projectId, name, slug }, "Created project in database");
+
+    // Enqueue next step: docker compose up
+    await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
+    logger.debug({ projectId }, "Enqueued docker.composeUp");
+  } catch (error) {
+    await updateProjectSetupPhase(projectId, "failed");
+    throw error;
   }
-
-  await ctx.throwIfCancelRequested();
-
-  // Generate project name using AI
-  const name = await generateProjectName(openrouterApiKey, prompt);
-  logger.debug({ projectId, name }, "Generated project name");
-
-  await ctx.throwIfCancelRequested();
-
-  // Generate unique slug
-  const slug = await generateUniqueSlug(name);
-  logger.debug({ projectId, slug }, "Generated unique slug");
-
-  // Allocate ports
-  const { devPort, opencodePort } = await allocateProjectPorts();
-  logger.debug({ projectId, devPort, opencodePort }, "Allocated ports");
-
-  await ctx.throwIfCancelRequested();
-
-  // Get paths
-  const projectPath = getProjectPath(projectId);
-  const relativePath = getProjectRelativePath(projectId);
-
-  // Ensure projects directory exists
-  await fs.mkdir(getProjectsPath(), { recursive: true });
-
-  // Copy template to project directory
-  await copyTemplate(projectPath);
-  logger.debug({ projectId, projectPath }, "Copied template");
-
-  await ctx.throwIfCancelRequested();
-
-   // Write .env file with ports
-   await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
-   logger.debug({ projectId, devPort, opencodePort }, "Wrote .env file");
-
-   // Update opencode.json with the selected model
-   if (model) {
-     await updateOpencodeJsonWithModel(projectPath, model);
-     logger.debug({ projectId, model }, "Updated opencode.json with model");
-   }
-
-   // Create logs directory
-   await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
-
-   await ctx.throwIfCancelRequested();
-
-  // Create DB record
-  await createProject({
-    id: projectId,
-    ownerUserId,
-    createdAt: new Date(),
-    name,
-    slug,
-    prompt,
-    model,
-    devPort,
-    opencodePort,
-    status: "created",
-    pathOnDisk: relativePath,
-  });
-
-  logger.info({ projectId, name, slug }, "Created project in database");
-
-  // Enqueue next step: docker compose up
-  await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
-  logger.debug({ projectId }, "Enqueued docker.composeUp");
 }
 
 async function copyTemplate(targetPath: string): Promise<void> {

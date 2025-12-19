@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Settings } from "lucide-react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
+import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
 import { getProjectById } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
@@ -58,26 +59,34 @@ if (project.slug !== slug) {
     </header>
 
     <!-- Main content -->
-    <div class="flex-1 flex overflow-hidden" id="project-content">
-      <!-- Chat panel (left) -->
-      <div id="chat-container" class={`${project.initialPromptCompleted ? "w-1/2 border-r" : "w-full"} flex flex-col transition-all duration-300`}>
-        <ChatPanel
-          projectId={project.id}
-          client:load
-        />
-      </div>
+    {project.setupPhase !== "completed" ? (
+      <!-- Setup phase: show setup status display -->
+      <SetupStatusDisplay
+        projectId={project.id}
+        initialSetupPhase={project.setupPhase}
+        client:load
+      />
+    ) : (
+      <!-- Setup complete: show chat + preview -->
+      <div class="flex-1 flex overflow-hidden" id="project-content">
+        <!-- Chat panel (left) -->
+        <div id="chat-container" class="w-1/2 border-r flex flex-col transition-all duration-300">
+          <ChatPanel
+            projectId={project.id}
+            client:load
+          />
+        </div>
 
-       <!-- Preview panel (right) - only shown when project is built -->
-       {project.initialPromptCompleted && (
+         <!-- Preview panel (right) -->
          <div id="preview-container" class="w-1/2 flex flex-col">
            <PreviewPanel
              projectId={project.id}
              client:load
            />
          </div>
-       )}
-     </div>
-  </div>
+        </div>
+    )}
+   </div>
 </AppLayout>
 
 <script define:vars={{ projectId: project.id, initialPromptCompleted: project.initialPromptCompleted }}>

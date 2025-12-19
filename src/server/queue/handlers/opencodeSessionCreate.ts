@@ -1,5 +1,5 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted, updateBootstrapSessionId } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateBootstrapSessionId, updateProjectSetupPhase } from "@/server/projects/projects.model";
 import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -25,28 +25,35 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
     return;
   }
 
-  await ctx.throwIfCancelRequested();
+  try {
+    await updateProjectSetupPhase(project.id, "initializing_agent");
 
-  // Create opencode client
-  const client = createOpencodeClient(project.opencodePort);
+    await ctx.throwIfCancelRequested();
 
-  // Create a new session
-  const sessionResponse = await client.session.create();
-  const sessionData = (sessionResponse as unknown as { data?: { id: string }; id?: string });
-  const sessionId = sessionData.data?.id ?? sessionData.id;
-  
-  if (!sessionId) {
-    throw new Error("Failed to create session: no session ID returned");
+    // Create opencode client
+    const client = createOpencodeClient(project.opencodePort);
+
+    // Create a new session
+    const sessionResponse = await client.session.create();
+    const sessionData = (sessionResponse as unknown as { data?: { id: string }; id?: string });
+    const sessionId = sessionData.data?.id ?? sessionData.id;
+    
+    if (!sessionId) {
+      throw new Error("Failed to create session: no session ID returned");
+    }
+
+    logger.info({ projectId: project.id, sessionId }, "Created opencode session");
+
+    // Store the session ID in the project
+    await updateBootstrapSessionId(project.id, sessionId);
+
+    await ctx.throwIfCancelRequested();
+
+    // Enqueue next step: send initial prompt
+    await enqueueOpencodeSendInitialPrompt({ projectId: project.id });
+    logger.debug({ projectId: project.id }, "Enqueued opencode.sendInitialPrompt");
+  } catch (error) {
+    await updateProjectSetupPhase(project.id, "failed");
+    throw error;
   }
-
-  logger.info({ projectId: project.id, sessionId }, "Created opencode session");
-
-  // Store the session ID in the project
-  await updateBootstrapSessionId(project.id, sessionId);
-
-  await ctx.throwIfCancelRequested();
-
-  // Enqueue next step: send initial prompt
-  await enqueueOpencodeSendInitialPrompt({ projectId: project.id });
-  logger.debug({ projectId: project.id }, "Enqueued opencode.sendInitialPrompt");
 }

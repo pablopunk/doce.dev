@@ -43,6 +43,13 @@
       "when": 1765700000000,
       "tag": "0005_bootstrap-session-id",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1766186000977,
+      "tag": "0006_typical_ulik",
+      "breakpoints": true
     }
   ]
 }

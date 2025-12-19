@@ -2,6 +2,7 @@ import { logger } from "@/server/logger";
 import {
   getProjectByIdIncludeDeleted,
   markInitialPromptSent,
+  updateProjectSetupPhase,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -27,41 +28,48 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
     return;
   }
 
-  const sessionId = project.bootstrapSessionId;
-  if (!sessionId) {
-    throw new Error("No bootstrap session ID found - session not created?");
+  try {
+    await updateProjectSetupPhase(project.id, "sending_prompt");
+
+    const sessionId = project.bootstrapSessionId;
+    if (!sessionId) {
+      throw new Error("No bootstrap session ID found - session not created?");
+    }
+
+    await ctx.throwIfCancelRequested();
+
+    // Send the initial prompt via HTTP (prompt_async)
+    const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        parts: [{ type: "text", text: project.prompt }],
+      }),
+    });
+
+    // prompt_async returns 204 No Content on success
+    if (!response.ok && response.status !== 204) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Failed to send initial prompt: ${response.status} ${text.slice(0, 200)}`);
+    }
+
+    logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
+
+    // Mark initial prompt as sent
+    await markInitialPromptSent(project.id);
+
+    await ctx.throwIfCancelRequested();
+
+    // Enqueue next step: wait for idle
+    await enqueueOpencodeWaitIdle({
+      projectId: project.id,
+      startedAt: Date.now(),
+    });
+    logger.debug({ projectId: project.id }, "Enqueued opencode.waitIdle");
+  } catch (error) {
+    await updateProjectSetupPhase(project.id, "failed");
+    throw error;
   }
-
-  await ctx.throwIfCancelRequested();
-
-  // Send the initial prompt via HTTP (prompt_async)
-  const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      parts: [{ type: "text", text: project.prompt }],
-    }),
-  });
-
-  // prompt_async returns 204 No Content on success
-  if (!response.ok && response.status !== 204) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Failed to send initial prompt: ${response.status} ${text.slice(0, 200)}`);
-  }
-
-  logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
-
-  // Mark initial prompt as sent
-  await markInitialPromptSent(project.id);
-
-  await ctx.throwIfCancelRequested();
-
-  // Enqueue next step: wait for idle
-  await enqueueOpencodeWaitIdle({
-    projectId: project.id,
-    startedAt: Date.now(),
-  });
-  logger.debug({ projectId: project.id }, "Enqueued opencode.waitIdle");
 }

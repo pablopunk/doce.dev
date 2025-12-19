@@ -37,6 +37,8 @@ export interface PresenceResponse {
   initialPromptCompleted: boolean;
   prompt: string;
   model: string | null;
+  // Setup phase
+  setupPhase: string;
 }
 
 // In-memory presence state
@@ -128,6 +130,7 @@ export async function handlePresenceHeartbeat(
         initialPromptCompleted: project.initialPromptCompleted,
         prompt: project.prompt,
         model: project.model,
+        setupPhase: project.setupPhase,
       };
     }
 
@@ -242,6 +245,7 @@ export async function handlePresenceHeartbeat(
       initialPromptCompleted: project.initialPromptCompleted,
       prompt: project.prompt,
       model: project.model,
+      setupPhase: project.setupPhase,
     };
   } finally {
     release();

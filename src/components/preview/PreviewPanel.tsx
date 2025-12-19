@@ -13,6 +13,7 @@ interface PresenceResponse {
 	message: string | null;
 	nextPollMs: number;
 	initialPromptCompleted?: boolean;
+	setupPhase?: string;
 }
 
 interface PreviewPanelProps {
@@ -27,7 +28,6 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [iframeKey, setIframeKey] = useState(0);
-	const [isProjectBuilt, setIsProjectBuilt] = useState(false);
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,8 +68,14 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 		(data: PresenceResponse) => {
 			setPreviewUrl(data.previewUrl);
 			setMessage(data.message);
-			setIsProjectBuilt(data.initialPromptCompleted ?? false);
 			onStatusChange?.(data);
+
+			// If setup is not complete, don't start preview
+			if (data.setupPhase && data.setupPhase !== "completed") {
+				setState("starting");
+				setMessage("Waiting for setup to complete...");
+				return data;
+			}
 
 			// State machine
 			if (data.previewReady && data.status === "running") {

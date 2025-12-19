@@ -88,6 +88,52 @@ It's basically a UI on top of the opencode SDK. Users can create a project with 
   * Pause/resume worker
   * Cancel/retry/force-unlock jobs
 
+## Project Setup Phase System
+
+The project creation process is tracked through a queue-integrated `setupPhase` field that progresses through the following stages:
+
+**Setup Phase States:**
+```
+not_started
+  → (queue: project.create)
+creating_files
+  → (queue: docker.composeUp)
+starting_docker
+  → (queue: docker.waitReady)
+initializing_agent
+  → (queue: opencode.sessionCreate)
+sending_prompt
+  → (queue: opencode.sendInitialPrompt)
+waiting_completion
+  → (queue: opencode.waitIdle)
+completed
+```
+
+If any queue job fails:
+- `setupPhase` is automatically set to `failed`
+- UI shows error state with retry button
+- Queue system automatically retries on configurable schedule
+
+**Key Features:**
+- **Automatic tracking**: Each queue handler updates setupPhase when it starts/completes
+- **Refresh recovery**: Users can refresh at any stage and see correct status (no more "Waiting for opencode" during file creation!)
+- **User-friendly messages**: Setup page shows which step is currently running (e.g., "Sending your prompt...")
+- **Spinner feedback**: Visual spinner indicates ongoing setup
+- **Error handling**: Both automatic retry and manual retry button on UI
+- **Preview protection**: Preview doesn't start until `setupPhase === "completed"` to avoid showing untouched template
+
+**UI Behavior:**
+- While `setupPhase !== "completed"`: Show "Setting up your project..." page with spinner and current step message
+- When `setupPhase === "completed"`: Show chat + preview split
+- If `setupPhase === "failed"`: Show error message with retry button
+
+**Implementation Details:**
+- `setupPhase` column added to `projects` table as enum field
+- `updateProjectSetupPhase(id, phase)` helper function in projects.model.ts
+- Each queue handler wraps logic in try-catch to set phase to "failed" on error before re-throwing
+- PresenceResponse includes `setupPhase` field for client polling
+- SetupStatusDisplay component provides user-friendly status UI
+
 ## Other features
 
 * Use openrouter for all models. For now we'll just list these for the initial prompt and the chat UI:
