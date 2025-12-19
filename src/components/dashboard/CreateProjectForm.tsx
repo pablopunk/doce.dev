@@ -60,12 +60,7 @@ export function CreateProjectForm({
   return (
     <form onSubmit={handleSubmit} className="w-full">
       <div className="flex flex-col gap-4">
-        <div className="flex items-start gap-3 p-4 rounded-2xl border border-input bg-slate-950/50 dark:bg-slate-900/50">
-          <ModelSelector
-            models={models}
-            selectedModelId={selectedModel}
-            onModelChange={setSelectedModel}
-          />
+        <div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-slate-950/50 dark:bg-slate-900/50">
           <textarea
             ref={textareaRef}
             value={prompt}
@@ -73,19 +68,26 @@ export function CreateProjectForm({
             placeholder="Ask doce to build..."
             className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
             rows={1}
-            style={{ minHeight: "60px" }}
+            style={{ minHeight: "80px" }}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !prompt.trim()}
-            className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Sparkles className="w-5 h-5" />
-            )}
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <ModelSelector
+              models={models}
+              selectedModelId={selectedModel}
+              onModelChange={setSelectedModel}
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !prompt.trim()}
+              className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Sparkles className="w-5 h-5" />
+              )}
+            </button>
+          </div>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
