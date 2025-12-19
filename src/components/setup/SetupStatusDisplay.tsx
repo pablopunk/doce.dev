@@ -21,20 +21,31 @@ type SetupPhase =
 interface PhaseInfo {
   message: string;
   step: number;
+  label: string;
 }
 
 const phaseMessages: Record<SetupPhase, PhaseInfo> = {
-  "not_started": { message: "Preparing setup...", step: 0 },
-  "creating_files": { message: "Creating project files...", step: 1 },
-  "starting_docker": { message: "Starting containers...", step: 2 },
-  "initializing_agent": { message: "Initializing AI agent...", step: 3 },
-  "sending_prompt": { message: "Sending your prompt...", step: 4 },
-  "waiting_completion": { message: "Building your website...", step: 5 },
-  "completed": { message: "Setup complete!", step: 6 },
-  "failed": { message: "Setup failed", step: 0 },
+  "not_started": { message: "Preparing setup...", step: 0, label: "Preparing" },
+  "creating_files": { message: "Creating project files...", step: 1, label: "Files" },
+  "starting_docker": { message: "Starting containers...", step: 2, label: "Docker" },
+  "initializing_agent": { message: "Initializing AI agent...", step: 3, label: "Agent" },
+  "sending_prompt": { message: "Sending your prompt...", step: 4, label: "Prompt" },
+  "waiting_completion": { message: "Building your website...", step: 5, label: "Build" },
+  "completed": { message: "Setup complete!", step: 6, label: "Done" },
+  "failed": { message: "Setup failed", step: 0, label: "Failed" },
 };
 
 const TOTAL_STEPS = 6;
+
+// All steps in order for the timeline
+const STEPS: Array<{ step: number; label: string }> = [
+  { step: 1, label: "Files" },
+  { step: 2, label: "Docker" },
+  { step: 3, label: "Agent" },
+  { step: 4, label: "Prompt" },
+  { step: 5, label: "Build" },
+  { step: 6, label: "Done" },
+];
 
 // Adaptive polling intervals based on setup phase
 // Earlier phases need faster feedback, later phases are slower anyway
@@ -117,58 +128,88 @@ export function SetupStatusDisplay({
      };
    }, [projectId, isComplete, setupPhase]);
 
-  const isFailed = setupPhase === "failed";
+   const isFailed = setupPhase === "failed";
+   const currentStep = phaseMessages[setupPhase].step;
 
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-8 max-w-md">
-        {isFailed ? (
-          <AlertTriangle className="h-16 w-16 text-red-500" />
-        ) : (
-          <Loader2 className="h-16 w-16 animate-spin text-primary" />
-        )}
+   return (
+     <div className="flex-1 flex items-center justify-center px-4">
+       <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
+         <div className="text-center space-y-6 w-full">
+            <h2 className="text-2xl font-semibold">
+              {isFailed ? "Setup Failed" : "Setting up your project..."}
+            </h2>
+            
+            {!isFailed && (
+              <div className="space-y-4">
+                {/* Timeline of all steps */}
+                <div className="flex items-center justify-between gap-1 w-full">
+                  {STEPS.map((step) => {
+                    const isCompleted = currentStep > step.step;
+                    const isCurrent = currentStep === step.step;
+                    
+                    return (
+                      <div key={step.step} className="flex flex-col items-center gap-2 flex-1">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
+                            isCurrent
+                              ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                              : isCompleted
+                              ? "bg-primary/20 text-primary"
+                              : "bg-secondary text-muted-foreground"
+                          }`}
+                        >
+                          {isCompleted ? "✓" : step.step}
+                        </div>
+                        <span className={`text-xs font-medium line-clamp-1 ${
+                          isCurrent ? "text-primary" : "text-muted-foreground"
+                        }`}>
+                          {step.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
 
-        <div className="text-center space-y-4">
-           <h2 className="text-2xl font-semibold">
-             {isFailed ? "Setup Failed" : "Setting up your project..."}
-           </h2>
-           
-           {!isFailed && (
-             <div className="flex items-center justify-center gap-2">
-               <span className="text-sm font-medium text-primary">
-                 Step {phaseMessages[setupPhase].step} of {TOTAL_STEPS}
-               </span>
-               <div className="h-1.5 bg-secondary rounded-full w-32">
-                 <div 
-                   className="h-full bg-primary rounded-full transition-all duration-300"
-                   style={{ width: `${(phaseMessages[setupPhase].step / TOTAL_STEPS) * 100}%` }}
-                 />
-               </div>
-             </div>
-           )}
-           
-           <p className="text-sm text-muted-foreground">
-             {phaseMessages[setupPhase].message}
-           </p>
-           {isFailed && setupError && (
-             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-left">
-               <p className="text-xs text-red-800 break-words">
-                 <span className="font-semibold">Error: </span>
-                 {setupError}
-               </p>
-             </div>
-           )}
-         </div>
+                {/* Progress bar */}
+                <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300 ease-out"
+                    style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-center gap-2">
+              {!isFailed && (
+                <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+              )}
+              {isFailed && (
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              )}
+              <p className="text-sm text-muted-foreground">
+                {phaseMessages[setupPhase].message}
+              </p>
+            </div>
+            {isFailed && setupError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-left">
+                <p className="text-xs text-red-800 break-words">
+                  <span className="font-semibold">Error: </span>
+                  {setupError}
+                </p>
+              </div>
+            )}
+          </div>
 
-        {isFailed && (
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-          >
-            Retry
-          </Button>
-        )}
-      </div>
-    </div>
-  );
+         {isFailed && (
+           <Button
+             onClick={() => window.location.reload()}
+             variant="outline"
+           >
+             Retry
+           </Button>
+         )}
+       </div>
+     </div>
+   );
 }
