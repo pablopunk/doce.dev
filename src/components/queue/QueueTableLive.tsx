@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { QueueJob } from "@/server/db/schema";
 import { QueuePlayerControl } from "./QueuePlayerControl";
+import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 
 interface QueueStreamData {
   type: "init" | "update";
@@ -23,6 +24,12 @@ interface QueueTableLiveProps {
 export function QueueTableLive({ initialJobs, initialPaused, filters = {} }: QueueTableLiveProps) {
   const [jobs, setJobs] = useState<QueueJob[]>(initialJobs);
   const [paused, setPaused] = useState(initialPaused);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    jobId: string;
+    action: "cancel" | "forceUnlock";
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -86,29 +93,25 @@ export function QueueTableLive({ initialJobs, initialPaused, filters = {} }: Que
     }
   };
 
-  const handleAction = async (action: string, jobId: string) => {
-    if (action === "forceUnlock" && !confirm("Force unlock is destructive. Continue?")) {
-      return;
-    }
+  const handleActionClick = (action: "cancel" | "forceUnlock", jobId: string) => {
+    setPendingAction({ jobId, action });
+    setDialogOpen(true);
+  };
 
-    if (action === "cancel" && !confirm("Cancel this job?")) {
-      return;
-    }
+  const handleConfirmAction = async () => {
+    if (!pendingAction) return;
 
+    setIsLoading(true);
     try {
       const path =
-        action === "cancel"
+        pendingAction.action === "cancel"
           ? "/_actions/queue.cancel"
-          : action === "retry"
-            ? "/_actions/queue.retry"
-            : action === "runNow"
-              ? "/_actions/queue.runNow"
-              : "/_actions/queue.forceUnlock";
+          : "/_actions/queue.forceUnlock";
 
       const res = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
+        body: JSON.stringify({ jobId: pendingAction.jobId }),
       });
 
       if (!res.ok) {
@@ -116,6 +119,43 @@ export function QueueTableLive({ initialJobs, initialPaused, filters = {} }: Que
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to perform action");
+    } finally {
+      setIsLoading(false);
+      setPendingAction(null);
+    }
+  };
+
+  const handleAction = async (action: string, jobId: string) => {
+    if (action === "runNow") {
+      try {
+        const res = await fetch("/_actions/queue.runNow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to run job");
+        }
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Failed to run job");
+      }
+    } else if (action === "retry") {
+      try {
+        const res = await fetch("/_actions/queue.retry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to retry job");
+        }
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Failed to retry job");
+      }
+    } else if (action === "cancel" || action === "forceUnlock") {
+      handleActionClick(action, jobId);
     }
   };
 
@@ -125,93 +165,105 @@ export function QueueTableLive({ initialJobs, initialPaused, filters = {} }: Que
   };
 
   return (
-    <div className="px-8 py-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Queue</h1>
-        <QueuePlayerControl
-          paused={paused}
-          stats={stats}
-          onToggleQueue={handleToggleQueue}
-        />
-      </div>
+    <>
+      <div className="px-8 py-6 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">Queue</h1>
+          <QueuePlayerControl
+            paused={paused}
+            stats={stats}
+            onToggleQueue={handleToggleQueue}
+          />
+        </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-2 px-2">ID</th>
-              <th className="text-left py-2 px-2">Type</th>
-              <th className="text-left py-2 px-2">State</th>
-              <th className="text-left py-2 px-2">Project</th>
-              <th className="text-left py-2 px-2">Created</th>
-              <th className="text-left py-2 px-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-8 px-2 text-center text-muted-foreground">
-                  No jobs found
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 px-2">ID</th>
+                <th className="text-left py-2 px-2">Type</th>
+                <th className="text-left py-2 px-2">State</th>
+                <th className="text-left py-2 px-2">Project</th>
+                <th className="text-left py-2 px-2">Created</th>
+                <th className="text-left py-2 px-2">Actions</th>
               </tr>
-            ) : (
-              jobs.map((job) => (
-                <tr key={job.id} className="border-b hover:bg-muted/50">
-                  <td className="py-2 px-2 font-mono text-xs">
-                    <a href={`/queue/${job.id}`} className="hover:underline text-blue-500">
-                      {job.id.slice(0, 8)}
-                    </a>
-                  </td>
-                  <td className="py-2 px-2">{job.type}</td>
-                  <td className="py-2 px-2">
-                    <span className={`px-2 py-1 rounded text-xs ${getStateStyles(job.state)}`}>
-                      {job.state}
-                    </span>
-                  </td>
-                  <td className="py-2 px-2 text-xs text-muted-foreground">{job.projectId || "—"}</td>
-                   <td className="py-2 px-2 text-xs text-muted-foreground">
-                     {new Date(job.createdAt).toISOString().split('T')[0]}
-                   </td>
-                  <td className="py-2 px-2 space-x-2 flex">
-                    {job.state === "queued" && (
-                      <button
-                        onClick={() => handleAction("runNow", job.id)}
-                        className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                      >
-                        Run Now
-                      </button>
-                    )}
-                    {(job.state === "queued" || job.state === "running") && (
-                      <button
-                        onClick={() => handleAction("cancel", job.id)}
-                        className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    {job.state === "failed" && (
-                      <button
-                        onClick={() => handleAction("retry", job.id)}
-                        className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                      >
-                        Retry
-                      </button>
-                    )}
-                    {job.state === "running" && (
-                      <button
-                        onClick={() => handleAction("forceUnlock", job.id)}
-                        className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                      >
-                        Force Unlock
-                      </button>
-                    )}
+            </thead>
+            <tbody>
+              {jobs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 px-2 text-center text-muted-foreground">
+                    No jobs found
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                jobs.map((job) => (
+                  <tr key={job.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-2 font-mono text-xs">
+                      <a href={`/queue/${job.id}`} className="hover:underline text-blue-500">
+                        {job.id.slice(0, 8)}
+                      </a>
+                    </td>
+                    <td className="py-2 px-2">{job.type}</td>
+                    <td className="py-2 px-2">
+                      <span className={`px-2 py-1 rounded text-xs ${getStateStyles(job.state)}`}>
+                        {job.state}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2 text-xs text-muted-foreground">{job.projectId || "—"}</td>
+                    <td className="py-2 px-2 text-xs text-muted-foreground">
+                      {new Date(job.createdAt).toISOString().split('T')[0]}
+                    </td>
+                    <td className="py-2 px-2 space-x-2 flex">
+                      {job.state === "queued" && (
+                        <button
+                          onClick={() => handleAction("runNow", job.id)}
+                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                        >
+                          Run Now
+                        </button>
+                      )}
+                      {(job.state === "queued" || job.state === "running") && (
+                        <button
+                          onClick={() => handleAction("cancel", job.id)}
+                          className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {job.state === "failed" && (
+                        <button
+                          onClick={() => handleAction("retry", job.id)}
+                          className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                        >
+                          Retry
+                        </button>
+                      )}
+                      {job.state === "running" && (
+                        <button
+                          onClick={() => handleAction("forceUnlock", job.id)}
+                          className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                        >
+                          Force Unlock
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      {pendingAction && (
+        <ConfirmQueueActionDialog
+          isOpen={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onConfirm={handleConfirmAction}
+          actionType={pendingAction.action}
+          isLoading={isLoading}
+        />
+      )}
+    </>
   );
 }
