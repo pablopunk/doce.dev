@@ -1,21 +1,13 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Settings, Plus, Loader2 } from "lucide-react";
+import HeroSection from "@/components/dashboard/HeroSection.astro";
+import { CreateProjectForm } from "@/components/dashboard/CreateProjectForm";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/settings/openrouter";
 import { db } from "@/server/db/client";
-import { userSettings } from "@/server/db/schema";
+import { userSettings as userSettingsTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { actions } from "astro:actions";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -26,126 +18,57 @@ if (!user) {
 const projects = await getProjectsByUserId(user.id);
 
 // Get user's default model
-const settings = await db
+const userSettings = await db
 	.select()
-	.from(userSettings)
-	.where(eq(userSettings.userId, user.id))
+	.from(userSettingsTable)
+	.where(eq(userSettingsTable.userId, user.id))
 	.limit(1);
-const defaultModel = settings[0]?.defaultModel ?? DEFAULT_MODEL;
-
-// Handle form submission result
-const result = Astro.getActionResult(actions.projects.create);
-const formError = result?.error?.message;
-const formSuccess = result?.data?.success;
-// Type assertion needed because action return type changed
-const resultData = (result?.data ?? {}) as Record<string, unknown>;
-const projectId = resultData.projectId as string | undefined;
-
-// If project creation was enqueued, redirect to waiting page
-if (formSuccess && projectId) {
-	return Astro.redirect(`/projects/creating/${projectId}`);
-}
+const defaultModel = userSettings[0]?.defaultModel ?? DEFAULT_MODEL;
 ---
 
 <AppLayout title="Dashboard">
-  <main class="container mx-auto p-8 flex flex-col gap-8">
-    <Card className="">
-      <CardHeader>
-        <CardTitle>Create a new project</CardTitle>
-        <CardDescription>
-          Describe your website and let AI build it for you.
-        </CardDescription>
-      </CardHeader>
-       <CardContent>
-         <form method="post" action={actions.projects.create} class="space-y-4" id="create-form">
-           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-             <input
-               type="text"
-               name="prompt"
-               placeholder="A landing page for my SaaS product..."
-               required
-               class="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-             />
-             <select
-               name="model"
-               class="rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-             >
-               {AVAILABLE_MODELS.map((model) => (
-                 <option value={model.id} selected={model.id === defaultModel}>
-                   {model.name} ({model.provider})
-                 </option>
-               ))}
-             </select>
-             <Button type="submit" id="submit-btn" size="lg">
-               <Plus />
-               <span id="btn-text">Create Project</span>
-               <Loader2 className="animate-spin hidden" id="btn-loader" />
-             </Button>
-           </div>
-           {formError && (
-             <p class="text-sm text-destructive">{formError}</p>
-           )}
-         </form>
-       </CardContent>
-    </Card>
+  <HeroSection>
+    <CreateProjectForm client:load models={AVAILABLE_MODELS} defaultModel={defaultModel} />
+  </HeroSection>
 
-    <div>
+  {projects.length > 0 && (
+    <section class="container mx-auto p-8">
       <h2 class="mb-4 text-xl font-semibold">Your Projects</h2>
-       {projects.length === 0 ? (
-         <div class="rounded-lg border border-dashed border-muted-foreground/25 p-8 text-center">
-           <p class="text-muted-foreground">No projects yet. Create one above to get started!</p>
-         </div>
-       ) : (
-         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3" id="projects-grid">
-           {projects.map((project) => (
-             <div data-project-id={project.id}>
-               <ProjectCard project={project} client:load />
-             </div>
-           ))}
-         </div>
-       )}
-    </div>
-  </main>
-</AppLayout>
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3" id="projects-grid">
+        {projects.map((project) => (
+          <div data-project-id={project.id}>
+            <ProjectCard project={project} client:load />
+          </div>
+        ))}
+      </div>
+    </section>
+  )}
 
-<script>
-  // Handle form submission loading state
-  const form = document.getElementById('create-form') as HTMLFormElement;
-  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
-  const btnText = document.getElementById('btn-text');
-  const btnLoader = document.getElementById('btn-loader');
+  <script is:inline>
+    // Make deleteProject available globally for the React component
+    window.deleteProject = async function(projectId) {
+      // Optimistically remove from UI
+      const projectCard = document.querySelector(`[data-project-id="${projectId}"]`);
+      projectCard?.classList.add('opacity-50', 'pointer-events-none');
 
-  form?.addEventListener('submit', () => {
-    submitBtn.disabled = true;
-    btnText?.classList.add('hidden');
-    btnLoader?.classList.remove('hidden');
-  });
-</script>
+      try {
+        const response = await fetch('/_actions/projects.delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId }),
+        });
 
-<script is:inline>
-  // Make deleteProject available globally for the React component
-  window.deleteProject = async function(projectId) {
-    // Optimistically remove from UI
-    const projectCard = document.querySelector(`[data-project-id="${projectId}"]`);
-    projectCard?.classList.add('opacity-50', 'pointer-events-none');
-
-    try {
-      const response = await fetch('/_actions/projects.delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
-      });
-
-      if (response.ok) {
-        projectCard?.remove();
-      } else {
-        // Revert on error
+        if (response.ok) {
+          projectCard?.remove();
+        } else {
+          // Revert on error
+          projectCard?.classList.remove('opacity-50', 'pointer-events-none');
+          throw new Error('Failed to delete project');
+        }
+      } catch (error) {
         projectCard?.classList.remove('opacity-50', 'pointer-events-none');
-        throw new Error('Failed to delete project');
+        throw error;
       }
-    } catch (error) {
-      projectCard?.classList.remove('opacity-50', 'pointer-events-none');
-      throw error;
-    }
-  };
-</script>
+    };
+  </script>
+</AppLayout>

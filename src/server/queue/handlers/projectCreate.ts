@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { generateProjectName } from "@/server/settings/openrouter";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { generateUniqueSlug } from "@/server/projects/slug";
-import { createProject, updateProjectSetupPhase } from "@/server/projects/projects.model";
+import { createProject, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueDockerComposeUp } from "../enqueue";
@@ -126,10 +126,11 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
     // Enqueue next step: docker compose up
     await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
     logger.debug({ projectId }, "Enqueued docker.composeUp");
-  } catch (error) {
-    await updateProjectSetupPhase(projectId, "failed");
-    throw error;
-  }
+   } catch (error) {
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(projectId, "failed", errorMsg);
+     throw error;
+   }
 }
 
 async function copyTemplate(targetPath: string): Promise<void> {

@@ -64,6 +64,7 @@ if (project.slug !== slug) {
       <SetupStatusDisplay
         projectId={project.id}
         initialSetupPhase={project.setupPhase}
+        initialSetupError={project.setupError}
         client:load
       />
     ) : (

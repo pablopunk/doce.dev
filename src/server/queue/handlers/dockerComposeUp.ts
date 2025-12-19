@@ -1,6 +1,6 @@
 import { logger } from "@/server/logger";
 import { composeUp } from "@/server/docker/compose";
-import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueDockerWaitReady } from "../enqueue";
@@ -25,12 +25,13 @@ export async function handleDockerComposeUp(ctx: QueueJobContext): Promise<void>
 
     await ctx.throwIfCancelRequested();
 
-    const result = await composeUp(project.id, project.pathOnDisk);
-    if (!result.success) {
-      await updateProjectStatus(project.id, "error");
-      await updateProjectSetupPhase(project.id, "failed");
-      throw new Error(`compose up failed: ${result.stderr.slice(0, 500)}`);
-    }
+     const result = await composeUp(project.id, project.pathOnDisk);
+     if (!result.success) {
+       const errorMsg = `compose up failed: ${result.stderr.slice(0, 500)}`;
+       await updateProjectStatus(project.id, "error");
+       await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+       throw new Error(errorMsg);
+     }
 
     logger.info({ projectId: project.id }, "Docker compose up succeeded");
 
@@ -41,8 +42,9 @@ export async function handleDockerComposeUp(ctx: QueueJobContext): Promise<void>
     });
 
     logger.debug({ projectId: project.id }, "Enqueued docker.waitReady");
-  } catch (error) {
-    await updateProjectSetupPhase(project.id, "failed");
-    throw error;
-  }
+   } catch (error) {
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+     throw error;
+   }
 }

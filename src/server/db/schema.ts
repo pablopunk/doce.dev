@@ -76,6 +76,8 @@ export const projects = sqliteTable("projects", {
   })
     .notNull()
     .default("not_started"),
+  setupError: text("setup_error"),
+  setupStartedAt: integer("setup_started_at", { mode: "timestamp" }),
   pathOnDisk: text("path_on_disk").notNull(),
   initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
     .notNull()

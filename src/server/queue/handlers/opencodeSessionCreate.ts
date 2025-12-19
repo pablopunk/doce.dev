@@ -1,5 +1,5 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted, updateBootstrapSessionId, updateProjectSetupPhase } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateBootstrapSessionId, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
 import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -52,8 +52,9 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
     // Enqueue next step: send initial prompt
     await enqueueOpencodeSendInitialPrompt({ projectId: project.id });
     logger.debug({ projectId: project.id }, "Enqueued opencode.sendInitialPrompt");
-  } catch (error) {
-    await updateProjectSetupPhase(project.id, "failed");
-    throw error;
-  }
+   } catch (error) {
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+     throw error;
+   }
 }

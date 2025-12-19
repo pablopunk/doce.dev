@@ -10,6 +10,16 @@ const REAPER_INTERVAL_MS = 30_000;
 const STOP_GRACE_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
 
+// Setup phase timeouts
+const SETUP_PHASE_TIMEOUTS: Record<string, number> = {
+  "not_started": 10_000,      // 10 seconds to start
+  "creating_files": 30_000,   // 30 seconds to create files
+  "starting_docker": 120_000, // 2 minutes to start containers
+  "initializing_agent": 30_000, // 30 seconds to initialize agent
+  "sending_prompt": 30_000,   // 30 seconds to send prompt
+  "waiting_completion": 600_000, // 10 minutes to complete building
+};
+
 export interface ViewerRecord {
   viewerId: string;
   lastSeenAt: number;
@@ -39,6 +49,7 @@ export interface PresenceResponse {
   model: string | null;
   // Setup phase
   setupPhase: string;
+  setupError: string | null;
 }
 
 // In-memory presence state
@@ -109,30 +120,50 @@ export async function handlePresenceHeartbeat(
   const release = await acquireLock(projectId);
 
   try {
-    const project = await getProjectById(projectId);
-    if (!project) {
-      throw new Error("Project not found");
-    }
+     let project = await getProjectById(projectId);
+     if (!project) {
+       throw new Error("Project not found");
+     }
 
-    const presence = getPresence(projectId);
+     // Check if setup is stuck and timeout
+     if (project.setupPhase !== "not_started" && project.setupPhase !== "completed" && project.setupPhase !== "failed") {
+       const phaseTimeout = SETUP_PHASE_TIMEOUTS[project.setupPhase];
+       if (phaseTimeout) {
+         const elapsed = Date.now() - project.createdAt.getTime();
+         if (elapsed > phaseTimeout) {
+           // Setup has timed out - import here to avoid circular dependency
+           const { updateProjectSetupPhaseAndError } = await import("@/server/projects/projects.model");
+           const errorMsg = `Setup timeout: ${project.setupPhase} exceeded ${phaseTimeout}ms`;
+           await updateProjectSetupPhaseAndError(projectId, "failed", errorMsg);
+           // Refetch to get updated project state
+           const refetchedProject = await getProjectById(projectId);
+           if (refetchedProject) {
+             project = refetchedProject;
+           }
+         }
+       }
+     }
 
-    if (project.status === "deleting") {
-      return {
-        projectId,
-        status: "deleting",
-        viewerCount: 0,
-        previewUrl: `http://127.0.0.1:${project.devPort}`,
-        previewReady: false,
-        opencodeReady: false,
-        message: "Project is being deleted...",
-        nextPollMs: 2000,
-        initialPromptSent: project.initialPromptSent,
-        initialPromptCompleted: project.initialPromptCompleted,
-        prompt: project.prompt,
-        model: project.model,
-        setupPhase: project.setupPhase,
-      };
-    }
+     const presence = getPresence(projectId);
+
+      if (project.status === "deleting") {
+       return {
+         projectId,
+         status: "deleting",
+         viewerCount: 0,
+         previewUrl: `http://127.0.0.1:${project.devPort}`,
+         previewReady: false,
+         opencodeReady: false,
+         message: "Project is being deleted...",
+         nextPollMs: 2000,
+         initialPromptSent: project.initialPromptSent,
+         initialPromptCompleted: project.initialPromptCompleted,
+         prompt: project.prompt,
+         model: project.model,
+         setupPhase: project.setupPhase,
+         setupError: project.setupError,
+       };
+     }
 
     // Update viewer presence
     presence.viewers.set(viewerId, Date.now());
@@ -233,20 +264,21 @@ export async function handlePresenceHeartbeat(
     }
 
     return {
-      projectId,
-      status,
-      viewerCount: presence.viewers.size,
-      previewUrl: `http://127.0.0.1:${project.devPort}`,
-      previewReady,
-      opencodeReady,
-      message,
-      nextPollMs,
-      initialPromptSent: project.initialPromptSent,
-      initialPromptCompleted: project.initialPromptCompleted,
-      prompt: project.prompt,
-      model: project.model,
-      setupPhase: project.setupPhase,
-    };
+       projectId,
+       status,
+       viewerCount: presence.viewers.size,
+       previewUrl: `http://127.0.0.1:${project.devPort}`,
+       previewReady,
+       opencodeReady,
+       message,
+       nextPollMs,
+       initialPromptSent: project.initialPromptSent,
+       initialPromptCompleted: project.initialPromptCompleted,
+       prompt: project.prompt,
+       model: project.model,
+       setupPhase: project.setupPhase,
+       setupError: project.setupError,
+     };
   } finally {
     release();
   }

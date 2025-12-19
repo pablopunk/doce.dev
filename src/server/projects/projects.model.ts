@@ -172,3 +172,30 @@ export async function updateProjectSetupPhase(
     .set({ setupPhase })
     .where(eq(projects.id, id));
 }
+
+/**
+ * Update a project's setup error message.
+ */
+export async function updateProjectSetupError(
+  id: string,
+  error: string | null
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ setupError: error })
+    .where(eq(projects.id, id));
+}
+
+/**
+ * Update both setup phase and error together.
+ */
+export async function updateProjectSetupPhaseAndError(
+  id: string,
+  setupPhase: SetupPhase,
+  error: string | null = null
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ setupPhase, setupError: error })
+    .where(eq(projects.id, id));
+}

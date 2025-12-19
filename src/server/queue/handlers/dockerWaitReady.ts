@@ -1,5 +1,5 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
 import { checkPreviewReady, checkOpencodeReady } from "@/server/projects/health";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
@@ -26,13 +26,14 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
   try {
     await ctx.throwIfCancelRequested();
 
-    // Check if we've timed out
-    const elapsed = Date.now() - payload.startedAt;
-    if (elapsed > WAIT_TIMEOUT_MS) {
-      await updateProjectStatus(project.id, "error");
-      await updateProjectSetupPhase(project.id, "failed");
-      throw new Error(`Timed out waiting for services to be ready (${elapsed}ms)`);
-    }
+     // Check if we've timed out
+     const elapsed = Date.now() - payload.startedAt;
+     if (elapsed > WAIT_TIMEOUT_MS) {
+       const errorMsg = `Timed out waiting for services to be ready (${elapsed}ms)`;
+       await updateProjectStatus(project.id, "error");
+       await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+       throw new Error(errorMsg);
+     }
 
     // Check if services are ready
     const [previewReady, opencodeReady] = await Promise.all([
@@ -63,12 +64,13 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
     );
 
     ctx.reschedule(POLL_DELAY_MS);
-  } catch (error) {
-    // Don't catch reschedule errors - those should propagate
-    if (error instanceof RescheduleError) {
-      throw error;
-    }
-    await updateProjectSetupPhase(project.id, "failed");
-    throw error;
-  }
+   } catch (error) {
+     // Don't catch reschedule errors - those should propagate
+     if (error instanceof RescheduleError) {
+       throw error;
+     }
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+     throw error;
+   }
 }

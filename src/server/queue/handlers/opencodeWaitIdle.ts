@@ -3,6 +3,7 @@ import {
   getProjectByIdIncludeDeleted,
   markInitialPromptCompleted,
   updateProjectSetupPhase,
+  updateProjectSetupPhaseAndError,
 } from "@/server/projects/projects.model";
 import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
@@ -99,12 +100,13 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
 
     // Not idle yet - reschedule
     ctx.reschedule(POLL_DELAY_MS);
-  } catch (error) {
-    // Don't catch reschedule errors - those should propagate
-    if (error instanceof RescheduleError) {
-      throw error;
-    }
-    await updateProjectSetupPhase(project.id, "failed");
-    throw error;
-  }
+   } catch (error) {
+     // Don't catch reschedule errors - those should propagate
+     if (error instanceof RescheduleError) {
+       throw error;
+     }
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+     throw error;
+   }
 }

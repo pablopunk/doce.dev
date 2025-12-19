@@ -3,6 +3,7 @@ import {
   getProjectByIdIncludeDeleted,
   markInitialPromptSent,
   updateProjectSetupPhase,
+  updateProjectSetupPhaseAndError,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -68,8 +69,9 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
       startedAt: Date.now(),
     });
     logger.debug({ projectId: project.id }, "Enqueued opencode.waitIdle");
-  } catch (error) {
-    await updateProjectSetupPhase(project.id, "failed");
-    throw error;
-  }
+   } catch (error) {
+     const errorMsg = error instanceof Error ? error.message : String(error);
+     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
+     throw error;
+   }
 }
