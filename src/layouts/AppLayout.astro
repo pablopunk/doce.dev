@@ -25,10 +25,12 @@ const { title } = Astro.props;
       if (theme === 'dark') document.documentElement.classList.add('dark');
     </script>
   </head>
-  <body class="min-h-screen bg-background text-foreground antialiased">
+  <body class="h-screen bg-background text-foreground antialiased overflow-hidden flex flex-col">
     <Navbar client:load />
     <ThemeProvider client:load>
-      <slot />
+      <div class="flex-1 overflow-hidden">
+        <slot />
+      </div>
     </ThemeProvider>
   </body>
 </html>

@@ -1,6 +1,6 @@
 import { db } from "@/server/db/client";
 import { projects, type Project, type NewProject } from "@/server/db/schema";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, ne } from "drizzle-orm";
 
 export type ProjectStatus = Project["status"];
 export type SetupPhase = Project["setupPhase"];
@@ -46,14 +46,18 @@ export async function getProjectByIdIncludeDeleted(
 }
 
 /**
- * Get all projects for a user (excludes soft-deleted projects).
+ * Get all projects for a user (excludes soft-deleted projects and projects being deleted).
  */
 export async function getProjectsByUserId(userId: string): Promise<Project[]> {
-  return db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.ownerUserId, userId), isNull(projects.deletedAt)))
-    .orderBy(desc(projects.createdAt));
+	return db
+		.select()
+		.from(projects)
+		.where(and(
+			eq(projects.ownerUserId, userId),
+			isNull(projects.deletedAt),
+			ne(projects.status, "deleting")
+		))
+		.orderBy(desc(projects.createdAt));
 }
 
 /**
