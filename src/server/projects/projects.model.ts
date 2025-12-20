@@ -3,7 +3,6 @@ import { projects, type Project, type NewProject } from "@/server/db/schema";
 import { eq, and, isNull, desc, ne } from "drizzle-orm";
 
 export type ProjectStatus = Project["status"];
-export type SetupPhase = Project["setupPhase"];
 
 /**
  * Create a new project in the database.
@@ -164,45 +163,4 @@ export async function updateBootstrapSessionId(
     .where(eq(projects.id, id));
 }
 
-/**
- * Update a project's setup phase.
- */
-export async function updateProjectSetupPhase(
-  id: string,
-  setupPhase: SetupPhase
-): Promise<void> {
-  await db
-    .update(projects)
-    .set({ 
-      setupPhase,
-      setupStartedAt: new Date(),  // Track when this phase started for accurate timeout calculation
-    })
-    .where(eq(projects.id, id));
-}
 
-/**
- * Update a project's setup error message.
- */
-export async function updateProjectSetupError(
-  id: string,
-  error: string | null
-): Promise<void> {
-  await db
-    .update(projects)
-    .set({ setupError: error })
-    .where(eq(projects.id, id));
-}
-
-/**
- * Update both setup phase and error together.
- */
-export async function updateProjectSetupPhaseAndError(
-  id: string,
-  setupPhase: SetupPhase,
-  error: string | null = null
-): Promise<void> {
-  await db
-    .update(projects)
-    .set({ setupPhase, setupError: error })
-    .where(eq(projects.id, id));
-}

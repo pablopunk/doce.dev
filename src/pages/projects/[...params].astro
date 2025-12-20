@@ -62,88 +62,31 @@ if (slug && slug !== project.slug) {
     </header>
 
     <!-- Main content -->
-    {project.setupPhase !== "completed" ? (
+    {!project.initialPromptCompleted ? (
       <!-- Setup phase: show setup status display -->
       <SetupStatusDisplay
         projectId={project.id}
-        initialSetupPhase={project.setupPhase}
-        initialSetupError={project.setupError}
         client:load
       />
     ) : (
       <!-- Setup complete: show chat + preview -->
-      <div class="flex-1 flex overflow-hidden" id="project-content">
+      <div class="flex-1 flex overflow-hidden">
         <!-- Chat panel (left) -->
-        <div id="chat-container" class="w-1/2 border-r flex flex-col transition-all duration-300">
+        <div class="w-1/2 border-r flex flex-col">
           <ChatPanel
             projectId={project.id}
             client:load
           />
         </div>
 
-         <!-- Preview panel (right) -->
-         <div id="preview-container" class="w-1/2 flex flex-col">
-           <PreviewPanel
-             projectId={project.id}
-             client:load
-           />
-         </div>
+        <!-- Preview panel (right) -->
+        <div class="w-1/2 flex flex-col">
+          <PreviewPanel
+            projectId={project.id}
+            client:load
+          />
         </div>
+      </div>
     )}
    </div>
 </AppLayout>
-
-<script is:inline define:vars={{ projectId: project.id, initialPromptCompleted: project.initialPromptCompleted }}>
-  // Poll for build status changes and update layout dynamically
-  let isBuilt = initialPromptCompleted;
-
-  async function checkBuildStatus() {
-    try {
-      const response = await fetch(`/api/projects/${projectId}/presence`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ viewerId: `poll_${Date.now()}` }),
-      });
-
-      if (!response.ok) return;
-
-      const data = await response.json();
-      const newBuildStatus = data.initialPromptCompleted ?? false;
-
-      // If build status changed from false to true, update the layout
-      if (!isBuilt && newBuildStatus) {
-        isBuilt = true;
-        updateLayout();
-      }
-    } catch (error) {
-      console.error("Failed to check build status:", error);
-    }
-  }
-
-  function updateLayout() {
-    const chatContainer = document.getElementById("chat-container");
-    const previewContainer = document.getElementById("preview-container");
-
-    if (chatContainer) {
-      // Update chat container classes
-      chatContainer.classList.remove("w-full");
-      chatContainer.classList.add("w-1/2", "border-r");
-    }
-
-    if (!previewContainer && isBuilt) {
-      // Need to reload the page to render the preview component
-      window.location.reload();
-    }
-  }
-
-  // Only poll if not already built
-  if (!isBuilt) {
-    const pollInterval = setInterval(() => {
-      checkBuildStatus();
-      // Stop polling after a reasonable time (e.g., 10 minutes)
-      if (isBuilt) {
-        clearInterval(pollInterval);
-      }
-    }, 2000);
-  }
-</script>

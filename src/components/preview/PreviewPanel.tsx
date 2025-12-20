@@ -13,7 +13,6 @@ interface PresenceResponse {
 	message: string | null;
 	nextPollMs: number;
 	initialPromptCompleted?: boolean;
-	setupPhase?: string;
 }
 
 interface PreviewPanelProps {
@@ -69,13 +68,6 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 			setPreviewUrl(data.previewUrl);
 			setMessage(data.message);
 			onStatusChange?.(data);
-
-			// If setup is not complete, don't start preview
-			if (data.setupPhase && data.setupPhase !== "completed") {
-				setState("starting");
-				setMessage("Waiting for setup to complete...");
-				return data;
-			}
 
 			// State machine
 			if (data.previewReady && data.status === "running") {

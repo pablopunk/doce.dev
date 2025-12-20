@@ -2,8 +2,6 @@ import { logger } from "@/server/logger";
 import {
   getProjectByIdIncludeDeleted,
   markInitialPromptSent,
-  updateProjectSetupPhase,
-  updateProjectSetupPhaseAndError,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -29,11 +27,8 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
     return;
   }
 
-   try {
-     // Skip "sending_prompt" phase and go straight to "waiting_completion" since both are shown as "Build" to the user
-     await updateProjectSetupPhase(project.id, "waiting_completion");
-
-     const sessionId = project.bootstrapSessionId;
+    try {
+      const sessionId = project.bootstrapSessionId;
     if (!sessionId) {
       throw new Error("No bootstrap session ID found - session not created?");
     }
@@ -70,9 +65,7 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
       startedAt: Date.now(),
     });
     logger.debug({ projectId: project.id }, "Enqueued opencode.waitIdle");
-   } catch (error) {
-     const errorMsg = error instanceof Error ? error.message : String(error);
-     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-     throw error;
-   }
+    } catch (error) {
+      throw error;
+    }
 }

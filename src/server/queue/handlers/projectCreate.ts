@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { generateProjectName } from "@/server/settings/openrouter";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { generateUniqueSlug } from "@/server/projects/slug";
-import { createProject, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
+import { createProject } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueDockerComposeUp } from "../enqueue";
@@ -44,7 +44,6 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
   logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
   try {
-    await updateProjectSetupPhase(projectId, "creating_files");
     await ctx.throwIfCancelRequested();
 
     // Get user's OpenRouter API key
@@ -105,32 +104,29 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
      await ctx.throwIfCancelRequested();
 
-    // Create DB record
-    await createProject({
-      id: projectId,
-      ownerUserId,
-      createdAt: new Date(),
-      name,
-      slug,
-      prompt,
-      model,
-      devPort,
-      opencodePort,
-      status: "created",
-      setupPhase: "creating_files",
-      pathOnDisk: relativePath,
-    });
+     // Create DB record
+     await createProject({
+       id: projectId,
+       ownerUserId,
+       createdAt: new Date(),
+       name,
+       slug,
+       prompt,
+       model,
+       devPort,
+       opencodePort,
+       status: "created",
+       pathOnDisk: relativePath,
+     });
 
     logger.info({ projectId, name, slug }, "Created project in database");
 
     // Enqueue next step: docker compose up
     await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
     logger.debug({ projectId }, "Enqueued docker.composeUp");
-   } catch (error) {
-     const errorMsg = error instanceof Error ? error.message : String(error);
-     await updateProjectSetupPhaseAndError(projectId, "failed", errorMsg);
-     throw error;
-   }
+    } catch (error) {
+      throw error;
+    }
 }
 
 async function copyTemplate(targetPath: string): Promise<void> {

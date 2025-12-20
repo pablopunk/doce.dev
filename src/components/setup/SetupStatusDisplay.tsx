@@ -1,27 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface SetupStatusDisplayProps {
   projectId: string;
-  initialSetupPhase: string;
-  initialSetupError?: string | null;
-}
-
-type SetupPhase = 
-  | "not_started"
-  | "creating_files"
-  | "starting_docker"
-  | "initializing_agent"
-  | "sending_prompt"
-  | "waiting_completion"
-  | "completed"
-  | "failed";
-
-interface PhaseInfo {
-  message: string;
-  step: number;
-  label: string;
 }
 
 interface CurrentEvent {
@@ -29,17 +10,6 @@ interface CurrentEvent {
   text: string;
   isStreaming?: boolean;
 }
-
-const phaseMessages: Record<SetupPhase, PhaseInfo> = {
-  "not_started": { message: "Preparing setup...", step: 0, label: "Preparing" },
-  "creating_files": { message: "Creating project files...", step: 1, label: "Files" },
-  "starting_docker": { message: "Starting containers...", step: 2, label: "Docker" },
-  "initializing_agent": { message: "Initializing AI agent...", step: 3, label: "Agent" },
-  "sending_prompt": { message: "Building your website...", step: 4, label: "Build" },
-  "waiting_completion": { message: "Building your website...", step: 4, label: "Build" },
-  "completed": { message: "Setup complete!", step: 5, label: "Done" },
-  "failed": { message: "Setup failed", step: 0, label: "Failed" },
-};
 
 const TOTAL_STEPS = 5;
 
@@ -51,18 +21,6 @@ const STEPS: Array<{ step: number; label: string }> = [
   { step: 4, label: "Build" },
   { step: 5, label: "Done" },
 ];
-
-// Adaptive polling intervals based on setup phase
-const POLLING_INTERVALS: Record<SetupPhase, number> = {
-  "not_started": 1000,
-  "creating_files": 1500,
-  "starting_docker": 2000,
-  "initializing_agent": 1500,
-  "sending_prompt": 2000,
-  "waiting_completion": 3000,
-  "completed": 1000,
-  "failed": 1000,
-};
 
 /**
  * Extract friendly description from a tool call
@@ -102,31 +60,17 @@ function getFriendlyToolDescription(toolName: string, input: unknown): string {
 
 export function SetupStatusDisplay({
   projectId,
-  initialSetupPhase,
-  initialSetupError,
 }: SetupStatusDisplayProps) {
-  const [setupPhase, setSetupPhase] = useState<SetupPhase>(
-    (initialSetupPhase as SetupPhase) || "not_started"
-  );
-  const [setupError, setSetupError] = useState<string | null>(initialSetupError ?? null);
-  const [isComplete, setIsComplete] = useState(initialSetupPhase === "completed");
+  const [isComplete, setIsComplete] = useState(false);
   const [currentEvent, setCurrentEvent] = useState<CurrentEvent | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   const eventSourceRef = useRef<EventSource | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Connect to opencode event stream when in build phase
+  // Connect to opencode event stream to show progress
   useEffect(() => {
-    const isBuildPhase = setupPhase === "sending_prompt" || setupPhase === "waiting_completion";
-    
-    if (!isBuildPhase || isComplete) {
-      // Close event source if we're no longer in build phase
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      return;
-    }
+    if (isComplete) return;
 
     // Open SSE connection to opencode events
     const eventSource = new EventSource(
@@ -153,7 +97,7 @@ export function SetupStatusDisplay({
         eventSourceRef.current = null;
       }
     };
-  }, [projectId, setupPhase, isComplete]);
+  }, [projectId, isComplete]);
 
   const handleOpencodeEvent = (event: {
     type: string;
@@ -183,6 +127,8 @@ export function SetupStatusDisplay({
             isStreaming: true,
           };
         });
+        // Advance to build step when we start streaming agent messages
+        setCurrentStep(4);
         break;
       }
 
@@ -242,127 +188,103 @@ export function SetupStatusDisplay({
     }
   };
 
+  // Poll for completion
   useEffect(() => {
     if (isComplete) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    const startPolling = (phase: SetupPhase) => {
-      const interval = POLLING_INTERVALS[phase];
-      
-      const poll = async () => {
-        try {
-          const response = await fetch(`/api/projects/${projectId}/presence`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              viewerId: `setup_poll_${Date.now()}`,
-            }),
-          });
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/presence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            viewerId: `setup_poll_${Date.now()}`,
+          }),
+        });
 
-          if (!response.ok) return;
+        if (!response.ok) return;
 
-          const data = await response.json();
-          const newPhase = data.setupPhase as SetupPhase;
-          
-          // If phase changed, restart with new interval
-          if (newPhase !== phase) {
-            if (intervalId) clearInterval(intervalId);
-            setSetupPhase(newPhase);
-            setSetupError(data.setupError ?? null);
-            
-             if (newPhase === "completed") {
-              setIsComplete(true);
-              // Update URL to canonical form with slug, then reload
-              if (data.slug) {
-                window.location.href = `/projects/${projectId}/${data.slug}`;
-              } else {
-                window.location.reload();
-              }
-             } else {
-              startPolling(newPhase);
-             }
+        const data = await response.json();
+        const isPromptCompleted = data.initialPromptCompleted ?? false;
+        
+        if (isPromptCompleted) {
+          setIsComplete(true);
+          setCurrentStep(5);
+          // Update URL to canonical form with slug, then reload
+          if (data.slug) {
+            window.location.href = `/projects/${projectId}/${data.slug}`;
           } else {
-            // Same phase, update error if any
-            setSetupError(data.setupError ?? null);
+            window.location.reload();
           }
-        } catch (error) {
-          console.error("Failed to poll setup status:", error);
         }
-      };
-
-      intervalId = setInterval(poll, interval);
-      // Run first poll immediately
-      poll();
+      } catch (error) {
+        console.error("Failed to poll setup status:", error);
+      }
     };
 
-    startPolling(setupPhase);
+    // Poll every 2-3 seconds
+    intervalId = setInterval(poll, 2500);
+    // Run first poll immediately
+    poll();
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [projectId, isComplete, setupPhase]);
+  }, [projectId, isComplete]);
 
-  const isFailed = setupPhase === "failed";
-  const currentStep = phaseMessages[setupPhase].step;
-  const displayMessage = currentEvent?.text || phaseMessages[setupPhase].message;
+  const displayMessage = currentEvent?.text || "Building your website...";
 
   return (
     <div className="flex-1 flex items-center justify-center px-4">
       <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
         <div className="text-center space-y-6 w-full">
            <h2 className="text-2xl font-semibold">
-             {isFailed ? "Setup Failed" : "Setting up your project..."}
+             Setting up your project...
            </h2>
            
-           {!isFailed && (
-             <div className="space-y-4">
-               {/* Timeline of all steps */}
-               <div className="flex items-center justify-between gap-1 w-full">
-                 {STEPS.map((step) => {
-                   const isCompleted = currentStep > step.step;
-                   const isCurrent = currentStep === step.step;
-                   
-                   return (
-                     <div key={step.step} className="flex flex-col items-center gap-2 flex-1">
-                       <div
-                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
-                           isCurrent
-                             ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
-                             : isCompleted
-                             ? "bg-primary/20 text-primary"
-                             : "bg-secondary text-muted-foreground"
-                         }`}
-                       >
-                         {isCompleted ? "✓" : step.step}
-                       </div>
-                       <span className={`text-xs font-medium line-clamp-1 ${
-                         isCurrent ? "text-primary" : "text-muted-foreground"
-                       }`}>
-                         {step.label}
-                       </span>
+           <div className="space-y-4">
+             {/* Timeline of all steps */}
+             <div className="flex items-center justify-between gap-1 w-full">
+               {STEPS.map((step) => {
+                 const isCompleted = currentStep > step.step;
+                 const isCurrent = currentStep === step.step;
+                 
+                 return (
+                   <div key={step.step} className="flex flex-col items-center gap-2 flex-1">
+                     <div
+                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
+                         isCurrent
+                           ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                           : isCompleted
+                           ? "bg-primary/20 text-primary"
+                           : "bg-secondary text-muted-foreground"
+                       }`}
+                     >
+                       {isCompleted ? "✓" : step.step}
                      </div>
-                   );
-                 })}
-               </div>
-
-               {/* Progress bar */}
-               <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-                 <div 
-                   className="h-full bg-primary transition-all duration-300 ease-out"
-                   style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
-                 />
-               </div>
+                     <span className={`text-xs font-medium line-clamp-1 ${
+                       isCurrent ? "text-primary" : "text-muted-foreground"
+                     }`}>
+                       {step.label}
+                     </span>
+                   </div>
+                 );
+               })}
              </div>
-           )}
+
+             {/* Progress bar */}
+             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+               <div 
+                 className="h-full bg-primary transition-all duration-300 ease-out"
+                 style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+               />
+             </div>
+           </div>
            
            <div className="flex items-center justify-center gap-2 min-h-6">
-             {!isFailed && (
-               <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
-             )}
-             {isFailed && (
-               <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-             )}
+             <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
              <p 
                className={`text-sm text-muted-foreground transition-opacity duration-300 ${
                  isTransitioning ? "opacity-0" : "opacity-100"
@@ -371,25 +293,8 @@ export function SetupStatusDisplay({
                {displayMessage}
              </p>
            </div>
-           {isFailed && setupError && (
-             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-left">
-               <p className="text-xs text-red-800 break-words">
-                 <span className="font-semibold">Error: </span>
-                 {setupError}
-               </p>
-             </div>
-           )}
          </div>
-
-        {isFailed && (
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-          >
-            Retry
-          </Button>
-        )}
-      </div>
-    </div>
-  );
+       </div>
+     </div>
+   );
 }

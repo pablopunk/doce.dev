@@ -1,5 +1,5 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted, updateProjectStatus, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateProjectStatus } from "@/server/projects/projects.model";
 import { checkPreviewReady, checkOpencodeReady } from "@/server/projects/health";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
@@ -39,9 +39,8 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
           { projectId: project.id, elapsed, maxWait: WAIT_TIMEOUT_MS },
           errorMsg
         );
-        await updateProjectStatus(project.id, "error");
-        await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-        throw new Error(errorMsg);
+         await updateProjectStatus(project.id, "error");
+         throw new Error(errorMsg);
       }
 
      // Check if services are ready
@@ -76,11 +75,7 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
        if (!project.initialPromptSent) {
          await enqueueOpencodeSessionCreate({ projectId: project.id });
          logger.info({ projectId: project.id }, "Enqueued opencode.sessionCreate");
-       } else {
-         // If already sent, mark setup as complete
-         await updateProjectSetupPhase(project.id, "completed");
-         logger.info({ projectId: project.id }, "Initial prompt already sent, marked setup as completed");
-       }
+        }
 
        return;
      }
@@ -92,9 +87,8 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
          { projectId: project.id, attempts: ctx.job.attempts, elapsed, previewReady, opencodeReady },
          errorMsg
        );
-       await updateProjectStatus(project.id, "error");
-       await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-       throw new Error(errorMsg);
+        await updateProjectStatus(project.id, "error");
+        throw new Error(errorMsg);
      }
 
      // Not ready yet - reschedule
@@ -116,8 +110,6 @@ export async function handleDockerWaitReady(ctx: QueueJobContext): Promise<void>
      if (error instanceof RescheduleError) {
        throw error;
      }
-     const errorMsg = error instanceof Error ? error.message : String(error);
-     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-     throw error;
+      throw error;
    }
 }

@@ -2,8 +2,6 @@ import { logger } from "@/server/logger";
 import {
   getProjectByIdIncludeDeleted,
   markInitialPromptCompleted,
-  updateProjectSetupPhase,
-  updateProjectSetupPhaseAndError,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
@@ -33,8 +31,6 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
   }
 
   try {
-    await updateProjectSetupPhase(project.id, "waiting_completion");
-
     const sessionId = project.bootstrapSessionId;
     if (!sessionId) {
       throw new Error("No bootstrap session ID found");
@@ -45,11 +41,10 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
     // Check if we've timed out
     const elapsed = Date.now() - payload.startedAt;
     if (elapsed > WAIT_TIMEOUT_MS) {
-      // Don't fail - just mark as completed anyway so the user can use the project
-      logger.warn({ projectId: project.id, elapsed }, "Timed out waiting for idle, marking complete anyway");
-      await markInitialPromptCompleted(project.id);
-      await updateProjectSetupPhase(project.id, "completed");
-      return;
+       // Don't fail - just mark as completed anyway so the user can use the project
+       logger.warn({ projectId: project.id, elapsed }, "Timed out waiting for idle, marking complete anyway");
+       await markInitialPromptCompleted(project.id);
+       return;
     }
 
      // Check session status via the opencode API
@@ -75,11 +70,10 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
        });
 
        if (hasAssistantMessage) {
-         // Agent has processed the prompt
-         logger.info({ projectId: project.id, sessionId, elapsed, messageCount: messages.length }, "Agent has responded, bootstrap complete");
-         await markInitialPromptCompleted(project.id);
-         await updateProjectSetupPhase(project.id, "completed");
-         return;
+          // Agent has processed the prompt
+          logger.info({ projectId: project.id, sessionId, elapsed, messageCount: messages.length }, "Agent has responded, bootstrap complete");
+          await markInitialPromptCompleted(project.id);
+          return;
        }
 
        logger.debug(
@@ -95,15 +89,13 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
        );
      }
 
-    // Not idle yet - reschedule
-    ctx.reschedule(POLL_DELAY_MS);
-   } catch (error) {
-     // Don't catch reschedule errors - those should propagate
-     if (error instanceof RescheduleError) {
-       throw error;
-     }
-     const errorMsg = error instanceof Error ? error.message : String(error);
-     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-     throw error;
-   }
+     // Not idle yet - reschedule
+     ctx.reschedule(POLL_DELAY_MS);
+    } catch (error) {
+      // Don't catch reschedule errors - those should propagate
+      if (error instanceof RescheduleError) {
+        throw error;
+      }
+      throw error;
+    }
 }

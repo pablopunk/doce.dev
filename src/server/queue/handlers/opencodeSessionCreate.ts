@@ -1,5 +1,5 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted, updateBootstrapSessionId, updateProjectSetupPhase, updateProjectSetupPhaseAndError } from "@/server/projects/projects.model";
+import { getProjectByIdIncludeDeleted, updateBootstrapSessionId } from "@/server/projects/projects.model";
 import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -26,8 +26,6 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
   }
 
   try {
-    await updateProjectSetupPhase(project.id, "initializing_agent");
-
     await ctx.throwIfCancelRequested();
 
     // Create opencode client
@@ -52,9 +50,7 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
      // Enqueue next step: initialize session with agent
      await enqueueOpencodeSessionInit({ projectId: project.id });
      logger.debug({ projectId: project.id }, "Enqueued opencode.sessionInit");
-   } catch (error) {
-     const errorMsg = error instanceof Error ? error.message : String(error);
-     await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);
-     throw error;
-   }
+    } catch (error) {
+      throw error;
+    }
 }
