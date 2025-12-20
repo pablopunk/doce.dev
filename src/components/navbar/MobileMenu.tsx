@@ -14,8 +14,8 @@ export const MobileMenu = () => {
     <div className="md:hidden flex items-center gap-2">
       <ThemeToggle />
       <DropdownMenu>
-         <DropdownMenuTrigger className="p-2 rounded-lg hover:bg-accent transition-colors">
-           <Menu className="h-5 w-5" aria-label="Open menu" />
+         <DropdownMenuTrigger aria-label="Open menu" className="p-2 rounded-lg hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600">
+           <Menu className="h-5 w-5" />
          </DropdownMenuTrigger>
          <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => (window.location.href = '/')}>

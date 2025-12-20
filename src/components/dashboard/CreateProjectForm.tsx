@@ -67,6 +67,13 @@ export function CreateProjectForm({
 		}
 	};
 
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && prompt.trim() && !isLoading) {
+			e.preventDefault();
+			handleCreate();
+		}
+	};
+
 	const waitForProjectToExist = async (projectId: string, maxAttempts = 50) => {
 		const delayMs = 100; // Poll every 100ms
 		
@@ -97,7 +104,9 @@ export function CreateProjectForm({
 						ref={textareaRef}
 						value={prompt}
 						onChange={(e) => setPrompt(e.target.value)}
+						onKeyDown={handleKeyDown}
 						placeholder="It all starts here..."
+						title="Use Ctrl+Enter (or Cmd+Enter on Mac) to create a project"
 						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
 						rows={1}
 						style={{ minHeight: "80px" }}
@@ -116,7 +125,8 @@ export function CreateProjectForm({
 							handleCreate();
 						}}
 						disabled={isLoading || !prompt.trim()}
-						className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+						title="Create project (or press Ctrl+Enter in textarea)"
+						className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
 						type="button"
 					>
 							{isLoading ? (

@@ -16,7 +16,8 @@ export function ModelSelector({
       <select
         value={selectedModelId}
         onChange={(e) => onModelChange(e.target.value)}
-        className="appearance-none bg-transparent pl-0 pr-6 py-1 text-sm font-medium outline-none cursor-pointer"
+        aria-label="Select AI Model"
+        className="appearance-none bg-transparent pl-0 pr-6 py-1 text-sm font-medium outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600 rounded"
       >
         {models.map((model) => (
           <option key={model.id} value={model.id}>

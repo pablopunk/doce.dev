@@ -1,12 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { PlayIcon, PauseIcon, ChevronDownIcon, CircleIcon } from "lucide-react";
+import { PlayIcon, PauseIcon, CircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { actions } from "astro:actions";
 
@@ -83,7 +77,12 @@ export function QueuePlayerControl({
 						handleConcurrencyChange(parseInt(e.target.value, 10))
 					}
 					disabled={isLoading}
-					className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed"
+					aria-label="Queue concurrency level"
+					aria-valuemin={1}
+					aria-valuemax={20}
+					aria-valuenow={localConcurrency}
+					aria-valuetext={`${localConcurrency} job${localConcurrency !== 1 ? "s" : ""} out of 20`}
+					className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
 				/>
 				<span className="text-sm text-muted-foreground whitespace-nowrap">
 					{localConcurrency} job{localConcurrency !== 1 ? "s" : ""} / 20

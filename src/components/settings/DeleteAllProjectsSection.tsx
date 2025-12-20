@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -40,6 +40,7 @@ export function DeleteAllProjectsSection({
     message: string;
   } | null>(null);
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const confirmInputRef = useRef<HTMLInputElement>(null);
 
   const isConfirmed = confirmText.toLowerCase() === CONFIRMATION_TEXT;
 
@@ -131,6 +132,11 @@ export function DeleteAllProjectsSection({
       setConfirmText("");
       setResult(null);
       setDeleteJobId(null);
+    } else {
+      // Auto-focus confirmation input when dialog opens
+      setTimeout(() => {
+        confirmInputRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -202,12 +208,14 @@ export function DeleteAllProjectsSection({
                   Type <code className="bg-muted px-1 py-0.5 rounded text-sm">{CONFIRMATION_TEXT}</code> to confirm:
                 </Label>
                 <Input
+                  ref={confirmInputRef}
                   id="confirm-text"
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder={CONFIRMATION_TEXT}
                   disabled={isDeleting}
                   autoComplete="off"
+                  title="Type 'delete all projects' to confirm this action"
                 />
               </div>
 
