@@ -242,7 +242,7 @@ export function SetupStatusDisplay({
     };
   }, [projectId, isComplete]);
 
-  const displayMessage = currentEvent?.text || "Building your website...";
+   const displayMessage = currentEvent?.type === "tool" ? currentEvent?.text : "Building your website...";
   const hasError = setupError !== null;
 
   return (

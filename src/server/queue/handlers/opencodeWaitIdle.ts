@@ -30,72 +30,51 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
     return;
   }
 
-  try {
-    const sessionId = project.bootstrapSessionId;
-    if (!sessionId) {
-      throw new Error("No bootstrap session ID found");
-    }
+   try {
+     const sessionId = project.bootstrapSessionId;
+     if (!sessionId) {
+       throw new Error("No bootstrap session ID found");
+     }
 
-    await ctx.throwIfCancelRequested();
+     await ctx.throwIfCancelRequested();
 
-    // Check if we've timed out
-    const elapsed = Date.now() - payload.startedAt;
-    if (elapsed > WAIT_TIMEOUT_MS) {
+     // Check if we've timed out
+     const elapsed = Date.now() - payload.startedAt;
+     if (elapsed > WAIT_TIMEOUT_MS) {
        // Don't fail - just mark as completed anyway so the user can use the project
        logger.warn({ projectId: project.id, elapsed }, "Timed out waiting for idle, marking complete anyway");
        await markInitialPromptCompleted(project.id);
        return;
-    }
-
-     // Check session status via the opencode API
-     // We need to check if the agent has finished processing by looking for an assistant message
-     try {
-       // Fetch messages from the session directly via HTTP
-       const messagesUrl = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/message`;
-       const messagesResponse = await fetch(messagesUrl, {
-         method: "GET",
-         signal: AbortSignal.timeout(5000),
-       });
-
-       if (!messagesResponse.ok) {
-         throw new Error(`Failed to fetch messages: ${messagesResponse.status}`);
-       }
-
-       const messages = (await messagesResponse.json()) as unknown[];
-       
-       // Check if there's an assistant message (indicating the agent has processed the prompt)
-       const hasAssistantMessage = messages.some((msg: unknown) => {
-         const msgObj = msg as { info?: { role?: string } };
-         return msgObj.info?.role === "assistant";
-       });
-
-       if (hasAssistantMessage) {
-          // Agent has processed the prompt
-          logger.info({ projectId: project.id, sessionId, elapsed, messageCount: messages.length }, "Agent has responded, bootstrap complete");
-          await markInitialPromptCompleted(project.id);
-          return;
-       }
-
-       logger.debug(
-         { projectId: project.id, sessionId, elapsed, messageCount: messages.length },
-         "Agent hasn't responded yet, rescheduling"
-       );
-
-     } catch (error) {
-       // If we can't check messages, log and reschedule
-       logger.warn(
-         { projectId: project.id, sessionId, error, elapsed },
-         "Failed to check session messages, rescheduling"
-       );
      }
 
-     // Not idle yet - reschedule
+     // Re-fetch project to check if event stream has already marked it complete
+     // The event.ts handler detects session.status.idle events and marks completion
+     // This job is a backup safety net in case the event stream fails
+     const currentProject = await getProjectByIdIncludeDeleted(project.id);
+     if (!currentProject) {
+       throw new Error("Project not found");
+     }
+
+     if (currentProject.initialPromptCompleted) {
+       logger.debug(
+         { projectId: project.id, sessionId, elapsed },
+         "Event stream detected idle status, marking complete"
+       );
+       return;
+     }
+
+     logger.debug(
+       { projectId: project.id, sessionId, elapsed },
+       "Waiting for event stream to detect session.status.idle, rescheduling"
+     );
+
+     // Not marked complete yet - reschedule and wait for event stream detection
      ctx.reschedule(POLL_DELAY_MS);
-    } catch (error) {
-      // Don't catch reschedule errors - those should propagate
-      if (error instanceof RescheduleError) {
-        throw error;
-      }
-      throw error;
-    }
-}
+   } catch (error) {
+     // Don't catch reschedule errors - those should propagate
+     if (error instanceof RescheduleError) {
+       throw error;
+     }
+     throw error;
+   }
+ }

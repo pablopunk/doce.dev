@@ -35,7 +35,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
   * Astro Pages for routing
   * React for interactive components
 * **shadcn/ui** - UI component library
-* **Tailwind CSS** - styling
+* **Tailwind CSS** - styling, use only semantic color tokens (no hardcoded colors or `dark:` prefixes; tokens in `globals.css` handle themes automatically)
 * **Drizzle ORM** - database abstraction
 * **SQLite** - database (file-based)
 * **Pino** - logging

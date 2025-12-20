@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/Button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { actions } from "astro:actions";
@@ -51,10 +52,10 @@ export function CreateProjectForm({
 			} else if (result.data?.projectId) {
 				const projectId = result.data.projectId;
 				const url = `/projects/${projectId}`;
-				
+
 				// Poll for project to exist in DB
 				await waitForProjectToExist(projectId);
-				
+
 				// Redirect to project page
 				window.location.replace(url);
 			} else {
@@ -68,7 +69,12 @@ export function CreateProjectForm({
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && prompt.trim() && !isLoading) {
+		if (
+			(e.ctrlKey || e.metaKey) &&
+			e.key === "Enter" &&
+			prompt.trim() &&
+			!isLoading
+		) {
 			e.preventDefault();
 			handleCreate();
 		}
@@ -76,7 +82,7 @@ export function CreateProjectForm({
 
 	const waitForProjectToExist = async (projectId: string, maxAttempts = 50) => {
 		const delayMs = 100; // Poll every 100ms
-		
+
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			try {
 				const response = await fetch(`/api/projects/${projectId}`);
@@ -87,11 +93,11 @@ export function CreateProjectForm({
 			} catch (err) {
 				// Network error, continue polling
 			}
-			
+
 			// Wait before next attempt
-			await new Promise(resolve => setTimeout(resolve, delayMs));
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
 		}
-		
+
 		// Timeout - just redirect anyway (project will likely load shortly)
 		// or show loading state on the project page
 	};
@@ -99,7 +105,7 @@ export function CreateProjectForm({
 	return (
 		<div className="w-full">
 			<div className="flex flex-col gap-4">
-				<div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-slate-950/50 dark:bg-slate-900/50">
+				<div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-secondary">
 					<textarea
 						ref={textareaRef}
 						value={prompt}
@@ -118,23 +124,23 @@ export function CreateProjectForm({
 							selectedModelId={selectedModel}
 							onModelChange={setSelectedModel}
 						/>
-					<button
-						onClick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							handleCreate();
-						}}
-						disabled={isLoading || !prompt.trim()}
-						title="Create project (or press Ctrl+Enter in textarea)"
-						className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
-						type="button"
-					>
+						<Button
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								handleCreate();
+							}}
+							disabled={isLoading || !prompt.trim()}
+							title="Create project (or press Ctrl+Enter in textarea)"
+							type="button"
+						>
 							{isLoading ? (
 								<Loader2 className="w-5 h-5 animate-spin" />
 							) : (
 								<Sparkles className="w-5 h-5" />
 							)}
-						</button>
+							<span>Create</span>
+						</Button>
 					</div>
 				</div>
 				{error && <p className="text-sm text-destructive">{error}</p>}
