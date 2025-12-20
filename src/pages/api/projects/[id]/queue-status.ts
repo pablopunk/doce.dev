@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { isProjectOwnedByUser, getProjectById } from "@/server/projects/projects.model";
+import { isProjectOwnedByUser, getProjectById, markInitialPromptCompleted } from "@/server/projects/projects.model";
 import { listJobs } from "@/server/queue/queue.model";
 import type { QueueJobState } from "@/server/queue/queue.model";
+import { logger } from "@/server/logger";
 
 const SESSION_COOKIE_NAME = "doce_session";
 
@@ -143,6 +144,18 @@ export const GET: APIRoute = async ({ params, cookies }) => {
         } else {
           isSetupComplete = false;
         }
+      }
+    }
+
+    // If all setup jobs are complete, we're on step 5 (Done)
+    // Also mark initial prompt as completed in the database so UI properly transitions
+    if (isSetupComplete) {
+      currentStep = 5;
+      
+      // Mark completion in database if not already marked
+      if (project.initialPromptSent && !project.initialPromptCompleted) {
+        await markInitialPromptCompleted(projectId);
+        logger.info({ projectId }, "Marked initial prompt completed via queue-status endpoint");
       }
     }
 

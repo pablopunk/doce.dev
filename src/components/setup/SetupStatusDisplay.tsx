@@ -251,14 +251,20 @@ export function SetupStatusDisplay({
             return;
           }
 
-          // Show queue job timeout warning
-          if (data.jobTimeoutWarning) {
-            setJobTimeoutWarning(data.jobTimeoutWarning);
-          }
+           // Show queue job timeout warning
+           if (data.jobTimeoutWarning) {
+             setJobTimeoutWarning(data.jobTimeoutWarning);
+           }
 
-          // All setup jobs succeeded, now waiting for agent via event stream
-          // isComplete will be set by event stream when it detects session.status.idle
-        } catch (error) {
+           // When we reach step 5, the backend has marked initial_prompt_completed
+           // Reload the page so it shows the chat/preview instead of setup
+           if (data.currentStep >= 5 && data.isSetupComplete) {
+             // Wait a moment for the UI to show final state, then reload
+             setTimeout(() => {
+               window.location.reload();
+             }, 1000);
+           }
+         } catch (error) {
           console.error("Failed to poll queue status:", error);
         }
       };
