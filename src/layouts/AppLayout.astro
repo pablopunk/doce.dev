@@ -4,7 +4,7 @@ import { Navbar } from "@/components/navbar/Navbar";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 
 interface Props {
-  title: string;
+	title: string;
 }
 
 const { title } = Astro.props;
@@ -20,17 +20,15 @@ const { title } = Astro.props;
     <title>{title} | doce.dev</title>
     <!-- Prevent FOUC (Flash of Unstyled Content) by applying theme before hydration -->
     <script is:inline>
-      const theme = localStorage.getItem('doce-theme') || 
+      const theme = localStorage.getItem('doce-theme') ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       if (theme === 'dark') document.documentElement.classList.add('dark');
     </script>
   </head>
-  <body class="h-screen bg-background text-foreground antialiased overflow-hidden flex flex-col">
+  <body class="h-screen bg-background text-foreground antialiased flex flex-col">
     <Navbar client:load />
     <ThemeProvider client:load>
-      <div class="flex-1 overflow-hidden">
         <slot />
-      </div>
     </ThemeProvider>
   </body>
 </html>

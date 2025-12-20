@@ -32,8 +32,7 @@ export function CreateProjectForm({
 		adjustTextareaHeight();
 	}, [prompt]);
 
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
+	const handleCreate = async () => {
 		if (!prompt.trim()) return;
 
 		setIsLoading(true);
@@ -45,30 +44,53 @@ export function CreateProjectForm({
 
 		try {
 			const result = await actions.projects.create(formData);
-			console.log("Action result:", result);
 
 			if (result.error) {
-				console.error("Action error:", result.error);
 				setError(result.error.message);
 				setIsLoading(false);
 			} else if (result.data?.projectId) {
-				console.log("Redirecting to:", `/projects/${result.data.projectId}`);
-				// Redirect to project page (without slug - it will be added once setup completes)
-				window.location.href = `/projects/${result.data.projectId}`;
+				const projectId = result.data.projectId;
+				const url = `/projects/${projectId}`;
+				
+				// Poll for project to exist in DB
+				await waitForProjectToExist(projectId);
+				
+				// Redirect to project page
+				window.location.replace(url);
 			} else {
-				console.warn("No projectId in result:", result);
 				setError("Failed to create project");
 				setIsLoading(false);
 			}
 		} catch (err) {
-			console.error("Action exception:", err);
 			setError("Failed to create project");
 			setIsLoading(false);
 		}
 	};
 
+	const waitForProjectToExist = async (projectId: string, maxAttempts = 50) => {
+		const delayMs = 100; // Poll every 100ms
+		
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			try {
+				const response = await fetch(`/api/projects/${projectId}`);
+				if (response.ok) {
+					// Project exists! We can redirect now
+					return;
+				}
+			} catch (err) {
+				// Network error, continue polling
+			}
+			
+			// Wait before next attempt
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
+		
+		// Timeout - just redirect anyway (project will likely load shortly)
+		// or show loading state on the project page
+	};
+
 	return (
-		<form onSubmit={handleSubmit} className="w-full">
+		<div className="w-full">
 			<div className="flex flex-col gap-4">
 				<div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-slate-950/50 dark:bg-slate-900/50">
 					<textarea
@@ -79,6 +101,7 @@ export function CreateProjectForm({
 						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
 						rows={1}
 						style={{ minHeight: "80px" }}
+						disabled={isLoading}
 					/>
 					<div className="flex items-center justify-between gap-3">
 						<ModelSelector
@@ -86,11 +109,16 @@ export function CreateProjectForm({
 							selectedModelId={selectedModel}
 							onModelChange={setSelectedModel}
 						/>
-						<button
-							type="submit"
-							disabled={isLoading || !prompt.trim()}
-							className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-						>
+					<button
+						onClick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							handleCreate();
+						}}
+						disabled={isLoading || !prompt.trim()}
+						className="flex-shrink-0 p-2 rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+						type="button"
+					>
 							{isLoading ? (
 								<Loader2 className="w-5 h-5 animate-spin" />
 							) : (
@@ -101,6 +129,6 @@ export function CreateProjectForm({
 				</div>
 				{error && <p className="text-sm text-destructive">{error}</p>}
 			</div>
-		</form>
+		</div>
 	);
 }
