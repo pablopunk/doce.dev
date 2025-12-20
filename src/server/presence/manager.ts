@@ -52,6 +52,8 @@ export interface PresenceResponse {
   setupError: string | null;
   // Project slug
   slug: string;
+  // Session ID for chat
+  bootstrapSessionId: string | null;
 }
 
 // In-memory presence state
@@ -150,25 +152,26 @@ export async function handlePresenceHeartbeat(
 
      const presence = getPresence(projectId);
 
-      if (project.status === "deleting") {
-        return {
-          projectId,
-          status: "deleting",
-          viewerCount: 0,
-          previewUrl: `http://127.0.0.1:${project.devPort}`,
-          previewReady: false,
-          opencodeReady: false,
-          message: "Project is being deleted...",
-          nextPollMs: 2000,
-          initialPromptSent: project.initialPromptSent,
-          initialPromptCompleted: project.initialPromptCompleted,
-          prompt: project.prompt,
-          model: project.model,
-          setupPhase: project.setupPhase,
-          setupError: project.setupError,
-          slug: project.slug,
-        };
-      }
+       if (project.status === "deleting") {
+         return {
+           projectId,
+           status: "deleting",
+           viewerCount: 0,
+           previewUrl: `http://127.0.0.1:${project.devPort}`,
+           previewReady: false,
+           opencodeReady: false,
+           message: "Project is being deleted...",
+           nextPollMs: 2000,
+           initialPromptSent: project.initialPromptSent,
+           initialPromptCompleted: project.initialPromptCompleted,
+           prompt: project.prompt,
+           model: project.model,
+           setupPhase: project.setupPhase,
+           setupError: project.setupError,
+           slug: project.slug,
+           bootstrapSessionId: project.bootstrapSessionId,
+         };
+       }
 
     // Update viewer presence
     presence.viewers.set(viewerId, Date.now());
@@ -268,23 +271,24 @@ export async function handlePresenceHeartbeat(
       }
     }
 
-     return {
-        projectId,
-        status,
-        viewerCount: presence.viewers.size,
-        previewUrl: `http://127.0.0.1:${project.devPort}`,
-        previewReady,
-        opencodeReady,
-        message,
-        nextPollMs,
-        initialPromptSent: project.initialPromptSent,
-        initialPromptCompleted: project.initialPromptCompleted,
-        prompt: project.prompt,
-        model: project.model,
-        setupPhase: project.setupPhase,
-        setupError: project.setupError,
-        slug: project.slug,
-      };
+      return {
+         projectId,
+         status,
+         viewerCount: presence.viewers.size,
+         previewUrl: `http://127.0.0.1:${project.devPort}`,
+         previewReady,
+         opencodeReady,
+         message,
+         nextPollMs,
+         initialPromptSent: project.initialPromptSent,
+         initialPromptCompleted: project.initialPromptCompleted,
+         prompt: project.prompt,
+         model: project.model,
+         setupPhase: project.setupPhase,
+         setupError: project.setupError,
+         slug: project.slug,
+         bootstrapSessionId: project.bootstrapSessionId,
+       };
   } finally {
     release();
   }

@@ -20,6 +20,7 @@ interface PresenceData {
   initialPromptSent: boolean;
   prompt: string;
   model: string | null;
+  bootstrapSessionId: string | null;
 }
 
 export function ChatPanel({ projectId }: ChatPanelProps) {
@@ -31,11 +32,10 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   const [initialPromptSent, setInitialPromptSent] = useState(true); // Assume sent until we know otherwise
   const [projectPrompt, setProjectPrompt] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sendingInitialPromptRef = useRef(false);
-  const loadingHistoryRef = useRef(false);
+   const scrollRef = useRef<HTMLDivElement>(null);
+   const eventSourceRef = useRef<EventSource | null>(null);
+   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   const loadingHistoryRef = useRef(false);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -150,114 +150,70 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
     loadHistory();
   }, [projectId, opencodeReady, historyLoaded, scrollToBottom]);
 
-  // Poll for opencode readiness and handle initial prompt
-  useEffect(() => {
-    if (opencodeReady) return;
+   // Poll for opencode readiness and handle initial prompt
+   useEffect(() => {
+     if (opencodeReady) return;
 
-    const checkReady = async () => {
-      try {
-        const viewerId = sessionStorage.getItem(`viewer_${projectId}`) || `chat_${Date.now()}`;
-        const response = await fetch(`/api/projects/${projectId}/presence`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ viewerId }),
-        });
-        if (response.ok) {
-          const data = await response.json() as PresenceData;
-          if (data.opencodeReady) {
-            setOpencodeReady(true);
-            setInitialPromptSent(data.initialPromptSent);
-            setProjectPrompt(data.prompt);
-          }
-        }
-      } catch {
-        // Ignore errors
-      }
-    };
+     const checkReady = async () => {
+       try {
+         const viewerId = sessionStorage.getItem(`viewer_${projectId}`) || `chat_${Date.now()}`;
+         const response = await fetch(`/api/projects/${projectId}/presence`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ viewerId }),
+         });
+         if (response.ok) {
+           const data = await response.json() as PresenceData;
+           if (data.opencodeReady) {
+             setOpencodeReady(true);
+             setInitialPromptSent(data.initialPromptSent);
+             setProjectPrompt(data.prompt);
+             // Set session ID from bootstrap session created by queue
+             if (data.bootstrapSessionId) {
+               setSessionId(data.bootstrapSessionId);
+             }
+           }
+         }
+       } catch {
+         // Ignore errors
+       }
+     };
 
-    checkReady();
-    pollIntervalRef.current = setInterval(checkReady, 2000);
+     checkReady();
+     pollIntervalRef.current = setInterval(checkReady, 2000);
 
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [projectId, opencodeReady]);
+     return () => {
+       if (pollIntervalRef.current) {
+         clearInterval(pollIntervalRef.current);
+       }
+     };
+   }, [projectId, opencodeReady]);
 
-  // Send initial prompt when opencode is ready and prompt hasn't been sent
-  useEffect(() => {
-    if (!opencodeReady || initialPromptSent || !projectPrompt || sendingInitialPromptRef.current) {
-      return;
-    }
+   // Load initial prompt message when opencode is ready and prompt hasn't been sent yet
+   useEffect(() => {
+     if (!opencodeReady || initialPromptSent || !projectPrompt || !sessionId) {
+       return;
+     }
 
-    const sendInitialPrompt = async () => {
-      sendingInitialPromptRef.current = true;
+     // Add user message to UI to show the initial project prompt
+     const userMessageId = `user_initial_${Date.now()}`;
+     setItems((prev) => [
+       ...prev,
+       {
+         type: "message",
+         id: userMessageId,
+         data: {
+           id: userMessageId,
+           role: "user",
+           content: projectPrompt,
+         },
+       },
+     ]);
+     scrollToBottom();
 
-      try {
-        // Add user message to UI immediately (the original project prompt)
-        const userMessageId = `user_initial_${Date.now()}`;
-        setItems((prev) => [
-          ...prev,
-          {
-            type: "message",
-            id: userMessageId,
-            data: {
-              id: userMessageId,
-              role: "user",
-              content: projectPrompt,
-            },
-          },
-        ]);
-        scrollToBottom();
-
-        // Create a session
-        const createRes = await fetch(
-          `/api/projects/${projectId}/opencode/session`,
-          { method: "POST" }
-        );
-        if (!createRes.ok) {
-          console.error("Failed to create session for initial prompt");
-          sendingInitialPromptRef.current = false;
-          return;
-        }
-        const sessionData = await createRes.json();
-        const newSessionId = sessionData.id;
-        setSessionId(newSessionId);
-
-        // Send the initial prompt (async - response comes via SSE)
-        const messageRes = await fetch(
-          `/api/projects/${projectId}/opencode/session/${newSessionId}/prompt_async`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              parts: [{ type: "text", text: projectPrompt }],
-            }),
-          }
-        );
-
-        // prompt_async returns 204 No Content on success
-        if (messageRes.ok || messageRes.status === 204) {
-          setIsStreaming(true);
-
-          // Mark initial prompt as sent in DB
-          await fetch(`/api/projects/${projectId}/mark-initial-prompt-sent`, {
-            method: "POST",
-          });
-          setInitialPromptSent(true);
-        } else {
-          console.error("Failed to send initial prompt");
-        }
-      } catch (error) {
-        console.error("Error sending initial prompt:", error);
-      }
-
-      sendingInitialPromptRef.current = false;
-    };
-
-    sendInitialPrompt();
-  }, [opencodeReady, initialPromptSent, projectPrompt, projectId, scrollToBottom]);
+     // Mark that we've displayed the initial prompt in UI
+     setInitialPromptSent(true);
+   }, [opencodeReady, initialPromptSent, projectPrompt, sessionId, scrollToBottom]);
 
   // Connect to event stream
   useEffect(() => {

@@ -32,14 +32,22 @@ export const GET: APIRoute = async ({ request, locals }) => {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Send initial data
-        const data = {
-          type: "init",
-          job: initialJob,
-          timestamp: new Date().toISOString(),
-        };
+         // Send initial data
+         const data = {
+           type: "init",
+           job: initialJob,
+           timestamp: new Date().toISOString(),
+         };
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+         try {
+           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+         } catch (err) {
+           // Controller closed unexpectedly during initial send
+           if (err instanceof TypeError && err.message.includes("closed")) {
+             return;
+           }
+           throw err;
+         }
 
         // Poll for updates every 1 second
         const pollInterval = setInterval(async () => {
@@ -54,13 +62,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
               return; // Job deleted
             }
 
-            const updateData = {
-              type: "update",
-              job: updatedJob,
-              timestamp: new Date().toISOString(),
-            };
+             const updateData = {
+               type: "update",
+               job: updatedJob,
+               timestamp: new Date().toISOString(),
+             };
 
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
+             try {
+               controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
+             } catch (err) {
+               // Controller already closed - expected on disconnect
+               if (err instanceof TypeError && err.message.includes("closed")) {
+                 return;
+               }
+               throw err;
+             }
           } catch (err) {
             console.error("Error polling queue job:", err);
           }

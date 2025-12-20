@@ -12,13 +12,13 @@ export const AVAILABLE_MODELS = [
 		tier: "fast",
 	},
 	// {
-	// 	id: "anthropic/claude-opus-4.5",
+	// 	id: "anthropic/claude-opus-4-5",
 	// 	name: "Claude Opus 4.5",
 	// 	provider: "Anthropic",
 	// 	tier: "top",
 	// },
 	{
-		id: "anthropic/claude-haiku-4.5",
+		id: "anthropic/claude-haiku-4-5",
 		name: "Claude Haiku 4.5",
 		provider: "Anthropic",
 		tier: "fast",
@@ -39,7 +39,7 @@ export const AVAILABLE_MODELS = [
 
 export type ModelId = (typeof AVAILABLE_MODELS)[number]["id"];
 
-export const DEFAULT_MODEL: ModelId = "anthropic/claude-opus-4.5";
+export const DEFAULT_MODEL: ModelId = "anthropic/claude-opus-4-5";
 export const FAST_MODEL: ModelId = "google/gemini-2.5-flash";
 
 export async function validateOpenRouterApiKey(

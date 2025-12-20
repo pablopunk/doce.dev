@@ -61,15 +61,23 @@ export const GET: APIRoute = async ({ request, locals }) => {
          const paused = await isQueuePaused();
          const concurrency = await getConcurrency();
 
-         const data = {
-           type: "init",
-           jobs,
-           paused,
-           concurrency,
-           timestamp: new Date().toISOString(),
-         };
+          const data = {
+            type: "init",
+            jobs,
+            paused,
+            concurrency,
+            timestamp: new Date().toISOString(),
+          };
 
-         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          } catch (err) {
+            // Controller closed unexpectedly during initial send
+            if (err instanceof TypeError && err.message.includes("closed")) {
+              return;
+            }
+            throw err;
+          }
 
         // Poll for updates every 2 seconds
         pollInterval = setInterval(async () => {
@@ -92,31 +100,40 @@ export const GET: APIRoute = async ({ request, locals }) => {
              const updatedPaused = await isQueuePaused();
              const updatedConcurrency = await getConcurrency();
 
-             const updateData = {
-               type: "update",
-               jobs: updatedJobs,
-               paused: updatedPaused,
-               concurrency: updatedConcurrency,
-               timestamp: new Date().toISOString(),
-             };
+              const updateData = {
+                type: "update",
+                jobs: updatedJobs,
+                paused: updatedPaused,
+                concurrency: updatedConcurrency,
+                timestamp: new Date().toISOString(),
+              };
 
-             if (!isClosed) {
-               controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
-             }
+              if (!isClosed) {
+                try {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
+                } catch (err) {
+                  // Controller already closed - expected on disconnect
+                  if (err instanceof TypeError && err.message.includes("closed")) {
+                    return;
+                  }
+                  throw err;
+                }
+              }
           } catch (err) {
             console.error("Error polling queue jobs:", err);
           }
         }, 2000); // Poll every 2 seconds
 
-        // Handle client disconnect
-        request.signal?.addEventListener("abort", () => {
-          isClosed = true;
-          if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-          }
-          controller.close();
-        });
+         // Handle client disconnect
+         request.signal?.addEventListener("abort", () => {
+           isClosed = true;
+           // Clear interval BEFORE closing controller to prevent race condition
+           if (pollInterval) {
+             clearInterval(pollInterval);
+             pollInterval = null;
+           }
+           controller.close();
+         });
       } catch (err) {
         console.error("Error in queue jobs stream:", err);
         controller.error(err);
