@@ -24,6 +24,9 @@ import {
 	runNow,
 	requestCancel,
 	setQueuePaused,
+	setConcurrency,
+	deleteJob,
+	deleteJobsByState,
 } from "@/server/queue/queue.model";
 import {
 	getProjectsByUserId,
@@ -574,6 +577,67 @@ export const server = {
 					});
 				}
 
+				return { success: true };
+			},
+		}),
+
+		deleteJob: defineAction({
+			input: z.object({
+				jobId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				const deleted = await deleteJob(input.jobId);
+				if (deleted === 0) {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: "Job not found or not in terminal state (can only delete succeeded, failed, or cancelled jobs)",
+					});
+				}
+
+				return { success: true };
+			},
+		}),
+
+		deleteByState: defineAction({
+			input: z.object({
+				state: z.enum(["succeeded", "failed", "cancelled"]),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				const deleted = await deleteJobsByState(input.state);
+				return { success: true, deleted };
+			},
+		}),
+
+		setConcurrency: defineAction({
+			input: z.object({
+				concurrency: z.number().int().min(1).max(20),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				await setConcurrency(input.concurrency);
 				return { success: true };
 			},
 		}),

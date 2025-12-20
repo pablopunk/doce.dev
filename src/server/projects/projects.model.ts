@@ -173,7 +173,10 @@ export async function updateProjectSetupPhase(
 ): Promise<void> {
   await db
     .update(projects)
-    .set({ setupPhase })
+    .set({ 
+      setupPhase,
+      setupStartedAt: new Date(),  // Track when this phase started for accurate timeout calculation
+    })
     .where(eq(projects.id, id));
 }
 

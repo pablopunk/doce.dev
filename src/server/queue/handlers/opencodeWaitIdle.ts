@@ -5,7 +5,6 @@ import {
   updateProjectSetupPhase,
   updateProjectSetupPhaseAndError,
 } from "@/server/projects/projects.model";
-import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -53,50 +52,48 @@ export async function handleOpencodeWaitIdle(ctx: QueueJobContext): Promise<void
       return;
     }
 
-    // Check session status via the opencode API
-    // We need to check if the session is idle
-    try {
-      const client = createOpencodeClient(project.opencodePort);
-      
-      // Get the list of sessions and find ours
-      const sessionsResponse = await client.session.list();
-      const responseData = sessionsResponse as unknown as { data?: { id: string }[]; sessions?: { id: string }[] };
-      const sessions = responseData.data ?? responseData.sessions ?? [];
-      
-      // Find our session
-      const session = sessions.find((s: { id?: string }) => s.id === sessionId);
-      
-      if (!session) {
-        // Session doesn't exist anymore? Mark as completed
-        logger.warn({ projectId: project.id, sessionId }, "Bootstrap session not found, marking complete");
-        await markInitialPromptCompleted(project.id);
-        await updateProjectSetupPhase(project.id, "completed");
-        return;
-      }
+     // Check session status via the opencode API
+     // We need to check if the agent has finished processing by looking for an assistant message
+     try {
+       // Fetch messages from the session directly via HTTP
+       const messagesUrl = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/message`;
+       const messagesResponse = await fetch(messagesUrl, {
+         method: "GET",
+         signal: AbortSignal.timeout(5000),
+       });
 
-      // Check if session is idle
-      // The session object should have a status field
-      const status = (session as { status?: { type?: string } }).status?.type;
-      
-      if (status === "idle") {
-        logger.info({ projectId: project.id, sessionId, elapsed }, "Session is idle, bootstrap complete");
-        await markInitialPromptCompleted(project.id);
-        await updateProjectSetupPhase(project.id, "completed");
-        return;
-      }
+       if (!messagesResponse.ok) {
+         throw new Error(`Failed to fetch messages: ${messagesResponse.status}`);
+       }
 
-      logger.debug(
-        { projectId: project.id, sessionId, status, elapsed },
-        "Session not idle yet, rescheduling"
-      );
+       const messages = (await messagesResponse.json()) as unknown[];
+       
+       // Check if there's an assistant message (indicating the agent has processed the prompt)
+       const hasAssistantMessage = messages.some((msg: unknown) => {
+         const msgObj = msg as { info?: { role?: string } };
+         return msgObj.info?.role === "assistant";
+       });
 
-    } catch (error) {
-      // If we can't check status, log and reschedule
-      logger.warn(
-        { projectId: project.id, sessionId, error, elapsed },
-        "Failed to check session status, rescheduling"
-      );
-    }
+       if (hasAssistantMessage) {
+         // Agent has processed the prompt
+         logger.info({ projectId: project.id, sessionId, elapsed, messageCount: messages.length }, "Agent has responded, bootstrap complete");
+         await markInitialPromptCompleted(project.id);
+         await updateProjectSetupPhase(project.id, "completed");
+         return;
+       }
+
+       logger.debug(
+         { projectId: project.id, sessionId, elapsed, messageCount: messages.length },
+         "Agent hasn't responded yet, rescheduling"
+       );
+
+     } catch (error) {
+       // If we can't check messages, log and reschedule
+       logger.warn(
+         { projectId: project.id, sessionId, error, elapsed },
+         "Failed to check session messages, rescheduling"
+       );
+     }
 
     // Not idle yet - reschedule
     ctx.reschedule(POLL_DELAY_MS);

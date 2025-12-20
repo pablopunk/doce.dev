@@ -127,12 +127,14 @@ export async function handlePresenceHeartbeat(
        throw new Error("Project not found");
      }
 
-     // Check if setup is stuck and timeout
-     if (project.setupPhase !== "not_started" && project.setupPhase !== "completed" && project.setupPhase !== "failed") {
-       const phaseTimeout = SETUP_PHASE_TIMEOUTS[project.setupPhase];
-       if (phaseTimeout) {
-         const elapsed = Date.now() - project.createdAt.getTime();
-         if (elapsed > phaseTimeout) {
+      // Check if setup is stuck and timeout
+      if (project.setupPhase !== "not_started" && project.setupPhase !== "completed" && project.setupPhase !== "failed") {
+        const phaseTimeout = SETUP_PHASE_TIMEOUTS[project.setupPhase];
+        if (phaseTimeout) {
+          // Use setupStartedAt if available (when phase started), otherwise fall back to createdAt
+          const startTime = project.setupStartedAt?.getTime() ?? project.createdAt.getTime();
+          const elapsed = Date.now() - startTime;
+          if (elapsed > phaseTimeout) {
            // Setup has timed out - import here to avoid circular dependency
            const { updateProjectSetupPhaseAndError } = await import("@/server/projects/projects.model");
            const errorMsg = `Setup timeout: ${project.setupPhase} exceeded ${phaseTimeout}ms`;

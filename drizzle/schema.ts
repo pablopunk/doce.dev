@@ -14,8 +14,8 @@ export const projects = sqliteTable("projects", {
 	opencodePort: integer("opencode_port").notNull(),
 	status: text().default("created").notNull(),
 	pathOnDisk: text("path_on_disk").notNull(),
-	initialPromptSent: integer("initial_prompt_sent").default(false).notNull(),
-	initialPromptCompleted: integer("initial_prompt_completed").default(false).notNull(),
+	initialPromptSent: integer("initial_prompt_sent").default(0).notNull(),
+	initialPromptCompleted: integer("initial_prompt_completed").default(0).notNull(),
 	bootstrapSessionId: text("bootstrap_session_id"),
 	setupPhase: text("setup_phase").default("not_started").notNull(),
 	setupError: text("setup_error"),
@@ -79,7 +79,8 @@ export const queueJobs = sqliteTable("queue_jobs", {
 
 export const queueSettings = sqliteTable("queue_settings", {
 	id: integer().primaryKey().notNull(),
-	paused: integer().default(false).notNull(),
+	paused: integer().default(0).notNull(),
+	concurrency: integer().default(2).notNull(),
 	updatedAt: integer("updated_at").notNull(),
 });
 

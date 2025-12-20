@@ -134,6 +134,7 @@ export const queueJobs = sqliteTable(
 export const queueSettings = sqliteTable("queue_settings", {
   id: integer("id").primaryKey(),
   paused: integer("paused", { mode: "boolean" }).notNull().default(false),
+  concurrency: integer("concurrency").notNull().default(2),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 

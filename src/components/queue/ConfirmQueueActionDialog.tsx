@@ -16,8 +16,9 @@ interface ConfirmQueueActionDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => Promise<void>;
-  actionType: "cancel" | "forceUnlock";
+  actionType: "cancel" | "forceUnlock" | "delete" | "deleteByState";
   isLoading?: boolean;
+  jobCount?: number | undefined;
 }
 
 const dialogConfig = {
@@ -33,6 +34,18 @@ const dialogConfig = {
     actionLabel: "Force Unlock",
     isDestructive: true,
   },
+  delete: {
+    title: "Delete Job",
+    description: "This will permanently delete this job from the queue. This action cannot be undone.",
+    actionLabel: "Delete Job",
+    isDestructive: true,
+  },
+  deleteByState: {
+    title: "Delete Jobs",
+    description: "This will permanently delete all matching jobs from the queue. This action cannot be undone.",
+    actionLabel: "Delete Jobs",
+    isDestructive: true,
+  },
 };
 
 export function ConfirmQueueActionDialog({
@@ -41,9 +54,10 @@ export function ConfirmQueueActionDialog({
   onConfirm,
   actionType,
   isLoading = false,
+  jobCount = 1,
 }: ConfirmQueueActionDialogProps) {
   const config = dialogConfig[actionType];
-  const isDestructive = actionType === "forceUnlock";
+  const isDestructive = actionType === "forceUnlock" || actionType === "delete" || actionType === "deleteByState";
 
   const handleConfirm = async () => {
     try {
@@ -58,17 +72,22 @@ export function ConfirmQueueActionDialog({
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
       <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle
-            className={`flex items-center gap-2 ${
-              isDestructive ? "text-destructive" : ""
-            }`}
-          >
-            {isDestructive && <AlertTriangle className="h-5 w-5" />}
-            {config.title}
-          </AlertDialogTitle>
-          <AlertDialogDescription>{config.description}</AlertDialogDescription>
-        </AlertDialogHeader>
+         <AlertDialogHeader>
+           <AlertDialogTitle
+             className={`flex items-center gap-2 ${
+               isDestructive ? "text-destructive" : ""
+             }`}
+           >
+             {isDestructive && <AlertTriangle className="h-5 w-5" />}
+             {config.title}
+           </AlertDialogTitle>
+           <AlertDialogDescription>
+             {config.description}
+             {(actionType === "deleteByState" || actionType === "delete") && jobCount > 1 && (
+               <div className="mt-2 font-semibold">This will delete {jobCount} job{jobCount !== 1 ? "s" : ""}.</div>
+             )}
+           </AlertDialogDescription>
+         </AlertDialogHeader>
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>

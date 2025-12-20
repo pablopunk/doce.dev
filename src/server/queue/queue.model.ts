@@ -1,6 +1,6 @@
 import { db, sqlite } from "@/server/db/client";
 import { queueJobs, queueSettings, type QueueJob } from "@/server/db/schema";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { logger } from "@/server/logger";
 import { queueJobTypeSchema, type QueueJobType } from "./types";
 
@@ -63,12 +63,33 @@ export async function isQueuePaused(): Promise<boolean> {
 }
 
 export async function setQueuePaused(paused: boolean): Promise<void> {
-  await ensureQueueSettingsRow();
+	await ensureQueueSettingsRow();
 
-  await db
-    .update(queueSettings)
-    .set({ paused, updatedAt: new Date() })
-    .where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID));
+	await db
+		.update(queueSettings)
+		.set({ paused, updatedAt: new Date() })
+		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID));
+}
+
+export async function getConcurrency(): Promise<number> {
+	await ensureQueueSettingsRow();
+
+	const result = await db
+		.select({ concurrency: queueSettings.concurrency })
+		.from(queueSettings)
+		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID))
+		.limit(1);
+
+	return result[0]?.concurrency ?? 2;
+}
+
+export async function setConcurrency(concurrency: number): Promise<void> {
+	await ensureQueueSettingsRow();
+
+	await db
+		.update(queueSettings)
+		.set({ concurrency, updatedAt: new Date() })
+		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID));
 }
 
 export async function enqueueJob<TPayload extends object>(
@@ -349,6 +370,16 @@ export async function scheduleRetry(
 /**
  * Reschedule a job to run again later without incrementing attempts or setting error.
  * Used for "wait" jobs that need to poll until a condition is met.
+ * 
+ * IMPORTANT: Decrements attempts because polling reschedules should NOT consume the error-retry budget.
+ * Only error-retry jobs should increment attempts.
+ * 
+ * Flow:
+ * - Job claimed: attempts 0 → 1 (from claimNextJob increment)
+ * - Job reschedules: attempts 1 → 0 (decremented here)
+ * - Next claim: attempts 0 → 1 again
+ * 
+ * This allows polling jobs to reschedule indefinitely (until timeout) without hitting maxAttempts.
  */
 export async function rescheduleJob(
   jobId: string,
@@ -366,8 +397,7 @@ export async function rescheduleJob(
       lockExpiresAt: null,
       lockedBy: null,
       updatedAt: now,
-      // Note: attempts is NOT decremented - it was already incremented on claim.
-      // But we don't set lastError, so this looks like a normal reschedule.
+      attempts: sql`attempts - 1`,  // Decrement: polling isn't an error, just waiting
     })
     .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
@@ -522,4 +552,42 @@ export function logJobFailure(job: QueueJob, error: unknown): void {
     { error, jobId: job.id, type: job.type, projectId: job.projectId },
     "Queue job failed"
   );
+}
+
+/**
+ * Delete a single job from the queue.
+ * Only allows deletion of jobs in terminal states: succeeded, failed, cancelled.
+ * Returns the number of rows deleted (0 if job not found or not in terminal state).
+ */
+export async function deleteJob(jobId: string): Promise<number> {
+  const result = await db
+    .delete(queueJobs)
+    .where(
+      and(
+        eq(queueJobs.id, jobId),
+        sql`state IN ('succeeded', 'failed', 'cancelled')`
+      )
+    )
+    .returning({ id: queueJobs.id });
+
+  return result.length;
+}
+
+/**
+ * Delete multiple jobs from the queue by state.
+ * Only allows deletion of jobs in terminal states: succeeded, failed, cancelled.
+ * Returns the number of rows deleted.
+ */
+export async function deleteJobsByState(state: QueueJobState): Promise<number> {
+  const terminalStates = ["succeeded", "failed", "cancelled"] as const;
+  if (!terminalStates.includes(state as (typeof terminalStates)[number])) {
+    throw new Error(`Cannot delete jobs in state: ${state}`);
+  }
+
+  const result = await db
+    .delete(queueJobs)
+    .where(eq(queueJobs.state, state))
+    .returning({ id: queueJobs.id });
+
+  return result.length;
 }

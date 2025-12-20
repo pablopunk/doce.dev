@@ -20,6 +20,7 @@ import { handleProjectCreate } from "./handlers/projectCreate";
 import { handleDockerComposeUp } from "./handlers/dockerComposeUp";
 import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
 import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
+import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
 import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
 import { handleOpencodeWaitIdle } from "./handlers/opencodeWaitIdle";
 
@@ -62,6 +63,7 @@ const handlerByType: Record<QueueJobType, (ctx: QueueJobContext) => Promise<void
   "docker.ensureRunning": handleDockerEnsureRunning,
   "docker.stop": handleDockerStop,
   "opencode.sessionCreate": handleOpencodeSessionCreate,
+  "opencode.sessionInit": handleOpencodeSessionInit,
   "opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
   "opencode.waitIdle": handleOpencodeWaitIdle,
 };

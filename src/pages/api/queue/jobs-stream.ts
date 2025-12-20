@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { listJobs, isQueuePaused } from "@/server/queue/queue.model";
+import { listJobs, isQueuePaused, getConcurrency } from "@/server/queue/queue.model";
 import type { QueueJob } from "@/server/db/schema";
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -49,25 +49,27 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   const stream = new ReadableStream({
     async start(controller) {
-      try {
-        // Send initial data
-        const jobs = await listJobs({
-          state,
-          type,
-          projectId: projectIdParam || undefined,
-          q: qParam || undefined,
-          limit: 100,
-        } as any);
-        const paused = await isQueuePaused();
+       try {
+         // Send initial data
+         const jobs = await listJobs({
+           state,
+           type,
+           projectId: projectIdParam || undefined,
+           q: qParam || undefined,
+           limit: 100,
+         } as any);
+         const paused = await isQueuePaused();
+         const concurrency = await getConcurrency();
 
-        const data = {
-          type: "init",
-          jobs,
-          paused,
-          timestamp: new Date().toISOString(),
-        };
+         const data = {
+           type: "init",
+           jobs,
+           paused,
+           concurrency,
+           timestamp: new Date().toISOString(),
+         };
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 
         // Poll for updates every 2 seconds
         pollInterval = setInterval(async () => {
@@ -79,26 +81,28 @@ export const GET: APIRoute = async ({ request, locals }) => {
             return;
           }
 
-          try {
-            const updatedJobs = await listJobs({
-              state,
-              type,
-              projectId: projectIdParam || undefined,
-              q: qParam || undefined,
-              limit: 100,
-            } as any);
-            const updatedPaused = await isQueuePaused();
+           try {
+             const updatedJobs = await listJobs({
+               state,
+               type,
+               projectId: projectIdParam || undefined,
+               q: qParam || undefined,
+               limit: 100,
+             } as any);
+             const updatedPaused = await isQueuePaused();
+             const updatedConcurrency = await getConcurrency();
 
-            const updateData = {
-              type: "update",
-              jobs: updatedJobs,
-              paused: updatedPaused,
-              timestamp: new Date().toISOString(),
-            };
+             const updateData = {
+               type: "update",
+               jobs: updatedJobs,
+               paused: updatedPaused,
+               concurrency: updatedConcurrency,
+               timestamp: new Date().toISOString(),
+             };
 
-            if (!isClosed) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
-            }
+             if (!isClosed) {
+               controller.enqueue(encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`));
+             }
           } catch (err) {
             console.error("Error polling queue jobs:", err);
           }

@@ -102,10 +102,8 @@ starting_docker
   → (queue: docker.waitReady)
 initializing_agent
   → (queue: opencode.sessionCreate)
-sending_prompt
-  → (queue: opencode.sendInitialPrompt)
-waiting_completion
-  → (queue: opencode.waitIdle)
+waiting_completion (Build)
+  → (queue: opencode.sendInitialPrompt + opencode.waitIdle)
 completed
 ```
 

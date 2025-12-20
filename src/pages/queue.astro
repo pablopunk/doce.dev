@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
-import { listJobs, isQueuePaused } from "@/server/queue/queue.model";
+import { listJobs, isQueuePaused, getConcurrency } from "@/server/queue/queue.model";
 import type { QueueJob } from "@/server/db/schema";
 
 const user = Astro.locals.user;
@@ -32,6 +32,7 @@ const type = allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
   : undefined;
 
 const paused = await isQueuePaused();
+const concurrency = await getConcurrency();
 
 const jobs = await listJobs({
   state: state ?? undefined,
@@ -42,13 +43,13 @@ const jobs = await listJobs({
 } as any);
 
 const filters = {
-  state: stateParam || undefined,
-  type: typeParam || undefined,
-  projectId: projectIdParam || undefined,
-  q: qParam || undefined,
+  state: stateParam ? stateParam : undefined,
+  type: typeParam ? typeParam : undefined,
+  projectId: projectIdParam ? projectIdParam : undefined,
+  q: qParam ? qParam : undefined,
 };
 ---
 
 <AppLayout title="Queue">
-  <QueueTableLive client:load initialJobs={jobs} initialPaused={paused} filters={filters} />
+  <QueueTableLive client:load initialJobs={jobs} initialPaused={paused} initialConcurrency={concurrency} filters={filters} />
 </AppLayout>

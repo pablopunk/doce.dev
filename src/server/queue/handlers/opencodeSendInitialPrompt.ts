@@ -29,10 +29,11 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
     return;
   }
 
-  try {
-    await updateProjectSetupPhase(project.id, "sending_prompt");
+   try {
+     // Skip "sending_prompt" phase and go straight to "waiting_completion" since both are shown as "Build" to the user
+     await updateProjectSetupPhase(project.id, "waiting_completion");
 
-    const sessionId = project.bootstrapSessionId;
+     const sessionId = project.bootstrapSessionId;
     if (!sessionId) {
       throw new Error("No bootstrap session ID found - session not created?");
     }

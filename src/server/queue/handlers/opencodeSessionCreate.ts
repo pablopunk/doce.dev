@@ -3,7 +3,7 @@ import { getProjectByIdIncludeDeleted, updateBootstrapSessionId, updateProjectSe
 import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeSendInitialPrompt } from "../enqueue";
+import { enqueueOpencodeSessionInit } from "../enqueue";
 
 export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise<void> {
   const payload = parsePayload("opencode.sessionCreate", ctx.job.payloadJson);
@@ -19,9 +19,9 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
     return;
   }
 
-  // If already sent, skip
-  if (project.initialPromptSent) {
-    logger.info({ projectId: project.id }, "Initial prompt already sent, skipping session create");
+  // If already has a session, skip (idempotent)
+  if (project.bootstrapSessionId) {
+    logger.info({ projectId: project.id }, "Session already created, skipping session create");
     return;
   }
 
@@ -49,9 +49,9 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
 
     await ctx.throwIfCancelRequested();
 
-    // Enqueue next step: send initial prompt
-    await enqueueOpencodeSendInitialPrompt({ projectId: project.id });
-    logger.debug({ projectId: project.id }, "Enqueued opencode.sendInitialPrompt");
+     // Enqueue next step: initialize session with agent
+     await enqueueOpencodeSessionInit({ projectId: project.id });
+     logger.debug({ projectId: project.id }, "Enqueued opencode.sessionInit");
    } catch (error) {
      const errorMsg = error instanceof Error ? error.message : String(error);
      await updateProjectSetupPhaseAndError(project.id, "failed", errorMsg);

@@ -10,6 +10,7 @@ import type {
   DockerEnsureRunningPayload,
   DockerStopPayload,
   OpencodeSessionCreatePayload,
+  OpencodeSessionInitPayload,
   OpencodeSendInitialPromptPayload,
   OpencodeWaitIdlePayload,
 } from "./types";
@@ -76,6 +77,7 @@ export async function enqueueDockerWaitReady(
       ...input,
       rescheduleCount: input.rescheduleCount ?? 0,
     },
+    maxAttempts: 300,  // Allow 300 reschedules * 1s poll interval = 5 minutes total
     // No dedupe - allow multiple waits if needed
   });
 }
@@ -118,6 +120,18 @@ export async function enqueueOpencodeSessionCreate(
   });
 }
 
+export async function enqueueOpencodeSessionInit(
+  input: OpencodeSessionInitPayload
+): Promise<QueueJob> {
+  return enqueueJob({
+    id: randomBytes(16).toString("hex"),
+    type: "opencode.sessionInit",
+    projectId: input.projectId,
+    payload: input,
+    dedupeKey: `opencode.sessionInit:${input.projectId}`,
+  });
+}
+
 export async function enqueueOpencodeSendInitialPrompt(
   input: OpencodeSendInitialPromptPayload
 ): Promise<QueueJob> {
@@ -138,6 +152,7 @@ export async function enqueueOpencodeWaitIdle(
     type: "opencode.waitIdle",
     projectId: input.projectId,
     payload: input,
+    maxAttempts: 300,  // Allow 300 reschedules * 2s poll interval = 10 minutes total
     // No dedupe - allow multiple waits
   });
 }
