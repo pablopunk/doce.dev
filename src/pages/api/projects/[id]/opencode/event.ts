@@ -11,10 +11,77 @@ import {
   createNormalizationState,
 } from "@/server/opencode/normalize";
 import { logger } from "@/server/logger";
+import { db } from "@/server/db/client";
+import { queueJobs } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 10_000;
+
+/**
+ * Update the opencode.waitIdle job's lastToolActivityAt timestamp.
+ * Called when tool events are detected to help track agent activity.
+ */
+async function updateWaitIdleJobActivityTime(projectId: string): Promise<void> {
+  try {
+    // Find the most recent opencode.waitIdle job for this project
+    const waitIdleJob = await db
+      .select()
+      .from(queueJobs)
+      .where(
+        and(
+          eq(queueJobs.projectId, projectId),
+          eq(queueJobs.type, "opencode.waitIdle")
+        )
+      )
+      .orderBy(queueJobs.createdAt)
+      .limit(1);
+
+    if (!waitIdleJob[0]) {
+      return; // No waitIdle job found
+    }
+
+    const job = waitIdleJob[0];
+    const payload = JSON.parse(job.payloadJson) as Record<string, unknown>;
+
+    // Update lastToolActivityAt to current time
+    payload.lastToolActivityAt = Date.now();
+
+    // Update the job payload in the database
+    await db
+      .update(queueJobs)
+      .set({
+        payloadJson: JSON.stringify(payload),
+        updatedAt: new Date(),
+      })
+      .where(eq(queueJobs.id, job.id));
+
+    logger.debug(
+      { projectId, jobId: job.id },
+      "Updated waitIdle job activity timestamp"
+    );
+  } catch (error) {
+    logger.warn(
+      { error, projectId },
+      "Failed to update waitIdle job activity timestamp"
+    );
+    // Don't throw - this is not critical, event stream should still work
+  }
+}
+
+/**
+ * Check if an event represents tool activity.
+ */
+function isToolActivityEvent(eventType: string): boolean {
+  return (
+    eventType === "tool.execute" ||
+    eventType === "tool.result" ||
+    eventType === "chat.tool.start" ||
+    eventType === "chat.tool.finish" ||
+    (eventType === "message.part.updated") // Tool updates come through here
+  );
+}
 
 export const GET: APIRoute = async ({ params, cookies }) => {
   // Validate session
@@ -172,15 +239,22 @@ export const GET: APIRoute = async ({ params, cookies }) => {
               const data = trimmed.slice(5).trim();
               const parsed = parseSSEData(data);
 
-              if (parsed) {
-                // Check for initial prompt completion (server-side detection)
-                checkInitialPromptCompletion(parsed).catch((error) => {
-                  logger.error({ error, projectId }, "Error checking initial prompt completion");
-                });
+               if (parsed) {
+                 // Check for initial prompt completion (server-side detection)
+                 checkInitialPromptCompletion(parsed).catch((error) => {
+                   logger.error({ error, projectId }, "Error checking initial prompt completion");
+                 });
 
-                const normalized = normalizeEvent(projectId, parsed, state);
-                sendEvent(normalized);
-              }
+                 // Track tool activity for stuck agent detection
+                 if (isToolActivityEvent(parsed.type)) {
+                   updateWaitIdleJobActivityTime(projectId).catch((error) => {
+                     logger.debug({ error, projectId }, "Failed to update activity time");
+                   });
+                 }
+
+                 const normalized = normalizeEvent(projectId, parsed, state);
+                 sendEvent(normalized);
+               }
             }
           }
         }

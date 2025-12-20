@@ -97,6 +97,8 @@ export type OpencodeSendInitialPromptPayload = z.infer<typeof opencodeSendInitia
 export const opencodeWaitIdlePayloadSchema = z.object({
   projectId: z.string().min(1),
   startedAt: z.number(), // timestamp when we first started waiting
+  lastToolActivityAt: z.number().optional(), // timestamp of last tool execution (for stuck detection)
+  stuckWarningSentAt: z.number().optional(), // prevent spam of stuck warnings
 });
 
 export type OpencodeWaitIdlePayload = z.infer<typeof opencodeWaitIdlePayloadSchema>;
