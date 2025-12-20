@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
-import { listJobs, isQueuePaused, getConcurrency } from "@/server/queue/queue.model";
+import { listJobs, isQueuePaused, getConcurrency, countJobs } from "@/server/queue/queue.model";
 import type { QueueJob } from "@/server/db/schema";
 
 const user = Astro.locals.user;
@@ -15,6 +15,7 @@ const stateParam = search.get("state") ?? "";
 const typeParam = search.get("type") ?? "";
 const projectIdParam = search.get("projectId") ?? "";
 const qParam = search.get("q") ?? "";
+const pageParam = search.get("page") ?? "1";
 
 const allowedStates = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
 const state = allowedStates.includes(stateParam as (typeof allowedStates)[number])
@@ -31,6 +32,10 @@ const type = allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
   ? (typeParam as QueueJob["type"])
   : undefined;
 
+const pageSize = 25;
+const page = Math.max(1, parseInt(pageParam, 10) || 1);
+const offset = (page - 1) * pageSize;
+
 const paused = await isQueuePaused();
 const concurrency = await getConcurrency();
 
@@ -39,8 +44,18 @@ const jobs = await listJobs({
   type: type as any,
   projectId: projectIdParam || undefined,
   q: qParam || undefined,
-  limit: 100,
+  limit: pageSize,
+  offset,
 } as any);
+
+const totalCount = await countJobs({
+  state: state ?? undefined,
+  type: type as any,
+  projectId: projectIdParam || undefined,
+  q: qParam || undefined,
+} as any);
+
+const totalPages = Math.ceil(totalCount / pageSize);
 
 const filters = {
   state: stateParam ? stateParam : undefined,
@@ -48,8 +63,15 @@ const filters = {
   projectId: projectIdParam ? projectIdParam : undefined,
   q: qParam ? qParam : undefined,
 };
+
+const pagination = {
+  page,
+  pageSize,
+  totalCount,
+  totalPages,
+};
 ---
 
 <AppLayout title="Queue">
-  <QueueTableLive client:load initialJobs={jobs} initialPaused={paused} initialConcurrency={concurrency} filters={filters} />
+  <QueueTableLive client:load initialJobs={jobs} initialPage={page} initialPagination={pagination} initialPaused={paused} initialConcurrency={concurrency} filters={filters} />
 </AppLayout>

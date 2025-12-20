@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
-import { listJobs, isQueuePaused, getConcurrency } from "@/server/queue/queue.model";
+import { listJobs, isQueuePaused, getConcurrency, countJobs } from "@/server/queue/queue.model";
 import type { QueueJob } from "@/server/db/schema";
+
+const PAGE_SIZE = 25;
 
 export const GET: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
@@ -8,12 +10,16 @@ export const GET: APIRoute = async ({ request, locals }) => {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Parse query parameters for filtering
+  // Parse query parameters for filtering and pagination
   const url = new URL(request.url);
   const stateParam = url.searchParams.get("state") ?? "";
   const typeParam = url.searchParams.get("type") ?? "";
   const projectIdParam = url.searchParams.get("projectId") ?? "";
   const qParam = url.searchParams.get("q") ?? "";
+  const pageParam = url.searchParams.get("page") ?? "1";
+  
+  const page = Math.max(1, parseInt(pageParam, 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const allowedStates = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
   const state = allowedStates.includes(stateParam as (typeof allowedStates)[number])
@@ -47,7 +53,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
   let isClosed = false;
   let pollInterval: NodeJS.Timeout | null = null;
 
-  const stream = new ReadableStream({
+   const stream = new ReadableStream({
     async start(controller) {
        try {
          // Send initial data
@@ -56,16 +62,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
            type,
            projectId: projectIdParam || undefined,
            q: qParam || undefined,
-           limit: 100,
+           limit: PAGE_SIZE,
+           offset,
+         } as any);
+         const totalCount = await countJobs({
+           state,
+           type,
+           projectId: projectIdParam || undefined,
+           q: qParam || undefined,
          } as any);
          const paused = await isQueuePaused();
          const concurrency = await getConcurrency();
 
+         const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+         
           const data = {
             type: "init",
             jobs,
             paused,
             concurrency,
+            pagination: {
+              page,
+              pageSize: PAGE_SIZE,
+              totalCount,
+              totalPages,
+            },
             timestamp: new Date().toISOString(),
           };
 
@@ -95,16 +116,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
                type,
                projectId: projectIdParam || undefined,
                q: qParam || undefined,
-               limit: 100,
+               limit: PAGE_SIZE,
+               offset,
+             } as any);
+             const updatedTotalCount = await countJobs({
+               state,
+               type,
+               projectId: projectIdParam || undefined,
+               q: qParam || undefined,
              } as any);
              const updatedPaused = await isQueuePaused();
              const updatedConcurrency = await getConcurrency();
+
+             const updatedTotalPages = Math.ceil(updatedTotalCount / PAGE_SIZE);
 
               const updateData = {
                 type: "update",
                 jobs: updatedJobs,
                 paused: updatedPaused,
                 concurrency: updatedConcurrency,
+                pagination: {
+                  page,
+                  pageSize: PAGE_SIZE,
+                  totalCount: updatedTotalCount,
+                  totalPages: updatedTotalPages,
+                },
                 timestamp: new Date().toISOString(),
               };
 

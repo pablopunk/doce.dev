@@ -28,6 +28,7 @@ export interface ListJobsFilters {
   projectId?: string;
   q?: string;
   limit?: number;
+  offset?: number;
 }
 
 const QUEUE_SETTINGS_ROW_ID = 1;
@@ -194,6 +195,36 @@ export async function getJobCancelRequestedAt(jobId: string): Promise<Date | nul
   return result[0]?.cancelRequestedAt ?? null;
 }
 
+export async function countJobs(filters: Omit<ListJobsFilters, "limit" | "offset">): Promise<number> {
+  const whereParts = [];
+
+  if (filters.state) {
+    whereParts.push(eq(queueJobs.state, filters.state));
+  }
+
+  if (filters.type) {
+    whereParts.push(eq(queueJobs.type, filters.type));
+  }
+
+  if (filters.projectId) {
+    whereParts.push(eq(queueJobs.projectId, filters.projectId));
+  }
+
+  if (filters.q) {
+    const pattern = `%${filters.q}%`;
+    whereParts.push(or(like(queueJobs.payloadJson, pattern), like(queueJobs.lastError, pattern)));
+  }
+
+  const where = whereParts.length > 0 ? and(...whereParts) : undefined;
+
+  const result = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(queueJobs)
+    .where(where);
+
+  return result[0]?.count as number ?? 0;
+}
+
 export async function listJobs(filters: ListJobsFilters): Promise<QueueJob[]> {
   const whereParts = [];
 
@@ -221,7 +252,8 @@ export async function listJobs(filters: ListJobsFilters): Promise<QueueJob[]> {
     .from(queueJobs)
     .where(where)
     .orderBy(desc(queueJobs.createdAt))
-    .limit(filters.limit ?? 100);
+    .limit(filters.limit ?? 100)
+    .offset(filters.offset ?? 0);
 }
 
 export async function cancelQueuedJob(jobId: string): Promise<QueueJob | null> {

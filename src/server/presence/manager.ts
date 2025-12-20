@@ -1,7 +1,6 @@
 import { logger } from "@/server/logger";
-import { getProjectById, updateProjectStatus, markInitialPromptCompleted, type ProjectStatus } from "@/server/projects/projects.model";
+import { getProjectById, updateProjectStatus, type ProjectStatus } from "@/server/projects/projects.model";
 import { checkOpencodeReady, checkPreviewReady } from "@/server/projects/health";
-import { checkSessionStatusDirectly } from "@/server/opencode/client";
 import { enqueueDockerEnsureRunning, enqueueDockerStop } from "@/server/queue/enqueue";
 import { listJobs } from "@/server/queue/queue.model";
 
@@ -179,29 +178,7 @@ export async function handlePresenceHeartbeat(
         checkOpencodeReady(project.opencodePort),
       ]);
 
-      // Detect initial prompt completion
-      // This is the primary detection mechanism (presence system polling)
-      // Event stream also sets the flag as a backup
-      if (
-        previewReady &&
-        opencodeReady &&
-        project.initialPromptSent &&
-        !project.initialPromptCompleted
-      ) {
-        const sessionId = project.bootstrapSessionId;
-        if (sessionId) {
-          const isIdle = await checkSessionStatusDirectly(sessionId, project.opencodePort);
-          if (isIdle) {
-            await markInitialPromptCompleted(project.id);
-            logger.info(
-              { projectId: project.id, sessionId },
-              "Initial prompt completed - detected via presence system"
-            );
-            // Re-fetch to get updated project state
-            project = await getProjectById(project.id) || project;
-          }
-        }
-      }
+
 
 
     // Reconcile status based on health checks

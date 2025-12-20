@@ -9,28 +9,28 @@ import { getProjectById } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
 if (!user) {
-  return Astro.redirect("/login");
+	return Astro.redirect("/login");
 }
 
 // Parse params from rest route: [id] or [id]/[slug]
-const params = Astro.params.params?.split('/') ?? [];
+const params = Astro.params.params?.split("/") ?? [];
 const id = params[0];
 const slug = params[1]; // undefined if only one segment
 
 if (!id) {
-  return Astro.redirect("/");
+	return Astro.redirect("/");
 }
 
 const project = await getProjectById(id);
 
 // Project not found or doesn't belong to user
 if (!project || project.ownerUserId !== user.id) {
-  return Astro.redirect("/");
+	return Astro.redirect("/");
 }
 
 // Redirect if slug is provided but doesn't match (enforce canonical URL)
 if (slug && slug !== project.slug) {
-  return Astro.redirect(`/projects/${project.id}/${project.slug}`);
+	return Astro.redirect(`/projects/${project.id}/${project.slug}`);
 }
 ---
 
@@ -53,11 +53,6 @@ if (slug && slug !== project.slug) {
         <span class="text-xs text-muted-foreground">
           {project.model || "Default model"}
         </span>
-        <a href="/settings">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Settings className="h-4 w-4" />
-          </Button>
-        </a>
       </div>
     </header>
 

@@ -12,6 +12,17 @@ interface CurrentEvent {
   isStreaming?: boolean;
 }
 
+interface QueueStatusResponse {
+  projectId: string;
+  currentStep: number;
+  setupJobs: Record<string, unknown>;
+  hasError: boolean;
+  errorMessage: string | undefined;
+  isSetupComplete: boolean;
+  promptSentAt: number | undefined;
+  jobTimeoutWarning: string | undefined;
+}
+
 const TOTAL_STEPS = 5;
 
 // All steps in order for the timeline
@@ -22,6 +33,15 @@ const STEPS: Array<{ step: number; label: string }> = [
   { step: 4, label: "Build" },
   { step: 5, label: "Done" },
 ];
+
+// Descriptions for each step when no events are streaming
+const STEP_DESCRIPTIONS: Record<number, string> = {
+  1: "Creating project files...",
+  2: "Setting up Docker containers...",
+  3: "Initializing AI agent...",
+  4: "Building your website...",
+  5: "Completing setup...",
+};
 
 /**
  * Extract friendly description from a tool call
@@ -67,8 +87,11 @@ export function SetupStatusDisplay({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [agentTimeoutWarning, setAgentTimeoutWarning] = useState<string | null>(null);
+  const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const promptSentTimeRef = useRef<number | null>(null);
 
   // Connect to opencode event stream to show progress
   useEffect(() => {
@@ -179,71 +202,114 @@ export function SetupStatusDisplay({
       }
 
       case "chat.tool.error": {
-        setCurrentEvent((prev) => {
-          if (prev?.type === "tool") {
-            return { ...prev, isStreaming: false };
-          }
-          return prev;
-        });
-        break;
-      }
-    }
-  };
-
-  // Poll for completion
-  useEffect(() => {
-    if (isComplete) return;
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const poll = async () => {
-       try {
-         const response = await fetch(`/api/projects/${projectId}/presence`, {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-             viewerId: `setup_poll_${Date.now()}`,
-           }),
-         });
-
-         if (!response.ok) return;
-
-         const data = await response.json();
-         const isPromptCompleted = data.initialPromptCompleted ?? false;
-         
-         // Check for setup errors
-         if (data.setupError) {
-           setSetupError(data.setupError);
-           return;
-         }
-         
-         if (isPromptCompleted) {
-           setIsComplete(true);
-           setCurrentStep(5);
-           // Update URL to canonical form with slug, then reload
-           if (data.slug) {
-             window.location.href = `/projects/${projectId}/${data.slug}`;
-           } else {
-             window.location.reload();
+         setCurrentEvent((prev) => {
+           if (prev?.type === "tool") {
+             return { ...prev, isStreaming: false };
            }
+           return prev;
+         });
+         break;
+       }
+
+       case "setup.complete": {
+         // Event stream signals that initial prompt was completed
+         setIsComplete(true);
+         setCurrentStep(5);
+         break;
+       }
+     }
+   };
+
+   // Poll queue status for steps 1-4
+   useEffect(() => {
+     if (isComplete) return;
+
+     let intervalId: ReturnType<typeof setInterval> | null = null;
+
+     const poll = async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/queue-status`);
+
+          if (!response.ok) {
+            setSetupError("Failed to check setup status");
+            return;
+          }
+
+          const data = (await response.json()) as QueueStatusResponse;
+          
+          // Update current step based on queue jobs
+          setCurrentStep(data.currentStep);
+          
+          // Track when prompt was sent (for agent timeout detection)
+          if (data.promptSentAt && !promptSentTimeRef.current) {
+            promptSentTimeRef.current = data.promptSentAt;
+          }
+
+          // Check for queue job failures
+          if (data.hasError) {
+            setSetupError(data.errorMessage || "Setup failed");
+            return;
+          }
+
+          // Show queue job timeout warning
+          if (data.jobTimeoutWarning) {
+            setJobTimeoutWarning(data.jobTimeoutWarning);
+          }
+
+          // All setup jobs succeeded, now waiting for agent via event stream
+          // isComplete will be set by event stream when it detects session.status.idle
+        } catch (error) {
+          console.error("Failed to poll queue status:", error);
+        }
+      };
+
+     // Poll every 2-3 seconds
+     intervalId = setInterval(poll, 2500);
+     // Run first poll immediately
+     poll();
+
+     return () => {
+       if (intervalId) clearInterval(intervalId);
+     };
+   }, [projectId, isComplete]);
+
+   // Monitor agent timeout (if prompt sent but no completion after 5 minutes)
+   useEffect(() => {
+     if (currentStep !== 4 || isComplete) {
+       setAgentTimeoutWarning(null);
+       return;
+     }
+
+     const checkAgentTimeout = () => {
+       if (promptSentTimeRef.current) {
+         const elapsed = Date.now() - promptSentTimeRef.current;
+         const AGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+         if (elapsed > AGENT_TIMEOUT_MS) {
+           setAgentTimeoutWarning("Agent is taking longer than expected. This can happen with complex prompts. Still waiting...");
          }
-       } catch (error) {
-         console.error("Failed to poll setup status:", error);
        }
      };
 
-    // Poll every 2-3 seconds
-    intervalId = setInterval(poll, 2500);
-    // Run first poll immediately
-    poll();
+     // Check after 5 minutes
+     const timeoutId = setTimeout(checkAgentTimeout, 5 * 60 * 1000);
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [projectId, isComplete]);
+     return () => {
+       clearTimeout(timeoutId);
+     };
+   }, [currentStep, isComplete]);
 
-   const displayMessage = currentEvent?.type === "tool" ? currentEvent?.text : "Building your website...";
-  const hasError = setupError !== null;
+    const displayMessage = 
+      currentEvent?.type === "tool" 
+        ? currentEvent?.text
+        : currentEvent?.type === "message"
+        ? currentEvent?.text
+        : jobTimeoutWarning
+        ? jobTimeoutWarning
+        : agentTimeoutWarning && currentStep === 4
+        ? agentTimeoutWarning
+        : STEP_DESCRIPTIONS[currentStep] ?? "Building your website...";
+   const hasError = setupError !== null;
 
   return (
     <div className="flex-1 flex items-center justify-center px-4">
@@ -292,17 +358,15 @@ export function SetupStatusDisplay({
                 />
               </div>
 
-              {/* Status message */}
-              <div className="flex items-center justify-center gap-2 min-h-6">
-                <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
-                <p 
-                  className={`text-sm text-muted-foreground transition-opacity duration-300 ${
-                    isTransitioning ? "opacity-0" : "opacity-100"
-                  }`}
-                >
-                  {displayMessage}
-                </p>
-              </div>
+               {/* Status message */}
+               <div className={`flex items-center justify-center gap-2 min-h-6 transition-opacity duration-300 ${
+                 isTransitioning ? "opacity-0" : "opacity-100"
+               }`}>
+                 <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                 <p className="text-sm text-muted-foreground">
+                   {displayMessage}
+                 </p>
+               </div>
             </div>
           ) : (
             // Error state
