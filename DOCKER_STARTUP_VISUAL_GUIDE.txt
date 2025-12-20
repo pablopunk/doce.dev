@@ -1,0 +1,197 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   DOCKER STARTUP FAILURE - VISUAL SUMMARY                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+WHAT THE USER SEES:
+━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────┐
+│ "Setup timeout: starting_docker         │
+│  exceeded 120000ms"                     │
+│                                         │
+│ Status: FAILED                          │
+│ [Retry] [Delete Project]                │
+└─────────────────────────────────────────┘
+
+
+WHAT'S ACTUALLY HAPPENING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Docker Container Status:        Queue Job Status:      Presence Manager:  │
+│  ✓ Preview - RUNNING (healthy)   ✗ Stuck in queue      ✗ TIMEOUT FIRED   │
+│  ✓ OpenCode - RUNNING (healthy)  ✗ at max attempts     ✗ Setup failed    │
+│  ✓ Responding to HTTP requests   ✗ Can't be claimed    ✗ Wrong timeout   │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+THE BUG CHAIN (How It Breaks):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. docker.waitReady polls every 1 second
+   ↓
+2. Each poll = reschedule = increment attempts
+   ↓
+3. After 3 reschedules: attempts=3, max_attempts=3
+   ↓
+4. Queue can't claim job (3 < 3 is false)
+   ↓
+5. Job stuck in "queued" state forever
+   ↓
+6. Presence check fires after 2+ minutes
+   ↓
+7. "starting_docker" phase still shows as active
+   ↓
+8. Setup marked as FAILED (false positive!)
+
+
+TIMELINE (What Happened With Timestamps):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23:59:16 ──┬─────────────────────────────────────────────────────────┐
+           │ Project created                                          │
+           │ setup_phase: not_started                                 │
+           │                                                           │
+23:59:20 ──┼─ docker.composeUp: SUCCESS ──────────────────────┐      │
+           │ Containers started and healthy                          │
+           │                                                  │      │
+23:59:22 ──┼─ docker.waitReady: polling every 1s             │      │
+           │ Reschedule #1 (attempts: 0→1)                   │      │
+           │ Reschedule #2 (attempts: 1→2)                   │      │
+           │ Reschedule #3 (attempts: 2→3)                   │      │
+00:00:22 ──┼─ Attempts maxed out ────────────────────────────┼──────┤ Still within
+           │ Job STUCK (can't claim)                         │      │ 2 min timeout!
+00:01:22 ──┼─ Present check                                  │      │
+           │ elapsed = 65 minutes  > 120 seconds    ✗ FAIL  ─┘      │
+01:04:00 ──┴─────────────────────────────────────────────────────┘
+           Setup marked FAILED (even though it succeeded!)
+
+
+THE COMPARISON: WHAT SHOULD HAPPEN vs. WHAT HAPPENS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SHOULD MEASURE TIME FROM:                      ACTUALLY MEASURES FROM:
+┌─────────────────────────────────────┐        ┌────────────────────────┐
+│ 23:59:22 (docker.waitReady started) │        │ 23:59:16 (project      │
+│           ↓                          │        │  creation)             │
+│ Poll every 1 second                  │        │           ↓            │
+│ Timeout: 120 seconds                 │        │ Poll every 1 second    │
+│ At 00:01:22 = PASS ✓                │        │ Timeout: 120 seconds   │
+│           ↓                          │        │ At 01:04:00 = FAIL ✗   │
+│ Services ready, marked COMPLETED    │        │           ↓            │
+└─────────────────────────────────────┘        │ Setup failed (wrong!)   │
+                                               └────────────────────────┘
+                         Difference: 65 minutes!
+
+
+THE CODE DEFECTS:
+━━━━━━━━━━━━━━━━
+
+#1: Queue polling doesn't distinguish reschedule from error
+    ┌──────────────────────────────────────┐
+    │ rescheduleJob() {                    │
+    │   attempts++  // ← WRONG!           │
+    │   state = "queued"                  │
+    │   runAt = now + delayMs             │
+    │ }                                    │
+    │                                      │
+    │ Should track: reschedule_count      │
+    │ Separately from: retry attempts     │
+    └──────────────────────────────────────┘
+
+#2: Claim SQL blocks at max_attempts
+    ┌──────────────────────────────────────┐
+    │ WHERE state='queued'                 │
+    │   AND run_at <= @now                │
+    │   AND attempts < max_attempts        │
+    │                  ↑                   │
+    │                  3 < 3 = FALSE       │
+    │                  BLOCKED!            │
+    └──────────────────────────────────────┘
+
+#3: Presence timeout uses creation time
+    ┌──────────────────────────────────────┐
+    │ elapsed = now - createdAt             │
+    │                 ↑                     │
+    │         Measures from start          │
+    │         NOT from phase start         │
+    │                                      │
+    │ Should be: setupPhaseStartedAt       │
+    └──────────────────────────────────────┘
+
+
+IMPACT MATRIX:
+━━━━━━━━━━━━━
+
+Severity: ████████ CRITICAL (8/10)
+  - User-facing: YES (shows error)
+  - Data loss: NO (containers safe)
+  - Recovery: Manual delete + recreate
+  - Scope: ALL new projects
+
+Frequency: ████████ HIGH (8/10)
+  - Happens on: All slow/loaded systems
+  - Timing: Random based on load
+  - Reproduction: Consistent
+
+
+AFFECTED CODE FILES:
+━━━━━━━━━━━━━━━━━━
+
+❌ src/server/queue/queue.model.ts
+   - claimNextJob() - line 417
+   - rescheduleJob() - line 353
+
+❌ src/server/queue/queue.worker.ts
+   - runJob() - lines 163-169
+
+❌ src/server/queue/handlers/dockerWaitReady.ts
+   - handleDockerWaitReady() - lines 88-113
+
+❌ src/server/presence/manager.ts
+   - handlePresenceHeartbeat() - line 132
+
+❌ src/server/db/schema.ts
+   - projects table - missing setup_started_at field
+
+
+DOCKER CONTAINER ACTUAL STATE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$ docker compose -p "doce_92a37799eec041bd7e2966b4" ps
+┌────────────────────────────┬──────────────┬──────────────────────┐
+│ NAME                       │ IMAGE        │ STATUS               │
+├────────────────────────────┼──────────────┼──────────────────────┤
+│ preview-1                  │ node:22-alpine       │ UP 4min (healthy)    │
+│ opencode-1                 │ node:22-slim │ UP 4min (healthy)    │
+└────────────────────────────┴──────────────┴──────────────────────┘
+
+$ curl http://127.0.0.1:62770
+HTTP/1.1 200 OK
+Content-Type: text/html
+← Astro server responding
+
+$ curl http://127.0.0.1:62771/doc
+HTTP/1.1 200 OK
+Content-Type: application/json
+← OpenCode API responding
+
+
+SOLUTION PRIORITY:
+━━━━━━━━━━━━━━━━
+
+🔴 IMMEDIATE (Do first):
+   - Add reschedule_count field
+   - Separate it from attempts
+   - Don't increment attempts on reschedule
+
+🔴 URGENT (Do second):
+   - Add setup_started_at to projects
+   - Fix presence timeout time reference
+   - Update queue handlers
+
+🟡 HIGH (Do third):
+   - Handle orphaned jobs gracefully
+   - Add alerts for stuck jobs
+
+🟢 MEDIUM (Do eventually):
+   - Add observability/logging
+   - Improve error tracking
+
+═════════════════════════════════════════════════════════════════════════════

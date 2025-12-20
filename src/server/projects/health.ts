@@ -1,4 +1,4 @@
-const HEALTH_CHECK_TIMEOUT_MS = 2_000;
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 /**
  * Check if the preview server is ready.

@@ -72,7 +72,10 @@ export async function enqueueDockerWaitReady(
     id: randomBytes(16).toString("hex"),
     type: "docker.waitReady",
     projectId: input.projectId,
-    payload: input,
+    payload: {
+      ...input,
+      rescheduleCount: input.rescheduleCount ?? 0,
+    },
     // No dedupe - allow multiple waits if needed
   });
 }

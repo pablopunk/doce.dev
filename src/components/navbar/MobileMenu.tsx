@@ -1,7 +1,6 @@
 'use client';
 
-import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Menu, LayoutGrid, Clock, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,19 +14,20 @@ export const MobileMenu = () => {
     <div className="md:hidden flex items-center gap-2">
       <ThemeToggle />
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button variant="ghost" size="icon" aria-label="Open menu">
-            <Menu className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+         <DropdownMenuTrigger className="p-2 rounded-lg hover:bg-accent transition-colors">
+           <Menu className="h-5 w-5" aria-label="Open menu" />
+         </DropdownMenuTrigger>
+         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => (window.location.href = '/')}>
+            <LayoutGrid className="w-4 h-4 mr-2" />
             Projects
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => (window.location.href = '/queue')}>
+            <Clock className="w-4 h-4 mr-2" />
             Queue
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => (window.location.href = '/settings')}>
+            <Settings className="w-4 h-4 mr-2" />
             Settings
           </DropdownMenuItem>
         </DropdownMenuContent>

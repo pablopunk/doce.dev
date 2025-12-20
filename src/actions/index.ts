@@ -271,18 +271,20 @@ export const server = {
 				// Generate project ID upfront so we can return it immediately
 				const projectId = randomBytes(12).toString("hex");
 
-				// Enqueue the project creation job
-				const job = await enqueueProjectCreate({
+				// Enqueue the project creation job asynchronously
+				// Don't await - return immediately to the user
+				enqueueProjectCreate({
 					projectId,
 					ownerUserId: user.id,
 					prompt: input.prompt,
 					model: input.model ?? userSettingsData.defaultModel ?? null,
+				}).catch((err) => {
+					console.error("Failed to enqueue project creation:", err);
 				});
 
 				return {
 					success: true,
 					projectId,
-					jobId: job.id,
 				};
 			},
 		}),

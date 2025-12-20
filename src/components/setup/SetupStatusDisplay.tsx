@@ -100,13 +100,17 @@ export function SetupStatusDisplay({
              setSetupPhase(newPhase);
              setSetupError(data.setupError ?? null);
              
-             if (newPhase === "completed") {
-               setIsComplete(true);
-               // Reload page to show chat + preview
-               window.location.reload();
-             } else {
-               startPolling(newPhase);
-             }
+              if (newPhase === "completed") {
+                setIsComplete(true);
+                // Update URL to canonical form with slug, then reload
+                if (data.slug) {
+                  window.location.href = `/projects/${projectId}/${data.slug}`;
+                } else {
+                  window.location.reload();
+                }
+              } else {
+                startPolling(newPhase);
+              }
            } else {
              // Same phase, update error if any
              setSetupError(data.setupError ?? null);

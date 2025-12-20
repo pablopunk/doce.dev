@@ -12,7 +12,10 @@ if (!user) {
   return Astro.redirect("/login");
 }
 
-const { id, slug } = Astro.params;
+// Parse params from rest route: [id] or [id]/[slug]
+const params = Astro.params.params?.split('/') ?? [];
+const id = params[0];
+const slug = params[1]; // undefined if only one segment
 
 if (!id) {
   return Astro.redirect("/");
@@ -25,8 +28,8 @@ if (!project || project.ownerUserId !== user.id) {
   return Astro.redirect("/");
 }
 
-// Redirect if slug doesn't match (canonical URL)
-if (project.slug !== slug) {
+// Redirect if slug is provided but doesn't match (enforce canonical URL)
+if (slug && slug !== project.slug) {
   return Astro.redirect(`/projects/${project.id}/${project.slug}`);
 }
 ---
@@ -90,7 +93,7 @@ if (project.slug !== slug) {
    </div>
 </AppLayout>
 
-<script define:vars={{ projectId: project.id, initialPromptCompleted: project.initialPromptCompleted }}>
+<script is:inline define:vars={{ projectId: project.id, initialPromptCompleted: project.initialPromptCompleted }}>
   // Poll for build status changes and update layout dynamically
   let isBuilt = initialPromptCompleted;
 

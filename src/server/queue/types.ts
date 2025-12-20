@@ -54,6 +54,7 @@ export type DockerComposeUpPayload = z.infer<typeof dockerComposeUpPayloadSchema
 export const dockerWaitReadyPayloadSchema = z.object({
   projectId: z.string().min(1),
   startedAt: z.number(), // timestamp when we first started waiting
+  rescheduleCount: z.number().default(0), // tracks how many times this job has been rescheduled
 });
 
 export type DockerWaitReadyPayload = z.infer<typeof dockerWaitReadyPayloadSchema>;

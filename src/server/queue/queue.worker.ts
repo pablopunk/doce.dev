@@ -162,8 +162,8 @@ async function runJob(
     // Handle reschedule (not an error, just re-queue)
     if (error instanceof RescheduleError) {
       await rescheduleJob(job.id, workerId, error.delayMs);
-      logger.debug(
-        { jobId: job.id, type: job.type, delayMs: error.delayMs },
+      logger.info(
+        { jobId: job.id, type: job.type, delayMs: error.delayMs, attempts: job.attempts },
         "Queue job rescheduled"
       );
       return;
