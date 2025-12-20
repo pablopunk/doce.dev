@@ -12,7 +12,6 @@ import type {
   OpencodeSessionCreatePayload,
   OpencodeSessionInitPayload,
   OpencodeSendInitialPromptPayload,
-  OpencodeWaitIdlePayload,
 } from "./types";
 
 // --- Project lifecycle ---
@@ -144,15 +143,4 @@ export async function enqueueOpencodeSendInitialPrompt(
   });
 }
 
-export async function enqueueOpencodeWaitIdle(
-  input: OpencodeWaitIdlePayload
-): Promise<QueueJob> {
-  return enqueueJob({
-    id: randomBytes(16).toString("hex"),
-    type: "opencode.waitIdle",
-    projectId: input.projectId,
-    payload: input,
-    maxAttempts: 300,  // Allow 300 reschedules * 2s poll interval = 10 minutes total
-    // No dedupe - allow multiple waits
-  });
-}
+

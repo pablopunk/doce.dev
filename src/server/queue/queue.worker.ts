@@ -22,7 +22,6 @@ import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
 import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
 import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
 import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
-import { handleOpencodeWaitIdle } from "./handlers/opencodeWaitIdle";
 
 export interface QueueWorkerOptions {
   concurrency: number;
@@ -65,7 +64,6 @@ const handlerByType: Record<QueueJobType, (ctx: QueueJobContext) => Promise<void
   "opencode.sessionCreate": handleOpencodeSessionCreate,
   "opencode.sessionInit": handleOpencodeSessionInit,
   "opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
-  "opencode.waitIdle": handleOpencodeWaitIdle,
 };
 
 function sleep(ms: number): Promise<void> {

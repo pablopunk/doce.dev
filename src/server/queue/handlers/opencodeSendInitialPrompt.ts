@@ -5,7 +5,6 @@ import {
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeWaitIdle } from "../enqueue";
 
 export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Promise<void> {
   const payload = parsePayload("opencode.sendInitialPrompt", ctx.job.payloadJson);
@@ -54,17 +53,12 @@ export async function handleOpencodeSendInitialPrompt(ctx: QueueJobContext): Pro
 
     logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
 
-    // Mark initial prompt as sent
-    await markInitialPromptSent(project.id);
+     // Mark initial prompt as sent
+     await markInitialPromptSent(project.id);
 
-    await ctx.throwIfCancelRequested();
+     await ctx.throwIfCancelRequested();
 
-    // Enqueue next step: wait for idle
-    await enqueueOpencodeWaitIdle({
-      projectId: project.id,
-      startedAt: Date.now(),
-    });
-    logger.debug({ projectId: project.id }, "Enqueued opencode.waitIdle");
+     logger.debug({ projectId: project.id }, "Initial prompt sent, completion will be detected by presence system");
     } catch (error) {
       throw error;
     }

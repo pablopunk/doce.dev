@@ -14,7 +14,6 @@ export const queueJobTypeSchema = z.enum([
   "opencode.sessionCreate",
   "opencode.sessionInit",
   "opencode.sendInitialPrompt",
-  "opencode.waitIdle",
 ]);
 
 export type QueueJobType = z.infer<typeof queueJobTypeSchema>;
@@ -94,14 +93,7 @@ export const opencodeSendInitialPromptPayloadSchema = z.object({
 
 export type OpencodeSendInitialPromptPayload = z.infer<typeof opencodeSendInitialPromptPayloadSchema>;
 
-export const opencodeWaitIdlePayloadSchema = z.object({
-  projectId: z.string().min(1),
-  startedAt: z.number(), // timestamp when we first started waiting
-  lastToolActivityAt: z.number().optional(), // timestamp of last tool execution (for stuck detection)
-  stuckWarningSentAt: z.number().optional(), // prevent spam of stuck warnings
-});
 
-export type OpencodeWaitIdlePayload = z.infer<typeof opencodeWaitIdlePayloadSchema>;
 
 // --- Payload by type mapping ---
 
@@ -116,7 +108,6 @@ const payloadSchemaByType = {
   "opencode.sessionCreate": opencodeSessionCreatePayloadSchema,
   "opencode.sessionInit": opencodeSessionInitPayloadSchema,
   "opencode.sendInitialPrompt": opencodeSendInitialPromptPayloadSchema,
-  "opencode.waitIdle": opencodeWaitIdlePayloadSchema,
 } as const satisfies Record<QueueJobType, z.ZodTypeAny>;
 
 export type PayloadByType = {
@@ -130,7 +121,6 @@ export type PayloadByType = {
   "opencode.sessionCreate": OpencodeSessionCreatePayload;
   "opencode.sessionInit": OpencodeSessionInitPayload;
   "opencode.sendInitialPrompt": OpencodeSendInitialPromptPayload;
-  "opencode.waitIdle": OpencodeWaitIdlePayload;
 };
 
 export function parsePayload<T extends QueueJobType>(
