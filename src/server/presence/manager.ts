@@ -2,6 +2,7 @@ import { logger } from "@/server/logger";
 import { getProjectById, updateProjectStatus, type ProjectStatus } from "@/server/projects/projects.model";
 import { checkOpencodeReady, checkPreviewReady } from "@/server/projects/health";
 import { enqueueDockerEnsureRunning, enqueueDockerStop } from "@/server/queue/enqueue";
+import { listJobs } from "@/server/queue/queue.model";
 
 // Constants from PLAN.md section 9.7.2
 const PRESENCE_HEARTBEAT_MS = 15_000;
@@ -41,6 +42,8 @@ export interface PresenceResponse {
   slug: string;
   // Session ID for chat
   bootstrapSessionId: string | null;
+  // Setup error (if a queue job failed during setup)
+  setupError: string | null;
 }
 
 // In-memory presence state
@@ -101,6 +104,28 @@ function calculateNextPollMs(startedAt: number): number {
 }
 
 /**
+ * Check for any failed queue jobs related to this project's setup
+ */
+async function getSetupError(projectId: string): Promise<string | null> {
+  try {
+    const failedJobs = await listJobs({
+      projectId,
+      state: "failed",
+      limit: 1,
+    });
+    
+    if (failedJobs.length > 0) {
+      const failedJob = failedJobs[0]!;
+      return failedJob.lastError || "Setup job failed without error details";
+    }
+    
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
  * Handle a presence heartbeat from a viewer.
  * This is the main entry point for the presence system.
  */
@@ -117,6 +142,9 @@ export async function handlePresenceHeartbeat(
       }
 
       const presence = getPresence(projectId);
+      
+      // Check for setup errors from failed queue jobs
+      const setupError = await getSetupError(projectId);
 
         if (project.status === "deleting") {
           return {
@@ -134,6 +162,7 @@ export async function handlePresenceHeartbeat(
             model: project.model,
             slug: project.slug,
             bootstrapSessionId: project.bootstrapSessionId,
+            setupError,
           };
         }
 
@@ -250,6 +279,7 @@ export async function handlePresenceHeartbeat(
           model: project.model,
           slug: project.slug,
           bootstrapSessionId: project.bootstrapSessionId,
+          setupError,
         };
   } finally {
     release();

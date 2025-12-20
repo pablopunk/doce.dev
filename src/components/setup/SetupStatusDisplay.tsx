@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SetupStatusDisplayProps {
   projectId: string;
@@ -65,6 +66,7 @@ export function SetupStatusDisplay({
   const [currentEvent, setCurrentEvent] = useState<CurrentEvent | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -195,34 +197,40 @@ export function SetupStatusDisplay({
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const poll = async () => {
-      try {
-        const response = await fetch(`/api/projects/${projectId}/presence`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            viewerId: `setup_poll_${Date.now()}`,
-          }),
-        });
+       try {
+         const response = await fetch(`/api/projects/${projectId}/presence`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({
+             viewerId: `setup_poll_${Date.now()}`,
+           }),
+         });
 
-        if (!response.ok) return;
+         if (!response.ok) return;
 
-        const data = await response.json();
-        const isPromptCompleted = data.initialPromptCompleted ?? false;
-        
-        if (isPromptCompleted) {
-          setIsComplete(true);
-          setCurrentStep(5);
-          // Update URL to canonical form with slug, then reload
-          if (data.slug) {
-            window.location.href = `/projects/${projectId}/${data.slug}`;
-          } else {
-            window.location.reload();
-          }
-        }
-      } catch (error) {
-        console.error("Failed to poll setup status:", error);
-      }
-    };
+         const data = await response.json();
+         const isPromptCompleted = data.initialPromptCompleted ?? false;
+         
+         // Check for setup errors
+         if (data.setupError) {
+           setSetupError(data.setupError);
+           return;
+         }
+         
+         if (isPromptCompleted) {
+           setIsComplete(true);
+           setCurrentStep(5);
+           // Update URL to canonical form with slug, then reload
+           if (data.slug) {
+             window.location.href = `/projects/${projectId}/${data.slug}`;
+           } else {
+             window.location.reload();
+           }
+         }
+       } catch (error) {
+         console.error("Failed to poll setup status:", error);
+       }
+     };
 
     // Poll every 2-3 seconds
     intervalId = setInterval(poll, 2500);
@@ -235,66 +243,89 @@ export function SetupStatusDisplay({
   }, [projectId, isComplete]);
 
   const displayMessage = currentEvent?.text || "Building your website...";
+  const hasError = setupError !== null;
 
   return (
     <div className="flex-1 flex items-center justify-center px-4">
       <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
         <div className="text-center space-y-6 w-full">
-           <h2 className="text-2xl font-semibold">
-             Setting up your project...
-           </h2>
-           
-           <div className="space-y-4">
-             {/* Timeline of all steps */}
-             <div className="flex items-center justify-between gap-1 w-full">
-               {STEPS.map((step) => {
-                 const isCompleted = currentStep > step.step;
-                 const isCurrent = currentStep === step.step;
-                 
-                 return (
-                   <div key={step.step} className="flex flex-col items-center gap-2 flex-1">
-                     <div
-                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
-                         isCurrent
-                           ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
-                           : isCompleted
-                           ? "bg-primary/20 text-primary"
-                           : "bg-secondary text-muted-foreground"
-                       }`}
-                     >
-                       {isCompleted ? "✓" : step.step}
-                     </div>
-                     <span className={`text-xs font-medium line-clamp-1 ${
-                       isCurrent ? "text-primary" : "text-muted-foreground"
-                     }`}>
-                       {step.label}
-                     </span>
-                   </div>
-                 );
-               })}
-             </div>
+          <h2 className="text-2xl font-semibold">
+            {hasError ? "Setup Failed" : "Setting up your project..."}
+          </h2>
+          
+          {!hasError ? (
+            <div className="space-y-4">
+              {/* Timeline of all steps */}
+              <div className="flex items-center justify-between gap-1 w-full">
+                {STEPS.map((step) => {
+                  const isCompleted = currentStep > step.step;
+                  const isCurrent = currentStep === step.step;
+                  
+                  return (
+                    <div key={step.step} className="flex flex-col items-center gap-2 flex-1">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
+                          isCurrent
+                            ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                            : isCompleted
+                            ? "bg-primary/20 text-primary"
+                            : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
+                        {isCompleted ? "✓" : step.step}
+                      </div>
+                      <span className={`text-xs font-medium line-clamp-1 ${
+                        isCurrent ? "text-primary" : "text-muted-foreground"
+                      }`}>
+                        {step.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
 
-             {/* Progress bar */}
-             <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-               <div 
-                 className="h-full bg-primary transition-all duration-300 ease-out"
-                 style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
-               />
-             </div>
-           </div>
-           
-           <div className="flex items-center justify-center gap-2 min-h-6">
-             <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
-             <p 
-               className={`text-sm text-muted-foreground transition-opacity duration-300 ${
-                 isTransitioning ? "opacity-0" : "opacity-100"
-               }`}
-             >
-               {displayMessage}
-             </p>
-           </div>
-         </div>
-       </div>
-     </div>
-   );
+              {/* Progress bar */}
+              <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-300 ease-out"
+                  style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+                />
+              </div>
+
+              {/* Status message */}
+              <div className="flex items-center justify-center gap-2 min-h-6">
+                <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                <p 
+                  className={`text-sm text-muted-foreground transition-opacity duration-300 ${
+                    isTransitioning ? "opacity-0" : "opacity-100"
+                  }`}
+                >
+                  {displayMessage}
+                </p>
+              </div>
+            </div>
+          ) : (
+            // Error state
+            <div className="space-y-4">
+              <div className="flex justify-center">
+                <AlertTriangle className="h-12 w-12 text-red-500" />
+              </div>
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                <p className="text-sm text-red-800 break-words">
+                  <span className="font-semibold">Error: </span>
+                  {setupError}
+                </p>
+              </div>
+              <Button
+                onClick={() => window.location.reload()}
+                variant="outline"
+              >
+                Retry Setup
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
