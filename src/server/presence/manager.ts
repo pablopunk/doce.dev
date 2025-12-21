@@ -8,7 +8,7 @@ import { listJobs } from "@/server/queue/queue.model";
 const PRESENCE_HEARTBEAT_MS = 15_000;
 const REAPER_INTERVAL_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_IDLE_TIMEOUT_MS = 5_000; // 5 seconds - auto-stop idle containers (TESTING)
+const CONTAINER_IDLE_TIMEOUT_MS = 30_000; // 30 seconds - auto-stop idle containers when no viewers
 
 export interface ViewerRecord {
   viewerId: string;
@@ -313,36 +313,35 @@ async function runReaper(): Promise<void> {
        }
      }
 
-     // Handle 60-second idle timeout for running containers
-     const project = await getProjectById(projectId);
-     if (project?.status === "running") {
-       if (presence.viewers.size === 0) {
-         // No active viewers - start countdown to stop
-         if (!presence.containerStopAt) {
-           presence.containerStopAt = now + CONTAINER_IDLE_TIMEOUT_MS;
-           logger.info({ projectId, stopAt: presence.containerStopAt }, "Container idle timer started");
-         }
+      // Handle idle timeout for running containers with no active viewers
+      const project = await getProjectById(projectId);
+      if (project?.status === "running") {
+        if (presence.viewers.size === 0) {
+          // No active viewers - start countdown to stop
+          if (!presence.containerStopAt) {
+            presence.containerStopAt = now + CONTAINER_IDLE_TIMEOUT_MS;
+            logger.info({ projectId, timeoutMs: CONTAINER_IDLE_TIMEOUT_MS }, "Container idle timer started");
+          }
 
-         // Stop if idle timeout has passed
-         if (now >= presence.containerStopAt) {
-           try {
-             await enqueueDockerStop({ projectId, reason: "idle" });
-             delete presence.containerStopAt;
-             logger.info({ projectId }, "Container stopped due to 60s idle timeout");
-           } catch (error) {
-             logger.error({ error, projectId }, "Failed to enqueue container stop");
-           }
-         }
-       } else {
-         // Has active viewers - clear idle timer
-         delete presence.containerStopAt;
-       }
-     }
+          // Stop if idle timeout has passed
+          if (now >= presence.containerStopAt) {
+            try {
+              await enqueueDockerStop({ projectId, reason: "idle" });
+              delete presence.containerStopAt;
+              logger.info({ projectId }, "Container stopped due to idle timeout");
+            } catch (error) {
+              logger.error({ error, projectId }, "Failed to enqueue container stop");
+            }
+          }
+        } else {
+          // Has active viewers - clear idle timer
+          delete presence.containerStopAt;
+        }
+      }
 
-      // Note: Old 3-minute idle logic is removed
-      // The 60-second idle timeout above (lines 345-369) is the primary mechanism
-      // that now handles container auto-stop
-  }
+       // Note: Old 3-minute idle logic is removed
+       // The idle timeout above handles container auto-stop when no viewers are active
+   }
 }
 
 // Start the reaper
