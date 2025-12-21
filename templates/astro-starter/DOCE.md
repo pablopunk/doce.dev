@@ -25,13 +25,7 @@ You are running inside **doce.dev**, a web-based AI development environment. The
 
 ## Available UI Components
 
-The following shadcn/ui components are pre-installed in `src/components/ui/`:
-
-- `Button` - with variants: default, destructive, outline, secondary, ghost, link
-- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
-- `Input` - styled text input
-- `Label` - form labels
-- `Dialog`, `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`
+shadcn/ui components are pre-installed in `src/components/ui/`.
 
 Import them like: `import { Button } from "@/components/ui/button"`
 
@@ -74,4 +68,3 @@ If you need additional shadcn components not in the starter:
 - Use Tailwind CSS classes for styling
 - Make incremental changes that show progress
 - Keep responses short and action-oriented
-- If something is unclear, ask ONE specific question, then continue with reasonable defaults

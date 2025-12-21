@@ -38,29 +38,46 @@ export function ToolCallDisplay({
   const ToolIcon = isThinking ? Brain : Wrench;
   const displayName = isThinking ? "Thinking..." : toolCall.name;
 
-  // Extract file name from input for file-related tools
-  const getFileContext = (): string | null => {
+  // Extract context from input for various tools
+  const getToolContext = (): string | null => {
     if (!toolCall.input || typeof toolCall.input !== "object") return null;
 
     const input = toolCall.input as Record<string, unknown>;
-    const fileRelatedTools = ["read", "write", "edit", "delete", "list"];
-    
-    if (!fileRelatedTools.includes(toolCall.name)) return null;
 
-    // For most tools, look for filePath or path
-    if (typeof input.filePath === "string") {
-      return input.filePath.split("/").pop() || null;
+    // File-related tools: show file path
+    const fileRelatedTools = ["read", "write", "edit", "delete", "list"];
+    if (fileRelatedTools.includes(toolCall.name)) {
+      if (typeof input.filePath === "string") {
+        return input.filePath.split("/").pop() || null;
+      }
+      if (typeof input.path === "string") {
+        const path = input.path as string;
+        return path.split("/").pop() || path;
+      }
     }
-    if (typeof input.path === "string") {
-      const path = input.path as string;
-      // For list tool, show the full path or just the last part if it's deep
-      return path.split("/").pop() || path;
+
+    // Bash: show command (truncated if too long)
+    if (toolCall.name === "bash") {
+      if (typeof input.command === "string") {
+        const command = input.command;
+        const maxLength = 60;
+        return command.length > maxLength 
+          ? `${command.substring(0, maxLength)}...`
+          : command;
+      }
+    }
+
+    // Glob: show pattern
+    if (toolCall.name === "glob") {
+      if (typeof input.pattern === "string") {
+        return input.pattern;
+      }
     }
     
     return null;
   };
 
-  const fileContext = getFileContext();
+  const toolContext = getToolContext();
 
   const formatOutput = (value: unknown): string => {
     if (typeof value === "string") {
@@ -72,6 +89,7 @@ export function ToolCallDisplay({
   return (
     <div className="border rounded-md overflow-hidden text-sm">
       <button
+        type="button"
         onClick={onToggle}
         className={cn(
           "w-full flex items-center gap-2 px-3 py-2 bg-muted/50 transition-colors text-left",
@@ -81,9 +99,9 @@ export function ToolCallDisplay({
         <ToolIcon className={cn("h-3.5 w-3.5", isThinking ? "text-purple-500" : "text-muted-foreground")} />
         <span className="flex-1 font-mono text-xs">
           {displayName}
-          {fileContext && (
+          {toolContext && (
             <span className="ml-2 text-muted-foreground text-xs font-normal">
-              {fileContext}
+              {toolContext}
             </span>
           )}
         </span>
