@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
-import { actions } from "astro:actions";
+import { useCreateProject } from "@/hooks/useCreateProject";
 
 interface CreateProjectFormProps {
-	models: Array<{ id: string; name: string; provider: string }>;
+	models: readonly { id: string; name: string; provider: string }[];
 	defaultModel: string;
 }
 
@@ -18,6 +18,7 @@ export function CreateProjectForm({
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const { createProject } = useCreateProject();
 
 	const adjustTextareaHeight = () => {
 		const textarea = textareaRef.current;
@@ -39,31 +40,23 @@ export function CreateProjectForm({
 		setIsLoading(true);
 		setError("");
 
-		const formData = new FormData();
-		formData.append("prompt", prompt.trim());
-		formData.append("model", selectedModel);
-
 		try {
-			const result = await actions.projects.create(formData);
+			const projectId = await createProject({
+				prompt: prompt.trim(),
+				model: selectedModel,
+			});
 
-			if (result.error) {
-				setError(result.error.message);
-				setIsLoading(false);
-			} else if (result.data?.projectId) {
-				const projectId = result.data.projectId;
-				const url = `/projects/${projectId}`;
+			const url = `/projects/${projectId}`;
 
-				// Poll for project to exist in DB
-				await waitForProjectToExist(projectId);
+			// Poll for project to exist in DB
+			await waitForProjectToExist(projectId);
 
-				// Redirect to project page
-				window.location.replace(url);
-			} else {
-				setError("Failed to create project");
-				setIsLoading(false);
-			}
+			// Redirect to project page
+			window.location.replace(url);
 		} catch (err) {
-			setError("Failed to create project");
+			const errorMessage =
+				err instanceof Error ? err.message : "Failed to create project";
+			setError(errorMessage);
 			setIsLoading(false);
 		}
 	};

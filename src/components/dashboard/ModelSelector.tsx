@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 
 interface ModelSelectorProps {
-  models: Array<{ id: string; name: string; provider: string }>;
+  models: ReadonlyArray<{ id: string; name: string; provider: string }>;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
 }
