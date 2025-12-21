@@ -32,17 +32,48 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   const [initialPromptSent, setInitialPromptSent] = useState(true); // Assume sent until we know otherwise
   const [projectPrompt, setProjectPrompt] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-   const scrollRef = useRef<HTMLDivElement>(null);
-   const eventSourceRef = useRef<EventSource | null>(null);
-   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-   const loadingHistoryRef = useRef(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const loadingHistoryRef = useRef(false);
 
-  // Auto-scroll to bottom
+  // Check if scroll position is near the bottom (within 100px)
+  const isNearBottom = useCallback(() => {
+    if (!scrollRef.current) return false;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    return scrollHeight - (scrollTop + clientHeight) < 100;
+  }, []);
+
+  // Auto-scroll to bottom (only if shouldAutoScroll is true)
   const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && shouldAutoScroll) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 0);
+    }
+  }, [shouldAutoScroll]);
+
+  // Handle manual scroll events
+  const handleScroll = useCallback(() => {
+    if (isNearBottom()) {
+      // User scrolled back to bottom, re-enable auto-scroll
+      setShouldAutoScroll(true);
+    } else {
+      // User scrolled up, disable auto-scroll
+      setShouldAutoScroll(false);
+    }
+  }, [isNearBottom]);
+
+  // Auto-scroll when items change (if shouldAutoScroll is enabled)
+  useEffect(() => {
+    if (shouldAutoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, []);
+  }, [items, shouldAutoScroll]);
 
   // Load existing session history when opencode is ready
   useEffect(() => {
@@ -511,7 +542,7 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={handleScroll}>
         {items.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             {opencodeReady ? (
