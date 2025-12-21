@@ -113,16 +113,16 @@ export function QueuePlayerControl({
 						{paused ? "Paused" : "Running"}
 					</span>
 
-					{/* Indicator Dot */}
-					<CircleIcon
-						className={cn(
-							"size-2 shrink-0",
-							paused
-								? "text-muted-foreground"
-								: "text-green-500 animate-pulse-dot",
-						)}
-						fill="currentColor"
-					/>
+				{/* Indicator Dot */}
+				<CircleIcon
+					className={cn(
+						"size-2 shrink-0",
+						paused
+							? "text-muted-foreground"
+							: "text-accent animate-pulse-dot",
+					)}
+					fill="currentColor"
+				/>
 
 					{/* Stats */}
 					<span className="text-xs text-muted-foreground truncate">

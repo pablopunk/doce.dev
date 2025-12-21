@@ -1,0 +1,30 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { ColorPalette } from "@/components/ui-showcase/ColorPalette";
+import { ComponentShowcase } from "@/components/ui-showcase/ComponentShowcase";
+---
+
+<AppLayout title="Design System">
+  <main class="flex-1 overflow-auto">
+    <div class="max-w-7xl mx-auto px-4 py-8 space-y-16">
+      {/* Header */}
+      <div class="space-y-2">
+        <h1 class="text-4xl font-bold">Design System Showcase</h1>
+        <p class="text-muted-foreground">
+          A reference for all colors, components, and design tokens in doce.dev
+        </p>
+      </div>
+
+      {/* Color Palette Section */}
+      <section>
+        <ColorPalette client:load />
+      </section>
+
+      {/* Component Showcase Section */}
+      <section>
+        <h2 class="text-3xl font-bold mb-8">Components</h2>
+        <ComponentShowcase client:load />
+      </section>
+    </div>
+  </main>
+</AppLayout>

@@ -3,7 +3,9 @@ import type { QueueJob } from "@/server/db/schema";
 import { QueuePlayerControl } from "./QueuePlayerControl";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 import { Pagination } from "./Pagination";
-import { Play, X, RotateCcw, AlertCircle, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Play, X, RotateCcw, AlertCircle, Trash2, CheckCircle2, Loader, Clock } from "lucide-react";
 
 interface PaginationData {
   page: number;
@@ -100,21 +102,22 @@ export function QueueTableLive({
     };
   }, [pagination.page, filters]);
 
-  const getStateStyles = (state: QueueJob["state"]) => {
-    switch (state) {
-      case "succeeded":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
-      case "failed":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
-      case "running":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
-      case "cancelled":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100";
-      case "queued":
-      default:
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100";
-    }
-  };
+   const getStateIcon = (state: QueueJob["state"]) => {
+     const iconProps = { className: "w-3 h-3" };
+     switch (state) {
+       case "succeeded":
+         return <CheckCircle2 {...iconProps} />;
+       case "failed":
+         return <X {...iconProps} />;
+       case "running":
+         return <Loader {...iconProps} className="w-3 h-3 animate-spin" />;
+       case "cancelled":
+         return <AlertCircle {...iconProps} />;
+       case "queued":
+       default:
+         return <Clock {...iconProps} />;
+     }
+   };
 
   const handleToggleQueue = async () => {
     try {
@@ -260,75 +263,83 @@ export function QueueTableLive({
            />
          </div>
 
-        <div className="mb-6 flex gap-2">
-          {stats.queued === 0 && (
-            <>
-              {jobs.some((j) => j.state === "succeeded") && (
-                <button
-                  onClick={() => handleBulkDelete("succeeded")}
-                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete {jobs.filter((j) => j.state === "succeeded").length} Succeeded
-                </button>
-              )}
-              {jobs.some((j) => j.state === "failed") && (
-                <button
-                  onClick={() => handleBulkDelete("failed")}
-                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete {jobs.filter((j) => j.state === "failed").length} Failed
-                </button>
-              )}
-              {jobs.some((j) => j.state === "cancelled") && (
-                <button
-                  onClick={() => handleBulkDelete("cancelled")}
-                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete {jobs.filter((j) => j.state === "cancelled").length} Cancelled
-                </button>
-              )}
-            </>
-          )}
-        </div>
+         <div className="mb-6 flex gap-2">
+           {stats.queued === 0 && (
+             <>
+               {jobs.some((j) => j.state === "succeeded") && (
+                 <Button
+                   onClick={() => handleBulkDelete("succeeded")}
+                   variant="ghost"
+                   size="sm"
+                 >
+                   <Trash2 className="w-3 h-3" />
+                   Delete {jobs.filter((j) => j.state === "succeeded").length} Succeeded
+                 </Button>
+               )}
+               {jobs.some((j) => j.state === "failed") && (
+                 <Button
+                   onClick={() => handleBulkDelete("failed")}
+                   variant="ghost"
+                   size="sm"
+                 >
+                   <Trash2 className="w-3 h-3" />
+                   Delete {jobs.filter((j) => j.state === "failed").length} Failed
+                 </Button>
+               )}
+               {jobs.some((j) => j.state === "cancelled") && (
+                 <Button
+                   onClick={() => handleBulkDelete("cancelled")}
+                   variant="ghost"
+                   size="sm"
+                 >
+                   <Trash2 className="w-3 h-3" />
+                   Delete {jobs.filter((j) => j.state === "cancelled").length} Cancelled
+                 </Button>
+               )}
+             </>
+           )}
+         </div>
 
          <div className="overflow-x-auto">
            <table className="w-full text-sm">
-             <thead>
-               <tr className="border-b">
-                 <th className="text-left py-2 px-2">ID</th>
-                 <th className="text-left py-2 px-2">Type</th>
-                 <th className="text-left py-2 px-2">State</th>
-                 <th className="text-left py-2 px-2">Project</th>
-                 <th className="text-left py-2 px-2">Created</th>
-                 <th className="text-left py-2 px-2">Actions</th>
-               </tr>
-             </thead>
+              <thead>
+                <tr className="border-b">
+                  <th className="text-center py-2 px-2 w-8">State</th>
+                  <th className="text-left py-2 px-2">ID</th>
+                  <th className="text-left py-2 px-2">Type</th>
+                  <th className="text-left py-2 px-2">Project</th>
+                  <th className="text-left py-2 px-2">Created</th>
+                  <th className="text-left py-2 px-2">Actions</th>
+                </tr>
+              </thead>
              <tbody>
-               {jobs.length === 0 ? (
-                 <tr>
-                   <td colSpan={6} className="py-8 px-2 text-center text-muted-foreground">
-                     No jobs found
-                   </td>
-                 </tr>
-               ) : (
-                 jobs.map((job) => (
-                   <tr key={job.id} className="border-b hover:bg-muted/50">
-                     <td className="py-2 px-2 font-mono text-xs">
-                       <a href={`/queue/${job.id}`} className="hover:underline text-blue-500">
-                         {job.id.slice(0, 8)}
-                       </a>
-                     </td>
-                     <td className="py-2 px-2">{job.type}</td>
-                     <td className="py-2 px-2">
-                       <span className={`px-2 py-1 rounded text-xs ${getStateStyles(job.state)}`}>
-                         {job.state}
-                       </span>
-                     </td>
-                     <td className="py-2 px-2 text-xs text-muted-foreground">{job.projectId || "—"}</td>
-                     <td className="py-2 px-2 text-xs text-muted-foreground">
+                {jobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-2 text-center text-muted-foreground">
+                      No jobs found
+                    </td>
+                  </tr>
+                ) : (
+                  jobs.map((job) => (
+                    <tr key={job.id} className="border-b hover:bg-muted/50">
+                      <td className="py-2 px-2 text-center">
+                        <Tooltip>
+                          <TooltipTrigger className="text-muted-foreground hover:text-foreground transition-colors cursor-help inline-flex items-center justify-center">
+                            {getStateIcon(job.state)}
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            {job.state}
+                          </TooltipContent>
+                        </Tooltip>
+                      </td>
+                      <td className="py-2 px-2 font-mono text-xs">
+                        <a href={`/queue/${job.id}`} className="hover:underline text-blue-500">
+                          {job.id.slice(0, 8)}
+                        </a>
+                      </td>
+                      <td className="py-2 px-2">{job.type}</td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">{job.projectId || "—"}</td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">
                        {new Date(job.createdAt).toLocaleString('en-US', {
                          year: 'numeric',
                          month: '2-digit',
@@ -339,53 +350,78 @@ export function QueueTableLive({
                          hour12: false
                        })}
                      </td>
-                      <td className="py-2 px-2 space-x-2 flex">
-                        {job.state === "queued" && (
-                          <button
-                            onClick={() => handleAction("runNow", job.id)}
-                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-1"
-                          >
-                            <Play className="w-3 h-3" />
-                            Run Now
-                          </button>
-                        )}
-                        {(job.state === "queued" || job.state === "running") && (
-                          <button
-                            onClick={() => handleAction("cancel", job.id)}
-                            className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-1"
-                          >
-                            <X className="w-3 h-3" />
-                            Cancel
-                          </button>
-                        )}
-                        {job.state === "failed" && (
-                          <button
-                            onClick={() => handleAction("retry", job.id)}
-                            className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600 flex items-center gap-1"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            Retry
-                          </button>
-                        )}
-                        {job.state === "running" && (
-                          <button
-                            onClick={() => handleAction("forceUnlock", job.id)}
-                            className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 flex items-center gap-1"
-                          >
-                            <AlertCircle className="w-3 h-3" />
-                            Force Unlock
-                          </button>
-                        )}
-                        {(job.state === "succeeded" || job.state === "failed" || job.state === "cancelled") && (
-                          <button
-                            onClick={() => handleAction("delete", job.id)}
-                            className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Delete
-                          </button>
-                        )}
-                      </td>
+                        <td className="py-2 px-2 space-x-2 flex">
+                          {job.state === "queued" && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  onClick={() => handleAction("runNow", job.id)}
+                                  variant="secondary"
+                                  size="xs"
+                                >
+                                  <Play className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Run now</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {(job.state === "queued" || job.state === "running") && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  onClick={() => handleAction("cancel", job.id)}
+                                  variant="destructive"
+                                  size="xs"
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Cancel job</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {job.state === "failed" && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  onClick={() => handleAction("retry", job.id)}
+                                  variant="secondary"
+                                  size="xs"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Retry job</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {job.state === "running" && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  onClick={() => handleAction("forceUnlock", job.id)}
+                                  variant="secondary"
+                                  size="xs"
+                                >
+                                  <AlertCircle className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Force unlock</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {(job.state === "succeeded" || job.state === "failed" || job.state === "cancelled") && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  onClick={() => handleAction("delete", job.id)}
+                                  variant="ghost"
+                                  size="xs"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete job</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </td>
                    </tr>
                  ))
                )}

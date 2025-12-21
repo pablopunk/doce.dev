@@ -19,15 +19,15 @@ export const MobileMenu = () => {
          </DropdownMenuTrigger>
          <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => (window.location.href = '/')}>
-            <LayoutGrid className="w-4 h-4 mr-2" />
+            <LayoutGrid className="w-4 h-4" />
             Projects
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => (window.location.href = '/queue')}>
-            <Clock className="w-4 h-4 mr-2" />
+            <Clock className="w-4 h-4" />
             Queue
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => (window.location.href = '/settings')}>
-            <Settings className="w-4 h-4 mr-2" />
+            <Settings className="w-4 h-4" />
             Settings
           </DropdownMenuItem>
         </DropdownMenuContent>

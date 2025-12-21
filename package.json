@@ -16,8 +16,6 @@
     "@base-ui/react": "^1.0.0",
     "@fontsource-variable/noto-sans": "^5.2.10",
     "@opencode-ai/sdk": "^1.0.152",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-label": "^2.1.8",
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.5",
     "better-sqlite3": "^12.5.0",
