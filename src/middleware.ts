@@ -1,51 +1,79 @@
-import type { MiddlewareHandler } from "astro";
-import { Setup } from "@/domain/auth/models/user";
+import { defineMiddleware } from "astro:middleware";
+import { validateSession } from "@/server/auth/sessions";
+import { db } from "@/server/db/client";
+import { users } from "@/server/db/schema";
+import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
-export const onRequest: MiddlewareHandler = async (
-	{ request, redirect },
-	next,
-) => {
-	const { pathname } = new URL(request.url);
+ensureQueueWorkerStarted();
 
-	// Log all action errors for debugging
-	if (pathname.startsWith("/_actions/")) {
-		try {
-			const response = await next();
-			// Log error responses
-			if (response.status >= 400) {
-				const clonedResponse = response.clone();
-				try {
-					const body = await clonedResponse.text();
-					console.error(
-						`[Action Error] ${pathname} - Status ${response.status}:`,
-						body,
-					);
-				} catch (e) {
-					console.error(
-						`[Action Error] ${pathname} - Status ${response.status} (body could not be read)`,
-					);
-				}
-			}
-			return response;
-		} catch (error) {
-			console.error(`[Action Error] ${pathname}:`, error);
-			throw error;
-		}
-	}
+const SESSION_COOKIE_NAME = "doce_session";
 
-	// Allow setup routes
-	if (pathname.startsWith("/setup") || pathname.startsWith("/api/setup")) {
-		return next();
-	}
+// Routes that don't require authentication
+const PUBLIC_ROUTES = ["/setup", "/login"];
 
-	// Redirect to setup if not complete
-	try {
-		if (!Setup.isComplete()) {
-			return redirect("/setup");
-		}
-	} catch (error) {
-		console.error("[doce.dev] Middleware error:", error);
-	}
+// Routes that should redirect to dashboard if already logged in
+const AUTH_ROUTES = ["/setup", "/login"];
 
-	return next();
-};
+// Routes that handle their own authentication (API routes)
+const SELF_AUTH_PREFIXES = ["/api/"];
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  const { pathname } = context.url;
+
+  // Check if setup is needed (no users exist)
+  const existingUsers = await db.select().from(users).limit(1);
+  const needsSetup = existingUsers.length === 0;
+
+  // If needs setup and not on setup page, redirect
+  if (needsSetup && pathname !== "/setup") {
+    return context.redirect("/setup");
+  }
+
+  // If setup done and on setup page, redirect to login or dashboard
+  if (!needsSetup && pathname === "/setup") {
+    const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (sessionToken) {
+      const session = await validateSession(sessionToken);
+      if (session) {
+        return context.redirect("/");
+      }
+    }
+    return context.redirect("/login");
+  }
+
+  // Get session from cookie
+  const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
+  let user = null;
+
+  if (sessionToken) {
+    const session = await validateSession(sessionToken);
+    if (session) {
+      user = session.user;
+    } else {
+      // Invalid session, clear cookie
+      context.cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
+    }
+  }
+
+  // Set user in locals for pages/actions to access
+  context.locals.user = user;
+
+  // If logged in and on auth routes, redirect to dashboard
+  if (user && AUTH_ROUTES.includes(pathname)) {
+    return context.redirect("/");
+  }
+
+  // Skip middleware auth for API routes (they handle auth internally)
+  const isSelfAuthRoute = SELF_AUTH_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
+
+  // If not logged in and on protected route, redirect to login
+  if (!user && !PUBLIC_ROUTES.includes(pathname) && !isSelfAuthRoute) {
+    return context.redirect("/login");
+  }
+
+  return next();
+});
+
+export const SESSION_COOKIE_NAME_EXPORT = SESSION_COOKIE_NAME;

@@ -1,0 +1,44 @@
+services:
+  preview:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - pnpm-store:/root/.local/share/pnpm/store
+    ports:
+      - "${DEV_PORT:-4321}:4321"
+    environment:
+      - HOST=0.0.0.0
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev --host"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4321"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  opencode:
+    image: node:22-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+      - opencode-bin:/root/.opencode
+    ports:
+      - "${OPENCODE_PORT:-3000}:3000"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PATH=/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    command: sh -c "apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://opencode.ai/install | bash && opencode serve --hostname 0.0.0.0 --port 3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/doc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      preview:
+        condition: service_started
+
+volumes:
+  pnpm-store:
+  opencode-bin:

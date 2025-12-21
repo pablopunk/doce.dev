@@ -1,0 +1,24 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { JobDetailLive } from "@/components/queue/JobDetailLive";
+import { getJobById } from "@/server/queue/queue.model";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const jobId = Astro.params.id;
+if (!jobId) {
+  return Astro.redirect("/queue");
+}
+
+const job = await getJobById(jobId);
+if (!job) {
+  return Astro.redirect("/queue");
+}
+---
+
+<AppLayout title={`Queue Job ${job.id}`}>
+  <JobDetailLive client:load initialJob={job} />
+</AppLayout>

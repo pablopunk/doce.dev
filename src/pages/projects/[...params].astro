@@ -1,0 +1,87 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Settings } from "lucide-react";
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { PreviewPanel } from "@/components/preview/PreviewPanel";
+import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
+import { getProjectById } from "@/server/projects/projects.model";
+
+const user = Astro.locals.user;
+if (!user) {
+	return Astro.redirect("/login");
+}
+
+// Parse params from rest route: [id] or [id]/[slug]
+const params = Astro.params.params?.split("/") ?? [];
+const id = params[0];
+const slug = params[1]; // undefined if only one segment
+
+if (!id) {
+	return Astro.redirect("/");
+}
+
+const project = await getProjectById(id);
+
+// Project not found or doesn't belong to user
+if (!project || project.ownerUserId !== user.id) {
+	return Astro.redirect("/");
+}
+
+// Redirect if slug is provided but doesn't match (enforce canonical URL)
+if (slug && slug !== project.slug) {
+	return Astro.redirect(`/projects/${project.id}/${project.slug}`);
+}
+---
+
+<AppLayout title={project.name}>
+  <div class="flex flex-col h-full overflow-hidden">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-4 py-2 border-b bg-background">
+      <div class="flex items-center gap-4">
+        <a href="/">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </a>
+        <div>
+          <h1 class="text-lg font-semibold">{project.name}</h1>
+          <p class="text-xs text-muted-foreground">/{project.slug}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-muted-foreground">
+          {project.model || "Default model"}
+        </span>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    {!project.initialPromptCompleted ? (
+      <!-- Setup phase: show setup status display -->
+      <SetupStatusDisplay
+        projectId={project.id}
+        client:load
+      />
+    ) : (
+      <!-- Setup complete: show chat + preview -->
+      <div class="flex-1 flex overflow-hidden">
+        <!-- Chat panel (left) -->
+        <div class="w-1/2 border-r flex flex-col">
+          <ChatPanel
+            projectId={project.id}
+            client:load
+          />
+        </div>
+
+        <!-- Preview panel (right) -->
+        <div class="w-1/2 flex flex-col">
+          <PreviewPanel
+            projectId={project.id}
+            client:load
+          />
+        </div>
+      </div>
+    )}
+   </div>
+</AppLayout>

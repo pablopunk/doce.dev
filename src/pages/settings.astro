@@ -1,51 +1,136 @@
 ---
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { ApiKeysForm } from "@/domain/llms/components/api-keys-form";
-import { SettingsForm } from "@/domain/system/components/settings-form";
-import BaseLayout from "@/layouts/BaseLayout.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
+import { actions } from "astro:actions";
+import { db } from "@/server/db/client";
+import { userSettings } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
+import { getProjectsByUserId } from "@/server/projects/projects.model";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const result = Astro.getActionResult(actions.settings.save);
+
+// Get current settings
+const settings = await db
+  .select()
+  .from(userSettings)
+  .where(eq(userSettings.userId, user.id))
+  .limit(1);
+
+const currentSettings = settings[0];
+
+// Get project count for delete all section
+const projects = await getProjectsByUserId(user.id);
+const projectCount = projects.length;
 ---
 
-<BaseLayout title="Settings">
-  <div class="bg-bg">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-      <div class="mb-8">
+<AppLayout title="Settings">
+  <main class="container mx-auto max-w-2xl p-8">
+    <div class="mb-8 flex items-center justify-between">
+      <div>
         <h1 class="text-3xl font-bold">Settings</h1>
-        <p class="text-fg mt-1">Manage your global preferences</p>
+        <p class="text-muted-foreground">Manage your doce.dev configuration</p>
       </div>
-
-      <div class="space-y-6">
-        <!-- AI Model Settings -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Default AI Model</CardTitle>
-            <CardDescription>
-              Choose the default AI model for new projects
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingsForm client:load />
-          </CardContent>
-        </Card>
-
-        <!-- API Keys Settings -->
-        <Card>
-          <CardHeader>
-            <CardTitle>API Keys</CardTitle>
-            <CardDescription>
-              Configure API keys for AI providers. Keys are stored securely in the database.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ApiKeysForm client:load />
-          </CardContent>
-        </Card>
+      <div class="flex items-center gap-4 text-sm">
+        <a href="/queue" class="text-muted-foreground hover:text-foreground">Queue</a>
+        <a href="/" class="text-muted-foreground hover:text-foreground">Back to Dashboard</a>
       </div>
     </div>
-  </div>
-</BaseLayout>
+
+    <div class="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>OpenRouter Configuration</CardTitle>
+          <CardDescription>
+            Configure your OpenRouter API settings for AI-powered features.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form method="POST" action={actions.settings.save} class="space-y-4">
+            {result?.error && (
+              <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {result.error.message}
+              </div>
+            )}
+
+            {result?.data?.success && (
+              <div class="rounded-md bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+                Settings saved successfully!
+              </div>
+            )}
+
+            <div class="space-y-2">
+              <Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
+              <Input
+                id="openrouterApiKey"
+                name="openrouterApiKey"
+                type="password"
+                placeholder="sk-or-..."
+                value={currentSettings?.openrouterApiKey ?? ""}
+                required
+              />
+              <p class="text-xs text-muted-foreground">
+                Get your API key from{" "}
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-primary underline"
+                >
+                  openrouter.ai/keys
+                </a>
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <Label htmlFor="defaultModel">Default Model</Label>
+              <select
+                id="defaultModel"
+                name="defaultModel"
+                class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {AVAILABLE_MODELS.map((model) => (
+                  <option
+                    value={model.id}
+                    selected={model.id === currentSettings?.defaultModel}
+                  >
+                    {model.name} ({model.provider}) - {model.tier === "top" ? "Top Tier" : "Fast"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button type="submit">Save Settings</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Account</CardTitle>
+          <CardDescription>
+            Manage your account settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form method="POST" action={actions.auth.logout}>
+            <Button type="submit" variant="outline">
+              Logout
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <DeleteAllProjectsSection projectCount={projectCount} client:load />
+    </div>
+  </main>
+</AppLayout>

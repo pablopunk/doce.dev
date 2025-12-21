@@ -1,43 +1,4 @@
 # doce.dev - Self-Hosted AI Website Builder
 
-## To Do
+> Delicious Open Code Environments
 
-- [x] template: different docker-compose for dev and prod (commands and ports should differ)
-- [ ] Agent tool: cli commands
-- [ ] Agent tool: todo list
-- [ ] Agent tool: web requests
-- [ ] Agent tool: logs (access to docker logs + container logs, just like the web terminal)
-- [ ] Deployments. `astro build` + `astro preview`
-- [ ] Set up reverse proxy for deployment routing (traefik?)
-- [ ] Add file tree view for project navigation
-- [ ] Allow to edit files in the files view
-- [ ] Project state restoration from any chat message
-- [ ] Multi-user support with authentication and authorization
-- [ ] Git integration for version control and rollback
-- [ ] Project export/import functionality
-- [ ] Support for multiple frameworks (Next.js, etc.) and infra
-- [ ] Different templates for specific type of apps (blog, todo-app, SaaS, dashboard, SPA tool, crazy animations, games, etc.)
-- [ ] Add agent-controlled "Tasks" section to chat interface
-- [x] Make design system have semantic colors. There should be zero "dark:" classes in the codebase, since there's no reason to differentiate between light and dark mode with semantic colors.
-- [ ] URL bar in the preview window
-- [x] Remove all semantic colors from shadcn/ui and add the ones from our design system
-- [x] Add guidelines for persistance in templates/. Simple peristance can go to local storage, but for more complex stuff, it should use sqlite.
-- [x] Get rid of console erros in dashboard
-- [ ] Allow editing Global prompt for templates. Should be saved in settings, never replace the template AGENTS file.
-- [ ] Allow inserting images in the prompt
-- [ ] Add a way to insert assets into the project, e.g. images, videos, etc.
-- [ ] Multiple design systems: I think having several tailwind configs / css files would be enough here. Default to one, let user choose.
-- [x] Set up DB abstraction. Refactor the whole project to use a DB abstraction that then can be swapped out whenever needed. Especially useful when deploying in docker (could be deployed with a mysql DB for performance on large projects).
-- [x] Add a logger library. This should be able to log different levels to console or files (or both)
-- [ ] Please go model by model and fix the mess that the AI made.
-- [x] Remove all imports from db outside models files (example: project id page). Maybe we can add a biome rule for this.
-- [ ] Global AGENTS.md, template-independent rules, like "use pnpm", "use tailwind", etc.
-  - [ ] Decide if shadcn or flowbite and add it to that AGENTS.md
-  - [ ] Generic instructions for the backend. They all could use astro actions and server islands for SSR.
-- [ ] Button in the file browser to add a file to the chat as context
-- [ ] Fork project (fresh context)
-- [ ] Compact context in chat:
-  - [ ] Button to compact it
-  - [ ] Mechanism to detect when compression is needed (context gets big)
-- [ ] The chat mentions stuff like "open localhost:3000", which is not true for our tool; let's make it aware of how the project is deployed in dev mode
-- [ ] shadcn mcp?
