@@ -6,10 +6,6 @@ interface CreateProjectInput {
 	model: string;
 }
 
-interface CreateProjectResult {
-	projectId: string;
-}
-
 /**
  * Hook for creating a new project
  * Automatically updates projects cache after creation
@@ -32,23 +28,28 @@ export function useCreateProject() {
 				throw new Error("Failed to create project");
 			}
 
-			const result = (await response.json()) as {
-				data: CreateProjectResult | null;
-				error?: { message: string };
-			};
+		const result = (await response.json()) as unknown[];
 
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
+		// Astro Actions return [data, ok, error] format
+		const actionData = Array.isArray(result) ? result[0] : result;
 
-			if (!result.data?.projectId) {
-				throw new Error("No project ID returned");
-			}
+		if (!actionData || typeof actionData !== "object") {
+			throw new Error("Invalid response from server");
+		}
+
+		const { success, projectId } = actionData as {
+			success?: boolean | number;
+			projectId?: string;
+		};
+
+		if (!success || !projectId) {
+			throw new Error("No project ID returned");
+		}
 
 			// Invalidate projects cache to trigger refetch
 			await mutate("/api/projects");
 
-			return result.data.projectId;
+			return projectId;
 		},
 		[mutate]
 	);
