@@ -10,6 +10,7 @@ const IDLE_TIMEOUT_MS = 180_000; // 3 minutes
 const REAPER_INTERVAL_MS = 30_000;
 const STOP_GRACE_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
+const CONTAINER_IDLE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop idle containers
 
 export interface ViewerRecord {
   viewerId: string;
@@ -19,6 +20,7 @@ export interface ViewerRecord {
 export interface ProjectPresence {
   projectId: string;
   viewers: Map<string, number>; // viewerId -> lastSeenAt
+  containerStopAt?: number; // When to stop container due to 60s idle timeout
   stopAt?: number; // Scheduled stop time
   startedAt?: number; // When we started the starting process
   isStarting: boolean;
@@ -166,11 +168,14 @@ export async function handlePresenceHeartbeat(
           };
         }
 
-    // Update viewer presence
-    presence.viewers.set(viewerId, Date.now());
+     // Update viewer presence
+     presence.viewers.set(viewerId, Date.now());
 
-    // Cancel any scheduled stop
-    delete presence.stopAt;
+     // Cancel any scheduled stop
+     delete presence.stopAt;
+     
+     // Reset 60s idle timer when user sends heartbeat
+     delete presence.containerStopAt;
 
       // Check current health and periodically capture container logs
       const [previewReady, opencodeReady] = await Promise.all([
@@ -319,7 +324,7 @@ async function stopProjectForInactivity(projectId: string): Promise<void> {
 /**
  * Reaper function that runs periodically to clean up idle projects.
  */
-function runReaper(): void {
+async function runReaper(): Promise<void> {
   const now = Date.now();
 
   for (const [projectId, presence] of presenceMap) {
@@ -328,16 +333,42 @@ function runReaper(): void {
       continue;
     }
 
-    // Prune stale viewers (haven't heartbeated in 2x interval)
-    const staleThreshold = now - 2 * PRESENCE_HEARTBEAT_MS;
-    for (const [viewerId, lastSeen] of presence.viewers) {
-      if (lastSeen < staleThreshold) {
-        presence.viewers.delete(viewerId);
-        logger.debug({ projectId, viewerId }, "Pruned stale viewer");
-      }
-    }
+     // Prune stale viewers (haven't heartbeated in 2x interval)
+     const staleThreshold = now - 2 * PRESENCE_HEARTBEAT_MS;
+     for (const [viewerId, lastSeen] of presence.viewers) {
+       if (lastSeen < staleThreshold) {
+         presence.viewers.delete(viewerId);
+         logger.debug({ projectId, viewerId }, "Pruned stale viewer");
+       }
+     }
 
-    // Check if we should schedule or execute a stop
+     // Handle 60-second idle timeout for running containers
+     const project = await getProjectById(projectId);
+     if (project?.status === "running") {
+       if (presence.viewers.size === 0) {
+         // No active viewers - start countdown to stop
+         if (!presence.containerStopAt) {
+           presence.containerStopAt = now + CONTAINER_IDLE_TIMEOUT_MS;
+           logger.info({ projectId, stopAt: presence.containerStopAt }, "Container idle timer started");
+         }
+
+         // Stop if idle timeout has passed
+         if (now >= presence.containerStopAt) {
+           try {
+             await enqueueDockerStop({ projectId, reason: "idle" });
+             delete presence.containerStopAt;
+             logger.info({ projectId }, "Container stopped due to 60s idle timeout");
+           } catch (error) {
+             logger.error({ error, projectId }, "Failed to enqueue container stop");
+           }
+         }
+       } else {
+         // Has active viewers - clear idle timer
+         delete presence.containerStopAt;
+       }
+     }
+
+     // Check if we should schedule or execute a stop
     if (presence.viewers.size === 0) {
       // Find the most recent viewer timestamp
       let lastSeenAt = 0;
