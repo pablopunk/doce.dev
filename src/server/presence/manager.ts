@@ -10,7 +10,7 @@ const IDLE_TIMEOUT_MS = 180_000; // 3 minutes
 const REAPER_INTERVAL_MS = 30_000;
 const STOP_GRACE_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_IDLE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop idle containers
+const CONTAINER_IDLE_TIMEOUT_MS = 30_000; // 30 seconds - auto-stop idle containers
 
 export interface ViewerRecord {
   viewerId: string;
