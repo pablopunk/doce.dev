@@ -23,6 +23,7 @@ services:
     volumes:
       - .:/app
       - opencode-bin:/root/.opencode
+      - opencode-data:/root/.local/share/opencode
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
     environment:
@@ -42,3 +43,4 @@ services:
 volumes:
   pnpm-store:
   opencode-bin:
+  opencode-data:
