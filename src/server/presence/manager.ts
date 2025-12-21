@@ -6,11 +6,9 @@ import { listJobs } from "@/server/queue/queue.model";
 
 // Constants from PLAN.md section 9.7.2
 const PRESENCE_HEARTBEAT_MS = 15_000;
-const IDLE_TIMEOUT_MS = 180_000; // 3 minutes
 const REAPER_INTERVAL_MS = 30_000;
-const STOP_GRACE_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_IDLE_TIMEOUT_MS = 30_000; // 30 seconds - auto-stop idle containers
+const CONTAINER_IDLE_TIMEOUT_MS = 5_000; // 5 seconds - auto-stop idle containers (TESTING)
 
 export interface ViewerRecord {
   viewerId: string;
@@ -295,33 +293,6 @@ export async function handlePresenceHeartbeat(
 
 
 /**
- * Stop project containers due to inactivity.
- */
-async function stopProjectForInactivity(projectId: string): Promise<void> {
-  const release = await acquireLock(projectId);
-
-  try {
-    const presence = getPresence(projectId);
-
-    // Double-check we should stop
-    if (presence.viewers.size > 0) {
-      return;
-    }
-
-    const project = await getProjectById(projectId);
-    if (!project || project.status !== "running") {
-      return;
-    }
-
-    logger.info({ projectId }, "Scheduling project stop due to inactivity");
-
-    await enqueueDockerStop({ projectId, reason: "idle" });
-  } finally {
-    release();
-  }
-}
-
-/**
  * Reaper function that runs periodically to clean up idle projects.
  */
 async function runReaper(): Promise<void> {
@@ -368,36 +339,9 @@ async function runReaper(): Promise<void> {
        }
      }
 
-     // Check if we should schedule or execute a stop
-    if (presence.viewers.size === 0) {
-      // Find the most recent viewer timestamp
-      let lastSeenAt = 0;
-      for (const ts of presence.viewers.values()) {
-        if (ts > lastSeenAt) lastSeenAt = ts;
-      }
-
-      // If no viewers and never had any (new presence), use now
-      if (lastSeenAt === 0) {
-        // Check if project was just created - skip if so
-        continue;
-      }
-
-      // Schedule stop if not already scheduled
-      if (!presence.stopAt) {
-        presence.stopAt = now + STOP_GRACE_MS;
-        logger.debug({ projectId, stopAt: presence.stopAt }, "Scheduled stop");
-      }
-
-      // Execute stop if grace period passed and idle timeout exceeded
-      if (now >= presence.stopAt && now - lastSeenAt >= IDLE_TIMEOUT_MS) {
-        stopProjectForInactivity(projectId).catch((err) => {
-          logger.error({ error: err, projectId }, "Reaper stop failed");
-        });
-      }
-    } else {
-      // Has active viewers - clear any scheduled stop
-      delete presence.stopAt;
-    }
+      // Note: Old 3-minute idle logic is removed
+      // The 60-second idle timeout above (lines 345-369) is the primary mechanism
+      // that now handles container auto-stop
   }
 }
 
@@ -405,9 +349,21 @@ async function runReaper(): Promise<void> {
 let reaperInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startReaper(): void {
-  if (reaperInterval) return;
-  reaperInterval = setInterval(runReaper, REAPER_INTERVAL_MS);
-  logger.info("Presence reaper started");
+   if (reaperInterval) return;
+   
+   // Execute reaper immediately on start
+   runReaper().catch((err) => {
+      logger.error({ error: err }, "Initial reaper execution failed");
+   });
+   
+   // Then set interval - wrap in error handler since runReaper is async
+   reaperInterval = setInterval(() => {
+      runReaper().catch((err) => {
+         logger.error({ error: err }, "Reaper execution failed");
+      });
+   }, REAPER_INTERVAL_MS);
+   
+   logger.info("Presence reaper started");
 }
 
 export function stopReaper(): void {
