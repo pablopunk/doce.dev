@@ -4,6 +4,7 @@ import { getProjectByIdIncludeDeleted, updateProjectStatus } from "@/server/proj
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { checkOpencodeReady, checkPreviewReady } from "@/server/projects/health";
+import { enqueueOpencodeSessionInit } from "../enqueue";
 
 const START_MAX_WAIT_MS = 30_000;
 
@@ -41,6 +42,31 @@ export async function handleDockerEnsureRunning(ctx: QueueJobContext): Promise<v
 
     if (previewReady && opencodeReady) {
       await updateProjectStatus(project.id, "running");
+      
+      // After successful restart, check if we need to re-initialize the opencode session
+      // This ensures session persists across container restarts
+      if (project.bootstrapSessionId) {
+        try {
+          // Check if session still exists by trying to fetch it
+          const sessionUrl = `http://127.0.0.1:${project.opencodePort}/session`;
+          const sessionsRes = await fetch(sessionUrl);
+          
+          if (sessionsRes.ok) {
+            const sessions = await sessionsRes.json() as unknown[];
+            const sessionsArray = Array.isArray(sessions) ? sessions : [];
+            
+            // If no sessions exist, re-initialize with the saved bootstrap session ID
+            if (sessionsArray.length === 0) {
+              logger.info({ projectId: project.id }, "Sessions lost after restart, re-initializing...");
+              await enqueueOpencodeSessionInit({ projectId: project.id });
+            }
+          }
+        } catch (error) {
+          logger.warn({ error, projectId: project.id }, "Failed to check/restore sessions after restart");
+          // Don't fail the job, containers are up
+        }
+      }
+      
       return;
     }
 
