@@ -156,8 +156,8 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 	return (
 		<div className="flex flex-col h-full">
 			{/* Header */}
-			<div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
-				<div className="flex items-center gap-2 text-sm">
+			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
+				<div className="flex items-center gap-2 text-sm flex-shrink-0">
 					{state === "starting" && (
 						<Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
 					)}
@@ -174,7 +174,21 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 						{state === "error" && (message || "Error")}
 					</span>
 				</div>
-				<div className="flex items-center gap-1">
+
+				{/* URL Bar - Center */}
+				{state === "ready" && previewUrl && (
+					<input
+						type="text"
+						value={previewUrl.length > 50 ? `${previewUrl.slice(0, 50)}...` : previewUrl}
+						disabled
+						title={previewUrl}
+						className="flex-1 min-w-0 px-2 py-1 text-xs bg-transparent border border-border rounded text-foreground cursor-default opacity-60 text-center"
+						readOnly
+					/>
+				)}
+
+				{/* Action Buttons - Right */}
+				<div className="flex items-center gap-1 flex-shrink-0">
 					{state === "ready" && (
 						<>
 							<Button
