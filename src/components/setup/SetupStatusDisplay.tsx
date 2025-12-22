@@ -369,9 +369,9 @@ export function SetupStatusDisplay({
                  isTransitioning ? "opacity-0" : "opacity-100"
                }`}>
                  <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
-                 <p className="text-sm text-muted-foreground">
-                   {displayMessage}
-                 </p>
+                  <p className="text-sm text-muted-foreground line-clamp-1">
+                    {displayMessage}
+                  </p>
                </div>
             </div>
           ) : (
