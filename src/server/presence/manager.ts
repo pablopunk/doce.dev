@@ -314,23 +314,23 @@ async function runReaper(): Promise<void> {
      }
 
       // Handle keep-alive timeout for running containers
-       const project = await getProjectById(projectId);
-       if (project?.status === "running") {
-         if (presence.lastHeartbeatAt !== undefined) {
-           const timeSinceLastHeartbeat = now - presence.lastHeartbeatAt;
-           
-           // Stop if no heartbeat received for keep-alive timeout
-           if (timeSinceLastHeartbeat >= CONTAINER_KEEP_ALIVE_TIMEOUT_MS) {
-             try {
-               await enqueueDockerStop({ projectId, reason: "idle" });
-               delete presence.lastHeartbeatAt;
-               logger.info({ projectId, timeSinceLastHeartbeat }, "Container stopped due to keep-alive timeout");
-             } catch (error) {
-               logger.error({ error, projectId }, "Failed to enqueue container stop");
-             }
-           }
-         }
-       }
+        const project = await getProjectById(projectId);
+        if (project?.status === "running") {
+          if (presence.lastHeartbeatAt !== undefined) {
+            const timeSinceLastHeartbeat = now - presence.lastHeartbeatAt;
+            
+            // Stop if no heartbeat received for keep-alive timeout AND no active viewers
+            if (timeSinceLastHeartbeat >= CONTAINER_KEEP_ALIVE_TIMEOUT_MS && presence.viewers.size === 0) {
+              try {
+                await enqueueDockerStop({ projectId, reason: "idle" });
+                delete presence.lastHeartbeatAt;
+                logger.info({ projectId, timeSinceLastHeartbeat }, "Container stopped due to keep-alive timeout");
+              } catch (error) {
+                logger.error({ error, projectId }, "Failed to enqueue container stop");
+              }
+            }
+          }
+        }
 
         // Note: Container auto-stops if no heartbeat received for 60 seconds
         // Heartbeats come from active viewers in PreviewPanel, ChatPanel, etc.
