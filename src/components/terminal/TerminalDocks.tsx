@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, Terminal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -6,25 +6,25 @@ import { cn } from "@/lib/utils";
 interface LogLine {
   text: string;
   type: "docker" | "app";
-  streamType: "out" | "err";
 }
 
-interface TerminalDockProps {
+interface TerminalDocksProps {
   projectId: string;
-  logType: "docker" | "app";
   defaultOpen?: boolean;
 }
 
-export function TerminalDock({ projectId, logType, defaultOpen = false }: TerminalDockProps) {
+export function TerminalDocks({ projectId, defaultOpen = false }: TerminalDocksProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [lines, setLines] = useState<LogLine[]>([]);
+  const [dockerLines, setDockerLines] = useState<LogLine[]>([]);
+  const [appLines, setAppLines] = useState<LogLine[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
-  const terminalRef = useRef<HTMLDivElement>(null);
+  const dockerTerminalRef = useRef<HTMLDivElement>(null);
+  const appTerminalRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+  const scrollToBottom = useCallback((ref: React.RefObject<HTMLDivElement | null>) => {
+    if (ref.current) {
+      ref.current.scrollTop = ref.current.scrollHeight;
     }
   }, []);
 
@@ -42,52 +42,41 @@ export function TerminalDock({ projectId, logType, defaultOpen = false }: Termin
     eventSource.addEventListener("log.chunk", (e) => {
       try {
         const data = JSON.parse(e.data);
-        const { text, nextOffset: newOffset, truncated } = data;
-
-        if (truncated && lines.length === 0) {
-          // Show truncation indicator
-          setLines([{ text: "[...showing last portion of logs...]", type: logType, streamType: "out" }]);
-        }
+        const { text, nextOffset: newOffset } = data;
 
         if (text) {
-          // Split text into lines and parse markers
           const rawLines = text.split("\n").filter((l: string) => l.trim());
-          const newLines = rawLines
+          const parsedLines = rawLines
             .map((line: string): LogLine | null => {
               let type: "docker" | "app" = "docker";
-              let streamType: "out" | "err" = "out";
               let displayText = line;
 
-              if (line.startsWith("[docker-err]")) {
+              if (line.startsWith("[docker] ")) {
                 type = "docker";
-                streamType = "err";
-                displayText = line.replace("[docker-err] ", "");
-              } else if (line.startsWith("[docker-out]")) {
-                type = "docker";
-                streamType = "out";
-                displayText = line.replace("[docker-out] ", "");
-              } else if (line.startsWith("[app-err]")) {
+                displayText = line.replace("[docker] ", "");
+              } else if (line.startsWith("[app] ")) {
                 type = "app";
-                streamType = "err";
-                displayText = line.replace("[app-err] ", "");
-              } else if (line.startsWith("[app-out]")) {
-                type = "app";
-                streamType = "out";
-                displayText = line.replace("[app-out] ", "");
+                displayText = line.replace("[app] ", "");
               }
 
-              // Filter to only show logs matching this dock's type
-              if (type !== logType) {
-                return null;
-              }
-
-              return { text: displayText, type, streamType };
+              return { text: displayText, type };
             })
             .filter((line: LogLine | null): line is LogLine => line !== null);
 
-          setLines((prev) => [...prev, ...newLines]);
+          // Separate by type
+          const dockerLogs = parsedLines.filter((l: LogLine) => l.type === "docker");
+          const appLogs = parsedLines.filter((l: LogLine) => l.type === "app");
+
+          if (dockerLogs.length > 0) {
+            setDockerLines((prev) => [...prev, ...dockerLogs]);
+            scrollToBottom(dockerTerminalRef);
+          }
+          if (appLogs.length > 0) {
+            setAppLines((prev) => [...prev, ...appLogs]);
+            scrollToBottom(appTerminalRef);
+          }
+
           setNextOffset(newOffset);
-          scrollToBottom();
         }
       } catch {
         // Ignore parse errors
@@ -102,18 +91,29 @@ export function TerminalDock({ projectId, logType, defaultOpen = false }: Termin
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [projectId, isOpen, scrollToBottom, logType, lines.length]);
-
-  // Scroll when lines change
-  useEffect(() => {
-    scrollToBottom();
-  }, [lines, scrollToBottom]);
+  }, [projectId, isOpen, nextOffset, scrollToBottom]);
 
   const handleClear = () => {
-    setLines([]);
+    setDockerLines([]);
+    setAppLines([]);
   };
 
-  const title = logType === "docker" ? "Docker" : "App";
+  const renderTerminal = (lines: LogLine[], ref: React.RefObject<HTMLDivElement | null>) => (
+    <div
+      ref={ref}
+      className="h-full overflow-y-auto p-4 font-mono text-xs bg-black"
+    >
+      {lines.length === 0 ? (
+        <div className="text-gray-500">Waiting for logs...</div>
+      ) : (
+        lines.map((line, i) => (
+          <div key={i} className="whitespace-pre-wrap break-all text-foreground">
+            {line.text}
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -126,15 +126,15 @@ export function TerminalDock({ projectId, logType, defaultOpen = false }: Termin
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
-        aria-label={`Toggle ${title} terminal`}
+        aria-label="Toggle terminal"
         className="w-full flex items-center justify-between px-4 py-2 hover:bg-muted/50 transition-colors focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
       >
         <div className="flex items-center gap-2 text-sm">
           <Terminal className="h-4 w-4" />
-          <span>{title}</span>
-          {lines.length > 0 && (
+          <span>Terminal</span>
+          {(dockerLines.length > 0 || appLines.length > 0) && (
             <span className="text-xs text-muted-foreground">
-              ({lines.length} lines)
+              ({dockerLines.length + appLines.length} lines)
             </span>
           )}
         </div>
@@ -162,23 +162,22 @@ export function TerminalDock({ projectId, logType, defaultOpen = false }: Termin
 
       {/* Content */}
       {isOpen && (
-        <div
-          ref={terminalRef}
-          className="h-[calc(100%-40px)] overflow-y-auto p-4 font-mono text-xs bg-black"
-        >
-          {lines.length === 0 ? (
-            <div className="text-gray-500">Waiting for logs...</div>
-          ) : (
-            lines.map((line, i) => {
-              const isError = line.streamType === "err";
-              const colorClass = isError ? "text-destructive" : "text-green-400";
-              return (
-                <div key={i} className={cn("whitespace-pre-wrap break-all", colorClass)}>
-                  {line.text}
-                </div>
-              );
-            })
-          )}
+        <div className="h-[calc(100%-40px)] flex divide-x">
+          {/* Docker Terminal */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/20 border-b">
+              Docker
+            </div>
+            {renderTerminal(dockerLines, dockerTerminalRef)}
+          </div>
+
+          {/* App Terminal */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/20 border-b">
+              App
+            </div>
+            {renderTerminal(appLines, appTerminalRef)}
+          </div>
         </div>
       )}
     </div>

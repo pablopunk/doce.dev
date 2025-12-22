@@ -1,9 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { logger } from "@/server/logger";
 
 const LOG_FILE_NAME = "docker.log";
+
+// Map to track running container log streaming processes
+// Key: projectId, Value: ChildProcess
+const streamingProcesses = new Map<string, ChildProcess>();
 
 /**
  * Ensure the logs directory exists.
@@ -53,6 +58,48 @@ export async function appendToLogFile(
 }
 
 /**
+ * Append docker logs with marker.
+ */
+export async function appendDockerLog(
+  logsDir: string,
+  text: string,
+  _isStderr: boolean = false
+): Promise<void> {
+  if (!text) return;
+  try {
+    await ensureLogsDir(logsDir);
+    const lines = text.split("\n").filter((l) => l.trim());
+    const markedText = lines.map((line) => `[docker] ${line}`).join("\n");
+    if (markedText) {
+      await fs.appendFile(getLogFilePath(logsDir), markedText + "\n");
+    }
+  } catch (err) {
+    logger.warn({ error: err, logsDir }, "Failed to append docker log");
+  }
+}
+
+/**
+ * Append app/container logs with marker.
+ */
+export async function appendAppLog(
+  logsDir: string,
+  text: string,
+  _isStderr: boolean = false
+): Promise<void> {
+  if (!text) return;
+  try {
+    await ensureLogsDir(logsDir);
+    const lines = text.split("\n").filter((l) => l.trim());
+    const markedText = lines.map((line) => `[app] ${line}`).join("\n");
+    if (markedText) {
+      await fs.appendFile(getLogFilePath(logsDir), markedText + "\n");
+    }
+  } catch (err) {
+    logger.warn({ error: err, logsDir }, "Failed to append app log");
+  }
+}
+
+/**
  * Get container logs from the preview service and append them to the log file.
  * This captures logs from the app container (e.g., pnpm dev output).
  */
@@ -76,15 +123,125 @@ export async function captureContainerLogs(
       });
 
       if (output && output.trim()) {
-        const timestamp = new Date().toISOString();
-        const prefix = `[app logs ${timestamp}]\n`;
-        await fs.appendFile(getLogFilePath(logsDir), prefix + output + "\n");
+        await appendAppLog(logsDir, output, false);
       }
     } catch (error) {
       // Container may not be running yet, ignore
     }
   } catch (err) {
     logger.debug({ error: err, projectId }, "Failed to capture container logs");
+  }
+}
+
+/**
+ * Strip docker compose log prefix (e.g., "preview | " or "preview-1 | ")
+ */
+function stripLogPrefix(line: string): string {
+  // Docker compose logs format: "service-name | log message"
+  // Match pattern: anything followed by " | "
+  const match = line.match(/^[^\s|]+\s*\|\s*(.*)/);
+  return match?.[1] ?? line;
+}
+
+/**
+ * Start continuous streaming of container logs from the preview service.
+ * Spawns a long-running `docker compose logs -f` process that pipes output
+ * to the log file as it's generated.
+ */
+export function streamContainerLogs(
+  projectId: string,
+  projectPath: string
+): void {
+  try {
+    // Stop any existing streaming process for this project
+    stopStreamingContainerLogs(projectId);
+
+    const logsDir = path.join(projectPath, "logs");
+    const projectName = `doce_${projectId}`;
+
+    logger.debug({ projectId }, "Starting container log streaming");
+
+    // Spawn: docker compose logs -f --tail=100 preview
+    // --tail=100 means start from last 100 lines (captures recent history)
+    const proc = spawn("docker", [
+      "compose",
+      "--project-name",
+      projectName,
+      "logs",
+      "-f",
+      "--tail=100",
+      "preview",
+    ], {
+      cwd: projectPath,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    // Store process reference for later cleanup
+    streamingProcesses.set(projectId, proc);
+
+    // Handle stdout and stderr (combined, no distinction)
+    const handleStream = (stream: NodeJS.ReadableStream | null) => {
+      if (!stream) return;
+      let buffer = "";
+      stream.on("data", async (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        // Keep the last incomplete line in the buffer
+        buffer = lines.pop() || "";
+
+        // Process complete lines, strip prefixes, and append
+        const processedLines = lines
+          .map((line) => stripLogPrefix(line))
+          .filter((line) => line.trim())
+          .join("\n");
+
+        if (processedLines) {
+          try {
+            await appendAppLog(logsDir, processedLines, false);
+          } catch (err) {
+            logger.warn({ error: err, projectId }, "Failed to append streamed app log");
+          }
+        }
+      });
+    };
+
+    handleStream(proc.stdout);
+    handleStream(proc.stderr);
+
+    // Handle process exit
+    proc.on("exit", (code) => {
+      streamingProcesses.delete(projectId);
+      logger.info(
+        { projectId, exitCode: code },
+        "Container log streaming process exited"
+      );
+    });
+
+    // Handle process error
+    proc.on("error", (err) => {
+      streamingProcesses.delete(projectId);
+      logger.warn({ error: err, projectId }, "Container log streaming process error");
+    });
+
+    logger.info({ projectId }, "Container log streaming started successfully");
+  } catch (err) {
+    logger.error({ error: err, projectId }, "Failed to start container log streaming");
+  }
+}
+
+/**
+ * Stop streaming container logs for a project.
+ */
+export function stopStreamingContainerLogs(projectId: string): void {
+  const proc = streamingProcesses.get(projectId);
+  if (proc) {
+    try {
+      proc.kill("SIGTERM");
+      streamingProcesses.delete(projectId);
+      logger.debug({ projectId }, "Stopped container log streaming");
+    } catch (err) {
+      logger.warn({ error: err, projectId }, "Failed to stop container log streaming");
+    }
   }
 }
 

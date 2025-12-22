@@ -1,7 +1,7 @@
 import { spawn, execSync } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { appendToLogFile, writeHostMarker, captureContainerLogs } from "./logs";
+import { appendDockerLog, writeHostMarker, streamContainerLogs, stopStreamingContainerLogs } from "./logs";
 
 // Cache the detected compose command
 let composeCommand: string[] | null = null;
@@ -125,20 +125,20 @@ export async function composeUp(
     "--remove-orphans",
   ]);
 
-  // Log output to docker.log
+  // Log output with stream markers
   if (result.stdout) {
-    await appendToLogFile(logsDir, result.stdout);
+    await appendDockerLog(logsDir, result.stdout, false);
   }
   if (result.stderr) {
-    await appendToLogFile(logsDir, result.stderr);
+    await appendDockerLog(logsDir, result.stderr, true);
   }
   await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
-  // Capture container logs (e.g., pnpm dev output) after containers start
+  // Start streaming container logs (e.g., pnpm dev output) after containers start
   if (result.success) {
     // Wait a bit for containers to start outputting logs
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    await captureContainerLogs(projectId, projectPath);
+    streamContainerLogs(projectId, projectPath);
   }
 
   return result;
@@ -154,16 +154,19 @@ export async function composeDown(
   const logsDir = path.join(projectPath, "logs");
   await writeHostMarker(logsDir, `docker compose down --remove-orphans`);
 
+  // Stop streaming container logs before stopping containers
+  stopStreamingContainerLogs(projectId);
+
   const result = await runComposeCommand(projectId, projectPath, [
     "down",
     "--remove-orphans",
   ]);
 
   if (result.stdout) {
-    await appendToLogFile(logsDir, result.stdout);
+    await appendDockerLog(logsDir, result.stdout, false);
   }
   if (result.stderr) {
-    await appendToLogFile(logsDir, result.stderr);
+    await appendDockerLog(logsDir, result.stderr, true);
   }
   await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 

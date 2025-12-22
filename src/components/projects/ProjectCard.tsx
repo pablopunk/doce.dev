@@ -8,6 +8,7 @@ import type { Project } from "@/server/db/schema";
 
 interface ProjectCardProps {
 	project: Project;
+	onDeleted?: (projectId: string) => void;
 }
 
 interface StatusStyle {
@@ -65,7 +66,7 @@ function getStatusStyle(status: string): StatusStyle {
 	);
 }
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
@@ -89,6 +90,8 @@ export function ProjectCard({ project }: ProjectCardProps) {
 				console.error("Failed to delete project:", result.error.message);
 				throw new Error(result.error.message);
 			}
+			// Optimistic update: notify parent to remove from list
+			onDeleted?.(projectId);
 		} catch (error) {
 			setIsDeleting(false);
 			console.error("Failed to delete project:", error);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
-import { TerminalDock } from "@/components/terminal/TerminalDock";
+import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 
 interface PresenceResponse {
 	projectId: string;
@@ -254,8 +254,8 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 					)}
 				</div>
 
-				{/* Terminal dock */}
-				<TerminalDock projectId={projectId} defaultOpen={false} />
+			{/* Terminal docks */}
+			<TerminalDocks projectId={projectId} defaultOpen={false} />
 			</div>
 		</div>
 	);
