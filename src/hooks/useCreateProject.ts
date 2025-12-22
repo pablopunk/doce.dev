@@ -30,19 +30,16 @@ export function useCreateProject() {
 
 		const result = (await response.json()) as unknown[];
 
-		// Astro Actions return [data, ok, error] format
-		const actionData = Array.isArray(result) ? result[0] : result;
+		// Astro Actions with Devalue return [data, ok, projectId] format
+		// where projectId is the actual hex string returned by the backend
+		let projectId: string | undefined;
 
-		if (!actionData || typeof actionData !== "object") {
-			throw new Error("Invalid response from server");
+		if (Array.isArray(result)) {
+			// The actual projectId is stored in the third element (index 2)
+			projectId = result[2] as string | undefined;
 		}
 
-		const { success, projectId } = actionData as {
-			success?: boolean | number;
-			projectId?: string;
-		};
-
-		if (!success || !projectId) {
+		if (!projectId) {
 			throw new Error("No project ID returned");
 		}
 

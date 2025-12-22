@@ -73,8 +73,8 @@ export function CreateProjectForm({
 		}
 	};
 
-	const waitForProjectToExist = async (projectId: string, maxAttempts = 50) => {
-		const delayMs = 100; // Poll every 100ms
+	const waitForProjectToExist = async (projectId: string, maxAttempts = 100) => {
+		const delayMs = 200; // Poll every 200ms (increased from 100ms)
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			try {
@@ -91,8 +91,7 @@ export function CreateProjectForm({
 			await new Promise((resolve) => setTimeout(resolve, delayMs));
 		}
 
-		// Timeout - just redirect anyway (project will likely load shortly)
-		// or show loading state on the project page
+		// Timeout after ~20 seconds - project should definitely exist by now
 	};
 
 	return (
