@@ -7,6 +7,7 @@ import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisp
 
 interface ProjectContentWrapperProps {
   projectId: string;
+  models?: ReadonlyArray<{ id: string; name: string; provider: string }>;
 }
 
 interface PresenceResponse {
@@ -15,16 +16,16 @@ interface PresenceResponse {
   opencodeReady: boolean;
 }
 
-export function ProjectContentWrapper({ projectId }: ProjectContentWrapperProps) {
+export function ProjectContentWrapper({ projectId, models = [] }: ProjectContentWrapperProps) {
   const [showStartupDisplay, setShowStartupDisplay] = useState(true);
 
   // Use custom resizable panel hook for managing layout with constraints
    const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } = useResizablePanel({
-     projectId,
-     minSize: 25,
-     maxSize: 75,
-     defaultSize: 50,
-   });
+      projectId,
+      minSize: 25,
+      maxSize: 75,
+      defaultSize: 33.33,
+    });
 
   // Check if containers are already ready on mount
   useEffect(() => {
@@ -72,12 +73,12 @@ export function ProjectContentWrapper({ projectId }: ProjectContentWrapperProps)
             data-resizable-group
           >
             {/* Chat panel (left) */}
-            <div
-              className="flex flex-col h-full border-r overflow-hidden"
-              style={{ width: `${leftPercent}%` }}
-            >
-              <ChatPanel projectId={projectId} />
-            </div>
+             <div
+               className="flex flex-col h-full border-r overflow-hidden"
+               style={{ width: `${leftPercent}%` }}
+             >
+               <ChatPanel projectId={projectId} models={models} />
+             </div>
 
             {/* Draggable separator */}
             <ResizableSeparator onMouseDown={onSeparatorMouseDown} />

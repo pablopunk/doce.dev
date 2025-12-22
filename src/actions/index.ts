@@ -33,6 +33,7 @@ import {
 	getProjectById,
 	isProjectOwnedByUser,
 	updateProjectModel,
+	updateOpencodeJsonModel,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
 import { eq } from "drizzle-orm";
@@ -428,7 +429,21 @@ export const server = {
 					});
 				}
 
+				// Update database
 				await updateProjectModel(input.projectId, input.model);
+				
+				// Also update opencode.json on disk for file-based persistence
+				if (input.model) {
+					try {
+						await updateOpencodeJsonModel(input.projectId, input.model);
+					} catch (error) {
+						// Log warning but don't fail - DB is already updated
+						console.warn(
+							"Updated model in database but failed to update opencode.json. Next OpenCode session may not reflect model change until file is manually synced."
+						);
+					}
+				}
+				
 				return { success: true };
 			},
 		}),

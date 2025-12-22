@@ -41,4 +41,15 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * **Pino** - logging
 * **Zod** - schema validation
 
+## Architecture
+
+### Model Selection (ChatInput)
+Users can change the AI model during an active chat session:
+- **UI**: ModelSelector component appears in ChatInput footer next to Send button
+- **Data persistence**: Model selection is stored in `projects.model` database column and synced to `opencode.json` on disk
+- **Session behavior**: Model is passed with each prompt via `{ providerID: "openrouter", modelID }` parameter
+- **State management**: Current model is polled from presence API and maintained in ChatPanel state
+- **Component reuse**: ModelSelector is reused from CreateProjectForm for consistency
+- **Error handling**: Optimistic UI updates with revert on action failure; file updates are best-effort and don't block DB updates
+
 

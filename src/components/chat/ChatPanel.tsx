@@ -4,9 +4,11 @@ import { type ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
 import { Loader2 } from "lucide-react";
+import { actions } from "astro:actions";
 
 interface ChatPanelProps {
   projectId: string;
+  models?: ReadonlyArray<{ id: string; name: string; provider: string }>;
 }
 
 interface ChatItem {
@@ -23,7 +25,7 @@ interface PresenceData {
   bootstrapSessionId: string | null;
 }
 
-export function ChatPanel({ projectId }: ChatPanelProps) {
+export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -31,6 +33,7 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   const [opencodeReady, setOpencodeReady] = useState(false);
   const [initialPromptSent, setInitialPromptSent] = useState(true); // Assume sent until we know otherwise
   const [projectPrompt, setProjectPrompt] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -194,16 +197,17 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
            body: JSON.stringify({ viewerId }),
          });
          if (response.ok) {
-           const data = await response.json() as PresenceData;
-           if (data.opencodeReady) {
-             setOpencodeReady(true);
-             setInitialPromptSent(data.initialPromptSent);
-             setProjectPrompt(data.prompt);
-             // Set session ID from bootstrap session created by queue
-             if (data.bootstrapSessionId) {
-               setSessionId(data.bootstrapSessionId);
-             }
-           }
+            const data = await response.json() as PresenceData;
+            if (data.opencodeReady) {
+              setOpencodeReady(true);
+              setInitialPromptSent(data.initialPromptSent);
+              setProjectPrompt(data.prompt);
+              setCurrentModel(data.model);
+              // Set session ID from bootstrap session created by queue
+              if (data.bootstrapSessionId) {
+                setSessionId(data.bootstrapSessionId);
+              }
+            }
          }
        } catch {
          // Ignore errors
@@ -476,28 +480,58 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
         return;
       }
 
-      // Send message (async - response comes via SSE)
-      const res = await fetch(
-        `/api/projects/${projectId}/opencode/session/${currentSessionId}/prompt_async`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            parts: [{ type: "text", text: content }],
-          }),
-        }
-      );
+       // Send message (async - response comes via SSE)
+       const res = await fetch(
+         `/api/projects/${projectId}/opencode/session/${currentSessionId}/prompt_async`,
+         {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({
+             parts: [{ type: "text", text: content }],
+             // Include model if available - OpenCode will use this for the response
+             ...(currentModel && {
+               model: {
+                 providerID: "openrouter",
+                 modelID: currentModel,
+               },
+             }),
+           }),
+         }
+       );
 
       // prompt_async returns 204 No Content on success
       if (res.ok || res.status === 204) {
         setIsStreaming(true);
       }
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    }
-  };
+     } catch (error) {
+       console.error("Failed to send message:", error);
+     }
+   };
 
-  const toggleToolExpanded = (id: string) => {
+   const handleModelChange = async (newModelId: string) => {
+     // Optimistic update - update UI immediately
+     const previousModel = currentModel;
+     setCurrentModel(newModelId);
+     
+     try {
+       const result = await actions.projects.updateModel({
+         projectId,
+         model: newModelId,
+       });
+       
+       if (!result.data?.success) {
+         // Revert on error
+         setCurrentModel(previousModel);
+         console.error("Failed to update model");
+       }
+     } catch (error) {
+       // Revert on error
+       setCurrentModel(previousModel);
+       console.error("Failed to update model:", error);
+     }
+   };
+
+   const toggleToolExpanded = (id: string) => {
     setExpandedTools((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -572,17 +606,20 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
         )}
       </div>
 
-      <ChatInput
-        onSend={handleSend}
-        disabled={!opencodeReady || isStreaming}
-        placeholder={
-          !opencodeReady
-            ? "Waiting for opencode..."
-            : isStreaming
-              ? "Processing..."
-              : "Type a message..."
-        }
-      />
+       <ChatInput
+         onSend={handleSend}
+         disabled={!opencodeReady || isStreaming}
+         placeholder={
+           !opencodeReady
+             ? "Waiting for opencode..."
+             : isStreaming
+               ? "Processing..."
+               : "Type a message..."
+         }
+         model={currentModel}
+         models={models}
+         onModelChange={handleModelChange}
+       />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
 import { ProjectContentWrapper } from "@/components/projects/ProjectContentWrapper";
 import { getProjectById } from "@/server/projects/projects.model";
+import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -44,7 +45,7 @@ if (slug && slug !== project.slug) {
       />
     ) : (
       <!-- Setup complete: show chat + preview (with container startup overlay) -->
-      <ProjectContentWrapper projectId={project.id} client:load />
+      <ProjectContentWrapper projectId={project.id} models={AVAILABLE_MODELS} client:load />
     )}
    </div>
 </AppLayout>

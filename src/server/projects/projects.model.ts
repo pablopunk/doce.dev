@@ -1,6 +1,9 @@
 import { db } from "@/server/db/client";
 import { projects, type Project, type NewProject } from "@/server/db/schema";
 import { eq, and, isNull, desc, ne } from "drizzle-orm";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { logger } from "@/server/logger";
 
 export type ProjectStatus = Project["status"];
 
@@ -77,6 +80,38 @@ export async function updateProjectModel(
   model: string | null
 ): Promise<void> {
   await db.update(projects).set({ model }).where(eq(projects.id, id));
+}
+
+/**
+ * Update the model field in opencode.json for a project.
+ * This ensures the model persists when the OpenCode server reads the config.
+ */
+export async function updateOpencodeJsonModel(
+  projectId: string,
+  newModel: string
+): Promise<void> {
+  const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+  const opencodeJsonPath = path.join(projectPath, "opencode.json");
+
+  try {
+    // Read existing config
+    const content = await fs.readFile(opencodeJsonPath, "utf-8");
+    const config = JSON.parse(content) as Record<string, unknown>;
+
+    // Update the model field
+    config.model = newModel;
+
+    // Write back to file
+    await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
+    
+    logger.debug({ projectId, newModel }, "Updated opencode.json model");
+  } catch (error) {
+    logger.error(
+      { projectId, newModel, error: String(error) },
+      "Failed to update opencode.json model"
+    );
+    throw error;
+  }
 }
 
 /**
