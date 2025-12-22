@@ -71,9 +71,6 @@ importers:
       shadcn:
         specifier: ^3.6.2
         version: 3.6.2(@types/node@25.0.1)(hono@4.11.1)(typescript@5.9.3)
-      svgl-react:
-        specifier: ^1.1.4
-        version: 1.1.4(react@19.2.3)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -3206,11 +3203,6 @@ packages:
 
   style-to-object@1.0.14:
     resolution: {integrity: sha512-LIN7rULI0jBscWQYaSswptyderlarFkjQ+t79nzty8tcIAceVomEVlLzH5VP4Cmsv6MtKhs7qaAiwlcp+Mgaxw==}
-
-  svgl-react@1.1.4:
-    resolution: {integrity: sha512-sE2wboM5Fw8fgapCYH1kXJHrb9jLXkigw34Of5yQu8VZnFnDKQFrAvepDc3GujxdPgfos7HZ/L1qBggVLJj51w==}
-    peerDependencies:
-      react: ^18.3.1
 
   svgo@4.0.0:
     resolution: {integrity: sha512-VvrHQ+9uniE+Mvx3+C9IEe/lWasXCU0nXMY2kZeLrHNICuRiC8uMPyM14UEaMOFA5mhyQqEkB02VoQ16n3DLaw==}
@@ -7026,10 +7018,6 @@ snapshots:
   style-to-object@1.0.14:
     dependencies:
       inline-style-parser: 0.2.7
-
-  svgl-react@1.1.4(react@19.2.3):
-    dependencies:
-      react: 19.2.3
 
   svgo@4.0.0:
     dependencies:
