@@ -12,6 +12,7 @@ import type {
   OpencodeSessionCreatePayload,
   OpencodeSessionInitPayload,
   OpencodeSendInitialPromptPayload,
+  OpencodeSendUserPromptPayload,
 } from "./types";
 
 // --- Project lifecycle ---
@@ -143,4 +144,18 @@ export async function enqueueOpencodeSendInitialPrompt(
   });
 }
 
-
+/**
+ * Enqueue sending the user's actual prompt (the project prompt).
+ * This is called after session.init completes.
+ */
+export async function enqueueOpencodeSendUserPrompt(
+  input: OpencodeSendUserPromptPayload
+): Promise<QueueJob> {
+  return enqueueJob({
+    id: randomBytes(16).toString("hex"),
+    type: "opencode.sendUserPrompt",
+    projectId: input.projectId,
+    payload: input,
+    dedupeKey: `opencode.sendUserPrompt:${input.projectId}`,
+  });
+}

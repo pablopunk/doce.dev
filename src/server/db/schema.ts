@@ -70,6 +70,15 @@ export const projects = sqliteTable("projects", {
     .notNull()
     .default(false),
   bootstrapSessionId: text("bootstrap_session_id"),
+  // Split prompt tracking - separate init and user prompts
+  initPromptMessageId: text("init_prompt_message_id"),
+  userPromptMessageId: text("user_prompt_message_id"),
+  initPromptCompleted: integer("init_prompt_completed", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
+    .notNull()
+    .default(false),
 });
 
 // Queue jobs table (durable background tasks)

@@ -33,9 +33,14 @@ export interface PresenceResponse {
   opencodeReady: boolean;
   message: string | null;
   nextPollMs: number;
-  // Initial prompt fields
+  // Initial prompt fields (legacy)
   initialPromptSent: boolean;
   initialPromptCompleted: boolean;
+  // Split prompt tracking
+  initPromptCompleted: boolean;
+  userPromptCompleted: boolean;
+  initPromptMessageId: string | null;
+  userPromptMessageId: string | null;
   prompt: string;
   model: string | null;
   // Project slug
@@ -158,6 +163,10 @@ export async function handlePresenceHeartbeat(
             nextPollMs: 2000,
             initialPromptSent: project.initialPromptSent,
             initialPromptCompleted: project.initialPromptCompleted,
+            initPromptCompleted: project.initPromptCompleted,
+            userPromptCompleted: project.userPromptCompleted,
+            initPromptMessageId: project.initPromptMessageId,
+            userPromptMessageId: project.userPromptMessageId,
             prompt: project.prompt,
             model: project.model,
             slug: project.slug,
@@ -280,6 +289,10 @@ export async function handlePresenceHeartbeat(
           nextPollMs,
           initialPromptSent: project.initialPromptSent,
           initialPromptCompleted: project.initialPromptCompleted,
+          initPromptCompleted: project.initPromptCompleted,
+          userPromptCompleted: project.userPromptCompleted,
+          initPromptMessageId: project.initPromptMessageId,
+          userPromptMessageId: project.userPromptMessageId,
           prompt: project.prompt,
           model: project.model,
           slug: project.slug,

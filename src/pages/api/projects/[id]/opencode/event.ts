@@ -3,7 +3,8 @@ import { validateSession } from "@/server/auth/sessions";
 import {
   getProjectById,
   isProjectOwnedByUser,
-  markInitialPromptCompleted,
+  markInitPromptCompleted,
+  markUserPromptCompleted,
 } from "@/server/projects/projects.model";
 import {
   normalizeEvent,
@@ -80,14 +81,19 @@ export const GET: APIRoute = async ({ params, cookies }) => {
   let isClosed = false;
   let dataBuffer = "";
 
-  // Track if we've already marked initial prompt as completed for this connection
-  let hasMarkedInitialPromptCompleted = project.initialPromptCompleted;
+  // Track completion state for this connection using idle event counter
+  // First idle = init prompt completed (AGENTS.md generation)
+  // Second idle = user prompt completed (actual project work)
+  let idleEventCount = 0;
+  let hasMarkedInitPromptCompleted = project.initPromptCompleted;
+  let hasMarkedUserPromptCompleted = project.userPromptCompleted;
 
    /**
-    * Check if the session has become idle and mark initial prompt as completed if needed.
+    * Check if the session has become idle and mark prompts as completed.
+    * Uses idle event counting: 1st idle = init prompt done, 2nd idle = user prompt done.
     * This is called server-side so it works even if client disconnects.
     */
-   const checkInitialPromptCompletion = async (
+   const checkPromptCompletion = async (
      parsed: { type: string; properties?: Record<string, unknown> },
      sendEvent: (event: object) => void
    ) => {
@@ -98,27 +104,52 @@ export const GET: APIRoute = async ({ params, cookies }) => {
      const statusObj = parsed.properties?.status as { type?: string } | undefined;
      const status = statusObj?.type;
 
-     // Already marked as completed - no need to check again
-     if (hasMarkedInitialPromptCompleted) return;
+     // Only process idle events
+     if (status !== "idle") return;
 
-     // Session is idle = agent has finished responding
-     if (status === "idle") {
-       // Re-fetch project to get latest state (in case it was updated elsewhere)
-       const currentProject = await getProjectById(projectId);
-       if (!currentProject) return;
+     // Re-fetch project to get latest state (in case it was updated elsewhere)
+     const currentProject = await getProjectById(projectId);
+     if (!currentProject) return;
 
-       // Only mark completed if initial prompt was sent but not yet completed
-       if (currentProject.initialPromptSent && !currentProject.initialPromptCompleted) {
-         logger.info({ projectId }, "Initial prompt completed - marking in database");
-         await markInitialPromptCompleted(projectId);
-         hasMarkedInitialPromptCompleted = true;
-         
-         // Send setup.complete event to frontend so it can advance to step 5
-         sendEvent({
-           type: "setup.complete",
-           payload: {},
-         });
-       }
+     // Don't count idle events if prompts haven't been sent yet
+     if (!currentProject.initialPromptSent) return;
+
+     // Increment idle counter
+     idleEventCount++;
+
+     logger.debug(
+       { projectId, idleEventCount, hasMarkedInitPromptCompleted, hasMarkedUserPromptCompleted },
+       "Received idle event"
+     );
+
+     // First idle event = init prompt completed (AGENTS.md generation finished)
+     if (idleEventCount === 1 && !hasMarkedInitPromptCompleted) {
+       logger.info({ projectId }, "Init prompt completed - marking in database");
+       await markInitPromptCompleted(projectId);
+       hasMarkedInitPromptCompleted = true;
+       // Don't send setup.complete yet - still waiting for user prompt
+     }
+
+     // Second idle event = user prompt completed (actual project work finished)
+     if (idleEventCount === 2 && !hasMarkedUserPromptCompleted) {
+       logger.info({ projectId }, "User prompt completed - marking in database");
+       await markUserPromptCompleted(projectId);
+       hasMarkedUserPromptCompleted = true;
+       
+       // NOW both prompts are complete - send setup.complete event
+       sendEvent({
+         type: "setup.complete",
+         payload: {},
+       });
+     }
+
+     // Edge case: If we reconnected and both were already marked,
+     // but the user prompt was still running, we might see more idle events.
+     // In that case, if we haven't sent setup.complete yet and both are now done,
+     // send it now.
+     if (hasMarkedInitPromptCompleted && hasMarkedUserPromptCompleted) {
+       // Both already marked - nothing more to do
+       return;
      }
    };
 
@@ -186,10 +217,10 @@ export const GET: APIRoute = async ({ params, cookies }) => {
               const parsed = parseSSEData(data);
 
                 if (parsed) {
-                  // Check for initial prompt completion (server-side detection)
+                  // Check for prompt completion (server-side detection)
                   if (sendEventFn) {
-                    checkInitialPromptCompletion(parsed, sendEventFn).catch((error: unknown) => {
-                      logger.error({ error, projectId }, "Error checking initial prompt completion");
+                    checkPromptCompletion(parsed, sendEventFn).catch((error: unknown) => {
+                      logger.error({ error, projectId }, "Error checking prompt completion");
                     });
                   }
 

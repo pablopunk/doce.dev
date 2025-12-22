@@ -1,6 +1,11 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { isProjectOwnedByUser, getProjectById, markInitialPromptCompleted } from "@/server/projects/projects.model";
+import { 
+  isProjectOwnedByUser, 
+  getProjectById, 
+  markInitPromptCompleted,
+  markUserPromptCompleted,
+} from "@/server/projects/projects.model";
 import { listJobs } from "@/server/queue/queue.model";
 import type { QueueJobState } from "@/server/queue/queue.model";
 import { logger } from "@/server/logger";
@@ -8,14 +13,18 @@ import { logger } from "@/server/logger";
 const SESSION_COOKIE_NAME = "doce_session";
 
 // Setup job types in order
+// Note: "opencode.sendUserPrompt" is the new name, "opencode.sendInitialPrompt" is legacy
 const SETUP_JOBS = [
   "project.create",
   "docker.composeUp",
   "docker.waitReady",
   "opencode.sessionCreate",
   "opencode.sessionInit",
-  "opencode.sendInitialPrompt",
+  "opencode.sendUserPrompt",
 ] as const;
+
+// Legacy job type for backward compatibility with older projects
+const LEGACY_SEND_PROMPT_JOB = "opencode.sendInitialPrompt";
 
 interface JobStatus {
   type: string;
@@ -91,8 +100,13 @@ export const GET: APIRoute = async ({ params, cookies }) => {
     // Map jobs by type for quick lookup (get the latest of each type)
     const jobsByType = new Map<string, (typeof jobs)[0]>();
     for (const job of jobs) {
-      if (SETUP_JOBS.includes(job.type as any) && !jobsByType.has(job.type)) {
+      // Check for both new and legacy job types
+      if (SETUP_JOBS.includes(job.type as (typeof SETUP_JOBS)[number]) && !jobsByType.has(job.type)) {
         jobsByType.set(job.type, job);
+      }
+      // Handle legacy job type - treat it as the new one for compatibility
+      if (job.type === LEGACY_SEND_PROMPT_JOB && !jobsByType.has("opencode.sendUserPrompt")) {
+        jobsByType.set("opencode.sendUserPrompt", job);
       }
     }
 
@@ -138,7 +152,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
           currentStep = SETUP_JOBS.indexOf(jobType) + 1;
 
           // Track when prompt was sent (for agent timeout detection)
-          if (jobType === "opencode.sendInitialPrompt") {
+          if (jobType === "opencode.sendUserPrompt") {
             promptSentAt = job.updatedAt.getTime();
           }
         } else {
@@ -148,14 +162,21 @@ export const GET: APIRoute = async ({ params, cookies }) => {
     }
 
     // If all setup jobs are complete, we're on step 5 (Done)
-    // Also mark initial prompt as completed in the database so UI properly transitions
+    // Also mark prompts as completed in the database so UI properly transitions
     if (isSetupComplete) {
       currentStep = 5;
       
       // Mark completion in database if not already marked
-      if (project.initialPromptSent && !project.initialPromptCompleted) {
-        await markInitialPromptCompleted(projectId);
-        logger.info({ projectId }, "Marked initial prompt completed via queue-status endpoint");
+      // This is a fallback in case the SSE event-based completion wasn't triggered
+      if (project.initialPromptSent) {
+        if (!project.initPromptCompleted) {
+          await markInitPromptCompleted(projectId);
+          logger.info({ projectId }, "Marked init prompt completed via queue-status endpoint");
+        }
+        if (!project.userPromptCompleted) {
+          await markUserPromptCompleted(projectId);
+          logger.info({ projectId }, "Marked user prompt completed via queue-status endpoint");
+        }
       }
     }
 

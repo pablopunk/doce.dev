@@ -1,8 +1,11 @@
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { 
+  getProjectByIdIncludeDeleted,
+  updateInitPromptMessageId,
+} from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeSendInitialPrompt } from "../enqueue";
+import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -152,9 +155,14 @@ export async function handleOpencodeSessionInit(ctx: QueueJobContext): Promise<v
 
     await ctx.throwIfCancelRequested();
 
-    // Enqueue next step: send initial prompt
-    await enqueueOpencodeSendInitialPrompt({ projectId: project.id });
-    logger.debug({ projectId: project.id }, "Enqueued opencode.sendInitialPrompt");
+    // The session.init was called with firstMessageId - that's the message that contains the
+    // AGENTS.md generation prompt. Store it so we can filter it out from chat history.
+    await updateInitPromptMessageId(project.id, firstMessageId);
+    logger.debug({ projectId: project.id, initMsgId: firstMessageId }, "Stored init prompt message ID");
+
+    // Enqueue next step: send user prompt (the actual project prompt)
+    await enqueueOpencodeSendUserPrompt({ projectId: project.id });
+    logger.debug({ projectId: project.id }, "Enqueued opencode.sendUserPrompt");
    } catch (error) {
      throw error;
    }

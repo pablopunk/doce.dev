@@ -149,7 +149,11 @@ async function copyDir(src: string, dest: string): Promise<void> {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory()) {
+    if (entry.isSymbolicLink()) {
+      // Preserve symlinks (important for pnpm node_modules)
+      const linkTarget = await fs.readlink(srcPath);
+      await fs.symlink(linkTarget, destPath);
+    } else if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else {
       await fs.copyFile(srcPath, destPath);

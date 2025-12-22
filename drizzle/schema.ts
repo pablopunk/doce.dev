@@ -17,9 +17,11 @@ export const projects = sqliteTable("projects", {
 	initialPromptSent: integer("initial_prompt_sent").default(0).notNull(),
 	initialPromptCompleted: integer("initial_prompt_completed").default(0).notNull(),
 	bootstrapSessionId: text("bootstrap_session_id"),
-	setupPhase: text("setup_phase").default("not_started").notNull(),
-	setupError: text("setup_error"),
-	setupStartedAt: integer("setup_started_at"),
+	// Split prompt tracking - separate init and user prompts
+	initPromptMessageId: text("init_prompt_message_id"),
+	userPromptMessageId: text("user_prompt_message_id"),
+	initPromptCompleted: integer("init_prompt_completed").default(0).notNull(),
+	userPromptCompleted: integer("user_prompt_completed").default(0).notNull(),
 },
 (table) => [
 	uniqueIndex("projects_slug_unique").on(table.slug),

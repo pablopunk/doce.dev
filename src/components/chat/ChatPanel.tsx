@@ -20,6 +20,7 @@ interface ChatItem {
 interface PresenceData {
   opencodeReady: boolean;
   initialPromptSent: boolean;
+  userPromptMessageId: string | null;
   prompt: string;
   model: string | null;
   bootstrapSessionId: string | null;
@@ -32,9 +33,11 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [opencodeReady, setOpencodeReady] = useState(false);
   const [initialPromptSent, setInitialPromptSent] = useState(true); // Assume sent until we know otherwise
+  const [userPromptMessageId, setUserPromptMessageId] = useState<string | null>(null);
   const [projectPrompt, setProjectPrompt] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [presenceLoaded, setPresenceLoaded] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -79,8 +82,12 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
   }, [items, shouldAutoScroll]);
 
   // Load existing session history when opencode is ready
+  // We must wait for initPromptMessageId to be set (or confirmed null) before loading history
+  // so we can properly filter out the init prompt conversation
   useEffect(() => {
-    if (!opencodeReady || historyLoaded || loadingHistoryRef.current) return;
+    // Wait for opencodeReady and for presence data to be fully loaded
+    // presenceLoaded ensures initPromptMessageId has been populated from presence API
+    if (!opencodeReady || historyLoaded || loadingHistoryRef.current || !presenceLoaded) return;
     
     const loadHistory = async () => {
       loadingHistoryRef.current = true;
@@ -123,11 +130,26 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         // Convert messages to chat items
         const historyItems: ChatItem[] = [];
         
+        // Filter out init prompt conversation (AGENTS.md generation)
+        // We skip ALL messages BEFORE the userPromptMessageId
+        // This hides the initialization conversation from users
+        let foundUserPrompt = false;
+        
         for (const msg of messages) {
           const info = msg.info || {};
           const parts = msg.parts || [];
           const role = info.role;
           const messageId = info.id || `hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          
+          // If we have a userPromptMessageId, skip all messages until we find it
+          if (userPromptMessageId && !foundUserPrompt) {
+            if (messageId === userPromptMessageId) {
+              foundUserPrompt = true;
+              // Continue to process this message (don't skip it)
+            } else {
+              continue; // Skip this message (it's part of init prompt conversation)
+            }
+          }
           
           if (role === "user" || role === "assistant") {
             // Extract text content from parts
@@ -182,7 +204,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
     };
     
     loadHistory();
-  }, [projectId, opencodeReady, historyLoaded, scrollToBottom]);
+  }, [projectId, opencodeReady, historyLoaded, scrollToBottom, userPromptMessageId, presenceLoaded]);
 
    // Poll for opencode readiness and handle initial prompt
    useEffect(() => {
@@ -201,12 +223,15 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
             if (data.opencodeReady) {
               setOpencodeReady(true);
               setInitialPromptSent(data.initialPromptSent);
+              setUserPromptMessageId(data.userPromptMessageId);
               setProjectPrompt(data.prompt);
               setCurrentModel(data.model);
               // Set session ID from bootstrap session created by queue
               if (data.bootstrapSessionId) {
                 setSessionId(data.bootstrapSessionId);
               }
+              // Mark presence data as loaded so history can be fetched with proper filtering
+              setPresenceLoaded(true);
             }
          }
        } catch {

@@ -13,7 +13,8 @@ export const queueJobTypeSchema = z.enum([
   // Opencode bootstrap
   "opencode.sessionCreate",
   "opencode.sessionInit",
-  "opencode.sendInitialPrompt",
+  "opencode.sendInitialPrompt", // legacy: kept for backward compatibility
+  "opencode.sendUserPrompt",    // new: sends user's actual prompt
 ]);
 
 export type QueueJobType = z.infer<typeof queueJobTypeSchema>;
@@ -93,7 +94,11 @@ export const opencodeSendInitialPromptPayloadSchema = z.object({
 
 export type OpencodeSendInitialPromptPayload = z.infer<typeof opencodeSendInitialPromptPayloadSchema>;
 
+export const opencodeSendUserPromptPayloadSchema = z.object({
+  projectId: z.string().min(1),
+});
 
+export type OpencodeSendUserPromptPayload = z.infer<typeof opencodeSendUserPromptPayloadSchema>;
 
 // --- Payload by type mapping ---
 
@@ -108,6 +113,7 @@ const payloadSchemaByType = {
   "opencode.sessionCreate": opencodeSessionCreatePayloadSchema,
   "opencode.sessionInit": opencodeSessionInitPayloadSchema,
   "opencode.sendInitialPrompt": opencodeSendInitialPromptPayloadSchema,
+  "opencode.sendUserPrompt": opencodeSendUserPromptPayloadSchema,
 } as const satisfies Record<QueueJobType, z.ZodTypeAny>;
 
 export type PayloadByType = {
@@ -121,6 +127,7 @@ export type PayloadByType = {
   "opencode.sessionCreate": OpencodeSessionCreatePayload;
   "opencode.sessionInit": OpencodeSessionInitPayload;
   "opencode.sendInitialPrompt": OpencodeSendInitialPromptPayload;
+  "opencode.sendUserPrompt": OpencodeSendUserPromptPayload;
 };
 
 export function parsePayload<T extends QueueJobType>(

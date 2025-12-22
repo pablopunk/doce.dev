@@ -52,4 +52,31 @@ Users can change the AI model during an active chat session:
 - **Component reuse**: ModelSelector is reused from CreateProjectForm for consistency
 - **Error handling**: Optimistic UI updates with revert on action failure; file updates are best-effort and don't block DB updates
 
+### Split Prompt Tracking (Project Creation Flow)
+When a project is created, TWO separate prompts are sent to the agent:
 
+1. **Init Prompt**: Triggered by `session.init` in `opencodeSessionInit.ts`
+   - Creates `AGENTS.md` file with project-specific instructions
+   - Message ID stored in `projects.initPromptMessageId`
+   - Completion tracked via `projects.initPromptCompleted`
+
+2. **User Prompt**: Sent by `opencodeSendUserPrompt.ts` handler
+   - Contains the user's actual project request (e.g., "clone this website")
+   - Message ID stored in `projects.userPromptMessageId`  
+   - Completion tracked via `projects.userPromptCompleted`
+
+**Completion Detection**: The SSE event handler (`event.ts`) tracks idle events:
+- 1st idle event → marks init prompt completed
+- 2nd idle event → marks user prompt completed, sends `setup.complete` event
+
+**UI Behavior**:
+- Setup display shows until BOTH `initPromptCompleted && userPromptCompleted`
+- Chat history filters out init prompt messages using `initPromptMessageId`
+- Users only see their actual prompt and its response in the chat UI
+
+**Database Columns**:
+- `initPromptMessageId` - OpenCode message ID for init prompt
+- `userPromptMessageId` - OpenCode message ID for user prompt
+- `initPromptCompleted` - Boolean, true when init prompt goes idle
+- `userPromptCompleted` - Boolean, true when user prompt goes idle
+- `initialPromptCompleted` - Legacy column (kept for backward compatibility, set when userPromptCompleted is set)

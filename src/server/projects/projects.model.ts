@@ -198,4 +198,59 @@ export async function updateBootstrapSessionId(
     .where(eq(projects.id, id));
 }
 
+// ============================================================================
+// Split Prompt Tracking Functions
+// ============================================================================
 
+/**
+ * Update the init prompt message ID for a project.
+ * This is set when the empty init prompt is created during session initialization.
+ */
+export async function updateInitPromptMessageId(
+  id: string,
+  messageId: string
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ initPromptMessageId: messageId })
+    .where(eq(projects.id, id));
+}
+
+/**
+ * Update the user prompt message ID for a project.
+ * This is set when the user's actual prompt is sent.
+ */
+export async function updateUserPromptMessageId(
+  id: string,
+  messageId: string
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ userPromptMessageId: messageId })
+    .where(eq(projects.id, id));
+}
+
+/**
+ * Mark the init prompt as completed (when it goes idle).
+ */
+export async function markInitPromptCompleted(id: string): Promise<void> {
+  await db
+    .update(projects)
+    .set({ initPromptCompleted: true })
+    .where(eq(projects.id, id));
+}
+
+/**
+ * Mark the user prompt as completed (when it goes idle).
+ * Also marks the legacy initialPromptCompleted flag for backward compatibility.
+ */
+export async function markUserPromptCompleted(id: string): Promise<void> {
+  await db
+    .update(projects)
+    .set({ 
+      userPromptCompleted: true,
+      // Also update legacy flag for backward compatibility
+      initialPromptCompleted: true,
+    })
+    .where(eq(projects.id, id));
+}
