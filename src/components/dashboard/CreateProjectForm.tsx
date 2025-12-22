@@ -87,7 +87,10 @@ export function CreateProjectForm({
 		}
 	};
 
-	const waitForProjectToExist = async (projectId: string, maxAttempts = 100) => {
+	const waitForProjectToExist = async (
+		projectId: string,
+		maxAttempts = 100,
+	) => {
 		const delayMs = 200; // Poll every 200ms
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -139,14 +142,15 @@ export function CreateProjectForm({
 							disabled={isLoading || !prompt.trim()}
 							title="Create project (or press Ctrl+Enter in textarea)"
 							type="button"
-							size="lg"
 						>
 							{isLoading ? (
 								<Loader2 className="w-5 h-5 animate-spin" />
 							) : (
 								<Sparkles className="w-5 h-5 text-chart-1" />
 							)}
-							<span className="bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">Create</span>
+							<span className="bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
+								Create
+							</span>
 						</Button>
 					</div>
 				</div>

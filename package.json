@@ -7,14 +7,15 @@
     "build": "astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
-    "astro": "astro"
+    "astro": "astro",
+    "shadcn:update": "bash scripts/shadcn-update.sh"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
     "@astrojs/node": "^9.5.1",
     "@astrojs/react": "^4.4.2",
     "@base-ui/react": "^1.0.0",
-    "@fontsource-variable/noto-sans": "^5.2.10",
+    "@fontsource-variable/inter": "^5.2.8",
     "@opencode-ai/sdk": "^1.0.152",
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.5",

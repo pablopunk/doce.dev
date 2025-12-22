@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
-import { ResizableSeparator } from "@/components/ui/ResizableSeparator";
+import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
