@@ -2,7 +2,6 @@
 import "@/styles/globals.css";
 import { Navbar } from "@/components/navbar/Navbar";
 import ThemeProvider from "@/components/providers/ThemeProvider";
-import { SWRProvider } from "@/components/providers/SWRProvider";
 
 interface Props {
 	title: string;
@@ -29,9 +28,7 @@ const { title } = Astro.props;
   <body class="h-screen bg-background text-foreground antialiased flex flex-col">
     <Navbar client:load />
     <ThemeProvider client:load>
-        <SWRProvider client:load>
-            <slot />
-        </SWRProvider>
+        <slot />
     </ThemeProvider>
   </body>
 </html>

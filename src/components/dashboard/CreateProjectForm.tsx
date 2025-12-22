@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
-import { useCreateProject } from "@/hooks/useCreateProject";
+import { actions } from "astro:actions";
 
 interface CreateProjectFormProps {
 	models: readonly { id: string; name: string; provider: string }[];
@@ -18,7 +18,6 @@ export function CreateProjectForm({
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const { createProject } = useCreateProject();
 
 	const adjustTextareaHeight = () => {
 		const textarea = textareaRef.current;
@@ -41,11 +40,26 @@ export function CreateProjectForm({
 		setError("");
 
 		try {
-			const projectId = await createProject({
-				prompt: prompt.trim(),
-				model: selectedModel,
-			});
+			// Create FormData for the form-based action
+			const formData = new FormData();
+			formData.append("prompt", prompt.trim());
+			formData.append("model", selectedModel);
 
+			const result = await actions.projects.create(formData);
+
+			if (result.error) {
+				setError(result.error.message);
+				setIsLoading(false);
+				return;
+			}
+
+			if (!result.data?.projectId) {
+				setError("Failed to create project");
+				setIsLoading(false);
+				return;
+			}
+
+			const projectId = result.data.projectId;
 			const url = `/projects/${projectId}`;
 
 			// Poll for project to exist in DB
@@ -74,17 +88,17 @@ export function CreateProjectForm({
 	};
 
 	const waitForProjectToExist = async (projectId: string, maxAttempts = 100) => {
-		const delayMs = 200; // Poll every 200ms (increased from 100ms)
+		const delayMs = 200; // Poll every 200ms
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			try {
-				const response = await fetch(`/api/projects/${projectId}`);
-				if (response.ok) {
+				const result = await actions.projects.get({ projectId });
+				if (result.data?.project) {
 					// Project exists! We can redirect now
 					return;
 				}
 			} catch (err) {
-				// Network error, continue polling
+				// Action error, continue polling
 			}
 
 			// Wait before next attempt

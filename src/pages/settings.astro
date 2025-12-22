@@ -1,6 +1,12 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,17 +20,17 @@ import { getProjectsByUserId } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
 if (!user) {
-  return Astro.redirect("/login");
+	return Astro.redirect("/login");
 }
 
 const result = Astro.getActionResult(actions.settings.save);
 
 // Get current settings
 const settings = await db
-  .select()
-  .from(userSettings)
-  .where(eq(userSettings.userId, user.id))
-  .limit(1);
+	.select()
+	.from(userSettings)
+	.where(eq(userSettings.userId, user.id))
+	.limit(1);
 
 const currentSettings = settings[0];
 
@@ -39,10 +45,6 @@ const projectCount = projects.length;
       <div>
         <h1 class="text-3xl font-bold">Settings</h1>
         <p class="text-muted-foreground">Manage your doce.dev configuration</p>
-      </div>
-      <div class="flex items-center gap-4 text-sm">
-        <a href="/queue" class="text-muted-foreground hover:text-foreground">Queue</a>
-        <a href="/" class="text-muted-foreground hover:text-foreground">Back to Dashboard</a>
       </div>
     </div>
 

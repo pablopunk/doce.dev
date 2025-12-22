@@ -142,47 +142,58 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
     }
   }
 
-  try {
-    const controller = new AbortController();
-    // Use longer timeout for message endpoints (LLM responses can take a while)
-    const isMessageEndpoint = proxyPath.includes("/message");
-    const timeoutMs = isMessageEndpoint ? MESSAGE_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+   try {
+     const controller = new AbortController();
+     // Use longer timeout for message endpoints (LLM responses can take a while)
+     const isMessageEndpoint = proxyPath.includes("/message");
+     const timeoutMs = isMessageEndpoint ? MESSAGE_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method,
-      headers: requestHeaders,
-      body,
-      signal: controller.signal,
-    });
+     const upstreamResponse = await fetch(upstreamUrl, {
+       method,
+       headers: requestHeaders,
+       body,
+       signal: controller.signal,
+     });
 
-    clearTimeout(timeout);
+     clearTimeout(timeout);
 
-    logger.debug(
-      { method, proxyPath, status: upstreamResponse.status },
-      "Proxy request"
-    );
+     logger.debug(
+       { method, proxyPath, status: upstreamResponse.status },
+       "Proxy request"
+     );
 
-    // Return response with stripped headers
-    const responseHeaders = stripResponseHeaders(upstreamResponse.headers);
+     // Return response with stripped headers
+     const responseHeaders = stripResponseHeaders(upstreamResponse.headers);
 
-    return new Response(upstreamResponse.body, {
-      status: upstreamResponse.status,
-      statusText: upstreamResponse.statusText,
-      headers: responseHeaders,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return new Response(JSON.stringify({ error: "Request timeout" }), {
-        status: 504,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+     return new Response(upstreamResponse.body, {
+       status: upstreamResponse.status,
+       statusText: upstreamResponse.statusText,
+       headers: responseHeaders,
+     });
+   } catch (error) {
+     if (error instanceof Error && error.name === "AbortError") {
+       return new Response(JSON.stringify({ error: "Request timeout" }), {
+         status: 504,
+         headers: { "Content-Type": "application/json" },
+       });
+     }
 
-    logger.error({ error, projectId, proxyPath }, "Proxy error");
-    return new Response(JSON.stringify({ error: "Upstream error" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+     logger.error({ error, projectId, proxyPath }, "Proxy error");
+
+     // For session endpoints, return empty array instead of 502 error
+     // This allows the frontend to treat "server not ready" as "no sessions yet"
+     // and keep polling until the server is ready
+     if (proxyPath.startsWith("session")) {
+       return new Response(JSON.stringify([]), {
+         status: 200,
+         headers: { "Content-Type": "application/json" },
+       });
+     }
+
+     return new Response(JSON.stringify({ error: "Upstream error" }), {
+       status: 502,
+       headers: { "Content-Type": "application/json" },
+     });
+   }
 };

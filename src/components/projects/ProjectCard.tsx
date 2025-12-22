@@ -3,21 +3,47 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, Trash2, Loader2 } from "lucide-react";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { useState } from "react";
-import { useDeleteProject } from "@/hooks/useDeleteProject";
+import { actions } from "astro:actions";
 import type { Project } from "@/server/db/schema";
 
 interface ProjectCardProps {
 	project: Project;
 }
 
-const statusColors: Record<string, string> = {
-	created: "bg-muted",
-	starting: "bg-accent",
-	running: "bg-primary",
-	stopping: "bg-accent",
-	stopped: "bg-muted",
-	deleting: "bg-destructive",
-	error: "bg-destructive",
+interface StatusStyle {
+	bg: string;
+	text: string;
+}
+
+const statusStyles: Record<string, StatusStyle> = {
+	created: {
+		bg: "bg-muted",
+		text: "text-muted-foreground",
+	},
+	starting: {
+		bg: "bg-accent",
+		text: "text-accent-foreground",
+	},
+	running: {
+		bg: "bg-primary",
+		text: "text-primary-foreground",
+	},
+	stopping: {
+		bg: "bg-accent",
+		text: "text-accent-foreground",
+	},
+	stopped: {
+		bg: "bg-muted",
+		text: "text-muted-foreground",
+	},
+	deleting: {
+		bg: "bg-destructive",
+		text: "text-destructive-foreground",
+	},
+	error: {
+		bg: "bg-destructive",
+		text: "text-destructive-foreground",
+	},
 };
 
 const statusLabels: Record<string, string> = {
@@ -30,10 +56,18 @@ const statusLabels: Record<string, string> = {
 	error: "Error",
 };
 
+function getStatusStyle(status: string): StatusStyle {
+	return (
+		statusStyles[status] || {
+			bg: "bg-muted",
+			text: "text-muted-foreground",
+		}
+	);
+}
+
 export function ProjectCard({ project }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
-	const { deleteProject } = useDeleteProject();
 
 	const previewUrl = `http://localhost:${project.devPort}`;
 	const isRunning = project.status === "running";
@@ -49,7 +83,12 @@ export function ProjectCard({ project }: ProjectCardProps) {
 	const handleDeleteConfirm = async (projectId: string) => {
 		setIsDeleting(true);
 		try {
-			await deleteProject(projectId);
+			const result = await actions.projects.delete({ projectId });
+			if (result.error) {
+				setIsDeleting(false);
+				console.error("Failed to delete project:", result.error.message);
+				throw new Error(result.error.message);
+			}
 		} catch (error) {
 			setIsDeleting(false);
 			console.error("Failed to delete project:", error);
@@ -66,12 +105,17 @@ export function ProjectCard({ project }: ProjectCardProps) {
 							<CardTitle className="text-lg truncate">{project.name}</CardTitle>
 						</div>
 						<div className="flex items-center gap-2 ml-2">
-							<span
-								className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-background rounded-full ${statusColors[project.status]}`}
-							>
-								{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-								{statusLabels[project.status]}
-							</span>
+							{(() => {
+								const style = getStatusStyle(project.status);
+								return (
+									<span
+										className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${style.bg} ${style.text}`}
+									>
+										{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+										{statusLabels[project.status]}
+									</span>
+								);
+							})()}
 						</div>
 					</div>
 				</CardHeader>

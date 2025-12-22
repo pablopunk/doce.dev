@@ -1,4 +1,5 @@
-import { useProjects } from "@/hooks/useProjects";
+import { useState, useEffect } from "react";
+import { actions } from "astro:actions";
 import { ProjectCard } from "./ProjectCard";
 import type { Project } from "@/server/db/schema";
 
@@ -7,21 +8,46 @@ interface ProjectsListProps {
 }
 
 /**
- * Projects list component that uses SWR for data management
- * Handles automatic refetching and cache invalidation
+ * Projects list component with Astro Actions polling
+ * Polls every 30 seconds for new projects
  */
 export function ProjectsList({ fallback }: ProjectsListProps) {
-	const { projects, error } = useProjects(fallback);
+	const [projects, setProjects] = useState<Project[]>(fallback);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		// Initial fetch
+		const fetchProjects = async () => {
+			try {
+				const result = await actions.projects.list();
+				if (result.error) {
+					setError(result.error.message);
+				} else if (result.data) {
+					setProjects(result.data.projects);
+					setError(null);
+				}
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to load projects");
+			}
+		};
+
+		fetchProjects();
+
+		// Poll every 30 seconds
+		const interval = setInterval(fetchProjects, 30000);
+
+		return () => clearInterval(interval);
+	}, []);
 
 	if (error) {
 		return (
 			<div className="container mx-auto p-8">
-				<p className="text-destructive">Failed to load projects</p>
+				<p className="text-destructive">{error}</p>
 			</div>
 		);
 	}
 
-	const displayProjects = projects ?? fallback;
+	const displayProjects = projects && projects.length > 0 ? projects : fallback;
 
 	if (!displayProjects || displayProjects.length === 0) {
 		return null;

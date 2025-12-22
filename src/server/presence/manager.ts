@@ -8,7 +8,7 @@ import { listJobs } from "@/server/queue/queue.model";
 const PRESENCE_HEARTBEAT_MS = 15_000;
 const REAPER_INTERVAL_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_IDLE_TIMEOUT_MS = 30_000; // 30 seconds - auto-stop idle containers when no viewers
+const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop containers if no heartbeat received
 
 export interface ViewerRecord {
   viewerId: string;
@@ -18,7 +18,7 @@ export interface ViewerRecord {
 export interface ProjectPresence {
   projectId: string;
   viewers: Map<string, number>; // viewerId -> lastSeenAt
-  containerStopAt?: number; // When to stop container due to 60s idle timeout
+  lastHeartbeatAt?: number; // When we last received a heartbeat (for keep-alive timeout)
   stopAt?: number; // Scheduled stop time
   startedAt?: number; // When we started the starting process
   isStarting: boolean;
@@ -166,14 +166,14 @@ export async function handlePresenceHeartbeat(
           };
         }
 
-     // Update viewer presence
-     presence.viewers.set(viewerId, Date.now());
+      // Update viewer presence
+      presence.viewers.set(viewerId, Date.now());
 
-     // Cancel any scheduled stop
-     delete presence.stopAt;
-     
-     // Reset 60s idle timer when user sends heartbeat
-     delete presence.containerStopAt;
+      // Cancel any scheduled stop
+      delete presence.stopAt;
+      
+      // Update last heartbeat time to reset the keep-alive timer
+      presence.lastHeartbeatAt = Date.now();
 
       // Check current health and periodically capture container logs
       const [previewReady, opencodeReady] = await Promise.all([
@@ -313,34 +313,27 @@ async function runReaper(): Promise<void> {
        }
      }
 
-      // Handle idle timeout for running containers with no active viewers
-      const project = await getProjectById(projectId);
-      if (project?.status === "running") {
-        if (presence.viewers.size === 0) {
-          // No active viewers - start countdown to stop
-          if (!presence.containerStopAt) {
-            presence.containerStopAt = now + CONTAINER_IDLE_TIMEOUT_MS;
-            logger.info({ projectId, timeoutMs: CONTAINER_IDLE_TIMEOUT_MS }, "Container idle timer started");
-          }
+      // Handle keep-alive timeout for running containers
+       const project = await getProjectById(projectId);
+       if (project?.status === "running") {
+         if (presence.lastHeartbeatAt !== undefined) {
+           const timeSinceLastHeartbeat = now - presence.lastHeartbeatAt;
+           
+           // Stop if no heartbeat received for keep-alive timeout
+           if (timeSinceLastHeartbeat >= CONTAINER_KEEP_ALIVE_TIMEOUT_MS) {
+             try {
+               await enqueueDockerStop({ projectId, reason: "idle" });
+               delete presence.lastHeartbeatAt;
+               logger.info({ projectId, timeSinceLastHeartbeat }, "Container stopped due to keep-alive timeout");
+             } catch (error) {
+               logger.error({ error, projectId }, "Failed to enqueue container stop");
+             }
+           }
+         }
+       }
 
-          // Stop if idle timeout has passed
-          if (now >= presence.containerStopAt) {
-            try {
-              await enqueueDockerStop({ projectId, reason: "idle" });
-              delete presence.containerStopAt;
-              logger.info({ projectId }, "Container stopped due to idle timeout");
-            } catch (error) {
-              logger.error({ error, projectId }, "Failed to enqueue container stop");
-            }
-          }
-        } else {
-          // Has active viewers - clear idle timer
-          delete presence.containerStopAt;
-        }
-      }
-
-       // Note: Old 3-minute idle logic is removed
-       // The idle timeout above handles container auto-stop when no viewers are active
+        // Note: Container auto-stops if no heartbeat received for 60 seconds
+        // Heartbeats come from active viewers in PreviewPanel, ChatPanel, etc.
    }
 }
 

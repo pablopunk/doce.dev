@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 interface ContainerStartupDisplayProps {
   projectId: string;
   reason?: "initial" | "restart"; // "initial" for first startup, "restart" for comeback
+  onComplete?: () => void; // Called when startup/restart is complete
 }
 
 interface CurrentEvent {
@@ -41,6 +42,7 @@ const STEP_DESCRIPTIONS: Record<number, string> = {
 export function ContainerStartupDisplay({
   projectId,
   reason = "initial",
+  onComplete,
 }: ContainerStartupDisplayProps) {
   const [isComplete, setIsComplete] = useState(false);
   const [currentEvent, setCurrentEvent] = useState<CurrentEvent | null>(null);
@@ -194,6 +196,7 @@ export function ContainerStartupDisplay({
         // Event stream signals that initial prompt was completed
         setIsComplete(true);
         setCurrentStep(2);
+        onComplete?.();
         break;
       }
     }
@@ -241,10 +244,11 @@ export function ContainerStartupDisplay({
         const shouldWaitForSessions = reason === "restart";
         const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
 
-        if (data.currentStep >= 5 && data.isSetupComplete && sessionConditionMet) {
+         if (data.currentStep >= 5 && data.isSetupComplete && sessionConditionMet) {
           // Wait a moment for the UI to show final state, then signal completion
           setTimeout(() => {
             setIsComplete(true);
+            onComplete?.();
           }, 1000);
         }
       } catch (error) {
