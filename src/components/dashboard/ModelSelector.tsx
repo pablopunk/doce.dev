@@ -3,7 +3,7 @@ import { Openai } from "@/components/ui/svgs/openai";
 import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
-import { Google } from "@/components/ui/svgs/google";
+import { Gemini } from "@/components/ui/svgs/gemini";
 import {
 	DropdownMenu,
 	DropdownMenuTrigger,
@@ -21,7 +21,7 @@ const PROVIDER_LOGOS: Record<
 > = {
 	OpenAI: { light: Openai, dark: OpenaiDark },
 	Anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
-	Google: { light: Google, dark: Google },
+	Google: { light: Gemini, dark: Gemini },
 };
 
 interface ModelSelectorProps {
@@ -62,7 +62,6 @@ export function ModelSelector({
 					id: string;
 					name: string;
 					provider: string;
-					description?: string;
 				}>
 			>(),
 		),
@@ -79,20 +78,20 @@ export function ModelSelector({
 					value={selectedModelId}
 					onValueChange={onModelChange}
 				>
-				{grouped.map(([provider, providerModels], index) => {
-					const LogoVariants = PROVIDER_LOGOS[provider];
-					return (
-						<DropdownMenuGroup key={provider}>
-							{index > 0 && <DropdownMenuSeparator />}
-							<DropdownMenuLabel className="flex items-center gap-2">
-								{LogoVariants && (
-									<div className="w-4 h-4">
-										<LogoVariants.light className="w-full h-full dark:hidden" />
-										<LogoVariants.dark className="w-full h-full hidden dark:block" />
-									</div>
-								)}
-								{provider}
-							</DropdownMenuLabel>
+					{grouped.map(([provider, providerModels], index) => {
+						const LogoVariants = PROVIDER_LOGOS[provider];
+						return (
+							<DropdownMenuGroup key={provider}>
+								{index > 0 && <DropdownMenuSeparator />}
+								<DropdownMenuLabel className="flex items-center gap-2">
+									{LogoVariants && (
+										<div className="w-4 h-4">
+											<LogoVariants.light className="w-full h-full dark:hidden" />
+											<LogoVariants.dark className="w-full h-full hidden dark:block" />
+										</div>
+									)}
+									{provider}
+								</DropdownMenuLabel>
 								{providerModels.map((model) => (
 									<DropdownMenuRadioItem
 										key={model.id}
@@ -100,11 +99,6 @@ export function ModelSelector({
 										className="flex flex-col items-start"
 									>
 										<span className="font-medium">{model.name}</span>
-										{model.description && (
-											<span className="text-xs text-muted-foreground">
-												{model.description}
-											</span>
-										)}
 									</DropdownMenuRadioItem>
 								))}
 							</DropdownMenuGroup>

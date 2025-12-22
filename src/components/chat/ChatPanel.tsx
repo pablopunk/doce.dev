@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChatMessage, type Message } from "./ChatMessage";
+import { ChatMessage } from "./ChatMessage";
+import { type Message, type MessagePart, createTextPart } from "@/types/message";
 import { type ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
@@ -39,10 +40,10 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [presenceLoaded, setPresenceLoaded] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const eventSourceRef = useRef<EventSource | null>(null);
-    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const loadingHistoryRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loadingHistoryRef = useRef(false);
 
   // Check if scroll position is near the bottom (within 100px)
   const isNearBottom = useCallback(() => {
@@ -137,7 +138,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         
         for (const msg of messages) {
           const info = msg.info || {};
-          const parts = msg.parts || [];
+          const msgParts = msg.parts || [];
           const role = info.role;
           const messageId = info.id || `hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
           
@@ -152,12 +153,12 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
           }
           
           if (role === "user" || role === "assistant") {
-            // Extract text content from parts
-            let textContent = "";
+            // Build structured parts for this message
+            const messageParts: MessagePart[] = [];
             
-            for (const part of parts) {
+            for (const part of msgParts) {
               if (part.type === "text" && part.text) {
-                textContent += part.text;
+                messageParts.push(createTextPart(part.text, part.id));
               }
               // Handle tool calls in history
               if (part.type === "tool" && part.tool && part.callID) {
@@ -176,14 +177,14 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
               }
             }
             
-            if (textContent) {
+            if (messageParts.length > 0) {
               historyItems.push({
                 type: "message",
                 id: messageId,
                 data: {
                   id: messageId,
-                  role: role,
-                  content: textContent,
+                  role: role as "user" | "assistant",
+                  parts: messageParts,
                   isStreaming: false,
                 },
               });
@@ -265,7 +266,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
          data: {
            id: userMessageId,
            role: "user",
-           content: projectPrompt,
+           parts: [createTextPart(projectPrompt)],
          },
        },
      ]);
@@ -318,11 +319,69 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
     const { type, payload, sessionId: eventSessionId } = event;
 
     if (eventSessionId && !sessionId) {
-      setSessionId(eventSessionId);
+      setSessionId(eventSessionId as string);
     }
 
     switch (type) {
+      case "chat.message.part.added": {
+        const { messageId, partId, partType, deltaText } = payload as {
+          messageId: string;
+          partId: string;
+          partType: string;
+          deltaText?: string;
+        };
+
+        setItems((prev) => {
+          const existing = prev.find(
+            (item) => item.type === "message" && item.id === messageId
+          );
+
+          if (existing && existing.type === "message") {
+            const msg = existing.data as Message;
+            // Find or create text part
+            const textPart = msg.parts.find((p) => p.type === "text") as any;
+            
+            if (textPart && deltaText) {
+              // Append delta to existing text part
+              textPart.text += deltaText;
+            } else if (deltaText) {
+              // Create new text part
+              msg.parts.push(createTextPart(deltaText, partId));
+            }
+            
+            return prev.map((item) =>
+              item.id === messageId
+                ? { ...item, data: { ...msg, isStreaming: true } }
+                : item
+            );
+          }
+
+          // New message
+          if (partType === "text" && deltaText) {
+            return [
+              ...prev,
+              {
+                type: "message",
+                id: messageId,
+                data: {
+                  id: messageId,
+                  role: "assistant",
+                  parts: [createTextPart(deltaText, partId)],
+                  isStreaming: true,
+                },
+              },
+            ];
+          }
+          return prev;
+        });
+
+        setIsStreaming(true);
+        scrollToBottom();
+        break;
+      }
+
       case "chat.message.delta": {
+        // Backward compatibility: handle old-style delta events
         const { messageId, deltaText } = payload as {
           messageId: string;
           deltaText: string;
@@ -333,20 +392,26 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
             (item) => item.type === "message" && item.id === messageId
           );
 
-          if (existing) {
+          if (existing && existing.type === "message") {
+            const msg = existing.data as Message;
+            const textPart = msg.parts[msg.parts.length - 1];
+            
+            if (textPart && textPart.type === "text") {
+              // Append to existing text part
+              (textPart as any).text += deltaText;
+            } else {
+              // Create new text part
+              msg.parts.push(createTextPart(deltaText));
+            }
+            
             return prev.map((item) =>
               item.id === messageId
-                ? {
-                    ...item,
-                    data: {
-                      ...(item.data as Message),
-                      content: (item.data as Message).content + deltaText,
-                    },
-                  }
+                ? { ...item, data: { ...msg, isStreaming: true } }
                 : item
             );
           }
 
+          // New message
           return [
             ...prev,
             {
@@ -355,7 +420,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
               data: {
                 id: messageId,
                 role: "assistant",
-                content: deltaText,
+                parts: [createTextPart(deltaText)],
                 isStreaming: true,
               },
             },
@@ -382,6 +447,13 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         );
 
         setIsStreaming(false);
+        break;
+      }
+
+      case "chat.reasoning.part": {
+        // Reasoning parts are handled as visual elements within messages
+        // For now, we'll treat them similarly to tool parts - as separate items
+        // This can be enhanced later to nest them within messages
         break;
       }
 
@@ -477,7 +549,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         data: {
           id: userMessageId,
           role: "user",
-          content,
+          parts: [createTextPart(content)],
         },
       },
     ]);
@@ -496,7 +568,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         if (createRes.ok) {
           const data = await createRes.json();
           currentSessionId = data.id;
-          setSessionId(currentSessionId);
+          setSessionId(currentSessionId as string);
         }
       }
 
