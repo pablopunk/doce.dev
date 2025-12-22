@@ -1,6 +1,10 @@
 import { User, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
 import { cn } from "@/lib/utils";
+import "highlight.js/styles/atom-one-dark.css";
 
 export interface Message {
   id: string;
@@ -45,12 +49,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {content}
               {streamingCursor}
             </pre>
-          ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-h1:my-3 prose-h2:my-2 prose-h3:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:bg-muted prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground prose-pre:p-3 prose-pre:rounded prose-blockquote:border-l-2 prose-blockquote:border-muted prose-blockquote:pl-4 prose-blockquote:italic">
-              <ReactMarkdown>{content}</ReactMarkdown>
-              {streamingCursor}
-            </div>
-          )}
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-h1:my-3 prose-h2:my-2 prose-h3:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:bg-muted prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground prose-pre:p-3 prose-pre:rounded prose-blockquote:border-l-2 prose-blockquote:border-muted prose-blockquote:pl-4 prose-blockquote:italic">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                >
+                  {content}
+                </ReactMarkdown>
+                {streamingCursor}
+              </div>
+            )}
         </div>
       </div>
     </div>
