@@ -18,13 +18,12 @@ export function TerminalDocks({ projectId, defaultOpen = false }: TerminalDocksP
   const [dockerLines, setDockerLines] = useState<LogLine[]>([]);
   const [appLines, setAppLines] = useState<LogLine[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
-  const dockerTerminalRef = useRef<HTMLDivElement>(null);
-  const appTerminalRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const scrollToBottom = useCallback((ref: React.RefObject<HTMLDivElement | null>) => {
-    if (ref.current) {
-      ref.current.scrollTop = ref.current.scrollHeight;
+  const scrollToBottom = useCallback(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, []);
 
@@ -69,11 +68,12 @@ export function TerminalDocks({ projectId, defaultOpen = false }: TerminalDocksP
 
           if (dockerLogs.length > 0) {
             setDockerLines((prev) => [...prev, ...dockerLogs]);
-            scrollToBottom(dockerTerminalRef);
           }
           if (appLogs.length > 0) {
             setAppLines((prev) => [...prev, ...appLogs]);
-            scrollToBottom(appTerminalRef);
+          }
+          if (dockerLogs.length > 0 || appLogs.length > 0) {
+            scrollToBottom();
           }
 
           setNextOffset(newOffset);
@@ -98,21 +98,12 @@ export function TerminalDocks({ projectId, defaultOpen = false }: TerminalDocksP
     setAppLines([]);
   };
 
-  const renderTerminal = (lines: LogLine[], ref: React.RefObject<HTMLDivElement | null>) => (
-    <div
-      ref={ref}
-      className="h-full overflow-y-auto p-4 font-mono text-xs bg-black"
-    >
-      {lines.length === 0 ? (
-        <div className="text-gray-500">Waiting for logs...</div>
-      ) : (
-        lines.map((line, i) => (
-          <div key={i} className="whitespace-pre-wrap break-all text-foreground">
-            {line.text}
-          </div>
-        ))
-      )}
-    </div>
+  const renderLogLines = (lines: LogLine[], keyPrefix: string) => (
+    lines.map((line, i) => (
+      <div key={`${keyPrefix}-${i}`} className="whitespace-pre-wrap break-all text-foreground">
+        {line.text}
+      </div>
+    ))
   );
 
   return (
@@ -162,22 +153,31 @@ export function TerminalDocks({ projectId, defaultOpen = false }: TerminalDocksP
 
       {/* Content */}
       {isOpen && (
-        <div className="h-[calc(100%-40px)] flex divide-x">
-          {/* Docker Terminal */}
-          <div className="flex-1 flex flex-col">
-            <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/20 border-b">
-              Docker
-            </div>
-            {renderTerminal(dockerLines, dockerTerminalRef)}
-          </div>
+        <div
+          ref={terminalRef}
+          className="h-[calc(100%-40px)] overflow-y-auto p-4 font-mono text-xs bg-black"
+        >
+          {dockerLines.length === 0 && appLines.length === 0 ? (
+            <div className="text-gray-500">Waiting for logs...</div>
+          ) : (
+            <>
+              {/* Docker Section */}
+              <div className="text-xs font-semibold text-muted-foreground mb-2">Docker</div>
+              {dockerLines.length === 0 ? (
+                <div className="text-gray-500 mb-4">No docker logs yet...</div>
+              ) : (
+                <div className="mb-4">{renderLogLines(dockerLines, "docker")}</div>
+              )}
 
-          {/* App Terminal */}
-          <div className="flex-1 flex flex-col">
-            <div className="px-4 py-1 text-xs font-semibold text-muted-foreground bg-muted/20 border-b">
-              App
-            </div>
-            {renderTerminal(appLines, appTerminalRef)}
-          </div>
+              {/* App Section */}
+              <div className="text-xs font-semibold text-muted-foreground mb-2 pt-2 border-t border-muted">App</div>
+              {appLines.length === 0 ? (
+                <div className="text-gray-500">No app logs yet...</div>
+              ) : (
+                renderLogLines(appLines, "app")
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
