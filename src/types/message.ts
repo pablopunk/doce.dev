@@ -3,7 +3,20 @@
  * Based on OpenCode's message parts architecture.
  */
 
-export type MessagePartType = "text" | "tool" | "reasoning" | "error" | "file";
+export type MessagePartType = "text" | "tool" | "reasoning" | "error" | "file" | "image";
+
+/**
+ * Image attachment part for user messages.
+ * Following OpenCode's pattern for image handling.
+ */
+export interface ImagePart {
+  type: "image";
+  id: string;
+  filename: string;
+  mime: string;
+  dataUrl: string;
+  size?: number;
+}
 
 export interface TextPart {
   type: "text";
@@ -42,7 +55,7 @@ export interface FilePart {
   size?: number;
 }
 
-export type MessagePart = TextPart | ToolPart | ReasoningPart | ErrorPart | FilePart;
+export type MessagePart = TextPart | ToolPart | ReasoningPart | ErrorPart | FilePart | ImagePart;
 
 export interface Message {
   id: string;
@@ -118,6 +131,82 @@ export function createFilePart(path: string, size?: number, id?: string): FilePa
     result.size = size;
   }
   return result;
+}
+
+/**
+ * Helper to create an image part
+ */
+export function createImagePart(
+  dataUrl: string,
+  filename: string,
+  mime: string,
+  size?: number,
+  id?: string
+): ImagePart {
+  const result: ImagePart = {
+    type: "image",
+    id: id || `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    dataUrl,
+    filename,
+    mime,
+  };
+  if (size !== undefined) {
+    result.size = size;
+  }
+  return result;
+}
+
+/**
+ * Read a File as base64 data URL
+ */
+export function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Create an image part from a File object
+ */
+export async function createImagePartFromFile(file: File): Promise<ImagePart> {
+  const dataUrl = await readFileAsBase64(file);
+  return createImagePart(dataUrl, file.name, file.type, file.size);
+}
+
+/**
+ * Valid image MIME types
+ */
+export const VALID_IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+] as const;
+
+/**
+ * Max image file size (5MB)
+ */
+export const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
+
+/**
+ * Max number of images per message
+ */
+export const MAX_IMAGES_PER_MESSAGE = 5;
+
+/**
+ * Validate an image file
+ */
+export function validateImageFile(file: File): { valid: boolean; error?: string } {
+  if (!VALID_IMAGE_MIME_TYPES.includes(file.type as typeof VALID_IMAGE_MIME_TYPES[number])) {
+    return { valid: false, error: `Invalid format. Accepted: PNG, JPEG, GIF, WebP` };
+  }
+  if (file.size > MAX_IMAGE_FILE_SIZE) {
+    return { valid: false, error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 5MB.` };
+  }
+  return { valid: true };
 }
 
 /**

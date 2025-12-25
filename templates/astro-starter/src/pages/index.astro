@@ -1,24 +1,66 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import { Button } from "@/components/ui/button";
 ---
 
-<Layout title="My Website">
+<Layout title="Building...">
   <main class="flex min-h-screen flex-col items-center justify-center p-8">
-    <div class="text-center space-y-6 max-w-2xl">
-      <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">
-        Hello, World!
-      </h1>
-      <p class="text-lg text-muted-foreground">
-        Your website is ready. Start building something amazing!
-      </p>
-      <div class="flex gap-4 justify-center">
-        <Button>Get Started</Button>
-        <Button variant="outline">Learn More</Button>
+    <div class="text-center space-y-6 max-w-md">
+      <!-- Spinner -->
+      <div class="flex justify-center">
+        <div class="spinner"></div>
       </div>
-      <p class="text-sm text-muted-foreground pt-8">
-        Built with Astro + Tailwind CSS + shadcn/ui
+
+      <!-- Main heading with animated dots -->
+      <h1 class="text-2xl font-medium tracking-tight text-foreground">
+        Building your project<span class="dots"></span>
+      </h1>
+
+      <!-- Secondary text -->
+      <p class="text-muted-foreground">
+        Your AI agent is setting things up.<br />
+        This page will update automatically.
       </p>
     </div>
   </main>
 </Layout>
+
+<style>
+  /* Spinner animation */
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid hsl(var(--muted));
+    border-top-color: hsl(var(--foreground));
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Animated dots */
+  .dots::after {
+    content: "";
+    animation: dots 1.5s steps(4, end) infinite;
+  }
+
+  @keyframes dots {
+    0%,
+    20% {
+      content: "";
+    }
+    40% {
+      content: ".";
+    }
+    60% {
+      content: "..";
+    }
+    80%,
+    100% {
+      content: "...";
+    }
+  }
+</style>

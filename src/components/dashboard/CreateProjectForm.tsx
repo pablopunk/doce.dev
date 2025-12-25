@@ -1,8 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Paperclip } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { actions } from "astro:actions";
+import { ImagePreview } from "@/components/chat/ImagePreview";
+import {
+	type ImagePart,
+	createImagePartFromFile,
+	validateImageFile,
+	MAX_IMAGES_PER_MESSAGE,
+	VALID_IMAGE_MIME_TYPES,
+} from "@/types/message";
 
 interface CreateProjectFormProps {
 	models: readonly { id: string; name: string; provider: string }[];
@@ -17,7 +25,11 @@ export function CreateProjectForm({
 	const [selectedModel, setSelectedModel] = useState(defaultModel);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [selectedImages, setSelectedImages] = useState<ImagePart[]>([]);
+	const [imageError, setImageError] = useState<string | null>(null);
+	const [isDragging, setIsDragging] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const adjustTextareaHeight = () => {
 		const textarea = textareaRef.current;
@@ -33,6 +45,99 @@ export function CreateProjectForm({
 		adjustTextareaHeight();
 	}, [prompt]);
 
+	// Process files and add as image attachments
+	const processFiles = async (files: FileList | File[]) => {
+		setImageError(null);
+		const fileArray = Array.from(files);
+
+		// Check total count
+		const totalCount = selectedImages.length + fileArray.length;
+		if (totalCount > MAX_IMAGES_PER_MESSAGE) {
+			setImageError(`Max ${MAX_IMAGES_PER_MESSAGE} images allowed`);
+			return;
+		}
+
+		// Validate and process each file
+		const newImages: ImagePart[] = [];
+		for (const file of fileArray) {
+			const validation = validateImageFile(file);
+			if (!validation.valid) {
+				setImageError(validation.error || "Invalid file");
+				return;
+			}
+
+			try {
+				const imagePart = await createImagePartFromFile(file);
+				newImages.push(imagePart);
+			} catch {
+				setImageError(`Failed to read ${file.name}`);
+				return;
+			}
+		}
+
+		setSelectedImages((prev) => [...prev, ...newImages]);
+	};
+
+	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files && e.target.files.length > 0) {
+			processFiles(e.target.files);
+		}
+		// Reset input so same file can be selected again
+		e.target.value = "";
+	};
+
+	const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+
+		const imageFiles: File[] = [];
+		for (const item of items) {
+			if (item.type.startsWith("image/")) {
+				const file = item.getAsFile();
+				if (file) imageFiles.push(file);
+			}
+		}
+
+		if (imageFiles.length > 0) {
+			e.preventDefault();
+			processFiles(imageFiles);
+		}
+	};
+
+	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(true);
+	};
+
+	const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(false);
+	};
+
+	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsDragging(false);
+
+		const files = e.dataTransfer?.files;
+		if (files && files.length > 0) {
+			// Filter only images
+			const imageFiles = Array.from(files).filter((file) =>
+				VALID_IMAGE_MIME_TYPES.includes(file.type as typeof VALID_IMAGE_MIME_TYPES[number])
+			);
+			if (imageFiles.length > 0) {
+				processFiles(imageFiles);
+			}
+		}
+	};
+
+	const removeImage = (id: string) => {
+		setSelectedImages((prev) => prev.filter((img) => img.id !== id));
+		setImageError(null);
+	};
+
 	const handleCreate = async () => {
 		if (!prompt.trim()) return;
 
@@ -44,6 +149,16 @@ export function CreateProjectForm({
 			const formData = new FormData();
 			formData.append("prompt", prompt.trim());
 			formData.append("model", selectedModel);
+
+			// Add images as base64 JSON array
+			if (selectedImages.length > 0) {
+				const imagesData = selectedImages.map((img) => ({
+					filename: img.filename,
+					mime: img.mime,
+					dataUrl: img.dataUrl,
+				}));
+				formData.append("images", JSON.stringify(imagesData));
+			}
 
 			const result = await actions.projects.create(formData);
 
@@ -114,12 +229,20 @@ export function CreateProjectForm({
 	return (
 		<div className="w-full">
 			<div className="flex flex-col gap-4">
-				<div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-card">
+				<div
+					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
+						isDragging ? "border-primary bg-primary/5" : "border-input"
+					}`}
+					onDragOver={handleDragOver}
+					onDragLeave={handleDragLeave}
+					onDrop={handleDrop}
+				>
 					<textarea
 						ref={textareaRef}
 						value={prompt}
 						onChange={(e) => setPrompt(e.target.value)}
 						onKeyDown={handleKeyDown}
+						onPaste={handlePaste}
 						placeholder="It all starts here..."
 						title="Use Ctrl+Enter (or Cmd+Enter on Mac) to create a project"
 						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
@@ -127,31 +250,71 @@ export function CreateProjectForm({
 						style={{ minHeight: "80px" }}
 						disabled={isLoading}
 					/>
+					{/* Image Preview */}
+					{selectedImages.length > 0 && (
+						<ImagePreview
+							images={selectedImages}
+							onRemove={removeImage}
+							disabled={isLoading}
+						/>
+					)}
+					{/* Image Error */}
+					{imageError && (
+						<p className="text-sm text-destructive">{imageError}</p>
+					)}
 					<div className="flex items-center justify-between gap-3">
 						<ModelSelector
 							models={models}
 							selectedModelId={selectedModel}
 							onModelChange={setSelectedModel}
 						/>
-						<Button
-							onClick={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								handleCreate();
-							}}
-							disabled={isLoading || !prompt.trim()}
-							title="Create project (or press Ctrl+Enter in textarea)"
-							type="button"
-						>
-							{isLoading ? (
-								<Loader2 className="w-5 h-5 animate-spin" />
-							) : (
-								<Sparkles className="w-5 h-5 text-chart-1" />
-							)}
-							<span className="bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
-								Create
-							</span>
-						</Button>
+						<div className="flex items-center gap-2">
+							{/* Hidden File Input */}
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept={VALID_IMAGE_MIME_TYPES.join(",")}
+								multiple
+								onChange={handleFileSelect}
+								className="hidden"
+							/>
+							{/* Attachment Button */}
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => fileInputRef.current?.click()}
+								disabled={isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
+								title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+								type="button"
+							>
+								<Paperclip className="w-5 h-5" />
+								{selectedImages.length > 0 && (
+									<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+										{selectedImages.length}
+									</span>
+								)}
+							</Button>
+							{/* Create Button */}
+							<Button
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									handleCreate();
+								}}
+								disabled={isLoading || !prompt.trim()}
+								title="Create project (or press Ctrl+Enter in textarea)"
+								type="button"
+							>
+								{isLoading ? (
+									<Loader2 className="w-5 h-5 animate-spin" />
+								) : (
+									<Sparkles className="w-5 h-5 text-chart-1" />
+								)}
+								<span className="bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
+									Create
+								</span>
+							</Button>
+						</div>
 					</div>
 				</div>
 				{error && <p className="text-sm text-destructive">{error}</p>}

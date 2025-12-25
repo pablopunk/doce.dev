@@ -247,6 +247,7 @@ export const server = {
 			input: z.object({
 				prompt: z.string().min(1, "Please describe your website"),
 				model: z.string().optional(),
+				images: z.string().optional(), // JSON string of image attachments
 			}),
 			handler: async (input, context) => {
 				const user = context.locals.user;
@@ -272,6 +273,16 @@ export const server = {
 					});
 				}
 
+				// Parse images from JSON string if provided
+				let images: Array<{ filename: string; mime: string; dataUrl: string }> | undefined;
+				if (input.images) {
+					try {
+						images = JSON.parse(input.images);
+					} catch {
+						// Ignore invalid JSON, proceed without images
+					}
+				}
+
 				// Generate project ID upfront so we can return it immediately
 				const projectId = randomBytes(12).toString("hex");
 
@@ -282,6 +293,7 @@ export const server = {
 					ownerUserId: user.id,
 					prompt: input.prompt,
 					model: input.model ?? userSettingsData.defaultModel ?? null,
+					images,
 				}).catch((err) => {
 					console.error("Failed to enqueue project creation:", err);
 				});

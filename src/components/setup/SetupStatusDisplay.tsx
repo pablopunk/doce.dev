@@ -131,7 +131,39 @@ export function SetupStatusDisplay({
     const { type, payload } = event;
 
     switch (type) {
+      case "chat.message.part.added": {
+        // New event type for streaming text parts
+        const { deltaText } = payload as {
+          messageId: string;
+          partId: string;
+          partType: string;
+          deltaText?: string;
+        };
+
+        if (deltaText) {
+          setCurrentEvent((prev) => {
+            if (prev?.type === "message") {
+              return {
+                ...prev,
+                text: prev.text + deltaText,
+                isStreaming: true,
+              };
+            }
+
+            return {
+              type: "message",
+              text: deltaText,
+              isStreaming: true,
+            };
+          });
+          // Advance to build step when we start streaming agent messages
+          setCurrentStep(4);
+        }
+        break;
+      }
+
       case "chat.message.delta": {
+        // Backward compatibility for old event type
         const { deltaText } = payload as {
           messageId: string;
           deltaText: string;

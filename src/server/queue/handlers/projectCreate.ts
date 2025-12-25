@@ -39,7 +39,7 @@ function getProjectRelativePath(projectId: string): string {
 
 export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
   const payload = parsePayload("project.create", ctx.job.payloadJson);
-  const { projectId, ownerUserId, prompt, model } = payload;
+  const { projectId, ownerUserId, prompt, model, images } = payload;
 
   logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
@@ -98,6 +98,12 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
        await updateOpencodeJsonWithModel(projectPath, model);
        logger.debug({ projectId, model }, "Updated opencode.json with model");
      }
+
+      // Save images to temp file for later use in sendUserPrompt
+      if (images && images.length > 0) {
+        await writeProjectImages(projectPath, images);
+        logger.debug({ projectId, imageCount: images.length }, "Saved images for initial prompt");
+      }
 
      // Create logs directory
      await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
@@ -174,6 +180,18 @@ OPENROUTER_API_KEY=${openrouterApiKey}
 `;
 
   await fs.writeFile(path.join(projectPath, ".env"), envContent);
+}
+
+/**
+ * Write images to a temporary file for use during initial prompt.
+ * This file will be read and deleted by opencodeSendUserPrompt handler.
+ */
+async function writeProjectImages(
+  projectPath: string,
+  images: Array<{ filename: string; mime: string; dataUrl: string }>
+): Promise<void> {
+  const imagesPath = path.join(projectPath, ".doce-images.json");
+  await fs.writeFile(imagesPath, JSON.stringify(images));
 }
 
 /**

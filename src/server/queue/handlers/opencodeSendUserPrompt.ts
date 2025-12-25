@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { logger } from "@/server/logger";
 import {
   getProjectByIdIncludeDeleted,
@@ -5,7 +7,7 @@ import {
   updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
-import { parsePayload } from "../types";
+import { parsePayload, type ImageAttachment } from "../types";
 
 /**
  * Handler for sending the user's actual project prompt.
@@ -45,15 +47,41 @@ export async function handleOpencodeSendUserPrompt(ctx: QueueJobContext): Promis
 
     await ctx.throwIfCancelRequested();
 
+    // Read images from temp file if it exists
+     const imagesPath = path.join(process.cwd(), project.pathOnDisk, ".doce-images.json");
+     let images: ImageAttachment[] = [];
+     try {
+       const imagesContent = await fs.readFile(imagesPath, "utf-8");
+       images = JSON.parse(imagesContent);
+       // Delete the temp file after reading
+       await fs.unlink(imagesPath).catch(() => {});
+       logger.debug({ projectId: project.id, imageCount: images.length }, "Loaded images for initial prompt");
+     } catch {
+       // No images file - that's fine
+     }
+
+    // Build parts array: text first, then images as file parts (OpenCode pattern)
+    const parts: Array<{ type: string; text?: string; mime?: string; url?: string; filename?: string }> = [
+      { type: "text", text: project.prompt },
+    ];
+
+    // Add images as file parts
+    for (const img of images) {
+      parts.push({
+        type: "file",
+        mime: img.mime,
+        url: img.dataUrl,
+        filename: img.filename,
+      });
+    }
+
     // Send the user's prompt via HTTP (prompt_async)
     const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
     
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        parts: [{ type: "text", text: project.prompt }],
-      }),
+      body: JSON.stringify({ parts }),
     });
 
     // prompt_async returns 204 No Content on success

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
-import { type Message, type MessagePart, createTextPart } from "@/types/message";
+import { type Message, type MessagePart, type ImagePart, createTextPart, createImagePart } from "@/types/message";
 import { type ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
@@ -538,7 +538,22 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
     }
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, images?: ImagePart[]) => {
+    // Build message parts for UI
+    const messageParts: MessagePart[] = [];
+    
+    // Add images first (displayed above text, following OpenCode pattern)
+    if (images && images.length > 0) {
+      for (const img of images) {
+        messageParts.push(createImagePart(img.dataUrl, img.filename, img.mime, img.size, img.id));
+      }
+    }
+    
+    // Add text part
+    if (content) {
+      messageParts.push(createTextPart(content));
+    }
+
     // Add user message to UI immediately
     const userMessageId = `user_${Date.now()}`;
     setItems((prev) => [
@@ -549,7 +564,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         data: {
           id: userMessageId,
           role: "user",
-          parts: [createTextPart(content)],
+          parts: messageParts,
         },
       },
     ]);
@@ -577,6 +592,26 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         return;
       }
 
+      // Build parts for API (following OpenCode pattern: images as "file" type)
+      const apiParts: Array<{ type: string; text?: string; mime?: string; url?: string; filename?: string }> = [];
+      
+      // Add text part first for API
+      if (content) {
+        apiParts.push({ type: "text", text: content });
+      }
+      
+      // Add images as file parts (OpenCode pattern)
+      if (images && images.length > 0) {
+        for (const img of images) {
+          apiParts.push({
+            type: "file",
+            mime: img.mime,
+            url: img.dataUrl,
+            filename: img.filename,
+          });
+        }
+      }
+
        // Send message (async - response comes via SSE)
        const res = await fetch(
          `/api/projects/${projectId}/opencode/session/${currentSessionId}/prompt_async`,
@@ -584,7 +619,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({
-             parts: [{ type: "text", text: content }],
+             parts: apiParts,
              // Include model if available - OpenCode will use this for the response
              ...(currentModel && {
                model: {

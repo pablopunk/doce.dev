@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import { cn } from "@/lib/utils";
-import { type Message, type TextPart } from "@/types/message";
+import { type Message, type TextPart, type ImagePart } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface ChatMessageProps {
@@ -111,6 +111,24 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     <span className="text-xs text-muted-foreground ml-2">
                       ({((part as any).size / 1024).toFixed(1)} KB)
                     </span>
+                  )}
+                </div>
+              );
+            }
+
+            if (part.type === "image") {
+              const imagePart = part as ImagePart;
+              return (
+                <div key={part.id || idx} className="my-2">
+                  <img
+                    src={imagePart.dataUrl}
+                    alt={imagePart.filename || "Image attachment"}
+                    className="max-w-sm max-h-96 rounded-lg border border-input object-contain"
+                  />
+                  {imagePart.filename && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {imagePart.filename}
+                    </p>
                   )}
                 </div>
               );
