@@ -26,57 +26,17 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Avoid complex UI components, always break them into smaller components, in nested folders if needed.
 * Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
 
-## Tech Stack
+## Documentation
 
-* **pnpm** - package manager
-* **TypeScript** - for type safety
-* **Astro v5** - full-stack framework
-  * Astro Actions for server-side operations
-  * Astro Pages for routing
-  * React for interactive components
-* **shadcn/ui** - UI component library
-* **Tailwind CSS** - styling, use only semantic color tokens (no hardcoded colors or `dark:` prefixes; tokens in `globals.css` handle themes automatically)
-* **Drizzle ORM** - database abstraction
-* **SQLite** - database (file-based)
-* **Pino** - logging
-* **Zod** - schema validation
+See `docs/` for implementation details:
 
-## Architecture
-
-### Model Selection (ChatInput)
-Users can change the AI model during an active chat session:
-- **UI**: ModelSelector component appears in ChatInput footer next to Send button
-- **Data persistence**: Model selection is stored in `projects.model` database column and synced to `opencode.json` on disk
-- **Session behavior**: Model is passed with each prompt via `{ providerID: "openrouter", modelID }` parameter
-- **State management**: Current model is polled from presence API and maintained in ChatPanel state
-- **Component reuse**: ModelSelector is reused from CreateProjectForm for consistency
-- **Error handling**: Optimistic UI updates with revert on action failure; file updates are best-effort and don't block DB updates
-
-### Split Prompt Tracking (Project Creation Flow)
-When a project is created, TWO separate prompts are sent to the agent:
-
-1. **Init Prompt**: Triggered by `session.init` in `opencodeSessionInit.ts`
-   - Creates `AGENTS.md` file with project-specific instructions
-   - Message ID stored in `projects.initPromptMessageId`
-   - Completion tracked via `projects.initPromptCompleted`
-
-2. **User Prompt**: Sent by `opencodeSendUserPrompt.ts` handler
-   - Contains the user's actual project request (e.g., "clone this website")
-   - Message ID stored in `projects.userPromptMessageId`  
-   - Completion tracked via `projects.userPromptCompleted`
-
-**Completion Detection**: The SSE event handler (`event.ts`) tracks idle events:
-- 1st idle event → marks init prompt completed
-- 2nd idle event → marks user prompt completed, sends `setup.complete` event
-
-**UI Behavior**:
-- Setup display shows until BOTH `initPromptCompleted && userPromptCompleted`
-- Chat history filters out init prompt messages using `initPromptMessageId`
-- Users only see their actual prompt and its response in the chat UI
-
-**Database Columns**:
-- `initPromptMessageId` - OpenCode message ID for init prompt
-- `userPromptMessageId` - OpenCode message ID for user prompt
-- `initPromptCompleted` - Boolean, true when init prompt goes idle
-- `userPromptCompleted` - Boolean, true when user prompt goes idle
-- `initialPromptCompleted` - Legacy column (kept for backward compatibility, set when userPromptCompleted is set)
+- `docs/tech-stack.md` - Technology stack and dependencies
+- `docs/architecture/` - System architecture documentation
+  - `queue-system.md` - Job queue, handlers, worker flow
+  - `docker-management.md` - Container lifecycle, compose operations
+  - `opencode-integration.md` - SDK client, SSE event normalization
+  - `database-schema.md` - Tables, relationships
+  - `presence-system.md` - Real-time state, heartbeats, auto start/stop
+  - `project-lifecycle.md` - Creation & deletion flows, status states
+  - `model-selection.md` - AI model switching in chat
+  - `project-creation-flow.md` - Split prompt tracking during project setup
