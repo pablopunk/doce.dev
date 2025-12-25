@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExternalLink, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
+import { FilesTab } from "@/components/files/FilesTab";
 
 interface PresenceResponse {
 	projectId: string;
@@ -21,12 +23,20 @@ interface PreviewPanelProps {
 }
 
 type PreviewState = "initializing" | "starting" | "ready" | "error";
+type TabType = "preview" | "files";
 
 export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [iframeKey, setIframeKey] = useState(0);
+	const [activeTab, setActiveTab] = useState<TabType>("preview");
+	const [lastSelectedFile, setLastSelectedFile] = useState<string | null>(() => {
+		if (typeof window !== "undefined") {
+			return localStorage.getItem(`selectedFile_${projectId}`);
+		}
+		return null;
+	});
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,29 +164,46 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 	};
 
 	return (
-		<div className="flex flex-col h-full">
-			{/* Header */}
+		<Tabs
+			value={activeTab}
+			onValueChange={(value) => setActiveTab(value as TabType)}
+			className="flex flex-col h-full"
+		>
+			{/* Header with integrated tabs */}
 			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
-				<div className="flex items-center gap-2 text-sm flex-shrink-0">
-					{state === "starting" && (
-						<Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
+				{/* Left: Tabs + Status */}
+				<div className="flex items-center gap-4 flex-shrink-0">
+					{/* Tab Navigation */}
+					<TabsList className="p-1">
+						<TabsTrigger value="preview">
+							Preview
+						</TabsTrigger>
+						<TabsTrigger value="files">
+							Files
+						</TabsTrigger>
+					</TabsList>
+
+					{/* Status indicators (only for preview tab) */}
+					{activeTab === "preview" && (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							{state === "starting" && (
+								<>
+									<Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+									<span>{message || "Starting..."}</span>
+								</>
+							)}
+							{state === "error" && (
+								<>
+									<AlertTriangle className="h-3 w-3 text-red-500" />
+									<span>{message || "Error"}</span>
+								</>
+							)}
+						</div>
 					)}
-					{state === "ready" && (
-						<div className="h-2 w-2 rounded-full bg-green-500" />
-					)}
-					{state === "error" && (
-						<AlertTriangle className="h-4 w-4 text-red-500" />
-					)}
-					<span className="text-muted-foreground">
-						{state === "initializing" && "Initializing..."}
-						{state === "starting" && (message || "Starting preview...")}
-						{state === "ready" && "Preview"}
-						{state === "error" && (message || "Error")}
-					</span>
 				</div>
 
-				{/* URL Bar - Center */}
-				{state === "ready" && previewUrl && (
+				{/* Center: URL Bar (only for preview tab when ready) */}
+				{activeTab === "preview" && state === "ready" && previewUrl && (
 					<input
 						type="text"
 						value={previewUrl.length > 50 ? `${previewUrl.slice(0, 50)}...` : previewUrl}
@@ -187,9 +214,9 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 					/>
 				)}
 
-				{/* Action Buttons - Right */}
+				{/* Right: Action Buttons */}
 				<div className="flex items-center gap-1 flex-shrink-0">
-					{state === "ready" && (
+					{activeTab === "preview" && state === "ready" && (
 						<>
 							<Button
 								variant="ghost"
@@ -210,7 +237,7 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 							</a>
 						</>
 					)}
-					{state === "error" && (
+					{activeTab === "preview" && state === "error" && (
 						<Button variant="outline" size="sm" onClick={handleRetry}>
 							Retry
 						</Button>
@@ -218,8 +245,8 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 				</div>
 			</div>
 
-			{/* Content and Terminal */}
-			<div className="flex-1 flex flex-col overflow-hidden">
+			{/* Preview Tab Content */}
+			<TabsContent value="preview" className="flex-1 flex flex-col overflow-hidden border-0 p-0 m-0">
 				{/* Preview iframe */}
 				<div className="flex-1 relative bg-background">
 					{state === "ready" && previewUrl ? (
@@ -254,9 +281,21 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 					)}
 				</div>
 
-			{/* Terminal docks */}
-			<TerminalDocks projectId={projectId} defaultOpen={false} />
-			</div>
-		</div>
+				{/* Terminal docks */}
+				<TerminalDocks projectId={projectId} defaultOpen={false} />
+			</TabsContent>
+
+			{/* Files Tab Content */}
+			<TabsContent value="files" className="flex-1 overflow-hidden border-0 p-0 m-0">
+				<FilesTab
+					projectId={projectId}
+					lastSelectedFile={lastSelectedFile}
+					onFileSelect={(path) => {
+						setLastSelectedFile(path);
+						localStorage.setItem(`selectedFile_${projectId}`, path);
+					}}
+				/>
+			</TabsContent>
+		</Tabs>
 	);
 }

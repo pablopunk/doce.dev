@@ -26,6 +26,25 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Avoid complex UI components, always break them into smaller components, in nested folders if needed.
 * Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
 
+## Key Features
+
+### Files Tab
+The project page now includes a "Files" tab alongside the "Preview" tab:
+- Browse project source files in a collapsible file tree (from `src/` folder only)
+- Click any file to open it in Monaco Editor (read-only)
+- Last selected file is remembered and restored on tab switch
+- Resizable separator between file tree and editor
+
+**Components:**
+- `src/components/files/FileTree.tsx` - Recursive file/folder tree display
+- `src/components/files/ReadOnlyEditor.tsx` - Monaco editor with syntax highlighting
+- `src/components/files/FilesTab.tsx` - Container managing tree + editor + resizing
+
+**Backend:**
+- `src/pages/api/projects/[id]/files.ts` - API endpoint for listing files and fetching content
+  - `GET /api/projects/[id]/files` → Returns file tree from `src/`
+  - `GET /api/projects/[id]/files?path=...` → Returns file content
+
 ## Documentation
 
 See `docs/` for implementation details:
