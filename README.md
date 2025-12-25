@@ -7,4 +7,4 @@
 </p>
 
 > [!NOTE]
-> This project is not built by the OpenCode team and is not affiliated with us in any way.
+> This project is not built by the OpenCode team and is not affiliated with them in any way.
