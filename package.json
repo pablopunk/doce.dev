@@ -9,7 +9,8 @@
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "astro": "astro",
-    "shadcn:update": "bash scripts/shadcn-update.sh"
+    "shadcn:update": "bash scripts/shadcn-update.sh",
+    "icons:generate": "node scripts/generate-icons.js"
   },
   "packageManager": "pnpm@10.20.0",
   "dependencies": {
