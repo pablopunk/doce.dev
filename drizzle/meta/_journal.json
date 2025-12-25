@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1765625146029,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1765627398675,
-      "tag": "0001_add-username",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1765628394155,
-      "tag": "0002_add-initial-prompt-sent",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1765632842951,
-      "tag": "0003_sharp_shard",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1765641657355,
-      "tag": "0004_queue",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1765700000000,
-      "tag": "0005_bootstrap-session-id",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1766186000977,
-      "tag": "0006_typical_ulik",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1766261542216,
-      "tag": "0007_cool_joseph",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1766261600000,
-      "tag": "0008_add-concurrency",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1766261700000,
-      "tag": "0009_remove_setup_phase",
+      "when": 1766689822714,
+      "tag": "0000_equal_randall",
       "breakpoints": true
     }
   ]

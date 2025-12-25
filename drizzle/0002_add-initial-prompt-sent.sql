@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `initial_prompt_sent` integer DEFAULT false NOT NULL;

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "bootstrap": "pnpm install && pnpm exec drizzle-kit migrate",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
