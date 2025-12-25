@@ -6,3 +6,4 @@
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-32.png?raw=true" alt="doce.dev logo" width="64" />
 </p>
 
+> not built by the OpenCode team and is not affiliated with us in any way.
