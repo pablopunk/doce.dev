@@ -63,7 +63,7 @@ export function DeployButton({
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: This is a container for hover-based interaction
 		<div
-			className="relative pb-2"
+			className="relative"
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 		>
