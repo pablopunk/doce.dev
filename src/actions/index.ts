@@ -175,13 +175,12 @@ export const server = {
 				}
 
 				// Validate OpenRouter API key
-				const validation = await validateOpenRouterApiKey(
-					input.openrouterApiKey,
-				);
-				if (!validation.valid) {
+				try {
+					await validateOpenRouterApiKey(input.openrouterApiKey);
+				} catch {
 					throw new ActionError({
 						code: "BAD_REQUEST",
-						message: validation.error ?? "Invalid OpenRouter API key",
+						message: "Invalid OpenRouter API key",
 					});
 				}
 
@@ -295,13 +294,12 @@ export const server = {
 				}
 
 				// Validate OpenRouter API key
-				const validation = await validateOpenRouterApiKey(
-					input.openrouterApiKey,
-				);
-				if (!validation.valid) {
+				try {
+					await validateOpenRouterApiKey(input.openrouterApiKey);
+				} catch {
 					throw new ActionError({
 						code: "BAD_REQUEST",
-						message: validation.error ?? "Invalid OpenRouter API key",
+						message: "Invalid OpenRouter API key",
 					});
 				}
 

@@ -1,4 +1,10 @@
-import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import {
+	AlertTriangle,
+	ExternalLink,
+	Loader2,
+	RefreshCw,
+	Rocket,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { FilesTab } from "@/components/files/FilesTab";
@@ -248,50 +254,58 @@ export function PreviewPanel({
 					)}
 				</div>
 
-				{/* Center: URL Bar (only for preview tab when ready) */}
+				{/* Center: URL Bar with integrated buttons (only for preview tab when ready) */}
 				{activeTab === "preview" && state === "ready" && previewUrl && (
-					<input
-						type="text"
-						value={
-							previewUrl.length > 50
-								? `${previewUrl.slice(0, 50)}...`
-								: previewUrl
-						}
-						disabled
-						title={previewUrl}
-						className="flex-1 min-w-0 px-2 py-1 text-xs bg-transparent border border-border rounded text-foreground cursor-default opacity-60 text-center"
-						readOnly
-					/>
-				)}
-
-				{/* Right: Action Buttons */}
-				<div className="flex items-center gap-1 flex-shrink-0">
-					{activeTab === "preview" && state === "ready" && (
-						<>
+					<div className="flex-1 relative flex items-center min-w-0 px-3 py-1 border border-border rounded bg-transparent">
+						<input
+							type="text"
+							value={
+								previewUrl.length > 50
+									? `${previewUrl.slice(0, 50)}...`
+									: previewUrl
+							}
+							disabled
+							title={previewUrl}
+							className="flex-1 min-w-0 bg-transparent text-xs text-foreground cursor-default opacity-60 text-center border-0 outline-none"
+							readOnly
+						/>
+						<div className="flex items-center gap-0 flex-shrink-0 ml-2">
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-8 w-8"
+								className="h-6 w-6 hover:bg-accent"
 								onClick={handleRefresh}
 							>
-								<RefreshCw className="h-4 w-4" />
+								<RefreshCw className="h-3.5 w-3.5" />
 							</Button>
 							<a
 								href={previewUrl ?? ""}
 								target="_blank"
 								rel="noopener noreferrer"
 							>
-								<Button variant="ghost" size="icon" className="h-8 w-8">
-									<ExternalLink className="h-4 w-4" />
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-6 w-6 hover:bg-accent"
+								>
+									<ExternalLink className="h-3.5 w-3.5" />
 								</Button>
 							</a>
-						</>
-					)}
+						</div>
+					</div>
+				)}
+
+				{/* Right: Action buttons */}
+				<div className="flex items-center gap-2 flex-shrink-0">
 					{activeTab === "preview" && state === "error" && (
 						<Button variant="outline" size="sm" onClick={handleRetry}>
 							Retry
 						</Button>
 					)}
+					<Button size="sm" className="gap-2">
+						<Rocket className="h-4 w-4" />
+						Deploy
+					</Button>
 				</div>
 			</div>
 

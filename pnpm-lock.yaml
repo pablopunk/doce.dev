@@ -26,6 +26,9 @@ importers:
       '@opencode-ai/sdk':
         specifier: ^1.0.203
         version: 1.0.203
+      '@openrouter/sdk':
+        specifier: ^0.3.10
+        version: 0.3.10
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@6.4.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2))
@@ -975,6 +978,9 @@ packages:
 
   '@opencode-ai/sdk@1.0.203':
     resolution: {integrity: sha512-Chr/eWlb5jB+aluf70t9H0zv0tkb+otVnnkZQg3xrB7dtHJc6SxqsixAjTGnND6v3mURwchYb0UdcnGM7dOcng==}
+
+  '@openrouter/sdk@0.3.10':
+    resolution: {integrity: sha512-FNOwLn/GvOw1Xk+x36bC1vtDwLIo45yIEoBwin+Dhb4j9DoRVBW2h9L/1rjNd7ILpyj9lB3LBhaLmateOt4Wrg==}
 
   '@oslojs/encoding@1.1.0':
     resolution: {integrity: sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ==}
@@ -4533,6 +4539,10 @@ snapshots:
   '@open-draft/until@2.1.0': {}
 
   '@opencode-ai/sdk@1.0.203': {}
+
+  '@openrouter/sdk@0.3.10':
+    dependencies:
+      zod: 4.1.13
 
   '@oslojs/encoding@1.1.0': {}
 
