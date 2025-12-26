@@ -35,18 +35,18 @@ async function setupProductionDirectory(
 	const projectPath = project.pathOnDisk;
 	const templatePath = getTemplatePath();
 
-	// Copy dist/ folder (required)
-	const distSource = path.join(projectPath, "dist");
-	const distDest = path.join(productionPath, "dist");
+	// Copy src/ folder (required for building in production)
+	const srcSource = path.join(projectPath, "src");
+	const srcDest = path.join(productionPath, "src");
 	try {
-		await fs.cp(distSource, distDest, { recursive: true });
-		logger.debug({ projectId: project.id }, "Copied dist/ folder");
+		await fs.cp(srcSource, srcDest, { recursive: true });
+		logger.debug({ projectId: project.id }, "Copied src/ folder");
 	} catch (error) {
 		logger.error(
 			{ projectId: project.id, error },
-			"Failed to copy dist/ folder (may not exist yet)",
+			"Failed to copy src/ folder",
 		);
-		// Don't throw - dist might not exist if build hasn't completed yet
+		throw error;
 	}
 
 	// Copy public/ folder if it exists
@@ -74,6 +74,34 @@ async function setupProductionDirectory(
 	const lockDest = path.join(productionPath, "pnpm-lock.yaml");
 	await fs.cp(lockSource, lockDest);
 	logger.debug({ projectId: project.id }, "Copied pnpm-lock.yaml");
+
+	// Copy astro.config.mjs
+	const astroConfigSource = path.join(projectPath, "astro.config.mjs");
+	const astroConfigDest = path.join(productionPath, "astro.config.mjs");
+	try {
+		await fs.cp(astroConfigSource, astroConfigDest);
+		logger.debug({ projectId: project.id }, "Copied astro.config.mjs");
+	} catch (error) {
+		logger.error(
+			{ projectId: project.id, error },
+			"Failed to copy astro.config.mjs",
+		);
+		throw error;
+	}
+
+	// Copy tsconfig.json
+	const tsconfigSource = path.join(projectPath, "tsconfig.json");
+	const tsconfigDest = path.join(productionPath, "tsconfig.json");
+	try {
+		await fs.cp(tsconfigSource, tsconfigDest);
+		logger.debug({ projectId: project.id }, "Copied tsconfig.json");
+	} catch (error) {
+		logger.error(
+			{ projectId: project.id, error },
+			"Failed to copy tsconfig.json",
+		);
+		throw error;
+	}
 
 	// Copy Dockerfile.prod from template
 	const dockerfileProdSource = path.join(templatePath, "Dockerfile.prod");
