@@ -137,19 +137,23 @@ async function runComposeCommand(
 /**
  * Start containers for a project.
  * Idempotent - safe to call when already running.
+ * @param preserveProduction If true, don't remove orphan containers (preserves production if running separately)
  */
 export async function composeUp(
 	projectId: string,
 	projectPath: string,
+	preserveProduction: boolean = true,
 ): Promise<ComposeResult> {
 	const logsDir = path.join(projectPath, "logs");
-	await writeHostMarker(logsDir, "docker compose up -d --remove-orphans");
 
-	const result = await runComposeCommand(projectId, projectPath, [
-		"up",
-		"-d",
-		"--remove-orphans",
-	]);
+	// Don't use --remove-orphans when production might be running with a separate compose file
+	const args = preserveProduction
+		? ["up", "-d"]
+		: ["up", "-d", "--remove-orphans"];
+
+	await writeHostMarker(logsDir, `docker compose ${args.join(" ")}`);
+
+	const result = await runComposeCommand(projectId, projectPath, args);
 
 	// Log output with stream markers
 	if (result.stdout) {
