@@ -4,6 +4,7 @@ import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	getProjectByIdIncludeDeleted,
+	getProjectModel,
 	markInitialPromptSent,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
@@ -95,16 +96,26 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
+		// Get the current model for this project
+		const model = await getProjectModel(project.id);
+
 		// Create SDK client for this project
 		const client = createOpencodeClient(project.opencodePort);
 
-		// Send the user's prompt via SDK (prompt_async)
+		// Send the user's prompt via SDK with model specified
 		await client.session.promptAsync({
 			sessionID: sessionId,
+			model: {
+				providerID: model.providerID,
+				modelID: model.modelID,
+			},
 			parts,
 		});
 
-		logger.info({ projectId: project.id, sessionId }, "Sent user prompt");
+		logger.info(
+			{ projectId: project.id, sessionId, model },
+			"Sent user prompt with model",
+		);
 
 		await ctx.throwIfCancelRequested();
 

@@ -4,7 +4,6 @@ import { logger } from "@/server/logger";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
-	markInitPromptCompleted,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
 import type { QueueJobState } from "@/server/queue/queue.model";
@@ -14,12 +13,12 @@ const SESSION_COOKIE_NAME = "doce_session";
 
 // Setup job types in order
 // Note: "opencode.sendUserPrompt" is the new name, "opencode.sendInitialPrompt" is legacy
+// Note: sessionInit is no longer needed (happens in template)
 const SETUP_JOBS = [
 	"project.create",
 	"docker.composeUp",
 	"docker.waitReady",
 	"opencode.sessionCreate",
-	"opencode.sessionInit",
 	"opencode.sendUserPrompt",
 ] as const;
 
@@ -36,7 +35,7 @@ interface JobStatus {
 
 interface QueueStatusResponse {
 	projectId: string;
-	currentStep: number; // 0-4 (5 is handled by event stream)
+	currentStep: number; // 1-5 (5 = all queue jobs done)
 	setupJobs: Record<string, JobStatus>;
 	hasError: boolean;
 	errorMessage: string | undefined;
@@ -168,27 +167,18 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		}
 
 		// If all setup jobs are complete, we're on step 5 (Done)
-		// Also mark prompts as completed in the database so UI properly transitions
+		// Mark user prompt as completed in the database so UI properly transitions
 		if (isSetupComplete) {
 			currentStep = 5;
 
 			// Mark completion in database if not already marked
 			// This is a fallback in case the SSE event-based completion wasn't triggered
-			if (project.initialPromptSent) {
-				if (!project.initPromptCompleted) {
-					await markInitPromptCompleted(projectId);
-					logger.info(
-						{ projectId },
-						"Marked init prompt completed via queue-status endpoint",
-					);
-				}
-				if (!project.userPromptCompleted) {
-					await markUserPromptCompleted(projectId);
-					logger.info(
-						{ projectId },
-						"Marked user prompt completed via queue-status endpoint",
-					);
-				}
+			if (project.initialPromptSent && !project.userPromptCompleted) {
+				await markUserPromptCompleted(projectId);
+				logger.info(
+					{ projectId },
+					"Marked user prompt completed via queue-status endpoint",
+				);
 			}
 		}
 

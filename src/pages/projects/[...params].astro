@@ -35,8 +35,8 @@ if (slug && slug !== project.slug) {
 <AppLayout title={project.name}>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- Main content -->
-    {/* Show setup display until BOTH init and user prompts are complete */}
-    {!(project.initPromptCompleted && project.userPromptCompleted) ? (
+    {/* Show setup display until user prompt is complete (session.init is pre-done in template) */}
+    {!project.userPromptCompleted ? (
       <!-- Setup phase: show setup status display -->
       <SetupStatusDisplay
         projectId={project.id}

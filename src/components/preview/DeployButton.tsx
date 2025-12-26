@@ -44,8 +44,6 @@ export function DeployButton({
 	const isFailed = state.status === "failed";
 	const hasBeenDeployed = state.status !== "stopped";
 
-	console.log(state.status);
-
 	const handleMouseEnter = () => {
 		if (hoverTimeoutId) {
 			clearTimeout(hoverTimeoutId);

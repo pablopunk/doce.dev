@@ -1,85 +1,127 @@
-# Project Creation Flow (Split Prompt Tracking)
+# Project Creation Flow (Simplified)
 
-When a project is created, TWO separate prompts are sent to the AI agent. This document explains why and how they're tracked.
+Projects are created through an async queue pipeline. The key optimization is that OpenCode session initialization happens once during template preparation, not per-project.
 
-## The Two Prompts
+## The Flow
 
-### 1. Init Prompt
+1. **User Submits Project** → Frontend calls `projects.create` action with prompt/model/images
+2. **Project.Create Job** → Queue handler:
+   - Generates project name (LLM call)
+   - Creates unique slug
+   - Allocates ports
+   - Copies template to project directory
+   - Updates `opencode.json` with selected model
+   - Updates DB with initial status
+   - Enqueues `docker.composeUp`
 
-Triggered by `session.init` in the `opencodeSessionInit` handler.
+3. **Docker Compose Up** → Queue handler:
+   - Runs `docker compose up` in project directory
+   - Starts preview server + OpenCode containers
+   - Enqueues `docker.waitReady`
 
-**Purpose**: Creates `AGENTS.md` file with project-specific instructions for the AI agent.
+4. **Docker Wait Ready** → Queue handler:
+   - Polls both containers' health endpoints
+   - Retries for up to 5 minutes
+   - Enqueues `opencode.sessionCreate` when ready
 
-**Tracking**:
-- Message ID stored in `projects.initPromptMessageId`
-- Completion tracked via `projects.initPromptCompleted`
+5. **OpenCode Session Create** → Queue handler:
+   - Calls `client.session.create()`
+   - Gets session ID
+   - Stores in DB
+   - Enqueues `opencode.sendUserPrompt`
 
-### 2. User Prompt
+6. **Send User Prompt** → Queue handler:
+   - Calls `client.session.promptAsync()` with user's request
+   - Attaches uploaded images if any
+   - Marks `initialPromptSent = true` in DB
 
-Sent by the `opencodeSendUserPrompt` handler.
+7. **SSE Event Stream** → Frontend connects to `/event` endpoint:
+   - Server receives `session.status` events from OpenCode container
+   - On first idle event: marks `userPromptCompleted = true`, sends `setup.complete` to UI
+   - Frontend shows chat interface
 
-**Purpose**: Contains the user's actual project request (e.g., "build a todo app", "clone this website").
+## Why This Architecture
 
-**Tracking**:
-- Message ID stored in `projects.userPromptMessageId`
-- Completion tracked via `projects.userPromptCompleted`
+### Pre-Initialized Template
 
-## Why Split Tracking?
+- `session.init()` is called ONCE during template preparation (manual process)
+- This call generates `AGENTS.md` which gets committed to the template
+- Projects just copy the template + update `opencode.json` with their chosen model
+- No LLM call needed per project for initialization
 
-The init prompt and user prompt are separate operations that complete independently. The UI needs to know when BOTH are done before showing the chat interface.
+**Result**: 50-100% faster setup (skips 30-60 second init LLM call)
 
-Without split tracking:
-- Setup display might disappear too early (after init, before user prompt completes)
-- Users might see confusing AGENTS.md creation messages in their chat history
+### Session Lifecycle
+
+- Fresh session created per-project (stored in DB)
+- OpenCode container reads the pre-initialized AGENTS.md from template
+- Container loads user-selected model from updated opencode.json
+- User prompt sent to agent with correct model + all project context
+
+### Model Switching
+
+- Template is pre-initialized with a default model
+- Per-project, `opencode.json` is updated with user's selected model
+- When container starts, it reads the updated config
+- ✅ Works seamlessly - no need to re-init
 
 ## Completion Detection
 
-The SSE event handler (`event.ts`) counts idle events:
+The SSE event stream uses idle events to detect completion:
 
 ```
-1st session.status: idle  →  Mark initPromptCompleted
-2nd session.status: idle  →  Mark userPromptCompleted, emit setup.complete
+Idle event received
+       ↓
+Mark userPromptCompleted = true in DB
+       ↓
+Send setup.complete to frontend
+       ↓
+UI transitions to chat
 ```
 
-## UI Behavior
+## Database
 
-**Setup Display**: Shows loading state until `initPromptCompleted && userPromptCompleted`
-
-**Chat History**: Filters out init prompt messages using `initPromptMessageId`. Users only see their actual prompt and the AI's response.
-
-## Database Columns
+Key columns tracking the flow:
 
 | Column | Purpose |
 |--------|---------|
-| initPromptMessageId | OpenCode message ID for init prompt |
-| userPromptMessageId | OpenCode message ID for user prompt |
-| initPromptCompleted | True when init prompt goes idle |
-| userPromptCompleted | True when user prompt goes idle |
-| initialPromptCompleted | Legacy column (kept for backward compatibility) |
+| `initialPromptSent` | True when user prompt queued |
+| `userPromptMessageId` | OpenCode message ID for user prompt |
+| `userPromptCompleted` | True when user prompt goes idle |
+| `initialPromptCompleted` | Legacy column (kept for backward compat) |
+| `bootstrapSessionId` | Session ID for this project |
 
 ## Timeline
 
 ```
-Project created
-      │
-      ▼
-session.init called
-      │
-      ├── AGENTS.md being generated
-      │
-      ▼
-1st idle event ────► initPromptCompleted = true
-      │
-      ▼
-prompt_async called with user's prompt
-      │
-      ├── AI working on user request
-      │
-      ▼
-2nd idle event ────► userPromptCompleted = true
-      │             initialPromptCompleted = true (legacy)
-      │             emit setup.complete
-      │
-      ▼
-UI transitions to chat view
+User submits project
+       ↓
+project.create enqueued
+       ↓
+docker.composeUp → services starting
+       ↓
+docker.waitReady → polling health checks
+       ↓
+sessionCreate → session.create() [no init call]
+       ↓
+sendUserPrompt → prompt_async() [sends user's request]
+       ↓
+SSE idle event detected
+       ↓
+userPromptCompleted = true, setup.complete sent
+       ↓
+Chat ready (~15-60s total, depending on LLM response time)
 ```
+
+## Template Pre-Initialization
+
+The template is manually initialized once:
+
+1. Start template with `docker compose up`
+2. Call `session.create()`
+3. Call `session.init()` with default model + DOCE.md
+4. Wait for idle event (AGENTS.md generated)
+5. Snapshot project directory including AGENTS.md
+6. Commit to repo
+
+All future projects copy this pre-initialized template.

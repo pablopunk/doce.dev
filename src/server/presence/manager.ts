@@ -46,10 +46,8 @@ export interface PresenceResponse {
 	// Initial prompt fields (legacy)
 	initialPromptSent: boolean;
 	initialPromptCompleted: boolean;
-	// Split prompt tracking
-	initPromptCompleted: boolean;
+	// Prompt tracking (session.init no longer per-project)
 	userPromptCompleted: boolean;
-	initPromptMessageId: string | null;
 	userPromptMessageId: string | null;
 	prompt: string;
 	model: string | null;
@@ -172,9 +170,7 @@ export async function handlePresenceHeartbeat(
 				nextPollMs: 2000,
 				initialPromptSent: project.initialPromptSent,
 				initialPromptCompleted: project.initialPromptCompleted,
-				initPromptCompleted: project.initPromptCompleted,
 				userPromptCompleted: project.userPromptCompleted,
-				initPromptMessageId: project.initPromptMessageId,
 				userPromptMessageId: project.userPromptMessageId,
 				prompt: project.prompt,
 				model: project.model,
@@ -298,9 +294,7 @@ export async function handlePresenceHeartbeat(
 			nextPollMs,
 			initialPromptSent: project.initialPromptSent,
 			initialPromptCompleted: project.initialPromptCompleted,
-			initPromptCompleted: project.initPromptCompleted,
 			userPromptCompleted: project.userPromptCompleted,
-			initPromptMessageId: project.initPromptMessageId,
 			userPromptMessageId: project.userPromptMessageId,
 			prompt: project.prompt,
 			model: project.model,

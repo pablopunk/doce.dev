@@ -1,20 +1,34 @@
 {
-  "version": "7",
-  "dialect": "sqlite",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1766689822714,
-      "tag": "0000_equal_randall",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1766768794801,
-      "tag": "0001_absurd_morgan_stark",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1766689822714,
+			"tag": "0000_equal_randall",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1766768794801,
+			"tag": "0001_absurd_morgan_stark",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1766810400000,
+			"tag": "0002_drop_init_prompt_columns",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1766815000000,
+			"tag": "0003_add_model_tracking",
+			"breakpoints": true
+		}
+	]
 }

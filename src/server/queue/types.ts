@@ -12,7 +12,6 @@ export const queueJobTypeSchema = z.enum([
 	"docker.stop",
 	// Opencode bootstrap
 	"opencode.sessionCreate",
-	"opencode.sessionInit",
 	"opencode.sendInitialPrompt", // legacy: kept for backward compatibility
 	"opencode.sendUserPrompt", // new: sends user's actual prompt
 	// Production deployment
@@ -102,14 +101,6 @@ export type OpencodeSessionCreatePayload = z.infer<
 	typeof opencodeSessionCreatePayloadSchema
 >;
 
-export const opencodeSessionInitPayloadSchema = z.object({
-	projectId: z.string().min(1),
-});
-
-export type OpencodeSessionInitPayload = z.infer<
-	typeof opencodeSessionInitPayloadSchema
->;
-
 export const opencodeSendInitialPromptPayloadSchema = z.object({
 	projectId: z.string().min(1),
 });
@@ -170,7 +161,6 @@ const payloadSchemaByType = {
 	"docker.ensureRunning": dockerEnsureRunningPayloadSchema,
 	"docker.stop": dockerStopPayloadSchema,
 	"opencode.sessionCreate": opencodeSessionCreatePayloadSchema,
-	"opencode.sessionInit": opencodeSessionInitPayloadSchema,
 	"opencode.sendInitialPrompt": opencodeSendInitialPromptPayloadSchema,
 	"opencode.sendUserPrompt": opencodeSendUserPromptPayloadSchema,
 	"production.build": productionBuildPayloadSchema,
@@ -188,7 +178,6 @@ export type PayloadByType = {
 	"docker.ensureRunning": DockerEnsureRunningPayload;
 	"docker.stop": DockerStopPayload;
 	"opencode.sessionCreate": OpencodeSessionCreatePayload;
-	"opencode.sessionInit": OpencodeSessionInitPayload;
 	"opencode.sendInitialPrompt": OpencodeSendInitialPromptPayload;
 	"opencode.sendUserPrompt": OpencodeSendUserPromptPayload;
 	"production.build": ProductionBuildPayload;

@@ -8,7 +8,7 @@ import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import { enqueueOpencodeSessionInit } from "../enqueue";
+import { enqueueOpencodeSessionCreate } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 
@@ -51,34 +51,32 @@ export async function handleDockerEnsureRunning(
 		if (previewReady && opencodeReady) {
 			await updateProjectStatus(project.id, "running");
 
-			// After successful restart, check if we need to re-initialize the opencode session
-			// This ensures session persists across container restarts
-			if (project.bootstrapSessionId) {
-				try {
-					// Check if session still exists by trying to fetch it
-					const sessionUrl = `http://127.0.0.1:${project.opencodePort}/session`;
-					const sessionsRes = await fetch(sessionUrl);
+			// After successful restart, check if we need to create a new session
+			// Sessions are ephemeral and don't persist across container restarts
+			try {
+				// Check if any sessions exist
+				const sessionUrl = `http://127.0.0.1:${project.opencodePort}/session`;
+				const sessionsRes = await fetch(sessionUrl);
 
-					if (sessionsRes.ok) {
-						const sessions = (await sessionsRes.json()) as unknown[];
-						const sessionsArray = Array.isArray(sessions) ? sessions : [];
+				if (sessionsRes.ok) {
+					const sessions = (await sessionsRes.json()) as unknown[];
+					const sessionsArray = Array.isArray(sessions) ? sessions : [];
 
-						// If no sessions exist, re-initialize with the saved bootstrap session ID
-						if (sessionsArray.length === 0) {
-							logger.info(
-								{ projectId: project.id },
-								"Sessions lost after restart, re-initializing...",
-							);
-							await enqueueOpencodeSessionInit({ projectId: project.id });
-						}
+					// If no sessions exist, create a new one (init is already done in template)
+					if (sessionsArray.length === 0) {
+						logger.info(
+							{ projectId: project.id },
+							"Sessions lost after restart, creating new session...",
+						);
+						await enqueueOpencodeSessionCreate({ projectId: project.id });
 					}
-				} catch (error) {
-					logger.warn(
-						{ error, projectId: project.id },
-						"Failed to check/restore sessions after restart",
-					);
-					// Don't fail the job, containers are up
 				}
+			} catch (error) {
+				logger.warn(
+					{ error, projectId: project.id },
+					"Failed to check/restore sessions after restart",
+				);
+				// Don't fail the job, containers are up
 			}
 
 			return;

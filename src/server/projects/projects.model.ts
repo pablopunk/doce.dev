@@ -7,6 +7,115 @@ import { logger } from "@/server/logger";
 
 export type ProjectStatus = Project["status"];
 
+interface OpencodeConfig {
+	model?: string;
+	small_model?: string;
+	provider?: Record<string, unknown>;
+	instructions?: string[];
+	[key: string]: unknown;
+}
+
+interface ModelInfo {
+	providerID: string;
+	modelID: string;
+}
+
+/**
+ * Load opencode.json configuration from a project directory.
+ */
+export async function loadOpencodeConfig(
+	projectPath: string,
+): Promise<OpencodeConfig | null> {
+	try {
+		const configPath = path.join(projectPath, "opencode.json");
+		const content = await fs.readFile(configPath, "utf-8");
+		return JSON.parse(content) as OpencodeConfig;
+	} catch {
+		logger.debug({ projectPath }, "Could not load opencode.json");
+		return null;
+	}
+}
+
+/**
+ * Parse model string into components.
+ * Handles both direct providers ("provider/model") and OpenRouter proxied models ("upstream/model").
+ *
+ * For OpenRouter, the format is "upstream_provider/model_name" (e.g., "anthropic/claude-haiku-4.5")
+ * but it should be sent as providerID="openrouter", modelID="upstream_provider/model_name"
+ *
+ * @param modelString - The model string to parse
+ * @param isOpenRouter - Whether this is for an OpenRouter-configured OpenCode instance
+ * @returns ModelInfo with providerID and modelID, or null if invalid
+ */
+export function parseModelString(
+	modelString: string,
+	isOpenRouter = true,
+): ModelInfo | null {
+	try {
+		if (isOpenRouter) {
+			// For OpenRouter, the entire string is the modelID
+			// OpenRouter proxy format: "upstream_provider/model_name"
+			// e.g., "anthropic/claude-haiku-4.5" -> providerID="openrouter", modelID="anthropic/claude-haiku-4.5"
+			return {
+				providerID: "openrouter",
+				modelID: modelString,
+			};
+		}
+
+		// For direct providers, split on first "/" only
+		const parts = modelString.split("/");
+		if (parts.length < 2) {
+			return null;
+		}
+		const providerID = parts[0];
+		const modelID = parts.slice(1).join("/"); // Handle models with "/" in their name
+		if (!providerID || !modelID) {
+			return null;
+		}
+		return { providerID, modelID };
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Store the initial model configuration for a project.
+ */
+export async function storeProjectModel(
+	projectId: string,
+	model: ModelInfo,
+): Promise<void> {
+	await db
+		.update(projects)
+		.set({
+			currentModelProviderID: model.providerID,
+			currentModelID: model.modelID,
+		})
+		.where(eq(projects.id, projectId));
+}
+
+/**
+ * Get the current model for a project.
+ */
+export async function getProjectModel(projectId: string): Promise<ModelInfo> {
+	const project = await db.query.projects.findFirst({
+		where: eq(projects.id, projectId),
+	});
+
+	if (project?.currentModelProviderID && project?.currentModelID) {
+		return {
+			providerID: project.currentModelProviderID,
+			modelID: project.currentModelID,
+		};
+	}
+
+	// Fallback to default model
+	return {
+		providerID: "openrouter",
+		modelID: "google/gemini-2.5-flash",
+	};
+}
+
 /**
  * Create a new project in the database.
  */
@@ -76,12 +185,31 @@ export async function updateProjectStatus(
 
 /**
  * Update project model.
+ * Parses a model string (format: "provider/model") into components and stores them.
  */
 export async function updateProjectModel(
 	id: string,
 	model: string | null,
 ): Promise<void> {
-	await db.update(projects).set({ model }).where(eq(projects.id, id));
+	let modelInfo = {
+		providerID: null as string | null,
+		modelID: null as string | null,
+	};
+
+	if (model) {
+		const parsed = parseModelString(model);
+		if (parsed) {
+			modelInfo = parsed;
+		}
+	}
+
+	await db
+		.update(projects)
+		.set({
+			currentModelProviderID: modelInfo.providerID,
+			currentModelID: modelInfo.modelID,
+		})
+		.where(eq(projects.id, id));
 }
 
 /**
@@ -206,16 +334,6 @@ export async function updateBootstrapSessionId(
  * Update the init prompt message ID for a project.
  * This is set when the empty init prompt is created during session initialization.
  */
-export async function updateInitPromptMessageId(
-	id: string,
-	messageId: string,
-): Promise<void> {
-	await db
-		.update(projects)
-		.set({ initPromptMessageId: messageId })
-		.where(eq(projects.id, id));
-}
-
 /**
  * Update the user prompt message ID for a project.
  * This is set when the user's actual prompt is sent.
@@ -227,16 +345,6 @@ export async function updateUserPromptMessageId(
 	await db
 		.update(projects)
 		.set({ userPromptMessageId: messageId })
-		.where(eq(projects.id, id));
-}
-
-/**
- * Mark the init prompt as completed (when it goes idle).
- */
-export async function markInitPromptCompleted(id: string): Promise<void> {
-	await db
-		.update(projects)
-		.set({ initPromptCompleted: true })
 		.where(eq(projects.id, id));
 }
 

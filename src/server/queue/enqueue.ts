@@ -9,7 +9,6 @@ import type {
 	OpencodeSendInitialPromptPayload,
 	OpencodeSendUserPromptPayload,
 	OpencodeSessionCreatePayload,
-	OpencodeSessionInitPayload,
 	ProjectCreatePayload,
 	ProjectDeletePayload,
 	ProjectsDeleteAllForUserPayload,
@@ -123,18 +122,6 @@ export async function enqueueOpencodeSessionCreate(
 		projectId: input.projectId,
 		payload: input,
 		dedupeKey: `opencode.sessionCreate:${input.projectId}`,
-	});
-}
-
-export async function enqueueOpencodeSessionInit(
-	input: OpencodeSessionInitPayload,
-): Promise<QueueJob> {
-	return enqueueJob({
-		id: randomBytes(16).toString("hex"),
-		type: "opencode.sessionInit",
-		projectId: input.projectId,
-		payload: input,
-		dedupeKey: `opencode.sessionInit:${input.projectId}`,
 	});
 }
 

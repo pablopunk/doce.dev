@@ -72,15 +72,14 @@ export const projects = sqliteTable("projects", {
 		.notNull()
 		.default(false),
 	bootstrapSessionId: text("bootstrap_session_id"),
-	// Split prompt tracking - separate init and user prompts
-	initPromptMessageId: text("init_prompt_message_id"),
+	// User prompt tracking - session.init is now pre-initialized in template
 	userPromptMessageId: text("user_prompt_message_id"),
-	initPromptCompleted: integer("init_prompt_completed", { mode: "boolean" })
-		.notNull()
-		.default(false),
 	userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
 		.notNull()
 		.default(false),
+	// Model selection - tracks which model is currently being used for this project
+	currentModelProviderID: text("current_model_provider_id"),
+	currentModelID: text("current_model_id"),
 	// Production deployment fields
 	productionPort: integer("production_port"),
 	productionUrl: text("production_url"),

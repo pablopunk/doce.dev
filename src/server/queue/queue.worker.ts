@@ -7,7 +7,6 @@ import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
 import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
 import { handleOpencodeSendUserPrompt } from "./handlers/opencodeSendUserPrompt";
 import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
-import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
 import { handleProjectCreate } from "./handlers/projectCreate";
 import { handleProjectDelete } from "./handlers/projectDelete";
 import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
@@ -70,7 +69,6 @@ const handlerByType: Record<
 	"docker.ensureRunning": handleDockerEnsureRunning,
 	"docker.stop": handleDockerStop,
 	"opencode.sessionCreate": handleOpencodeSessionCreate,
-	"opencode.sessionInit": handleOpencodeSessionInit,
 	"opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
 	"opencode.sendUserPrompt": handleOpencodeSendUserPrompt,
 	"production.build": handleProductionBuild,
