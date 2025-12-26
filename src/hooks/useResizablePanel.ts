@@ -49,10 +49,24 @@ export function useResizablePanel({
   // Handle mouse move during drag
    const handleMouseMove = useCallback(
      (e: MouseEvent) => {
-       const container = document.querySelector("[data-resizable-group]");
-       if (!container) return;
+       const containers = document.querySelectorAll("[data-resizable-group]");
+       if (containers.length === 0) return;
 
-       const rect = container.getBoundingClientRect();
+       // Find the smallest visible container (most specific/nested one)
+       let closestContainer: Element | null = null;
+       let smallestWidth = Infinity;
+
+       for (const container of containers) {
+         const rect = container.getBoundingClientRect();
+         if (rect.width > 0 && rect.width < smallestWidth) {
+           smallestWidth = rect.width;
+           closestContainer = container;
+         }
+       }
+
+       if (!closestContainer) return;
+
+       const rect = closestContainer.getBoundingClientRect();
        const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
 
        // Constrain to min/max

@@ -179,7 +179,7 @@ export function FilesTab({
 
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden">
-			<div className="flex-1 flex overflow-hidden relative">
+			<div className="flex-1 flex overflow-hidden relative" data-resizable-group>
 				{/* File Tree (left) */}
 				<div
 					className="flex flex-col h-full border-r overflow-hidden bg-muted/20"
