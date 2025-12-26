@@ -1,7 +1,8 @@
 services:
   preview:
-    image: node:22-alpine
-    working_dir: /app
+    build:
+      context: .
+      dockerfile: Dockerfile.preview
     volumes:
       - .:/app
       - pnpm-store:/root/.local/share/pnpm/store
@@ -9,38 +10,26 @@ services:
       - "${DEV_PORT:-4321}:4321"
     environment:
       - HOST=0.0.0.0
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev --host"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4321"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+    command: sh -c "pnpm install && pnpm dev --host"
 
   opencode:
-    image: node:22-slim
-    working_dir: /app
+    build:
+      context: .
+      dockerfile: Dockerfile.opencode
     volumes:
       - .:/app
-      - opencode-bin:/root/.opencode
       - opencode-data:/root/.local/share/opencode
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - PATH=/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    command: sh -c "apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.202 && opencode serve --hostname 0.0.0.0 --port 3000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/doc"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
     depends_on:
       preview:
         condition: service_started
 
 volumes:
   pnpm-store:
+    external: true
+    name: doce-global-pnpm-store
   opencode-bin:
   opencode-data:

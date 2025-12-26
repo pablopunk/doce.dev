@@ -116,8 +116,8 @@ export async function composeUp(
   projectId: string,
   projectPath: string
 ): Promise<ComposeResult> {
-  const logsDir = path.join(projectPath, "logs");
-  await writeHostMarker(logsDir, `docker compose up -d --remove-orphans`);
+   const logsDir = path.join(projectPath, "logs");
+   await writeHostMarker(logsDir, "docker compose up -d --remove-orphans");
 
   const result = await runComposeCommand(projectId, projectPath, [
     "up",
@@ -151,8 +151,8 @@ export async function composeDown(
   projectId: string,
   projectPath: string
 ): Promise<ComposeResult> {
-  const logsDir = path.join(projectPath, "logs");
-  await writeHostMarker(logsDir, `docker compose down --remove-orphans`);
+   const logsDir = path.join(projectPath, "logs");
+   await writeHostMarker(logsDir, "docker compose down --remove-orphans");
 
   // Stop streaming container logs before stopping containers
   stopStreamingContainerLogs(projectId);
@@ -180,8 +180,8 @@ export async function composeDownWithVolumes(
   projectId: string,
   projectPath: string
 ): Promise<ComposeResult> {
-  const logsDir = path.join(projectPath, "logs");
-  await writeHostMarker(logsDir, `docker compose down --remove-orphans --volumes`);
+   const logsDir = path.join(projectPath, "logs");
+   await writeHostMarker(logsDir, "docker compose down --remove-orphans --volumes");
 
   const result = await runComposeCommand(projectId, projectPath, [
     "down",
@@ -213,31 +213,48 @@ export interface ContainerStatus {
  * Parse compose ps JSON output to get container statuses.
  */
 export function parseComposePs(output: string): ContainerStatus[] {
-  if (!output.trim()) {
-    return [];
-  }
+   if (!output.trim()) {
+     return [];
+   }
 
-  try {
-    // Docker compose ps --format json outputs one JSON object per line
-    const lines = output.trim().split("\n");
-    return lines
-      .filter((line) => line.trim())
-      .map((line) => {
-        const container = JSON.parse(line) as {
-          Name: string;
-          Service: string;
-          State: string;
-          Health?: string;
-        };
-        return {
-          name: container.Name,
-          service: container.Service,
-          state: container.State,
-          health: container.Health,
-        };
-      });
-  } catch (err) {
-    logger.warn({ error: err, output: output.slice(0, 200) }, "Failed to parse compose ps output");
-    return [];
-  }
+   try {
+     // Docker compose ps --format json outputs one JSON object per line
+     const lines = output.trim().split("\n");
+     return lines
+       .filter((line) => line.trim())
+       .map((line) => {
+         const container = JSON.parse(line) as {
+           Name: string;
+           Service: string;
+           State: string;
+           Health?: string;
+         };
+         return {
+           name: container.Name,
+           service: container.Service,
+           state: container.State,
+           health: container.Health,
+         };
+       });
+   } catch (err) {
+     logger.warn({ error: err, output: output.slice(0, 200) }, "Failed to parse compose ps output");
+     return [];
+   }
+}
+
+/**
+ * Ensure the global pnpm cache volume exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ */
+export async function ensureGlobalPnpmVolume(): Promise<void> {
+   const volumeName = "doce-global-pnpm-store";
+   
+   try {
+     // Try to create the volume - Docker silently ignores if it already exists
+     execSync(`docker volume create ${volumeName}`, { stdio: "ignore" });
+     logger.debug({ volumeName }, "Global pnpm volume ensured");
+   } catch (err) {
+     // Log but don't throw - if Docker is unavailable, it will fail later anyway
+     logger.warn({ error: err, volumeName }, "Failed to ensure global pnpm volume");
+   }
 }
