@@ -11,7 +11,8 @@
 		"astro": "astro",
 		"shadcn:update": "bash scripts/shadcn-update.sh",
 		"icons:generate": "node scripts/generate-icons.js",
-		"format": "pnpm exec biome check --write src/"
+		"format": "pnpm exec biome check --write src/",
+		"drizzle:studio": "drizzle-kit studio"
 	},
 	"packageManager": "pnpm@10.20.0",
 	"dependencies": {
