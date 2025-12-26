@@ -486,6 +486,7 @@ export function ChatPanel({ projectId, models = [], onOpenFile }: ChatPanelProps
                     ...item,
                     data: {
                       ...(item.data as ToolCall),
+                      input,
                       output,
                       error,
                       status,
@@ -727,10 +728,10 @@ export function ChatPanel({ projectId, models = [], onOpenFile }: ChatPanelProps
           </div>
         ) : (
           <div className="divide-y">
-            {groupConsecutiveTools(items).map((item) =>
-              item.type === "message" ? (
-                <ChatMessage key={item.id} message={item.data as Message} />
-              ) : item.type === "toolGroup" ? (
+             {groupConsecutiveTools(items).map((item) =>
+               item.type === "message" ? (
+                 <ChatMessage key={item.id} message={item.data as Message} />
+               ) : item.type === "toolGroup" ? (
                 <ToolCallGroup
                   key={item.id}
                   toolCalls={item.data as ToolCall[]}
@@ -738,8 +739,8 @@ export function ChatPanel({ projectId, models = [], onOpenFile }: ChatPanelProps
                   onToggle={toggleToolExpanded}
                   onFileOpen={onOpenFile}
                 />
-              ) : null
-            )}
+               ) : null
+             )}
           </div>
         )}
       </div>

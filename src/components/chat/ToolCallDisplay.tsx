@@ -28,7 +28,7 @@ export function ToolCallDisplay({
   const toolInfo = getToolInfo(toolCall.name);
   const ToolIcon = toolInfo.icon;
   const displayName = toolInfo.name;
-  
+
   // Get context string (e.g., file path, command) from input
   const toolContext = toolInfo.getContext?.(toolCall.input) ?? null;
 
