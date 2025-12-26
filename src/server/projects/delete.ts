@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { getProjectPath } from "./paths";
+import { getProjectPath, getProductionPath } from "./paths";
 import {
 	getProjectById,
 	getProjectsByUserId,
@@ -65,9 +65,22 @@ export async function deleteProject(
 	} catch (err) {
 		logger.warn(
 			{ error: err, projectId },
-			"Failed to delete project directory (continuing with DB deletion)",
+			"Failed to delete project directory (continuing with production deletion)",
 		);
-		// Continue with DB deletion even if directory deletion fails
+		// Continue with production deletion even if project directory deletion fails
+	}
+
+	// Delete production directory (if it exists)
+	try {
+		const productionPath = getProductionPath(projectId);
+		await fs.rm(productionPath, { recursive: true, force: true });
+		logger.debug({ projectId, productionPath }, "Deleted production directory");
+	} catch (err) {
+		logger.warn(
+			{ error: err, projectId },
+			"Failed to delete production directory (continuing with DB deletion)",
+		);
+		// Continue with DB deletion even if production directory deletion fails
 	}
 
 	// Remove from database

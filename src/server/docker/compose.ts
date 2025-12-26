@@ -45,10 +45,29 @@ function getProjectName(projectId: string): string {
 }
 
 /**
+ * Get the production project name for docker compose (completely separate from dev).
+ */
+function getProductionProjectName(projectId: string): string {
+	return `doce_prod_${projectId}`;
+}
+
+/**
  * Build the base compose command with project name and ANSI disabled.
  */
 function buildComposeArgs(projectId: string): string[] {
 	return ["--project-name", getProjectName(projectId), "--ansi", "never"];
+}
+
+/**
+ * Build the base compose command for production with separate project name.
+ */
+function buildComposeArgsProduction(projectId: string): string[] {
+	return [
+		"--project-name",
+		getProductionProjectName(projectId),
+		"--ansi",
+		"never",
+	];
 }
 
 export interface ComposeResult {
@@ -135,6 +154,80 @@ async function runComposeCommand(
 }
 
 /**
+ * Run a docker compose command for production with separate project name.
+ * @param filePath Optional compose file path. Must come before the subcommand in Docker Compose.
+ */
+async function runComposeCommandProduction(
+	projectId: string,
+	productionPath: string,
+	args: string[],
+	filePath?: string,
+): Promise<ComposeResult> {
+	const compose = detectComposeCommand();
+	const baseArgs = buildComposeArgsProduction(projectId);
+
+	// Build args with file flags (must come BEFORE the subcommand)
+	let fullArgs = [...compose.slice(1), ...baseArgs];
+	if (filePath) {
+		fullArgs.push("-f", filePath);
+	}
+	fullArgs.push(...args);
+
+	const command = compose[0] ?? "docker";
+
+	logger.debug(
+		{ command, args: fullArgs, cwd: productionPath },
+		"Running production compose command",
+	);
+
+	return new Promise((resolve) => {
+		const proc = spawn(command, fullArgs, {
+			cwd: productionPath,
+		});
+
+		let stdout = "";
+		let stderr = "";
+
+		proc.stdout?.on("data", (data: Buffer) => {
+			stdout += data.toString();
+		});
+
+		proc.stderr?.on("data", (data: Buffer) => {
+			stderr += data.toString();
+		});
+
+		proc.on("close", (code: number | null) => {
+			const exitCode = code ?? 1;
+			const success = exitCode === 0;
+
+			logger.debug(
+				{
+					exitCode,
+					stdout: stdout.slice(0, 500),
+					stderr: stderr.slice(0, 500),
+				},
+				"Production compose command completed",
+			);
+
+			resolve({ success, exitCode, stdout, stderr });
+		});
+
+		proc.on("error", (err: Error) => {
+			logger.error(
+				{ error: err },
+				"Production compose command failed to spawn",
+			);
+			resolve({
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: err.message,
+			});
+		});
+	});
+}
+
+/**
  * Start containers for a project.
  * Idempotent - safe to call when already running.
  * @param preserveProduction If true, don't remove orphan containers (preserves production if running separately)
@@ -176,50 +269,29 @@ export async function composeUp(
 
 /**
  * Start production container for a project using docker-compose.production.yml.
- * Allocates port and updates .env with PRODUCTION_PORT.
+ * Uses separate project name for complete isolation from dev containers.
  * Idempotent - safe to call when already running.
+ * @param productionPath Path to the production directory (data/productions/{projectId}/)
  */
 export async function composeUpProduction(
 	projectId: string,
-	projectPath: string,
+	productionPath: string,
 	productionPort: number,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
-
-	// Update .env with the allocated production port
-	const fs = await import("node:fs/promises");
-	const envPath = path.join(projectPath, ".env");
-	const envContent = await fs.readFile(envPath, "utf-8");
-
-	// Check if PRODUCTION_PORT already exists, if not add it
-	let updatedEnv: string;
-	if (envContent.includes("PRODUCTION_PORT=")) {
-		// Update existing PRODUCTION_PORT line
-		updatedEnv = envContent
-			.split("\n")
-			.map((line) =>
-				line.startsWith("PRODUCTION_PORT=")
-					? `PRODUCTION_PORT=${productionPort}`
-					: line,
-			)
-			.join("\n");
-	} else {
-		// Add PRODUCTION_PORT if it doesn't exist
-		updatedEnv = `${envContent.trimEnd()}\nPRODUCTION_PORT=${productionPort}\n`;
-	}
-
-	await fs.writeFile(envPath, updatedEnv);
+	const logsDir = path.join(productionPath, "logs");
+	await import("node:fs/promises").then((fs) =>
+		fs.mkdir(logsDir, { recursive: true }),
+	);
 
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml up -d --remove-orphans (PRODUCTION_PORT=${productionPort})`,
+		`docker compose -f docker-compose.production.yml up -d (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId)})`,
 	);
 
-	const result = await runComposeCommand(
+	const result = await runComposeCommandProduction(
 		projectId,
-		projectPath,
-		["up", "-d", "--remove-orphans"],
-		undefined,
+		productionPath,
+		["up", "-d"],
 		"docker-compose.production.yml",
 	);
 
@@ -235,7 +307,7 @@ export async function composeUpProduction(
 	// Start streaming container logs after containers start
 	if (result.success) {
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, projectPath);
+		streamContainerLogs(projectId, productionPath);
 	}
 
 	return result;
@@ -272,26 +344,26 @@ export async function composeDown(
 
 /**
  * Stop only the production container using docker-compose.production.yml
- * This preserves the preview and opencode containers.
+ * Uses separate project name to ensure dev containers are never affected.
+ * @param productionPath Path to the production directory (data/productions/{projectId}/)
  */
 export async function composeDownProduction(
 	projectId: string,
-	projectPath: string,
+	productionPath: string,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const logsDir = path.join(productionPath, "logs");
 	await writeHostMarker(
 		logsDir,
-		"docker compose -f docker-compose.production.yml down --remove-orphans",
+		`docker compose -f docker-compose.production.yml down (project=${getProductionProjectName(projectId)})`,
 	);
 
 	// Stop streaming container logs before stopping containers
 	stopStreamingContainerLogs(projectId);
 
-	const result = await runComposeCommand(
+	const result = await runComposeCommandProduction(
 		projectId,
-		projectPath,
-		["down", "--remove-orphans"],
-		undefined,
+		productionPath,
+		["down"],
 		"docker-compose.production.yml",
 	);
 
