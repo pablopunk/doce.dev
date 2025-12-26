@@ -7,6 +7,8 @@ import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
+import { ZaiLight } from "@/components/ui/svgs/zaiLight";
+import { ZaiDark } from "@/components/ui/svgs/zaiDark";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -25,6 +27,7 @@ const PROVIDER_LOGOS: Record<
   OpenAI: { light: Openai, dark: OpenaiDark },
   Anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
   Google: { light: Gemini, dark: Gemini },
+  "Z.ai": { light: ZaiLight, dark: ZaiDark },
 };
 
 interface ModelSelectorProps {

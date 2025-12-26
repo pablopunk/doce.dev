@@ -1,13 +1,43 @@
 /**
- * Message part types for structured message handling.
- * Based on OpenCode's message parts architecture.
+ * Message and Part types for structured message handling.
+ * 
+ * Re-exports SDK types and adds doce.dev-specific extensions (like ImagePart for UI).
  */
 
+// Re-export SDK types directly - these are the canonical types from OpenCode
+export type {
+  TextPart as SDKTextPart,
+  ReasoningPart as SDKReasoningPart,
+  FilePart as SDKFilePart,
+  ToolPart as SDKToolPart,
+  ToolState,
+  ToolStatePending,
+  ToolStateRunning,
+  ToolStateCompleted,
+  ToolStateError,
+  Part as SDKPart,
+  Message as SDKMessage,
+  UserMessage as SDKUserMessage,
+  AssistantMessage as SDKAssistantMessage,
+  // Event types
+  Event,
+  EventSessionStatus,
+  EventSessionIdle,
+  EventMessageUpdated,
+  EventMessagePartUpdated,
+  EventFileEdited,
+} from "@opencode-ai/sdk";
+
+/**
+ * Simplified message part types for UI rendering.
+ * These are doce.dev-specific types that are easier to work with in React components.
+ */
 export type MessagePartType = "text" | "tool" | "reasoning" | "error" | "file" | "image";
 
 /**
- * Image attachment part for user messages.
- * Following OpenCode's pattern for image handling.
+ * Image attachment part for user messages (doce.dev specific).
+ * OpenCode uses FilePart with data URLs for images, but we need a separate
+ * type for UI rendering that includes the base64 data URL.
  */
 export interface ImagePart {
   type: "image";
@@ -18,6 +48,9 @@ export interface ImagePart {
   size?: number;
 }
 
+/**
+ * Simplified text part for UI (minimal fields needed for rendering).
+ */
 export interface TextPart {
   type: "text";
   id: string;
@@ -25,6 +58,9 @@ export interface TextPart {
   isStreaming?: boolean;
 }
 
+/**
+ * Simplified tool part for UI rendering.
+ */
 export interface ToolPart {
   type: "tool";
   id: string;
@@ -35,12 +71,18 @@ export interface ToolPart {
   error?: string;
 }
 
+/**
+ * Reasoning part for AI thinking display.
+ */
 export interface ReasoningPart {
   type: "reasoning";
   id: string;
   text: string;
 }
 
+/**
+ * Error part for displaying errors in messages.
+ */
 export interface ErrorPart {
   type: "error";
   id: string;
@@ -48,6 +90,9 @@ export interface ErrorPart {
   stack?: string;
 }
 
+/**
+ * File part for displaying file references.
+ */
 export interface FilePart {
   type: "file";
   id: string;
@@ -55,13 +100,27 @@ export interface FilePart {
   size?: number;
 }
 
+/**
+ * Union of all UI message part types.
+ */
 export type MessagePart = TextPart | ToolPart | ReasoningPart | ErrorPart | FilePart | ImagePart;
 
+/**
+ * Simplified message type for UI rendering.
+ */
 export interface Message {
   id: string;
   role: "user" | "assistant";
   parts: MessagePart[];
   isStreaming?: boolean;
+}
+
+// ============================================================================
+// Helper functions for creating parts
+// ============================================================================
+
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /**
@@ -70,7 +129,7 @@ export interface Message {
 export function createTextPart(text: string, id?: string): TextPart {
   return {
     type: "text",
-    id: id || `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("text"),
     text,
   };
 }
@@ -85,7 +144,7 @@ export function createToolPart(
 ): ToolPart {
   return {
     type: "tool",
-    id: id || `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("tool"),
     name,
     input,
     status: "pending",
@@ -98,7 +157,7 @@ export function createToolPart(
 export function createReasoningPart(text: string, id?: string): ReasoningPart {
   return {
     type: "reasoning",
-    id: id || `reasoning_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("reasoning"),
     text,
   };
 }
@@ -107,30 +166,24 @@ export function createReasoningPart(text: string, id?: string): ReasoningPart {
  * Helper to create an error part
  */
 export function createErrorPart(message: string, stack?: string, id?: string): ErrorPart {
-  const result: ErrorPart = {
+  return {
     type: "error",
-    id: id || `error_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("error"),
     message,
+    ...(stack !== undefined && { stack }),
   };
-  if (stack !== undefined) {
-    result.stack = stack;
-  }
-  return result;
 }
 
 /**
  * Helper to create a file part
  */
 export function createFilePart(path: string, size?: number, id?: string): FilePart {
-  const result: FilePart = {
+  return {
     type: "file",
-    id: id || `file_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("file"),
     path,
+    ...(size !== undefined && { size }),
   };
-  if (size !== undefined) {
-    result.size = size;
-  }
-  return result;
 }
 
 /**
@@ -143,38 +196,19 @@ export function createImagePart(
   size?: number,
   id?: string
 ): ImagePart {
-  const result: ImagePart = {
+  return {
     type: "image",
-    id: id || `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: id || generateId("img"),
     dataUrl,
     filename,
     mime,
+    ...(size !== undefined && { size }),
   };
-  if (size !== undefined) {
-    result.size = size;
-  }
-  return result;
 }
 
-/**
- * Read a File as base64 data URL
- */
-export function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Create an image part from a File object
- */
-export async function createImagePartFromFile(file: File): Promise<ImagePart> {
-  const dataUrl = await readFileAsBase64(file);
-  return createImagePart(dataUrl, file.name, file.type, file.size);
-}
+// ============================================================================
+// Image handling utilities
+// ============================================================================
 
 /**
  * Valid image MIME types
@@ -197,6 +231,26 @@ export const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
 export const MAX_IMAGES_PER_MESSAGE = 5;
 
 /**
+ * Read a File as base64 data URL
+ */
+export function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Create an image part from a File object
+ */
+export async function createImagePartFromFile(file: File): Promise<ImagePart> {
+  const dataUrl = await readFileAsBase64(file);
+  return createImagePart(dataUrl, file.name, file.type, file.size);
+}
+
+/**
  * Validate an image file
  */
 export function validateImageFile(file: File): { valid: boolean; error?: string } {
@@ -208,6 +262,10 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   }
   return { valid: true };
 }
+
+// ============================================================================
+// Message utilities
+// ============================================================================
 
 /**
  * Merge consecutive text parts into a single string
@@ -224,7 +282,7 @@ export function combineTextParts(parts: MessagePart[]): string {
  * Extract all text from a message as fallback
  * Handles both new (parts) and old (content) formats
  */
-export function getMessageText(message: Message | any): string {
+export function getMessageText(message: Message | { content?: string; parts?: MessagePart[] }): string {
   if ("parts" in message && Array.isArray(message.parts)) {
     return combineTextParts(message.parts);
   }

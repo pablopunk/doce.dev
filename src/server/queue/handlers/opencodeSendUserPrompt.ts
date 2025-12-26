@@ -6,6 +6,7 @@ import {
   markInitialPromptSent,
   updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
+import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload, type ImageAttachment } from "../types";
 
@@ -48,20 +49,20 @@ export async function handleOpencodeSendUserPrompt(ctx: QueueJobContext): Promis
     await ctx.throwIfCancelRequested();
 
     // Read images from temp file if it exists
-     const imagesPath = path.join(process.cwd(), project.pathOnDisk, ".doce-images.json");
-     let images: ImageAttachment[] = [];
-     try {
-       const imagesContent = await fs.readFile(imagesPath, "utf-8");
-       images = JSON.parse(imagesContent);
-       // Delete the temp file after reading
-       await fs.unlink(imagesPath).catch(() => {});
-       logger.debug({ projectId: project.id, imageCount: images.length }, "Loaded images for initial prompt");
-     } catch {
-       // No images file - that's fine
-     }
+    const imagesPath = path.join(process.cwd(), project.pathOnDisk, ".doce-images.json");
+    let images: ImageAttachment[] = [];
+    try {
+      const imagesContent = await fs.readFile(imagesPath, "utf-8");
+      images = JSON.parse(imagesContent);
+      // Delete the temp file after reading
+      await fs.unlink(imagesPath).catch(() => {});
+      logger.debug({ projectId: project.id, imageCount: images.length }, "Loaded images for initial prompt");
+    } catch {
+      // No images file - that's fine
+    }
 
     // Build parts array: text first, then images as file parts (OpenCode pattern)
-    const parts: Array<{ type: string; text?: string; mime?: string; url?: string; filename?: string }> = [
+    const parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string; filename?: string }> = [
       { type: "text", text: project.prompt },
     ];
 
@@ -75,20 +76,14 @@ export async function handleOpencodeSendUserPrompt(ctx: QueueJobContext): Promis
       });
     }
 
-    // Send the user's prompt via HTTP (prompt_async)
-    const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ parts }),
-    });
+    // Create SDK client for this project
+    const client = createOpencodeClient(project.opencodePort);
 
-    // prompt_async returns 204 No Content on success
-    if (!response.ok && response.status !== 204) {
-      const text = await response.text().catch(() => "");
-      throw new Error(`Failed to send user prompt: ${response.status} ${text.slice(0, 200)}`);
-    }
+    // Send the user's prompt via SDK (prompt_async)
+    await client.session.promptAsync({
+      sessionID: sessionId,
+      parts,
+    });
 
     logger.info({ projectId: project.id, sessionId }, "Sent user prompt");
 
@@ -98,67 +93,65 @@ export async function handleOpencodeSendUserPrompt(ctx: QueueJobContext): Promis
     // Use a longer delay to ensure the user message is created before we fetch
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const messagesUrl = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/message`;
-    const messagesRes = await fetch(messagesUrl);
-    
-    if (messagesRes.ok) {
-      const messages = await messagesRes.json() as Array<{ info?: { id?: string; role?: string }; parts?: Array<{ type?: string; text?: string }> }>;
-      
-      // We need to find the user message with the project prompt
-      // Since prompt_async is async, the message might not exist yet or might be the last one
-      // Strategy: look for a user message that matches the project prompt text
-      
-      let userMsgId: string | undefined;
-      
-      // First pass: find user message with matching text
+    // Fetch messages via SDK
+    const messagesResponse = await client.session.messages({ sessionID: sessionId });
+    const messagesData = messagesResponse.data as Array<{ info?: { id?: string; role?: string }; parts?: Array<{ type?: string; text?: string }> }> | undefined;
+    const messages = messagesData ?? [];
+
+    // We need to find the user message with the project prompt
+    // Since prompt_async is async, the message might not exist yet or might be the last one
+    // Strategy: look for a user message that matches the project prompt text
+
+    let userMsgId: string | undefined;
+
+    // First pass: find user message with matching text
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg?.info?.role === "user" && msg.info.id) {
+        // Check all parts for text content
+        const msgText = msg.parts
+          ?.filter((p) => p.type === "text")
+          .map((p) => p.text || "")
+          .join("")
+          .toLowerCase() || "";
+
+        const promptText = project.prompt.toLowerCase();
+
+        // Check if message contains at least the first 30 characters of prompt
+        if (msgText.includes(promptText.slice(0, Math.min(30, promptText.length)))) {
+          userMsgId = msg.info.id;
+          logger.debug(
+            { projectId: project.id, msgId: msg.info.id },
+            "Found user message matching prompt text"
+          );
+          break;
+        }
+      }
+    }
+
+    // If no match found, use the last user message (fallback)
+    if (!userMsgId) {
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         if (msg?.info?.role === "user" && msg.info.id) {
-          // Check all parts for text content
-          const msgText = msg.parts
-            ?.filter((p) => p.type === "text")
-            .map((p) => p.text || "")
-            .join("")
-            .toLowerCase() || "";
-          
-          const promptText = project.prompt.toLowerCase();
-          
-          // Check if message contains at least the first 30 characters of prompt
-          if (msgText.includes(promptText.slice(0, Math.min(30, promptText.length)))) {
-            userMsgId = msg.info.id;
-            logger.debug(
-              { projectId: project.id, msgId: msg.info.id },
-              "Found user message matching prompt text"
-            );
-            break;
-          }
+          userMsgId = msg.info.id;
+          logger.warn(
+            { projectId: project.id, msgId: msg.info.id, fallback: true },
+            "Using last user message as fallback (no text match)"
+          );
+          break;
         }
       }
-      
-      // If no match found, use the last user message (fallback)
-      if (!userMsgId) {
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const msg = messages[i];
-          if (msg?.info?.role === "user" && msg.info.id) {
-            userMsgId = msg.info.id;
-            logger.warn(
-              { projectId: project.id, msgId: msg.info.id, fallback: true },
-              "Using last user message as fallback (no text match)"
-            );
-            break;
-          }
-        }
-      }
-      
-      if (userMsgId) {
-        await updateUserPromptMessageId(project.id, userMsgId);
-        logger.info({ projectId: project.id, userMsgId }, "Stored user prompt message ID");
-      } else {
-        logger.warn(
-          { projectId: project.id, messageCount: messages.length },
-          "Could not find user message after sending prompt"
-        );
-      }
+    }
+
+    if (userMsgId) {
+      await updateUserPromptMessageId(project.id, userMsgId);
+      logger.info({ projectId: project.id, userMsgId }, "Stored user prompt message ID");
+    } else {
+      logger.warn(
+        { projectId: project.id, messageCount: messages.length },
+        "Could not find user message after sending prompt"
+      );
     }
 
     // Mark initial prompt as sent (legacy flag for backward compatibility)

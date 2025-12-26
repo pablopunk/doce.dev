@@ -1,12 +1,30 @@
 /**
- * Normalized event types for the chat UI.
- * These provide a stable interface regardless of opencode internal event shapes.
- * Enhanced with message parts support for structured message handling.
+ * SSE Event normalization for the chat UI.
+ * 
+ * Uses SDK types directly and only adds doce.dev-specific transformations.
+ * The main purpose of this layer is to:
+ * 1. Transform SDK events into a simpler shape for the frontend
+ * 2. Track state for streaming messages (text accumulation, tool calls)
+ * 3. Generate stable IDs for UI elements
  */
+
+import type {
+  Event,
+  EventMessagePartUpdated,
+  EventSessionStatus,
+  EventMessageUpdated,
+  EventFileEdited,
+  ToolPart as SDKToolPart,
+  TextPart as SDKTextPart,
+  ReasoningPart as SDKReasoningPart,
+} from "@opencode-ai/sdk/v2/client";
+
+// ============================================================================
+// Normalized Event Types (for frontend consumption)
+// ============================================================================
 
 export type NormalizedEventType =
   | "chat.session.status"
-  | "chat.message.delta"
   | "chat.message.part.added"
   | "chat.message.final"
   | "chat.tool.start"
@@ -24,32 +42,23 @@ export interface NormalizedEventEnvelope {
   payload: unknown;
 }
 
+// Payload types for each event
 export interface SessionStatusPayload {
   status: string;
-  cost: number | undefined;
-}
-
-export interface MessageDeltaPayload {
-  messageId: string;
-  role: "assistant" | "user";
-  deltaText: string;
+  cost?: number;
 }
 
 export interface MessagePartPayload {
   messageId: string;
   partId: string;
   partType: "text" | "tool" | "reasoning" | "error" | "file";
-  deltaText?: string; // For streaming text
-  text?: string; // For reasoning
-  toolName?: string; // For tools
+  deltaText?: string;
+  text?: string;
+  toolName?: string;
   toolInput?: unknown;
   toolOutput?: unknown;
   toolStatus?: "pending" | "running" | "completed" | "error";
   toolError?: string;
-  errorMessage?: string; // For error parts
-  errorStack?: string;
-  filePath?: string; // For file parts
-  fileSize?: number;
 }
 
 export interface MessageFinalPayload {
@@ -87,349 +96,289 @@ export interface UnknownEventPayload {
   upstreamData: unknown;
 }
 
+// ============================================================================
+// Normalization State
+// ============================================================================
+
 /**
- * Normalization state maintained per SSE connection.
+ * State maintained per SSE connection for tracking streaming context.
  */
 export interface NormalizationState {
-  currentAssistantMessageId: string | null;
-  currentTextPartId: string | null; // Track current text part for streaming
-  toolCallCounter: number;
-  activeToolCalls: Map<string, string>; // upstream id -> our toolCallId
-  reasoningContent: Map<string, string>; // reasoningKey -> accumulated text
-  partIdMap: Map<string, string>; // Maps upstream part IDs to our generated part IDs
+  /** Current assistant message being streamed */
+  currentMessageId: string | null;
+  /** Map of upstream tool callIDs to our stable tool IDs */
+  toolCallMap: Map<string, string>;
+  /** Counter for generating unique tool IDs */
+  toolCounter: number;
+  /** Map of part keys to stable part IDs */
+  partIdMap: Map<string, string>;
 }
 
 export function createNormalizationState(): NormalizationState {
   return {
-    currentAssistantMessageId: null,
-    currentTextPartId: null,
-    toolCallCounter: 0,
-    activeToolCalls: new Map(),
-    reasoningContent: new Map(),
+    currentMessageId: null,
+    toolCallMap: new Map(),
+    toolCounter: 0,
     partIdMap: new Map(),
   };
 }
 
-/**
- * Generate a stable part ID.
- */
-function generatePartId(type: string): string {
-  return `part_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+// ============================================================================
+// ID Generation
+// ============================================================================
+
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/**
- * Generate a stable message ID.
- */
-function generateMessageId(): string {
-  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function getOrCreatePartId(state: NormalizationState, key: string, prefix: string): string {
+  let id = state.partIdMap.get(key);
+  if (!id) {
+    id = generateId(prefix);
+    state.partIdMap.set(key, id);
+  }
+  return id;
 }
 
-/**
- * Generate a stable tool call ID and increment counter.
- */
-function generateToolCallId(counter: number): string {
-  return `tool_${counter}_${Date.now()}`;
+function getOrCreateToolId(state: NormalizationState, callId: string): string {
+  let id = state.toolCallMap.get(callId);
+  if (!id) {
+    state.toolCounter++;
+    id = generateId(`tool_${state.toolCounter}`);
+    state.toolCallMap.set(callId, id);
+  }
+  return id;
 }
 
+// ============================================================================
+// Event Normalization
+// ============================================================================
+
 /**
- * Normalize an upstream opencode event into our stable schema.
+ * Normalize an SDK event into our simplified schema for the frontend.
  */
 export function normalizeEvent(
   projectId: string,
-  upstreamEvent: { type: string; properties?: Record<string, unknown> },
+  event: Event,
   state: NormalizationState
-): NormalizedEventEnvelope {
+): NormalizedEventEnvelope | null {
   const time = new Date().toISOString();
-  const { type, properties = {} } = upstreamEvent;
 
-  switch (type) {
+  switch (event.type) {
+    // Session status changes (idle, busy, etc.)
     case "session.status": {
-      // session.status events contain the actual session state (idle, busy, etc)
-      const statusObj = properties.status as { type?: string } | undefined;
+      const statusEvent = event as EventSessionStatus;
+      const status = statusEvent.properties?.status;
       return {
         type: "chat.session.status",
         projectId,
         time,
         payload: {
-          status: statusObj?.type ?? "unknown",
-          cost: undefined,
+          status: typeof status === "object" && status !== null && "type" in status
+            ? (status as { type?: string }).type ?? "unknown"
+            : "unknown",
         } satisfies SessionStatusPayload,
       };
     }
 
-    case "session.updated": {
-      // session.updated events contain session metadata, not status
-      // We skip these as they don't affect the chat UI status
-      break;
-    }
-
+    // Message part updates (text streaming, tool calls, reasoning)
     case "message.part.updated": {
-      const part = properties.part as { 
-        type?: string; 
-        text?: string;
-        id?: string;
-        messageID?: string;
-        callID?: string;
-        tool?: string;
-        state?: {
-          status?: string;
-          input?: unknown;
-          output?: unknown;
-        };
-      } | undefined;
-      
-      // We need to check if this is part of an assistant message, not a user message
-      // The delta field only appears on streaming assistant responses
-      const delta = properties.delta as string | undefined;
-      
-      if (part?.type === "text" && delta) {
-        // Only process if there's a delta - this indicates streaming assistant response
-        // User messages don't have delta, they come as complete parts
-        const msgId = state.currentAssistantMessageId || part.messageID || generateMessageId();
-        state.currentAssistantMessageId = msgId;
-        
-        // Create or reuse text part ID
-        const textPartKey = `text_${msgId}`;
-        let textPartId: string;
-        const existingPartId = state.partIdMap.get(textPartKey);
-        if (existingPartId) {
-          textPartId = existingPartId;
-        } else {
-          textPartId = generatePartId("text");
-          state.partIdMap.set(textPartKey, textPartId);
-          state.currentTextPartId = textPartId;
-        }
+      const partEvent = event as EventMessagePartUpdated;
+      const part = partEvent.properties?.part;
+      const delta = partEvent.properties?.delta;
 
-        // Emit new part-based event with delta
+      if (!part) return null;
+
+      // Text part with streaming delta
+      if (part.type === "text" && delta) {
+        const textPart = part as SDKTextPart;
+        const messageId = textPart.messageID || state.currentMessageId || generateId("msg");
+        state.currentMessageId = messageId;
+
+        const partId = getOrCreatePartId(state, `text_${messageId}`, "part_text");
+
         return {
           type: "chat.message.part.added",
           projectId,
           time,
           payload: {
-            messageId: msgId,
-            partId: textPartId,
+            messageId,
+            partId,
             partType: "text",
             deltaText: delta,
           } satisfies MessagePartPayload,
         };
       }
-      
-      // Handle reasoning parts - emit as part event
-      if (part?.type === "reasoning") {
-        const reasoningKey = `reasoning_${part.messageID}`;
-        let partId: string;
-        const existingReasoningPartId = state.partIdMap.get(reasoningKey);
-        if (existingReasoningPartId) {
-          partId = existingReasoningPartId;
-        } else {
-          partId = generatePartId("reasoning");
-          state.partIdMap.set(reasoningKey, partId);
-        }
-        
-        // Accumulate reasoning text for finish event
-        if (part.text) {
-          const currentText = state.reasoningContent.get(reasoningKey) || "";
-          state.reasoningContent.set(reasoningKey, currentText + part.text);
-        }
-        
-        const msgId = part.messageID || state.currentAssistantMessageId || generateMessageId();
-        
-        // Return a reasoning part event
+
+      // Reasoning part
+      if (part.type === "reasoning") {
+        const reasoningPart = part as SDKReasoningPart;
+        const messageId = reasoningPart.messageID || state.currentMessageId || generateId("msg");
+        const partId = getOrCreatePartId(state, `reasoning_${messageId}`, "part_reasoning");
+
         return {
           type: "chat.reasoning.part",
           projectId,
           time,
           payload: {
-            messageId: msgId,
+            messageId,
             partId,
-            text: part.text || "",
+            text: reasoningPart.text || "",
           } satisfies ReasoningPartPayload,
         };
       }
-      
-      // Handle step-finish to close reasoning (emit as tool finish for backward compat)
-      if (part?.type === "step-finish") {
-        const reasoningKey = `reasoning_${part.messageID}`;
-        const toolCallId = state.activeToolCalls.get(reasoningKey);
+
+      // Tool part
+      if (part.type === "tool") {
+        const toolPart = part as SDKToolPart;
+        const { callID, tool, state: toolState } = toolPart;
         
-        if (toolCallId) {
-          state.activeToolCalls.delete(reasoningKey);
-          const reasoningText = state.reasoningContent.get(reasoningKey) || "";
-          state.reasoningContent.delete(reasoningKey);
-          
-          return {
-            type: "chat.tool.finish",
-            projectId,
-            time,
-            payload: {
-              toolCallId,
-              output: reasoningText || null,
-            } satisfies ToolFinishPayload,
-          };
-        }
-      }
-      
-      // Handle tool parts from message.part.updated
-      if (part?.type === "tool" && part.callID && part.tool) {
-        const callId = part.callID;
-        const status = part.state?.status;
-        let toolCallId = state.activeToolCalls.get(callId);
-        
-        if (status === "running" || status === "pending") {
-          // Tool starting
-          if (!toolCallId) {
-            state.toolCallCounter++;
-            toolCallId = generateToolCallId(state.toolCallCounter);
-            state.activeToolCalls.set(callId, toolCallId);
-          }
-          
+        if (!callID || !tool) return null;
+
+        const toolCallId = getOrCreateToolId(state, callID);
+        const status = toolState?.status;
+
+        // Tool starting (pending or running)
+        if (status === "pending" || status === "running") {
           return {
             type: "chat.tool.start",
             projectId,
             time,
             payload: {
               toolCallId,
-              name: part.tool,
-              input: part.state?.input,
+              name: tool,
+              input: toolState?.input,
             } satisfies ToolStartPayload,
           };
-        } else if (status === "completed") {
-          // Tool finished
-          if (!toolCallId) {
-            toolCallId = `unknown_${state.toolCallCounter}`;
-          }
-          state.activeToolCalls.delete(callId);
-          
+        }
+
+        // Tool completed
+        if (status === "completed") {
+          state.toolCallMap.delete(callID);
           return {
             type: "chat.tool.finish",
             projectId,
             time,
             payload: {
               toolCallId,
-              output: part.state?.output,
+              output: toolState?.output,
             } satisfies ToolFinishPayload,
           };
         }
+
+        // Tool error
+        if (status === "error") {
+          state.toolCallMap.delete(callID);
+          return {
+            type: "chat.tool.error",
+            projectId,
+            time,
+            payload: {
+              toolCallId,
+              error: toolState?.error,
+            } satisfies ToolErrorPayload,
+          };
+        }
       }
-      break;
+
+      return null;
     }
 
+    // Message completed
     case "message.updated": {
-      // Message is complete
-      if (state.currentAssistantMessageId) {
-        const messageId = state.currentAssistantMessageId;
-        state.currentAssistantMessageId = null;
-
+      const msgEvent = event as EventMessageUpdated;
+      const info = msgEvent.properties?.info;
+      
+      // Only emit final for assistant messages
+      if (info?.role === "assistant" && state.currentMessageId) {
+        const messageId = state.currentMessageId;
+        state.currentMessageId = null;
+        
         return {
           type: "chat.message.final",
           projectId,
           time,
-          payload: {
-            messageId,
-          } satisfies MessageFinalPayload,
+          payload: { messageId } satisfies MessageFinalPayload,
         };
       }
-      break;
+      return null;
     }
 
-    case "tool.execute": {
-      const name = properties.name as string | undefined;
-      const input = properties.input;
-
-      // Generate or find tool call ID
-      const upstreamId = (properties.id as string) ?? `auto_${state.toolCallCounter}`;
-      let toolCallId = state.activeToolCalls.get(upstreamId);
-      if (!toolCallId) {
-        state.toolCallCounter++;
-        toolCallId = generateToolCallId(state.toolCallCounter);
-        state.activeToolCalls.set(upstreamId, toolCallId);
-      }
-
-      return {
-        type: "chat.tool.start",
-        projectId,
-        time,
-        payload: {
-          toolCallId,
-          name: name ?? "unknown",
-          input,
-        } satisfies ToolStartPayload,
-      };
-    }
-
-    case "tool.result": {
-      const output = properties.output;
-      const upstreamId = (properties.id as string) ?? "";
-      const toolCallId = state.activeToolCalls.get(upstreamId) ?? `unknown_${state.toolCallCounter}`;
-
-      // Clean up
-      state.activeToolCalls.delete(upstreamId);
-
-      // Check if it's an error
-      const isError =
-        typeof output === "object" &&
-        output !== null &&
-        "error" in output;
-
-      if (isError) {
-        return {
-          type: "chat.tool.error",
-          projectId,
-          time,
-          payload: {
-            toolCallId,
-            error: output,
-          } satisfies ToolErrorPayload,
-        };
-      }
-
-      return {
-        type: "chat.tool.finish",
-        projectId,
-        time,
-        payload: {
-          toolCallId,
-          output,
-        } satisfies ToolFinishPayload,
-      };
-    }
-
+    // File edited
     case "file.edited": {
-      const file = properties.file as string | undefined;
+      const fileEvent = event as EventFileEdited;
+      const file = fileEvent.properties?.file;
+      
       if (file) {
         return {
           type: "chat.file.changed",
           projectId,
           time,
-          payload: {
-            path: file,
-          } satisfies FileChangedPayload,
+          payload: { path: file } satisfies FileChangedPayload,
         };
       }
-      break;
+      return null;
     }
-  }
 
-  // Unknown or unhandled event
-  return {
-    type: "chat.event.unknown",
-    projectId,
-    time,
-    payload: {
-      upstreamEventType: type,
-      upstreamData: properties,
-    } satisfies UnknownEventPayload,
-  };
+    // Session events we can ignore
+    case "session.updated":
+    case "session.created":
+    case "session.deleted":
+    case "session.idle":
+    case "session.compacted":
+    case "session.diff":
+    case "session.error":
+      return null;
+
+    // Other events we don't need to handle
+    case "permission.updated":
+    case "permission.replied":
+    case "message.removed":
+    case "message.part.removed":
+    case "file.watcher.updated":
+    case "vcs.branch.updated":
+    case "pty.created":
+    case "pty.updated":
+    case "pty.exited":
+    case "pty.deleted":
+    case "lsp.client.diagnostics":
+    case "lsp.updated":
+    case "installation.updated":
+    case "installation.update-available":
+    case "project.updated":
+    case "server.connected":
+    case "server.instance.disposed":
+    case "todo.updated":
+    case "command.executed":
+    case "mcp.tools.changed":
+    case "tui.prompt.append":
+    case "tui.command.execute":
+    case "tui.toast.show":
+    case "global.disposed":
+      return null;
+
+    default:
+      // Unknown event type - return for debugging if needed
+      return {
+        type: "chat.event.unknown",
+        projectId,
+        time,
+        payload: {
+          upstreamEventType: (event as { type: string }).type,
+          upstreamData: (event as { properties?: unknown }).properties,
+        } satisfies UnknownEventPayload,
+      };
+  }
 }
 
 /**
- * Parse SSE data line into an event object.
+ * Parse SSE data line into an SDK Event object.
  */
-export function parseSSEData(data: string): { type: string; properties?: Record<string, unknown> } | null {
+export function parseSSEData(data: string): Event | null {
   try {
     const parsed = JSON.parse(data);
     if (typeof parsed === "object" && parsed !== null && "type" in parsed) {
-      return parsed as { type: string; properties?: Record<string, unknown> };
+      return parsed as Event;
     }
     return null;
   } catch {

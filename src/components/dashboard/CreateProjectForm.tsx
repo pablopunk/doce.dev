@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, Paperclip } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { actions } from "astro:actions";
+import { toast } from "sonner";
 import { ImagePreview } from "@/components/chat/ImagePreview";
 import {
 	type ImagePart,
@@ -13,7 +14,7 @@ import {
 } from "@/types/message";
 
 interface CreateProjectFormProps {
-	models: readonly { id: string; name: string; provider: string }[];
+	models: readonly { id: string; name: string; provider: string; supportsImages?: boolean }[];
 	defaultModel: string;
 }
 
@@ -128,6 +129,13 @@ export function CreateProjectForm({
 				VALID_IMAGE_MIME_TYPES.includes(file.type as typeof VALID_IMAGE_MIME_TYPES[number])
 			);
 			if (imageFiles.length > 0) {
+				// Show error if images aren't supported
+				if (!currentModelSupportsImages) {
+					toast.error("Images not supported", {
+						description: "The selected model doesn't support image input",
+					});
+					return;
+				}
 				processFiles(imageFiles);
 			}
 		}
@@ -226,6 +234,25 @@ export function CreateProjectForm({
 		// Timeout after ~20 seconds - project should definitely exist by now
 	};
 
+	const handleModelChange = (newModelId: string) => {
+		const newModelConfig = models.find(m => m.id === newModelId);
+		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
+
+		// Clear pending images if switching to a model that doesn't support them
+		if (selectedImages.length > 0 && !newModelSupportsImages) {
+			setSelectedImages([]);
+			setImageError(null);
+			toast.info("Images cleared", {
+				description: "The selected model doesn't support image input",
+			});
+		}
+
+		setSelectedModel(newModelId);
+	};
+
+	// Check if the current model supports images
+	const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supportsImages ?? true;
+
 	return (
 		<div className="w-full">
 			<div className="flex flex-col gap-4">
@@ -266,34 +293,38 @@ export function CreateProjectForm({
 						<ModelSelector
 							models={models}
 							selectedModelId={selectedModel}
-							onModelChange={setSelectedModel}
+							onModelChange={handleModelChange}
 						/>
 						<div className="flex items-center gap-2">
-							{/* Hidden File Input */}
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept={VALID_IMAGE_MIME_TYPES.join(",")}
-								multiple
-								onChange={handleFileSelect}
-								className="hidden"
-							/>
-							{/* Attachment Button */}
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => fileInputRef.current?.click()}
-								disabled={isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
-								title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
-								type="button"
-							>
-								<Paperclip className="w-5 h-5" />
-								{selectedImages.length > 0 && (
-									<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-										{selectedImages.length}
-									</span>
-								)}
-							</Button>
+							{/* Hidden File Input - only render when images are supported */}
+							{currentModelSupportsImages && (
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept={VALID_IMAGE_MIME_TYPES.join(",")}
+									multiple
+									onChange={handleFileSelect}
+									className="hidden"
+								/>
+							)}
+							{/* Attachment Button - only show when images are supported */}
+							{currentModelSupportsImages && (
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={() => fileInputRef.current?.click()}
+									disabled={isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
+									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+									type="button"
+								>
+									<Paperclip className="w-5 h-5" />
+									{selectedImages.length > 0 && (
+										<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+											{selectedImages.length}
+										</span>
+									)}
+								</Button>
+							)}
 							{/* Create Button */}
 							<Button
 								onClick={(e) => {

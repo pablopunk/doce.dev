@@ -45,6 +45,25 @@ The project page now includes a "Files" tab alongside the "Preview" tab:
   - `GET /api/projects/[id]/files` → Returns file tree from `src/`
   - `GET /api/projects/[id]/files?path=...` → Returns file content
 
+## OpenCode SDK Integration
+
+doce.dev uses `@opencode-ai/sdk` v2 API for all OpenCode interactions:
+
+**Key Points:**
+- Import from `@opencode-ai/sdk/v2/client` for the latest API
+- Use flat parameter structure (e.g., `{ sessionID, parts }` not `{ path: { id }, body: { parts } }`)
+- SDK types are re-exported in `src/types/message.ts` with `SDK` prefix
+- SSE events use SDK's `Event` union type in `normalize.ts`
+
+**Example:**
+```typescript
+import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
+import type { Event, TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
+
+const client = createOpencodeClient({ baseUrl: `http://127.0.0.1:${port}` });
+await client.session.promptAsync({ sessionID, parts: [...] });
+```
+
 ## Documentation
 
 See `docs/` for implementation details:
@@ -53,7 +72,7 @@ See `docs/` for implementation details:
 - `docs/architecture/` - System architecture documentation
   - `queue-system.md` - Job queue, handlers, worker flow
   - `docker-management.md` - Container lifecycle, compose operations
-  - `opencode-integration.md` - SDK client, SSE event normalization
+  - `opencode-integration.md` - SDK v2 client, SSE event normalization
   - `database-schema.md` - Tables, relationships
   - `presence-system.md` - Real-time state, heartbeats, auto start/stop
   - `project-lifecycle.md` - Creation & deletion flows, status states

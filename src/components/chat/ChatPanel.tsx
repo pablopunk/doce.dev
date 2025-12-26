@@ -6,10 +6,11 @@ import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
 import { Loader2 } from "lucide-react";
 import { actions } from "astro:actions";
+import { toast } from "sonner";
 
 interface ChatPanelProps {
   projectId: string;
-  models?: ReadonlyArray<{ id: string; name: string; provider: string }>;
+  models?: ReadonlyArray<{ id: string; name: string; provider: string; supportsImages?: boolean }>;
 }
 
 interface ChatItem {
@@ -40,6 +41,9 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [presenceLoaded, setPresenceLoaded] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  // Pending images for the chat input (lifted state for model switch handling)
+  const [pendingImages, setPendingImages] = useState<ImagePart[]>([]);
+  const [pendingImageError, setPendingImageError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -634,6 +638,9 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
       // prompt_async returns 204 No Content on success
       if (res.ok || res.status === 204) {
         setIsStreaming(true);
+        // Clear pending images after successful send
+        setPendingImages([]);
+        setPendingImageError(null);
       }
      } catch (error) {
        console.error("Failed to send message:", error);
@@ -641,6 +648,19 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
    };
 
    const handleModelChange = async (newModelId: string) => {
+     // Check if new model supports images
+     const newModelConfig = models.find(m => m.id === newModelId);
+     const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
+
+     // Clear pending images if switching to a model that doesn't support them
+     if (pendingImages.length > 0 && !newModelSupportsImages) {
+       setPendingImages([]);
+       setPendingImageError(null);
+       toast.info("Images cleared", {
+         description: "The selected model doesn't support image input",
+       });
+     }
+
      // Optimistic update - update UI immediately
      const previousModel = currentModel;
      setCurrentModel(newModelId);
@@ -738,20 +758,30 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         )}
       </div>
 
-       <ChatInput
-         onSend={handleSend}
-         disabled={!opencodeReady || isStreaming}
-         placeholder={
-           !opencodeReady
-             ? "Waiting for opencode..."
-             : isStreaming
-               ? "Processing..."
-               : "Type a message..."
-         }
-         model={currentModel}
-         models={models}
-         onModelChange={handleModelChange}
-       />
+       {(() => {
+       const modelSupport = models.find(m => m.id === currentModel)?.supportsImages ?? true;
+       return (
+         <ChatInput
+           onSend={handleSend}
+           disabled={!opencodeReady || isStreaming}
+           placeholder={
+             !opencodeReady
+               ? "Waiting for opencode..."
+               : isStreaming
+                 ? "Processing..."
+                 : "Type a message..."
+           }
+           model={currentModel}
+           models={models}
+           onModelChange={handleModelChange}
+           images={pendingImages}
+           onImagesChange={setPendingImages}
+           imageError={pendingImageError}
+           onImageError={setPendingImageError}
+           supportsImages={modelSupport}
+         />
+       );
+     })()}
     </div>
   );
 }

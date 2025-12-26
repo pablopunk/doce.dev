@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2, Paperclip } from "lucide-react";
+import { toast } from "sonner";
 import { ModelSelector } from "@/components/dashboard/ModelSelector";
 import { ImagePreview } from "./ImagePreview";
 import {
@@ -24,8 +25,14 @@ interface ChatInputProps {
 	disabled?: boolean;
 	placeholder?: string;
 	model?: string | null;
-	models?: ReadonlyArray<{ id: string; name: string; provider: string }>;
+	models?: ReadonlyArray<{ id: string; name: string; provider: string; supportsImages?: boolean }>;
 	onModelChange?: (modelId: string) => void;
+	// Image state lifted from parent
+	images?: ImagePart[];
+	onImagesChange?: (images: ImagePart[]) => void;
+	imageError?: string | null;
+	onImageError?: (error: string | null) => void;
+	supportsImages?: boolean;
 }
 
 export function ChatInput({
@@ -35,13 +42,41 @@ export function ChatInput({
 	model = null,
 	models = [],
 	onModelChange,
+	images: externalImages,
+	onImagesChange,
+	imageError: externalImageError,
+	onImageError,
+	supportsImages = true,
 }: ChatInputProps) {
 	const [message, setMessage] = useState("");
-	const [selectedImages, setSelectedImages] = useState<ImagePart[]>([]);
-	const [imageError, setImageError] = useState<string | null>(null);
+	// Internal state (used when external state is not provided)
+	const [internalImages, setInternalImages] = useState<ImagePart[]>([]);
+	const [internalImageError, setInternalImageError] = useState<string | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	// Use external state if provided, otherwise use internal state
+	const selectedImages = externalImages ?? internalImages;
+	const imageError = externalImageError ?? internalImageError;
+
+	// Wrapper to handle both external and internal state updates
+	const updateImages = (updater: ImagePart[] | ((prev: ImagePart[]) => ImagePart[])) => {
+		const newImages = typeof updater === "function" ? updater(selectedImages) : updater;
+		if (onImagesChange) {
+			onImagesChange(newImages);
+		} else {
+			setInternalImages(newImages);
+		}
+	};
+
+	const updateImageError = (error: string | null) => {
+		if (onImageError) {
+			onImageError(error);
+		} else {
+			setInternalImageError(error);
+		}
+	};
 
 	const adjustTextareaHeight = () => {
 		const textarea = textareaRef.current;
@@ -59,13 +94,16 @@ export function ChatInput({
 
 	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {
-		setImageError(null);
+		// Don't process if images aren't supported
+		if (!supportsImages) return;
+
+		updateImageError(null);
 		const fileArray = Array.from(files);
 
 		// Check total count
 		const totalCount = selectedImages.length + fileArray.length;
 		if (totalCount > MAX_IMAGES_PER_MESSAGE) {
-			setImageError(`Max ${MAX_IMAGES_PER_MESSAGE} images allowed`);
+			updateImageError(`Max ${MAX_IMAGES_PER_MESSAGE} images allowed`);
 			return;
 		}
 
@@ -74,7 +112,7 @@ export function ChatInput({
 		for (const file of fileArray) {
 			const validation = validateImageFile(file);
 			if (!validation.valid) {
-				setImageError(validation.error || "Invalid file");
+				updateImageError(validation.error || "Invalid file");
 				return;
 			}
 
@@ -82,12 +120,12 @@ export function ChatInput({
 				const imagePart = await createImagePartFromFile(file);
 				newImages.push(imagePart);
 			} catch {
-				setImageError(`Failed to read ${file.name}`);
+				updateImageError(`Failed to read ${file.name}`);
 				return;
 			}
 		}
 
-		setSelectedImages((prev) => [...prev, ...newImages]);
+		updateImages((prev) => [...prev, ...newImages]);
 	};
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,6 +137,9 @@ export function ChatInput({
 	};
 
 	const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+		// Don't process image pastes if images aren't supported
+		if (!supportsImages) return;
+
 		const items = e.clipboardData?.items;
 		if (!items) return;
 
@@ -117,6 +158,9 @@ export function ChatInput({
 	};
 
 	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+		// Don't show drag state if images aren't supported
+		if (!supportsImages) return;
+
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragging(true);
@@ -133,6 +177,21 @@ export function ChatInput({
 		e.stopPropagation();
 		setIsDragging(false);
 
+		// Show error if images aren't supported
+		if (!supportsImages) {
+			const imageFiles = e.dataTransfer?.files ? 
+				Array.from(e.dataTransfer.files).filter((file) =>
+					file.type.startsWith("image/")
+				) : [];
+			
+			if (imageFiles && imageFiles.length > 0) {
+				toast.error("Images not supported", {
+					description: "The selected model doesn't support image input",
+				});
+			}
+			return;
+		}
+
 		const files = e.dataTransfer?.files;
 		if (files && files.length > 0) {
 			// Filter only images
@@ -146,8 +205,8 @@ export function ChatInput({
 	};
 
 	const removeImage = (id: string) => {
-		setSelectedImages((prev) => prev.filter((img) => img.id !== id));
-		setImageError(null);
+		updateImages((prev) => prev.filter((img) => img.id !== id));
+		updateImageError(null);
 	};
 
 	const handleSubmit = (e: FormEvent) => {
@@ -158,8 +217,8 @@ export function ChatInput({
 
 		onSend(trimmed, selectedImages.length > 0 ? selectedImages : undefined);
 		setMessage("");
-		setSelectedImages([]);
-		setImageError(null);
+		updateImages([]);
+		updateImageError(null);
 
 		// Reset textarea height
 		if (textareaRef.current) {
@@ -187,7 +246,7 @@ export function ChatInput({
 			<div className="flex flex-col gap-4">
 				<div
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
-						isDragging ? "border-primary bg-primary/5" : "border-input"
+						isDragging && supportsImages ? "border-primary bg-primary/5" : "border-input"
 					}`}
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
@@ -227,31 +286,35 @@ export function ChatInput({
 							/>
 						)}
 						<div className="flex items-center gap-2">
-							{/* Hidden File Input */}
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept={VALID_IMAGE_MIME_TYPES.join(",")}
-								multiple
-								onChange={handleFileSelect}
-								className="hidden"
-							/>
-							{/* Attachment Button */}
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => fileInputRef.current?.click()}
-								disabled={disabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
-								title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
-								type="button"
-							>
-								<Paperclip className="w-5 h-5" />
-								{selectedImages.length > 0 && (
-									<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-										{selectedImages.length}
-									</span>
-								)}
-							</Button>
+							{/* Hidden File Input - only render when images are supported */}
+							{supportsImages && (
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept={VALID_IMAGE_MIME_TYPES.join(",")}
+									multiple
+									onChange={handleFileSelect}
+									className="hidden"
+								/>
+							)}
+							{/* Attachment Button - only show when images are supported */}
+							{supportsImages && (
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={() => fileInputRef.current?.click()}
+									disabled={disabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
+									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+									type="button"
+								>
+									<Paperclip className="w-5 h-5" />
+									{selectedImages.length > 0 && (
+										<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+											{selectedImages.length}
+										</span>
+									)}
+								</Button>
+							)}
 							{/* Send Button */}
 							<Button
 								onClick={(e) => {

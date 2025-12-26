@@ -3,6 +3,7 @@ import {
   getProjectByIdIncludeDeleted,
   updateInitPromptMessageId,
 } from "@/server/projects/projects.model";
+import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
@@ -15,8 +16,6 @@ interface OpencodeConfig {
   provider?: Record<string, unknown>;
   instructions?: string[];
 }
-
-
 
 /**
  * Load opencode.json config from project directory.
@@ -57,99 +56,75 @@ export async function handleOpencodeSessionInit(ctx: QueueJobContext): Promise<v
 
     await ctx.throwIfCancelRequested();
 
-     // Load opencode.json to get model configuration
-     const projectPath = path.join(process.cwd(), "data", "projects", project.id);
-     const config = loadOpencodeConfig(projectPath);
+    // Load opencode.json to get model configuration
+    const projectPath = path.join(process.cwd(), "data", "projects", project.id);
+    const config = loadOpencodeConfig(projectPath);
 
-     if (!config || !config.model) {
-       throw new Error("No model configured in opencode.json");
-     }
+    if (!config || !config.model) {
+      throw new Error("No model configured in opencode.json");
+    }
 
-     // The model string from opencode.json is already in the correct format
-     // e.g., "anthropic/claude-haiku-4.5" or "google/gemini-2.5-flash"
-     const modelID = config.model;
-     
-     // OpenRoute is the provider service that hosts these models
-     const providerID = "openrouter";
+    // The model string from opencode.json is already in the correct format
+    // e.g., "anthropic/claude-haiku-4.5" or "google/gemini-2.5-flash"
+    const modelID = config.model;
+    
+    // OpenRouter is the provider service that hosts these models
+    const providerID = "openrouter";
 
-     logger.debug(
-       { projectId: project.id, sessionId, modelID, providerID },
-       "Initializing opencode session with model config"
-     );
+    logger.debug(
+      { projectId: project.id, sessionId, modelID, providerID },
+      "Initializing opencode session with model config"
+    );
+
+    // Create SDK client for this project
+    const client = createOpencodeClient(project.opencodePort);
 
     // Fetch session messages to get the messageID for initialization
-     // Even though the session was just created, there should be messages from the initialization
-     const messagesUrl = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/message`;
-     const messagesRes = await fetch(messagesUrl);
-     
-     if (!messagesRes.ok) {
-       throw new Error(`Failed to fetch session messages: ${messagesRes.status}`);
-     }
+    const messagesResponse = await client.session.messages({ sessionID: sessionId });
+    const messagesData = messagesResponse.data as Array<{ info?: { id?: string } }> | undefined;
+    const messages = messagesData ?? [];
 
-     const messages = await messagesRes.json() as Array<{ info?: { id?: string } }>;
-     
-     // If no messages exist, create an initial one by sending an empty prompt
-     let firstMessageId = messages[0]?.info?.id;
-     
-     if (!firstMessageId) {
-       logger.debug(
-         { projectId: project.id, sessionId },
-         "No messages found, creating initial message via prompt"
-       );
-       
-       // Send an async prompt with empty text to create a message
-       const promptUrl = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
-       const promptRes = await fetch(promptUrl, {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({
-           parts: [{ type: "text", text: "" }],
-         }),
-       });
+    // If no messages exist, create an initial one by sending an empty prompt
+    let firstMessageId = messages[0]?.info?.id;
 
-       if (!promptRes.ok) {
-         throw new Error(`Failed to create initial message via prompt: ${promptRes.status}`);
-       }
+    if (!firstMessageId) {
+      logger.debug(
+        { projectId: project.id, sessionId },
+        "No messages found, creating initial message via prompt"
+      );
 
-       // Wait a moment for the message to be created
-       await new Promise(resolve => setTimeout(resolve, 100));
+      // Send an async prompt with empty text to create a message
+      await client.session.promptAsync({
+        sessionID: sessionId,
+        parts: [{ type: "text", text: "" }],
+      });
 
-       // Now fetch messages again
-       const messagesRes2 = await fetch(messagesUrl);
-       if (!messagesRes2.ok) {
-         throw new Error(`Failed to fetch messages after prompt: ${messagesRes2.status}`);
-       }
+      // Wait a moment for the message to be created
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-       const messages2 = await messagesRes2.json() as Array<{ info?: { id?: string } }>;
-       firstMessageId = messages2[0]?.info?.id;
+      // Now fetch messages again
+      const messagesResponse2 = await client.session.messages({ sessionID: sessionId });
+      const messagesData2 = messagesResponse2.data as Array<{ info?: { id?: string } }> | undefined;
+      const messages2 = messagesData2 ?? [];
+      firstMessageId = messages2[0]?.info?.id;
 
-       if (!firstMessageId) {
-         throw new Error("Still no message ID after sending prompt");
-       }
-     }
-
-     logger.debug(
-       { projectId: project.id, sessionId, firstMessageId },
-       "Found message ID for session init"
-     );
-
-    // Call session.init via HTTP to initialize the agent with model/provider configuration
-    const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/init`;
-    
-     const response = await fetch(url, {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-         modelID,
-         providerID,
-         messageID: firstMessageId,
-       }),
-     });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(`Failed to initialize session: ${response.status} ${text.slice(0, 200)}`);
+      if (!firstMessageId) {
+        throw new Error("Still no message ID after sending prompt");
+      }
     }
+
+    logger.debug(
+      { projectId: project.id, sessionId, firstMessageId },
+      "Found message ID for session init"
+    );
+
+    // Call session.init via SDK to initialize the agent with model/provider configuration
+    await client.session.init({
+      sessionID: sessionId,
+      modelID,
+      providerID,
+      messageID: firstMessageId,
+    });
 
     logger.info({ projectId: project.id, sessionId }, "Initialized opencode session with agent");
 
@@ -163,7 +138,7 @@ export async function handleOpencodeSessionInit(ctx: QueueJobContext): Promise<v
     // Enqueue next step: send user prompt (the actual project prompt)
     await enqueueOpencodeSendUserPrompt({ projectId: project.id });
     logger.debug({ projectId: project.id }, "Enqueued opencode.sendUserPrompt");
-   } catch (error) {
-     throw error;
-   }
+  } catch (error) {
+    throw error;
+  }
 }

@@ -7,7 +7,7 @@ import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisp
 
 interface ProjectContentWrapperProps {
   projectId: string;
-  models?: ReadonlyArray<{ id: string; name: string; provider: string }>;
+  models?: ReadonlyArray<{ id: string; name: string; provider: string; supportsImages?: boolean }>;
 }
 
 interface PresenceResponse {

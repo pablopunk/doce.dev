@@ -101,8 +101,8 @@ export const GET: APIRoute = async ({ params, cookies }) => {
      // The event format is: {"type":"session.status","properties":{"sessionID":"...","status":{"type":"idle"}}}
      if (parsed.type !== "session.status") return;
 
-     const statusObj = parsed.properties?.status as { type?: string } | undefined;
-     const status = statusObj?.type;
+     const properties = parsed.properties as { status?: { type?: string } } | undefined;
+     const status = properties?.status?.type;
 
      // Only process idle events
      if (status !== "idle") return;
@@ -218,14 +218,18 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 
                 if (parsed) {
                   // Check for prompt completion (server-side detection)
+                  // Cast to simple shape for prompt completion check
+                  const eventForCheck = parsed as { type: string; properties?: Record<string, unknown> };
                   if (sendEventFn) {
-                    checkPromptCompletion(parsed, sendEventFn).catch((error: unknown) => {
+                    checkPromptCompletion(eventForCheck, sendEventFn).catch((error: unknown) => {
                       logger.error({ error, projectId }, "Error checking prompt completion");
                     });
                   }
 
                   const normalized = normalizeEvent(projectId, parsed, state);
-                  sendEvent(normalized);
+                  if (normalized) {
+                    sendEvent(normalized);
+                  }
                 }
             }
           }

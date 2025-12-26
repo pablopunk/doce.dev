@@ -28,13 +28,13 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
   try {
     await ctx.throwIfCancelRequested();
 
-    // Create opencode client
+    // Create opencode client (v2 SDK)
     const client = createOpencodeClient(project.opencodePort);
 
     // Create a new session
     const sessionResponse = await client.session.create();
-    const sessionData = (sessionResponse as unknown as { data?: { id: string }; id?: string });
-    const sessionId = sessionData.data?.id ?? sessionData.id;
+    const sessionData = sessionResponse.data as { id?: string } | undefined;
+    const sessionId = sessionData?.id;
     
     if (!sessionId) {
       throw new Error("Failed to create session: no session ID returned");
@@ -47,10 +47,10 @@ export async function handleOpencodeSessionCreate(ctx: QueueJobContext): Promise
 
     await ctx.throwIfCancelRequested();
 
-     // Enqueue next step: initialize session with agent
-     await enqueueOpencodeSessionInit({ projectId: project.id });
-     logger.debug({ projectId: project.id }, "Enqueued opencode.sessionInit");
-    } catch (error) {
-      throw error;
-    }
+    // Enqueue next step: initialize session with agent
+    await enqueueOpencodeSessionInit({ projectId: project.id });
+    logger.debug({ projectId: project.id }, "Enqueued opencode.sessionInit");
+  } catch (error) {
+    throw error;
+  }
 }
