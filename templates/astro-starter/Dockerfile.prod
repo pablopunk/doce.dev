@@ -14,9 +14,6 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy pre-built dist folder (built on host by productionBuild.ts)
 COPY dist ./dist
 
-# Copy public assets if they exist
-COPY public ./public 2>/dev/null || true
-
 # Health check - verify production server is responding
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
   CMD wget -q --spider http://localhost:3000 || exit 1
