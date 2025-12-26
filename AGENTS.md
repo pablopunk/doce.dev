@@ -68,6 +68,32 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 **OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
 
 
+## Project Setup Architecture
+
+Project creation is handled entirely by the async queue system:
+
+1. **Frontend** → Astro action receives prompt/model/images
+2. **Astro Action** → Generates projectId, enqueues `project.create` job (fire-and-forget)
+3. **Queue Worker** → Executes `handleProjectCreate()` which:
+   - Generates project name via AI
+   - Creates unique slug
+   - **Allocates ports** (stored in DB for runtime health checks, API communication, frontend URLs)
+   - **Sets up filesystem** (template copy, .env file, logs dir) via `setupProjectFilesystem()`
+   - Updates opencode.json with selected model
+   - Creates DB record
+   - Enqueues `docker.composeUp` for container startup
+
+**Key modules:**
+- `src/server/projects/paths.ts` - Shared path helpers (DATA_DIR, PROJECTS_DIR, TEMPLATE_DIR)
+- `src/server/projects/setup.ts` - Shared filesystem setup (`setupProjectFilesystem()`, `updateOpencodeModel()`)
+- `src/server/queue/handlers/projectCreate.ts` - Queue job handler
+
+**Why ports in DB:** Ports are allocated during setup and stored in the projects table because they're needed throughout the project lifecycle for:
+- Health checks during startup/presence heartbeats
+- API communication with OpenCode agent container
+- Frontend preview URLs
+- Proxy routing for API requests
+
 ## Documentation
 
 See `docs/` for implementation details:

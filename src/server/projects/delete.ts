@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { getProjectPath } from "./create";
+import { getProjectPath } from "./paths";
 import {
 	getProjectById,
 	getProjectsByUserId,
