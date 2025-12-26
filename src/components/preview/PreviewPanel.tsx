@@ -254,9 +254,9 @@ export function PreviewPanel({
 		};
 	}, [pollProductionStatus]);
 
-	// Reset isStopping when production status changes from "building" to other states
+	// Reset isStopping when production status changes to "stopped"
 	useEffect(() => {
-		if (isStopping && productionStatus?.status !== "building") {
+		if (isStopping && productionStatus?.status === "stopped") {
 			setIsStopping(false);
 		}
 	}, [productionStatus?.status, isStopping]);
