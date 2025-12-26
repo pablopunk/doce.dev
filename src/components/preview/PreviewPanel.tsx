@@ -232,17 +232,20 @@ export function PreviewPanel({
 		}
 	};
 
-	const pollProductionStatus = useCallback(async () => {
-		try {
-			const response = await fetch(`/api/projects/${projectId}/production`);
-			if (response.ok) {
-				const status = await response.json();
-				setProductionStatus(status);
+	const pollProductionStatus =
+		useCallback(async (): Promise<ProductionStatus | null> => {
+			try {
+				const response = await fetch(`/api/projects/${projectId}/production`);
+				if (response.ok) {
+					const status = (await response.json()) as ProductionStatus;
+					setProductionStatus(status);
+					return status;
+				}
+			} catch (error) {
+				console.error("Failed to fetch production status:", error);
 			}
-		} catch (error) {
-			console.error("Failed to fetch production status:", error);
-		}
-	}, [projectId]);
+			return null;
+		}, [projectId]);
 
 	// Adaptive polling for production status
 	useEffect(() => {
@@ -251,19 +254,20 @@ export function PreviewPanel({
 		const poll = async () => {
 			if (!mounted) return;
 
-			await pollProductionStatus();
+			// Fetch fresh status and use it directly (not stale state)
+			const freshStatus = await pollProductionStatus();
 
 			if (!mounted) return;
 
-			// Determine polling interval based on state
+			// Determine polling interval based on FRESH status (not state)
 			let pollInterval = 10_000; // Default: 10s when stable
-			if (productionStatus?.activeJob) {
+			if (freshStatus?.activeJob) {
 				// Job in progress - poll aggressively
 				pollInterval = 1_000; // 1s
 			} else if (
-				productionStatus?.status === "running" ||
-				productionStatus?.status === "building" ||
-				productionStatus?.status === "queued"
+				freshStatus?.status === "running" ||
+				freshStatus?.status === "building" ||
+				freshStatus?.status === "queued"
 			) {
 				// Transition state - poll moderately
 				pollInterval = 2_000; // 2s
@@ -282,11 +286,7 @@ export function PreviewPanel({
 				clearTimeout(productionPollRef.current);
 			}
 		};
-	}, [
-		pollProductionStatus,
-		productionStatus?.activeJob,
-		productionStatus?.status,
-	]);
+	}, [pollProductionStatus]);
 
 	const handleDeploy = async () => {
 		try {
