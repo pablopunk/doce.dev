@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ChatPanel } from "@/components/chat/ChatPanel";
@@ -19,14 +19,16 @@ interface PresenceResponse {
 export function ProjectContentWrapper({ projectId, models = [] }: ProjectContentWrapperProps) {
   const [showStartupDisplay, setShowStartupDisplay] = useState(true);
   const [fileToOpen, setFileToOpen] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Use custom resizable panel hook for managing layout with constraints
-   const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } = useResizablePanel({
-      projectId,
-      minSize: 25,
-      maxSize: 75,
-      defaultSize: 33.33,
-    });
+  const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } = useResizablePanel({
+    projectId,
+    minSize: 25,
+    maxSize: 75,
+    defaultSize: 33.33,
+    containerRef,
+  });
 
   // Check if containers are already ready on mount
   useEffect(() => {
@@ -67,11 +69,12 @@ export function ProjectContentWrapper({ projectId, models = [] }: ProjectContent
          />
        )}
 
-       {/* Chat and preview panels - shown after startup or if already ready */}
+        {/* Chat and preview panels - shown after startup or if already ready */}
         {!showStartupDisplay && (
           <div
             className="flex-1 flex overflow-hidden relative"
             data-resizable-group
+            ref={containerRef}
           >
             {/* Chat panel (left) */}
               <div

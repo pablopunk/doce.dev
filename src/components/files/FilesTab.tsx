@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileTree } from "./FileTree";
 import { ReadOnlyEditor } from "./ReadOnlyEditor";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
@@ -62,6 +62,7 @@ export function FilesTab({
 	const [isLoadingContent, setIsLoadingContent] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+	const containerRef = useRef<HTMLDivElement>(null);
 
 	const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } =
 		useResizablePanel({
@@ -69,6 +70,7 @@ export function FilesTab({
 			minSize: 20,
 			maxSize: 50,
 			defaultSize: 25,
+			containerRef,
 		});
 
 	// Fetch file tree on mount
@@ -179,7 +181,7 @@ export function FilesTab({
 
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden">
-			<div className="flex-1 flex overflow-hidden relative" data-resizable-group>
+			<div className="flex-1 flex overflow-hidden relative" data-resizable-group ref={containerRef}>
 				{/* File Tree (left) */}
 				<div
 					className="flex flex-col h-full border-r overflow-hidden bg-muted/20"

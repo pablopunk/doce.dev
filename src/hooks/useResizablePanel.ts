@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, type RefObject } from "react";
 
 interface UseResizablePanelOptions {
   projectId: string;
   minSize?: number; // percentage (default 25)
   maxSize?: number; // percentage (default 75)
   defaultSize?: number; // percentage (default 50)
+  containerRef?: RefObject<HTMLDivElement | null>; // Optional: pass the container ref for accurate positioning
 }
 
 interface UseResizablePanelReturn {
@@ -12,6 +13,7 @@ interface UseResizablePanelReturn {
   rightPercent: number;
   isDragging: boolean;
   onSeparatorMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+  containerRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -23,7 +25,11 @@ export function useResizablePanel({
   minSize = 25,
   maxSize = 75,
   defaultSize = 50,
+  containerRef: externalRef,
 }: UseResizablePanelOptions): UseResizablePanelReturn {
+  const internalRef = useRef<HTMLDivElement>(null);
+  const containerRef = externalRef || internalRef;
+  
   const [leftPercent, setLeftPercent] = useState(defaultSize);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -47,35 +53,21 @@ export function useResizablePanel({
   }, [projectId, minSize, maxSize]);
 
   // Handle mouse move during drag
-   const handleMouseMove = useCallback(
-     (e: MouseEvent) => {
-       const containers = document.querySelectorAll("[data-resizable-group]");
-       if (containers.length === 0) return;
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
 
-       // Find the smallest visible container (most specific/nested one)
-       let closestContainer: Element | null = null;
-       let smallestWidth = Infinity;
+      const rect = container.getBoundingClientRect();
+      const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
 
-       for (const container of containers) {
-         const rect = container.getBoundingClientRect();
-         if (rect.width > 0 && rect.width < smallestWidth) {
-           smallestWidth = rect.width;
-           closestContainer = container;
-         }
-       }
+      // Constrain to min/max
+      const constrained = Math.max(minSize, Math.min(maxSize, newLeftPercent));
 
-       if (!closestContainer) return;
-
-       const rect = closestContainer.getBoundingClientRect();
-       const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
-
-       // Constrain to min/max
-       const constrained = Math.max(minSize, Math.min(maxSize, newLeftPercent));
-
-       setLeftPercent(constrained);
-     },
-     [minSize, maxSize]
-   );
+      setLeftPercent(constrained);
+    },
+    [minSize, maxSize, containerRef]
+  );
 
    // Handle mouse up (end drag)
    const handleMouseUp = useCallback(() => {
@@ -112,10 +104,11 @@ export function useResizablePanel({
     []
   );
 
-   return {
-     leftPercent,
-     rightPercent: 100 - leftPercent,
-     isDragging,
-     onSeparatorMouseDown,
-   };
- }
+  return {
+    leftPercent,
+    rightPercent: 100 - leftPercent,
+    isDragging,
+    onSeparatorMouseDown,
+    containerRef,
+  };
+}
