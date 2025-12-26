@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
+import { ConfirmStopAllDialog } from "./ConfirmStopAllDialog";
 import { Pagination } from "./Pagination";
 import { QueuePlayerControl } from "./QueuePlayerControl";
 
@@ -72,6 +73,7 @@ export function QueueTableLive({
 	);
 	const [hasNewJobs, setHasNewJobs] = useState(false);
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [stopAllDialogOpen, setStopAllDialogOpen] = useState(false);
 	const [pendingAction, setPendingAction] = useState<{
 		jobId?: string;
 		action: "cancel" | "forceUnlock" | "delete" | "deleteByState";
@@ -124,7 +126,7 @@ export function QueueTableLive({
 		return () => {
 			eventSource.close();
 		};
-	}, [pagination.page, filters]);
+	}, [pagination.page, pagination.totalCount, filters]);
 
 	const getStateIcon = (state: QueueJob["state"]) => {
 		const iconProps = { className: "w-3 h-3" };
@@ -162,11 +164,11 @@ export function QueueTableLive({
 		}
 	};
 
-	const handleStopAll = async () => {
-		if (!confirm("Are you sure you want to stop all projects?")) {
-			return;
-		}
+	const handleStopAll = () => {
+		setStopAllDialogOpen(true);
+	};
 
+	const handleConfirmStopAll = async () => {
 		setIsLoading(true);
 		try {
 			const res = await fetch("/_actions/queue.stopAll", {
@@ -549,6 +551,13 @@ export function QueueTableLive({
 					jobCount={pendingAction.jobCount ?? 1}
 				/>
 			)}
+
+			<ConfirmStopAllDialog
+				isOpen={stopAllDialogOpen}
+				onOpenChange={setStopAllDialogOpen}
+				onConfirm={handleConfirmStopAll}
+				isLoading={isLoading}
+			/>
 		</>
 	);
 }
