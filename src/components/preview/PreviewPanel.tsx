@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExternalLink, RefreshCw, Loader2, AlertTriangle } from "lucide-react";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { FilesTab } from "@/components/files/FilesTab";
+import { AssetsTab } from "@/components/assets/AssetsTab";
 
 interface PresenceResponse {
 	projectId: string;
@@ -25,14 +26,23 @@ interface PreviewPanelProps {
 }
 
 type PreviewState = "initializing" | "starting" | "ready" | "error";
-type TabType = "preview" | "files";
+type TabType = "preview" | "files" | "assets";
 
 export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpened }: PreviewPanelProps) {
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [iframeKey, setIframeKey] = useState(0);
-	const [activeTab, setActiveTab] = useState<TabType>("preview");
+	const [activeTab, setActiveTab] = useState<TabType>(() => {
+		if (typeof window !== "undefined") {
+			const params = new URLSearchParams(window.location.search);
+			const tab = params.get("tab");
+			if (tab === "files" || tab === "assets") {
+				return tab as TabType;
+			}
+		}
+		return "preview";
+	});
 	const [lastSelectedFile, setLastSelectedFile] = useState<string | null>(() => {
 		if (typeof window !== "undefined") {
 			return localStorage.getItem(`selectedFile_${projectId}`);
@@ -52,6 +62,25 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 		}
 		viewerIdRef.current = storedViewerId;
 	}, [projectId]);
+
+	// Update URL when active tab changes
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		const params = new URLSearchParams(window.location.search);
+		const currentTab = params.get("tab");
+
+		// Only update URL if tab has changed
+		if (activeTab !== "preview" && currentTab !== activeTab) {
+			params.set("tab", activeTab);
+			window.history.replaceState(null, "", `?${params.toString()}`);
+		} else if (activeTab === "preview" && currentTab !== null) {
+			// Remove tab param if it's the default "preview"
+			params.delete("tab");
+			const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+			window.history.replaceState(null, "", newUrl);
+		}
+	}, [activeTab]);
 
 	const sendHeartbeat =
 		useCallback(async (): Promise<PresenceResponse | null> => {
@@ -184,15 +213,18 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
 				{/* Left: Tabs + Status */}
 				<div className="flex items-center gap-4 flex-shrink-0">
-					{/* Tab Navigation */}
-					<TabsList className="p-1">
-						<TabsTrigger value="preview">
-							Preview
-						</TabsTrigger>
-						<TabsTrigger value="files">
-							Files
-						</TabsTrigger>
-					</TabsList>
+				{/* Tab Navigation */}
+				<TabsList className="p-1">
+					<TabsTrigger value="preview">
+						Preview
+					</TabsTrigger>
+					<TabsTrigger value="files">
+						Files
+					</TabsTrigger>
+					<TabsTrigger value="assets">
+						Assets
+					</TabsTrigger>
+				</TabsList>
 
 					{/* Status indicators (only for preview tab) */}
 					{activeTab === "preview" && (
@@ -296,17 +328,22 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 				<TerminalDocks projectId={projectId} defaultOpen={false} />
 			</TabsContent>
 
-			{/* Files Tab Content */}
-			<TabsContent value="files" className="flex-1 overflow-hidden border-0 p-0 m-0">
-				<FilesTab
-					projectId={projectId}
-					lastSelectedFile={lastSelectedFile}
-					onFileSelect={(path) => {
-						setLastSelectedFile(path);
-						localStorage.setItem(`selectedFile_${projectId}`, path);
-					}}
-				/>
-			</TabsContent>
-		</Tabs>
-	);
+		{/* Files Tab Content */}
+		<TabsContent value="files" className="flex-1 overflow-hidden border-0 p-0 m-0">
+			<FilesTab
+				projectId={projectId}
+				lastSelectedFile={lastSelectedFile}
+				onFileSelect={(path) => {
+					setLastSelectedFile(path);
+					localStorage.setItem(`selectedFile_${projectId}`, path);
+				}}
+			/>
+		</TabsContent>
+
+		{/* Assets Tab Content */}
+		<TabsContent value="assets" className="flex-1 overflow-hidden border-0 p-0 m-0">
+			<AssetsTab projectId={projectId} {...(previewUrl ? { previewUrl } : {})} />
+		</TabsContent>
+	</Tabs>
+);
 }

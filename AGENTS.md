@@ -26,55 +26,57 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Avoid complex UI components, always break them into smaller components, in nested folders if needed.
 * Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
 
-## Key Features
+## Tech Stack
 
-### Files Tab
-The project page now includes a "Files" tab alongside the "Preview" tab:
-- Browse project source files in a collapsible file tree (from `src/` folder only)
-- Click any file to open it in Monaco Editor (read-only)
-- Last selected file is remembered and restored on tab switch
-- Resizable separator between file tree and editor
+### Package Manager
+**pnpm** - Fast, disk-efficient package manager. Always use `pnpm`, never `npm`, `yarn`, or `bun`.
 
-**Components:**
-- `src/components/files/FileTree.tsx` - Recursive file/folder tree display
-- `src/components/files/ReadOnlyEditor.tsx` - Monaco editor with syntax highlighting
-- `src/components/files/FilesTab.tsx` - Container managing tree + editor + resizing
+### Language
+**TypeScript** - Used throughout for type safety. Strict mode enabled.
 
-**Backend:**
-- `src/pages/api/projects/[id]/files.ts` - API endpoint for listing files and fetching content
-  - `GET /api/projects/[id]/files` → Returns file tree from `src/`
-  - `GET /api/projects/[id]/files?path=...` → Returns file content
+### Framework
+**Astro v5** - Full-stack framework providing:
+- Astro Pages for file-based routing
+- Astro Actions for type-safe server-side operations like CRUD
+- React integration for interactive components
+- SSR with on-demand rendering
 
-## OpenCode SDK Integration
+### UI
+**React** - Used for all interactive components within Astro pages.
 
-doce.dev uses `@opencode-ai/sdk` v2 API for all OpenCode interactions:
+**shadcn/ui** - Component library providing accessible, customizable primitives.
 
-**Key Points:**
-- Import from `@opencode-ai/sdk/v2/client` for the latest API
-- Use flat parameter structure (e.g., `{ sessionID, parts }` not `{ path: { id }, body: { parts } }`)
-- SDK types are re-exported in `src/types/message.ts` with `SDK` prefix
-- SSE events use SDK's `Event` union type in `normalize.ts`
+**Tailwind CSS** - Utility-first styling. Use only semantic color tokens defined in `globals.css` - no hardcoded colors or `dark:` prefixes. Theme switching is handled automatically via CSS custom properties.
 
-**Example:**
-```typescript
-import { createOpencodeClient } from "@opencode-ai/sdk/v2/client";
-import type { Event, TextPart, ToolPart } from "@opencode-ai/sdk/v2/client";
+### Database
+**SQLite** - File-based database using WAL mode for concurrent access. Stored at `data/db.sqlite`.
 
-const client = createOpencodeClient({ baseUrl: `http://127.0.0.1:${port}` });
-await client.session.promptAsync({ sessionID, parts: [...] });
-```
+**Drizzle ORM** - Type-safe database abstraction with schema defined in `src/server/db/schema.ts`.
+
+### Validation
+**Zod** - Schema validation used for API inputs, queue job payloads, and configuration.
+
+### Logging
+**Pino** - Structured JSON logging. Logger configured in `src/server/logger.ts`.
+
+### Containerization
+**Docker Compose** - Each project runs in isolated containers (preview server + OpenCode agent).
+
+### AI Integration
+**OpenCode SDK** (`@opencode-ai/sdk`) - TypeScript client for communicating with OpenCode AI agents.
+
+**OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
+
 
 ## Documentation
 
 See `docs/` for implementation details:
 
-- `docs/tech-stack.md` - Technology stack and dependencies
-- `docs/architecture/` - System architecture documentation
-  - `queue-system.md` - Job queue, handlers, worker flow
-  - `docker-management.md` - Container lifecycle, compose operations
-  - `opencode-integration.md` - SDK v2 client, SSE event normalization
-  - `database-schema.md` - Tables, relationships
-  - `presence-system.md` - Real-time state, heartbeats, auto start/stop
-  - `project-lifecycle.md` - Creation & deletion flows, status states
-  - `model-selection.md` - AI model switching in chat
-  - `project-creation-flow.md` - Split prompt tracking during project setup
+- `docs/queue-system.md` - Job queue, handlers, worker flow
+- `docs/docker-management.md` - Container lifecycle, compose operations
+- `docs/opencode-integration.md` - SDK v2 client, SSE event normalization
+- `docs/database-schema.md` - Tables, relationships
+- `docs/presence-system.md` - Real-time state, heartbeats, auto start/stop
+- `docs/project-lifecycle.md` - Creation & deletion flows, status states
+- `docs/model-selection.md` - AI model switching in chat
+- `docs/project-creation-flow.md` - Split prompt tracking during project setup

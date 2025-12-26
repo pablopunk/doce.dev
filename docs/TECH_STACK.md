@@ -12,7 +12,7 @@
 
 **Astro v5** - Full-stack framework providing:
 - Astro Pages for file-based routing
-- Astro Actions for type-safe server-side operations
+- Astro Actions for type-safe server-side operations like CRUD
 - React integration for interactive components
 - SSR with on-demand rendering
 
