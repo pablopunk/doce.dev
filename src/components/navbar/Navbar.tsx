@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Code } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { NavLinks } from './NavLinks';
 import { ThemeToggle } from './ThemeToggle';
@@ -17,8 +16,8 @@ function NavbarInner() {
           href="/"
           className="flex items-center font-semibold text-sm tracking-tight hover:opacity-80 transition-opacity gap-2"
         >
-          <Code className="w-5 h-5" />
-          <span>doce.dev</span>
+          <img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
+          <span>doce<span className="text-muted-foreground">.dev</span></span>
           <Badge variant="secondary" className="text-xs">alpha</Badge>
         </a>
 
@@ -50,8 +49,8 @@ export function Navbar() {
       <header className="border-b border-border bg-background sticky top-0 z-40">
         <div className="flex h-14 items-center justify-between px-4 md:px-6">
           <a href="/" className="flex items-center font-semibold text-sm tracking-tight gap-2">
-            <Code className="w-5 h-5" />
-            <span>doce.dev</span>
+            <img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
+            <span>doce<span className="text-muted-foreground">.dev</span></span>
             <div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">alpha</div>
           </a>
           <div className="hidden md:flex items-center gap-1" />
