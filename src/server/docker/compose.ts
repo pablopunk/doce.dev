@@ -205,8 +205,11 @@ export async function composeUpProduction(
 	);
 
 	// Use docker-compose.production.yml for production deployments
+	// We need to build custom args that include the -f flag before other subcommand args
 	const compose = detectComposeCommand();
 	const baseArgs = ["--project-name", `doce_${projectId}`, "--ansi", "never"];
+
+	// Build args with -f flag positioned correctly (before subcommand)
 	const fullArgs = [
 		...compose.slice(1),
 		...baseArgs,
@@ -220,8 +223,13 @@ export async function composeUpProduction(
 	const command = compose[0] ?? "docker";
 
 	logger.debug(
-		{ command, args: fullArgs, cwd: projectPath },
-		"Running production compose command",
+		{
+			command,
+			args: fullArgs,
+			cwd: projectPath,
+			productionPort,
+		},
+		"Running production compose up",
 	);
 
 	const result = await new Promise<ComposeResult>((resolve) => {
@@ -247,10 +255,10 @@ export async function composeUpProduction(
 			logger.debug(
 				{
 					exitCode,
-					stdout: stdout.slice(0, 500),
-					stderr: stderr.slice(0, 500),
+					stdoutLen: stdout.length,
+					stderrLen: stderr.length,
 				},
-				"Production compose command completed",
+				"Production compose up completed",
 			);
 
 			resolve({ success, exitCode, stdout, stderr });
@@ -258,8 +266,8 @@ export async function composeUpProduction(
 
 		proc.on("error", (err: Error) => {
 			logger.error(
-				{ error: err },
-				"Production compose command failed to spawn",
+				{ error: err.message },
+				"Production compose up spawn failed",
 			);
 			resolve({
 				success: false,
@@ -279,9 +287,8 @@ export async function composeUpProduction(
 	}
 	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
-	// Start streaming container logs (e.g., pnpm preview output) after containers start
+	// Start streaming container logs after containers start
 	if (result.success) {
-		// Wait a bit for containers to start outputting logs
 		await new Promise((resolve) => setTimeout(resolve, 2000));
 		streamContainerLogs(projectId, projectPath);
 	}
@@ -351,7 +358,7 @@ export async function composeDownProduction(
 
 	logger.debug(
 		{ command, args: fullArgs, cwd: projectPath },
-		"Running production compose down command",
+		"Running production compose down",
 	);
 
 	const result = await new Promise<ComposeResult>((resolve) => {
@@ -375,12 +382,8 @@ export async function composeDownProduction(
 			const success = exitCode === 0;
 
 			logger.debug(
-				{
-					exitCode,
-					stdout: stdout.slice(0, 500),
-					stderr: stderr.slice(0, 500),
-				},
-				"Production compose down command completed",
+				{ exitCode, stdoutLen: stdout.length, stderrLen: stderr.length },
+				"Production compose down completed",
 			);
 
 			resolve({ success, exitCode, stdout, stderr });
@@ -388,8 +391,8 @@ export async function composeDownProduction(
 
 		proc.on("error", (err: Error) => {
 			logger.error(
-				{ error: err },
-				"Production compose down command failed to spawn",
+				{ error: err.message },
+				"Production compose down spawn failed",
 			);
 			resolve({
 				success: false,
