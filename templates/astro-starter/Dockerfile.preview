@@ -1,0 +1,13 @@
+FROM node:22-alpine
+
+# Enable corepack and prepare pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+EXPOSE 4321
+
+HEALTHCHECK --interval=5s --timeout=5s --retries=10 --start-period=30s \
+    CMD wget -q --spider http://localhost:4321 || exit 1
+
+CMD ["pnpm", "dev", "--host"]

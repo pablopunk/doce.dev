@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 
 const user = Astro.locals.user;
 if (!user) {
-	return Astro.redirect("/login");
+  return Astro.redirect("/login");
 }
 
 // Get user's projects for SSR
@@ -19,10 +19,10 @@ const projects = await getProjectsByUserId(user.id);
 
 // Get user's default model
 const userSettings = await db
-	.select()
-	.from(userSettingsTable)
-	.where(eq(userSettingsTable.userId, user.id))
-	.limit(1);
+  .select()
+  .from(userSettingsTable)
+  .where(eq(userSettingsTable.userId, user.id))
+  .limit(1);
 const defaultModel = userSettings[0]?.defaultModel ?? DEFAULT_MODEL;
 ---
 
@@ -31,5 +31,5 @@ const defaultModel = userSettings[0]?.defaultModel ?? DEFAULT_MODEL;
     <CreateProjectForm client:load models={AVAILABLE_MODELS} defaultModel={defaultModel} />
   </HeroSection>
 
-  <ProjectsList fallback={projects} />
+  <ProjectsList fallback={projects} client:load />
 </AppLayout>

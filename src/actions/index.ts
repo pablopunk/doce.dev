@@ -567,6 +567,33 @@ export const server = {
 	},
 
 	queue: {
+		stopAll: defineAction({
+			handler: async (_input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to manage the queue",
+					});
+				}
+
+				// Get all projects for the user
+				const userProjects = await getProjectsByUserId(user.id);
+
+				// Enqueue docker.stop for each project
+				const jobs = [];
+				for (const project of userProjects) {
+					const job = await enqueueDockerStop({
+						projectId: project.id,
+						reason: "user",
+					});
+					jobs.push(job);
+				}
+
+				return { success: true, jobsEnqueued: jobs.length };
+			},
+		}),
+
 		cancel: defineAction({
 			input: z.object({
 				jobId: z.string(),

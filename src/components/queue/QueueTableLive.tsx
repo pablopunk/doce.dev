@@ -18,6 +18,7 @@ import {
 	CheckCircle2,
 	Loader,
 	Clock,
+	StopCircle,
 } from "lucide-react";
 
 interface PaginationData {
@@ -161,6 +162,29 @@ export function QueueTableLive({
 		}
 	};
 
+	const handleStopAll = async () => {
+		if (!confirm("Are you sure you want to stop all projects?")) {
+			return;
+		}
+
+		setIsLoading(true);
+		try {
+			const res = await fetch("/_actions/queue.stopAll", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+
+			if (!res.ok) {
+				throw new Error("Failed to stop all projects");
+			}
+		} catch (err) {
+			alert(err instanceof Error ? err.message : "Failed to stop all projects");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	const handleActionClick = (
 		action: "cancel" | "forceUnlock" | "delete",
 		jobId: string,
@@ -292,7 +316,24 @@ export function QueueTableLive({
 					/>
 				</div>
 
-				<div className="mb-6 flex gap-2">
+				<div className="mb-6 flex gap-2 items-center flex-wrap">
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Button
+									onClick={handleStopAll}
+									variant="destructive"
+									size="sm"
+									disabled={isLoading}
+								>
+									<StopCircle className="w-4 h-4 mr-2" />
+									Stop All Projects
+								</Button>
+							}
+						/>
+						<TooltipContent>Stop all running projects</TooltipContent>
+					</Tooltip>
+
 					{stats.queued === 0 && (
 						<>
 							{jobs.some((j) => j.state === "succeeded") && (

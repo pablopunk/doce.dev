@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { NavLinks } from './NavLinks';
-import { ThemeToggle } from './ThemeToggle';
-import { MobileMenu } from './MobileMenu';
-import ThemeProvider from '@/components/providers/ThemeProvider';
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { NavLinks } from "./NavLinks";
+import { ThemeToggle } from "./ThemeToggle";
+import { MobileMenu } from "./MobileMenu";
+import ThemeProvider from "@/components/providers/ThemeProvider";
 
 function NavbarInner() {
   return (
@@ -17,8 +17,12 @@ function NavbarInner() {
           className="flex items-center font-semibold text-sm tracking-tight hover:opacity-80 transition-opacity gap-2"
         >
           <img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
-          <span>doce<span className="text-muted-foreground">.dev</span></span>
-          <Badge variant="secondary" className="text-xs">alpha</Badge>
+          <span>
+            doce<span className="text-muted-foreground">.dev</span>
+          </span>
+          <Badge variant="secondary" className="text-xs">
+            alpha
+          </Badge>
         </a>
 
         {/* Desktop Navigation */}
@@ -48,10 +52,17 @@ export function Navbar() {
     return (
       <header className="border-b border-border bg-background sticky top-0 z-40">
         <div className="flex h-14 items-center justify-between px-4 md:px-6">
-          <a href="/" className="flex items-center font-semibold text-sm tracking-tight gap-2">
+          <a
+            href="/"
+            className="flex items-center font-semibold text-sm tracking-tight gap-2"
+          >
             <img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
-            <span>doce<span className="text-muted-foreground">.dev</span></span>
-            <div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">alpha</div>
+            <span>
+              doce<span className="text-muted-foreground">.dev</span>
+            </span>
+            <div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
+              alpha
+            </div>
           </a>
           <div className="hidden md:flex items-center gap-1" />
           <div className="flex items-center gap-2" />
