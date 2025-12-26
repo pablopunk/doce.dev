@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { QueueJob } from "@/server/db/schema";
-import { enqueueJob } from "./queue.model";
+import { enqueueJob, cancelEnsureRunningForProject } from "./queue.model";
 import type {
   ProjectCreatePayload,
   ProjectDeletePayload,
@@ -97,6 +97,9 @@ export async function enqueueDockerEnsureRunning(
 export async function enqueueDockerStop(
   input: DockerStopPayload
 ): Promise<QueueJob> {
+  // Cancel any conflicting ensureRunning jobs first
+  await cancelEnsureRunningForProject(input.projectId);
+
   return enqueueJob({
     id: randomBytes(16).toString("hex"),
     type: "docker.stop",

@@ -623,3 +623,30 @@ export async function deleteJobsByState(state: QueueJobState): Promise<number> {
 
   return result.length;
 }
+
+/**
+ * Cancel all docker.ensureRunning jobs for a project (both queued and running).
+ * Used when docker.stop is enqueued to prevent conflicts.
+ */
+export async function cancelEnsureRunningForProject(projectId: string): Promise<void> {
+  const jobs = await listJobs({
+    projectId,
+    type: "docker.ensureRunning",
+  });
+
+  for (const job of jobs) {
+    if (job.state === "queued") {
+      await cancelQueuedJob(job.id);
+      logger.info(
+        { jobId: job.id, projectId, reason: "docker.stop enqueued" },
+        "Cancelled queued docker.ensureRunning job"
+      );
+    } else if (job.state === "running") {
+      await requestCancel(job.id);
+      logger.info(
+        { jobId: job.id, projectId, reason: "docker.stop enqueued" },
+        "Requested cancellation of running docker.ensureRunning job"
+      );
+    }
+  }
+}
