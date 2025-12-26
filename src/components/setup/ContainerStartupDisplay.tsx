@@ -1,5 +1,5 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface ContainerStartupDisplayProps {
@@ -59,6 +59,103 @@ export function ContainerStartupDisplay({
 	);
 	const startTimeRef = useRef<number>(Date.now());
 
+	const handleOpencodeEvent = useCallback(
+		(event: { type: string; payload: Record<string, unknown> }) => {
+			const { type, payload } = event;
+
+			switch (type) {
+				case "chat.message.delta": {
+					// Ignore message events - only show tool calls
+					// Advance to agent step when we start streaming agent messages
+					setCurrentStep(2);
+					break;
+				}
+
+				case "chat.message.final": {
+					// Ignore message events
+					break;
+				}
+
+				case "chat.tool.start": {
+					const { name, input } = payload as {
+						name: string;
+						input: unknown;
+					};
+
+					const inputObj = (input as Record<string, unknown>) || {};
+					const filePath =
+						typeof inputObj.filePath === "string"
+							? inputObj.filePath
+							: typeof inputObj.path === "string"
+								? inputObj.path
+								: null;
+					const fileName = filePath ? filePath.split("/").pop() : null;
+
+					const toolDescriptions: Record<string, string> = {
+						read: "Reading",
+						write: "Creating",
+						edit: "Editing",
+						delete: "Deleting",
+						list: "Listing",
+						bash: "Running",
+						glob: "Finding files",
+					};
+
+					const action =
+						toolDescriptions[name] ||
+						name.charAt(0).toUpperCase() + name.slice(1);
+					const friendlyText = fileName
+						? `${action} ${fileName}...`
+						: `${action}...`;
+
+					// Fade transition to new tool
+					setIsTransitioning(true);
+					if (transitionTimeoutRef.current) {
+						clearTimeout(transitionTimeoutRef.current);
+					}
+					transitionTimeoutRef.current = setTimeout(() => {
+						setCurrentEvent({
+							type: "tool",
+							text: friendlyText,
+							isStreaming: true,
+						});
+						setIsTransitioning(false);
+					}, 300);
+					break;
+				}
+
+				case "chat.tool.finish": {
+					setCurrentEvent((prev) => {
+						if (prev?.type === "tool") {
+							return { ...prev, isStreaming: false };
+						}
+						return prev;
+					});
+					break;
+				}
+
+				case "chat.tool.error": {
+					setCurrentEvent((prev) => {
+						if (prev?.type === "tool") {
+							return { ...prev, isStreaming: false };
+						}
+						return prev;
+					});
+					break;
+				}
+
+				case "setup.complete": {
+					// Event stream signals that initial prompt was completed
+					setIsComplete(true);
+					setCurrentStep(2);
+					onComplete?.();
+					break;
+				}
+			}
+		},
+		[onComplete],
+	);
+
 	// Connect to opencode event stream to show progress
 	useEffect(() => {
 		if (isComplete) return;
@@ -88,128 +185,7 @@ export function ContainerStartupDisplay({
 				eventSourceRef.current = null;
 			}
 		};
-	}, [projectId, isComplete]);
-
-	const handleOpencodeEvent = (event: {
-		type: string;
-		payload: Record<string, unknown>;
-	}) => {
-		const { type, payload } = event;
-
-		switch (type) {
-			case "chat.message.delta": {
-				const { deltaText } = payload as {
-					messageId: string;
-					deltaText: string;
-				};
-
-				setCurrentEvent((prev) => {
-					if (prev?.type === "message") {
-						return {
-							...prev,
-							text: prev.text + deltaText,
-							isStreaming: true,
-						};
-					}
-
-					return {
-						type: "message",
-						text: deltaText,
-						isStreaming: true,
-					};
-				});
-				// Advance to agent step when we start streaming agent messages
-				setCurrentStep(2);
-				break;
-			}
-
-			case "chat.message.final": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "message") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "chat.tool.start": {
-				const { name, input } = payload as {
-					name: string;
-					input: unknown;
-				};
-
-				const inputObj = (input as Record<string, unknown>) || {};
-				const filePath =
-					typeof inputObj.filePath === "string"
-						? inputObj.filePath
-						: typeof inputObj.path === "string"
-							? inputObj.path
-							: null;
-				const fileName = filePath ? filePath.split("/").pop() : null;
-
-				const toolDescriptions: Record<string, string> = {
-					read: "Reading",
-					write: "Creating",
-					edit: "Editing",
-					delete: "Deleting",
-					list: "Listing",
-					bash: "Running",
-					glob: "Finding files",
-				};
-
-				const action =
-					toolDescriptions[name] ||
-					name.charAt(0).toUpperCase() + name.slice(1);
-				const friendlyText = fileName
-					? `${action} ${fileName}...`
-					: `${action}...`;
-
-				// Fade transition to new tool
-				setIsTransitioning(true);
-				if (transitionTimeoutRef.current) {
-					clearTimeout(transitionTimeoutRef.current);
-				}
-				transitionTimeoutRef.current = setTimeout(() => {
-					setCurrentEvent({
-						type: "tool",
-						text: friendlyText,
-						isStreaming: true,
-					});
-					setIsTransitioning(false);
-				}, 300);
-				break;
-			}
-
-			case "chat.tool.finish": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "tool") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "chat.tool.error": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "tool") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "setup.complete": {
-				// Event stream signals that initial prompt was completed
-				setIsComplete(true);
-				setCurrentStep(2);
-				onComplete?.();
-				break;
-			}
-		}
-	};
+	}, [projectId, isComplete, handleOpencodeEvent]);
 
 	// Poll queue status for container startup progress
 	useEffect(() => {
@@ -290,7 +266,7 @@ export function ContainerStartupDisplay({
 		return () => {
 			if (intervalId) clearInterval(intervalId);
 		};
-	}, [projectId, isComplete, startupError, sessionsLoaded]);
+	}, [projectId, isComplete, startupError, sessionsLoaded, reason, onComplete]);
 
 	// Poll for persisted session loading (only on restart)
 	useEffect(() => {
@@ -337,14 +313,11 @@ export function ContainerStartupDisplay({
 	const displayMessage =
 		currentEvent?.type === "tool"
 			? currentEvent?.text
-			: currentEvent?.type === "message"
-				? currentEvent?.text
-				: jobTimeoutWarning
-					? jobTimeoutWarning
-					: reason === "restart" && !sessionsLoaded && currentStep >= 2
-						? "Loading your chat history..."
-						: (STEP_DESCRIPTIONS[currentStep] ??
-							"Starting your environment...");
+			: jobTimeoutWarning
+				? jobTimeoutWarning
+				: reason === "restart" && !sessionsLoaded && currentStep >= 2
+					? "Loading your chat history..."
+					: (STEP_DESCRIPTIONS[currentStep] ?? "Starting your environment...");
 
 	const hasError = startupError !== null;
 	const heading =

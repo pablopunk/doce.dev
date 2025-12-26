@@ -81,6 +81,14 @@ export const projects = sqliteTable("projects", {
 	userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
 		.notNull()
 		.default(false),
+	// Production deployment fields
+	productionPort: integer("production_port"),
+	productionUrl: text("production_url"),
+	productionStatus: text("production_status", {
+		enum: ["queued", "building", "running", "failed", "stopped"],
+	}).default("stopped"),
+	productionStartedAt: integer("production_started_at", { mode: "timestamp" }),
+	productionError: text("production_error"),
 });
 
 // Queue jobs table (durable background tasks)

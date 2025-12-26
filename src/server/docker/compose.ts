@@ -60,15 +60,22 @@ export interface ComposeResult {
 
 /**
  * Run a docker compose command and capture output.
+ * @param profile Optional profile name. Must come before the subcommand in Docker Compose.
  */
 async function runComposeCommand(
 	projectId: string,
 	projectPath: string,
 	args: string[],
+	profile?: string,
 ): Promise<ComposeResult> {
 	const compose = detectComposeCommand();
 	const baseArgs = buildComposeArgs(projectId);
-	const fullArgs = [...compose.slice(1), ...baseArgs, ...args];
+
+	// Profile flag must come BEFORE the subcommand in docker compose
+	const fullArgs = profile
+		? [...compose.slice(1), ...baseArgs, "--profile", profile, ...args]
+		: [...compose.slice(1), ...baseArgs, ...args];
+
 	const command = compose[0] ?? "docker";
 
 	logger.debug(
@@ -147,6 +154,73 @@ export async function composeUp(
 	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
 	// Start streaming container logs (e.g., pnpm dev output) after containers start
+	if (result.success) {
+		// Wait a bit for containers to start outputting logs
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+		streamContainerLogs(projectId, projectPath);
+	}
+
+	return result;
+}
+
+/**
+ * Start production containers for a project with the production profile.
+ * Allocates port and updates .env with PRODUCTION_PORT.
+ * Idempotent - safe to call when already running.
+ */
+export async function composeUpProduction(
+	projectId: string,
+	projectPath: string,
+	productionPort: number,
+): Promise<ComposeResult> {
+	const logsDir = path.join(projectPath, "logs");
+
+	// Update .env with the allocated production port
+	const fs = await import("node:fs/promises");
+	const envPath = path.join(projectPath, ".env");
+	const envContent = await fs.readFile(envPath, "utf-8");
+
+	// Check if PRODUCTION_PORT already exists, if not add it
+	let updatedEnv: string;
+	if (envContent.includes("PRODUCTION_PORT=")) {
+		// Update existing PRODUCTION_PORT line
+		updatedEnv = envContent
+			.split("\n")
+			.map((line) =>
+				line.startsWith("PRODUCTION_PORT=")
+					? `PRODUCTION_PORT=${productionPort}`
+					: line,
+			)
+			.join("\n");
+	} else {
+		// Add PRODUCTION_PORT if it doesn't exist
+		updatedEnv = `${envContent.trimEnd()}\nPRODUCTION_PORT=${productionPort}\n`;
+	}
+
+	await fs.writeFile(envPath, updatedEnv);
+
+	await writeHostMarker(
+		logsDir,
+		`docker compose --profile production up -d --remove-orphans (PRODUCTION_PORT=${productionPort})`,
+	);
+
+	const result = await runComposeCommand(
+		projectId,
+		projectPath,
+		["up", "-d", "--remove-orphans"],
+		"production",
+	);
+
+	// Log output with stream markers
+	if (result.stdout) {
+		await appendDockerLog(logsDir, result.stdout, false);
+	}
+	if (result.stderr) {
+		await appendDockerLog(logsDir, result.stderr, true);
+	}
+	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+
+	// Start streaming container logs (e.g., pnpm preview output) after containers start
 	if (result.success) {
 		// Wait a bit for containers to start outputting logs
 		await new Promise((resolve) => setTimeout(resolve, 2000));

@@ -1,0 +1,28 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install production dependencies only
+RUN pnpm install --prod --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Copy entrypoint script
+COPY docker-entrypoint.prod.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.prod.sh
+
+# Health check - verify production server is responding
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+  CMD sh -c 'PORT=${PRODUCTION_PORT:-5000} && wget -q --spider http://localhost:$PORT || exit 1'
+
+EXPOSE 5000
+
+# Build and preview the production version with the configured port
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.prod.sh"]

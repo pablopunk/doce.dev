@@ -60,6 +60,7 @@ If you need additional shadcn components not in the starter:
 - Don't explain what you're about to do in lengthy detail
 - Don't tell the user to run commands - the platform handles that
 - Don't reinstall or reconfigure Tailwind - it's already set up correctly
+- Don't run any commands that interfere with Doce, like "pnpm build" or "pnpm dev". There's already a dev server running and you might break it.
 
 ## What TO do
 

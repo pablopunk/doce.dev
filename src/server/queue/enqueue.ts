@@ -13,6 +13,9 @@ import type {
 	ProjectCreatePayload,
 	ProjectDeletePayload,
 	ProjectsDeleteAllForUserPayload,
+	ProductionBuildPayload,
+	ProductionStartPayload,
+	ProductionWaitReadyPayload,
 } from "./types";
 
 // --- Project lifecycle ---
@@ -160,5 +163,59 @@ export async function enqueueOpencodeSendUserPrompt(
 		projectId: input.projectId,
 		payload: input,
 		dedupeKey: `opencode.sendUserPrompt:${input.projectId}`,
+	});
+}
+
+// --- Production deployment ---
+
+export async function enqueueProductionBuild(
+	input: ProductionBuildPayload,
+): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "production.build",
+		projectId: input.projectId,
+		payload: input,
+		dedupeKey: `production.build:${input.projectId}`,
+	});
+}
+
+export async function enqueueProductionStart(
+	input: ProductionStartPayload,
+): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "production.start",
+		projectId: input.projectId,
+		payload: input,
+		dedupeKey: `production.start:${input.projectId}`,
+	});
+}
+
+export async function enqueueProductionWaitReady(
+	input: ProductionWaitReadyPayload,
+): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "production.waitReady",
+		projectId: input.projectId,
+		payload: {
+			...input,
+			rescheduleCount: input.rescheduleCount ?? 0,
+		},
+		maxAttempts: 300, // Allow 300 reschedules * 1s poll interval = 5 minutes total
+		// No dedupe - allow multiple waits if needed
+	});
+}
+
+export async function enqueueProductionStop(
+	projectId: string,
+): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "production.stop",
+		projectId,
+		payload: { projectId },
+		dedupeKey: `production.stop:${projectId}`,
 	});
 }

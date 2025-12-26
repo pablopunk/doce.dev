@@ -1,13 +1,8 @@
-import {
-	AlertTriangle,
-	ExternalLink,
-	Loader2,
-	RefreshCw,
-	Rocket,
-} from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { FilesTab } from "@/components/files/FilesTab";
+import { DeployButton } from "@/components/preview/DeployButton";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +17,14 @@ interface PresenceResponse {
 	message: string | null;
 	nextPollMs: number;
 	initialPromptCompleted?: boolean;
+}
+
+interface ProductionStatus {
+	status: "queued" | "building" | "running" | "failed" | "stopped";
+	url: string | null;
+	port: number | null;
+	error: string | null;
+	startedAt: string | null;
 }
 
 interface PreviewPanelProps {
@@ -62,9 +65,14 @@ export function PreviewPanel({
 			return null;
 		},
 	);
+	const [isDeploying, setIsDeploying] = useState(false);
+	const [isStopping, setIsStopping] = useState(false);
+	const [productionStatus, setProductionStatus] =
+		useState<ProductionStatus | null>(null);
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const productionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	// Generate viewer ID on mount
 	useEffect(() => {
@@ -218,6 +226,78 @@ export function PreviewPanel({
 		}
 	};
 
+	const pollProductionStatus = useCallback(async () => {
+		try {
+			const response = await fetch(`/api/projects/${projectId}/production`);
+			if (response.ok) {
+				const status = await response.json();
+				setProductionStatus(status);
+			}
+		} catch (error) {
+			console.error("Failed to fetch production status:", error);
+		}
+	}, [projectId]);
+
+	// Poll production status periodically
+	useEffect(() => {
+		// Start polling immediately
+		pollProductionStatus();
+
+		productionPollRef.current = setInterval(() => {
+			pollProductionStatus();
+		}, 2000);
+
+		return () => {
+			if (productionPollRef.current) {
+				clearInterval(productionPollRef.current);
+			}
+		};
+	}, [pollProductionStatus]);
+
+	// Reset isStopping when production status changes from "building" to other states
+	useEffect(() => {
+		if (isStopping && productionStatus?.status !== "building") {
+			setIsStopping(false);
+		}
+	}, [productionStatus?.status, isStopping]);
+
+	const handleDeploy = async () => {
+		try {
+			setIsDeploying(true);
+			const response = await fetch(`/api/projects/${projectId}/deploy`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			if (response.ok) {
+				setIsDeploying(false);
+			}
+		} catch (error) {
+			console.error("Deploy failed:", error);
+			setIsDeploying(false);
+		}
+	};
+
+	const handleStop = async () => {
+		try {
+			setIsStopping(true);
+			const response = await fetch(
+				`/api/projects/${projectId}/stop-production`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+				},
+			);
+			if (!response.ok) {
+				console.error("Stop production failed:", response.statusText);
+				setIsStopping(false);
+			}
+			// Keep isStopping true - it will be cleared when status updates to stopped
+		} catch (error) {
+			console.error("Stop production failed:", error);
+			setIsStopping(false);
+		}
+	};
+
 	return (
 		<Tabs
 			value={activeTab}
@@ -302,10 +382,16 @@ export function PreviewPanel({
 							Retry
 						</Button>
 					)}
-					<Button size="sm" className="gap-2">
-						<Rocket className="h-4 w-4" />
-						Deploy
-					</Button>
+					<DeployButton
+						status={productionStatus?.status ?? null}
+						error={productionStatus?.error ?? null}
+						url={productionStatus?.url ?? null}
+						isDeploying={isDeploying}
+						isStopping={isStopping}
+						previewReady={state === "ready"}
+						onRetry={handleDeploy}
+						onStop={handleStop}
+					/>
 				</div>
 			</div>
 

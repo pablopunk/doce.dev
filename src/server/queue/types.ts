@@ -15,6 +15,11 @@ export const queueJobTypeSchema = z.enum([
 	"opencode.sessionInit",
 	"opencode.sendInitialPrompt", // legacy: kept for backward compatibility
 	"opencode.sendUserPrompt", // new: sends user's actual prompt
+	// Production deployment
+	"production.build",
+	"production.start",
+	"production.waitReady",
+	"production.stop",
 ]);
 
 export type QueueJobType = z.infer<typeof queueJobTypeSchema>;
@@ -121,6 +126,39 @@ export type OpencodeSendUserPromptPayload = z.infer<
 	typeof opencodeSendUserPromptPayloadSchema
 >;
 
+export const productionBuildPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type ProductionBuildPayload = z.infer<
+	typeof productionBuildPayloadSchema
+>;
+
+export const productionStartPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type ProductionStartPayload = z.infer<
+	typeof productionStartPayloadSchema
+>;
+
+export const productionWaitReadyPayloadSchema = z.object({
+	projectId: z.string().min(1),
+	productionPort: z.number().int().positive(),
+	startedAt: z.number(),
+	rescheduleCount: z.number().default(0),
+});
+
+export type ProductionWaitReadyPayload = z.infer<
+	typeof productionWaitReadyPayloadSchema
+>;
+
+const productionStopPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type ProductionStopPayload = z.infer<typeof productionStopPayloadSchema>;
+
 // --- Payload by type mapping ---
 
 const payloadSchemaByType = {
@@ -135,6 +173,10 @@ const payloadSchemaByType = {
 	"opencode.sessionInit": opencodeSessionInitPayloadSchema,
 	"opencode.sendInitialPrompt": opencodeSendInitialPromptPayloadSchema,
 	"opencode.sendUserPrompt": opencodeSendUserPromptPayloadSchema,
+	"production.build": productionBuildPayloadSchema,
+	"production.start": productionStartPayloadSchema,
+	"production.waitReady": productionWaitReadyPayloadSchema,
+	"production.stop": productionStopPayloadSchema,
 } as const satisfies Record<QueueJobType, z.ZodTypeAny>;
 
 export type PayloadByType = {
@@ -149,6 +191,10 @@ export type PayloadByType = {
 	"opencode.sessionInit": OpencodeSessionInitPayload;
 	"opencode.sendInitialPrompt": OpencodeSendInitialPromptPayload;
 	"opencode.sendUserPrompt": OpencodeSendUserPromptPayload;
+	"production.build": ProductionBuildPayload;
+	"production.start": ProductionStartPayload;
+	"production.waitReady": ProductionWaitReadyPayload;
+	"production.stop": ProductionStopPayload;
 };
 
 export function parsePayload<T extends QueueJobType>(

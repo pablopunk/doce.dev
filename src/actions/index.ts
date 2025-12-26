@@ -19,6 +19,8 @@ import {
 import {
 	enqueueDeleteAllProjectsForUser,
 	enqueueDockerStop,
+	enqueueProductionBuild,
+	enqueueProductionStop,
 	enqueueProjectCreate,
 	enqueueProjectDelete,
 } from "@/server/queue/enqueue";
@@ -559,6 +561,91 @@ export const server = {
 				}
 
 				return { success: true };
+			},
+		}),
+
+		deploy: defineAction({
+			input: z.object({
+				projectId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to deploy a project",
+					});
+				}
+
+				// Verify ownership
+				const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+				if (!isOwner) {
+					throw new ActionError({
+						code: "FORBIDDEN",
+						message: "You don't have access to this project",
+					});
+				}
+
+				// Get the project to verify it exists and is in a deployable state
+				const project = await getProjectById(input.projectId);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				if (project.status !== "running") {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: `Cannot deploy project while it's ${project.status}. Please wait for the preview server to be ready.`,
+					});
+				}
+
+				// Enqueue the production build job
+				const job = await enqueueProductionBuild({
+					projectId: input.projectId,
+				});
+
+				return { success: true, jobId: job.id };
+			},
+		}),
+
+		stopProduction: defineAction({
+			input: z.object({
+				projectId: z.string(),
+			}),
+			handler: async (input, context) => {
+				const user = context.locals.user;
+				if (!user) {
+					throw new ActionError({
+						code: "UNAUTHORIZED",
+						message: "You must be logged in to stop production",
+					});
+				}
+
+				// Verify ownership
+				const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+				if (!isOwner) {
+					throw new ActionError({
+						code: "FORBIDDEN",
+						message: "You don't have access to this project",
+					});
+				}
+
+				// Get the project to verify it exists
+				const project = await getProjectById(input.projectId);
+				if (!project) {
+					throw new ActionError({
+						code: "NOT_FOUND",
+						message: "Project not found",
+					});
+				}
+
+				// Enqueue the production stop job
+				const job = await enqueueProductionStop(input.projectId);
+
+				return { success: true, jobId: job.id };
 			},
 		}),
 

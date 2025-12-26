@@ -11,6 +11,10 @@ import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
 import { handleProjectCreate } from "./handlers/projectCreate";
 import { handleProjectDelete } from "./handlers/projectDelete";
 import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
+import { handleProductionBuild } from "./handlers/productionBuild";
+import { handleProductionStart } from "./handlers/productionStart";
+import { handleProductionWaitReady } from "./handlers/productionWaitReady";
+import { handleProductionStop } from "./handlers/productionStop";
 import {
 	cancelRunningJob,
 	claimNextJob,
@@ -69,6 +73,10 @@ const handlerByType: Record<
 	"opencode.sessionInit": handleOpencodeSessionInit,
 	"opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
 	"opencode.sendUserPrompt": handleOpencodeSendUserPrompt,
+	"production.build": handleProductionBuild,
+	"production.start": handleProductionStart,
+	"production.waitReady": handleProductionWaitReady,
+	"production.stop": handleProductionStop,
 };
 
 function sleep(ms: number): Promise<void> {
