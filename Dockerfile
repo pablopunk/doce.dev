@@ -23,7 +23,7 @@ RUN pnpm build
 FROM node:20-alpine
 
 # Install dumb-init for proper PID 1 handling
-RUN apk add --no-cache dumb-init=1.2.5-r2 curl=8.12.1-r0
+RUN apk add --no-cache dumb-init curl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S node -u 1001
