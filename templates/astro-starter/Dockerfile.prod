@@ -30,5 +30,5 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
 
 EXPOSE 3000
 
-# Run the preview server
-CMD ["pnpm", "run", "preview", "--host"]
+# Run the production server
+CMD ["node", "./dist/server/entry.mjs"]
