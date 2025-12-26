@@ -8,26 +8,26 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { ActiveProductionJob } from "@/server/productions/productions.model";
+
+interface DeployButtonState {
+	status: "queued" | "building" | "running" | "failed" | "stopped";
+	url: string | null;
+	error: string | null;
+	activeJob: ActiveProductionJob | null;
+}
 
 interface DeployButtonProps {
-	status: "queued" | "building" | "running" | "failed" | "stopped" | null;
-	error: string | null;
-	url: string | null;
-	isDeploying: boolean;
-	isStopping: boolean;
+	state: DeployButtonState;
 	previewReady: boolean;
-	onRetry: () => void;
+	onDeploy: () => void;
 	onStop: () => void;
 }
 
 export function DeployButton({
-	status,
-	error,
-	url,
-	isDeploying,
-	isStopping,
+	state,
 	previewReady,
-	onRetry,
+	onDeploy,
 	onStop,
 }: DeployButtonProps) {
 	const [isHovering, setIsHovering] = useState(false);
@@ -35,14 +35,14 @@ export function DeployButton({
 		typeof setTimeout
 	> | null>(null);
 
-	// Determine if we've ever deployed (has been touched)
-	const hasBeenDeployed = status !== null && status !== "stopped";
-
-	// Determine button state
+	// Derive button appearance from queue state
+	const isQueued = state.activeJob?.state === "queued";
 	const isBuilding =
-		isDeploying || status === "building" || status === "queued";
-	const isDeployed = status === "running" && !isStopping;
-	const isFailed = status === "failed" && !isStopping;
+		state.activeJob && state.activeJob.type !== "production.stop";
+	const isStopping = state.activeJob?.type === "production.stop";
+	const isDeployed = state.status === "running" && !state.activeJob;
+	const isFailed = state.status === "failed";
+	const hasBeenDeployed = state.status !== "stopped";
 
 	const handleMouseEnter = () => {
 		if (hoverTimeoutId) {
@@ -53,7 +53,6 @@ export function DeployButton({
 	};
 
 	const handleMouseLeave = () => {
-		// Wait 200ms before closing dropdown, allowing mouse to move through gap
 		const timeoutId = setTimeout(() => {
 			setIsHovering(false);
 		}, 200);
@@ -67,13 +66,13 @@ export function DeployButton({
 			onMouseEnter={handleMouseEnter}
 			onMouseLeave={handleMouseLeave}
 		>
-			{/* Button - triggers deploy when in Deploy state */}
+			{/* Main button */}
 			<Button
 				size="sm"
 				className="gap-2"
-				disabled={isBuilding || isStopping || !previewReady}
+				disabled={isQueued || isBuilding || isStopping || !previewReady}
 				variant={isDeployed ? "default" : "outline"}
-				onClick={isDeployed ? undefined : onRetry}
+				onClick={isDeployed ? undefined : onDeploy}
 			>
 				{isStopping ? (
 					<>
@@ -84,6 +83,11 @@ export function DeployButton({
 					<>
 						<Loader2 className="h-4 w-4 animate-spin" />
 						Building...
+					</>
+				) : isQueued ? (
+					<>
+						<Loader2 className="h-4 w-4 animate-spin" />
+						Queued...
 					</>
 				) : isDeployed ? (
 					<>
@@ -103,7 +107,7 @@ export function DeployButton({
 				)}
 			</Button>
 
-			{/* Popover content - shown on hover only if deployed at least once */}
+			{/* Dropdown - shown on hover if deployed at least once */}
 			{hasBeenDeployed && isHovering && (
 				<div className="absolute top-full right-0 mt-1 w-72 bg-background border border-border rounded-lg shadow-lg p-4 space-y-3 z-50">
 					{/* Stopping State */}
@@ -119,15 +123,19 @@ export function DeployButton({
 						</>
 					)}
 
-					{/* Building State */}
+					{/* Building/Queued State */}
 					{isBuilding && !isStopping && (
 						<>
 							<div className="flex items-center gap-2">
 								<Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-								<span className="font-medium text-sm">Building...</span>
+								<span className="font-medium text-sm">
+									{isQueued ? "Queued" : "Building"}...
+								</span>
 							</div>
 							<p className="text-xs text-muted-foreground">
-								Compiling code and starting production container
+								{isQueued
+									? "Waiting to start deployment"
+									: "Compiling code and starting production container"}
 							</p>
 						</>
 					)}
@@ -139,25 +147,25 @@ export function DeployButton({
 								<CheckCircle2 className="h-4 w-4 text-green-500" />
 								<span className="font-medium text-sm">Deployed</span>
 							</div>
-							{url ? (
+							{state.url ? (
 								<div className="space-y-2">
 									<p className="text-xs text-muted-foreground">
 										Production URL:
 									</p>
 									<a
-										href={url}
+										href={state.url}
 										target="_blank"
 										rel="noopener noreferrer"
 										className="block text-sm text-blue-500 hover:text-blue-600 hover:underline break-all"
 									>
-										{url}
+										{state.url}
 									</a>
 									<Button
 										size="sm"
 										variant="outline"
 										className="w-full gap-2 mt-2"
 										onClick={onStop}
-										disabled={!previewReady || isStopping}
+										disabled={!previewReady}
 									>
 										<Square className="h-3 w-3" />
 										Stop
@@ -174,11 +182,13 @@ export function DeployButton({
 								<AlertTriangle className="h-4 w-4 text-red-500" />
 								<span className="font-medium text-sm">Deployment Failed</span>
 							</div>
-							{error && (
+							{state.error && (
 								<div className="space-y-2">
 									<p className="text-xs text-muted-foreground">Error:</p>
 									<p className="text-xs text-red-500 break-words">
-										{error.length > 200 ? `${error.slice(0, 200)}...` : error}
+										{state.error.length > 200
+											? `${state.error.slice(0, 200)}...`
+											: state.error}
 									</p>
 								</div>
 							)}
@@ -186,7 +196,7 @@ export function DeployButton({
 								size="sm"
 								variant="outline"
 								className="w-full gap-2 mt-2"
-								onClick={onRetry}
+								onClick={onDeploy}
 								disabled={!previewReady}
 							>
 								<RotateCcw className="h-3 w-3" />

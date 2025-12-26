@@ -25,6 +25,14 @@ interface ProductionStatus {
 	port: number | null;
 	error: string | null;
 	startedAt: string | null;
+	activeJob: {
+		type:
+			| "production.build"
+			| "production.start"
+			| "production.waitReady"
+			| "production.stop";
+		state: "queued" | "running";
+	} | null;
 }
 
 interface PreviewPanelProps {
@@ -65,8 +73,6 @@ export function PreviewPanel({
 			return null;
 		},
 	);
-	const [isDeploying, setIsDeploying] = useState(false);
-	const [isStopping, setIsStopping] = useState(false);
 	const [productionStatus, setProductionStatus] =
 		useState<ProductionStatus | null>(null);
 	const viewerIdRef = useRef<string | null>(null);
@@ -238,48 +244,69 @@ export function PreviewPanel({
 		}
 	}, [projectId]);
 
-	// Poll production status periodically
+	// Adaptive polling for production status
 	useEffect(() => {
-		// Start polling immediately
-		pollProductionStatus();
+		let mounted = true;
 
-		productionPollRef.current = setInterval(() => {
-			pollProductionStatus();
-		}, 2000);
+		const poll = async () => {
+			if (!mounted) return;
+
+			await pollProductionStatus();
+
+			if (!mounted) return;
+
+			// Determine polling interval based on state
+			let pollInterval = 10_000; // Default: 10s when stable
+			if (productionStatus?.activeJob) {
+				// Job in progress - poll aggressively
+				pollInterval = 1_000; // 1s
+			} else if (
+				productionStatus?.status === "running" ||
+				productionStatus?.status === "building" ||
+				productionStatus?.status === "queued"
+			) {
+				// Transition state - poll moderately
+				pollInterval = 2_000; // 2s
+			}
+			// If stopped/failed and no active job, use default (10s or no polling)
+
+			productionPollRef.current = setTimeout(poll, pollInterval);
+		};
+
+		// Start polling immediately
+		poll();
 
 		return () => {
+			mounted = false;
 			if (productionPollRef.current) {
-				clearInterval(productionPollRef.current);
+				clearTimeout(productionPollRef.current);
 			}
 		};
-	}, [pollProductionStatus]);
-
-	// Reset isStopping when production status changes to "stopped"
-	useEffect(() => {
-		if (isStopping && productionStatus?.status === "stopped") {
-			setIsStopping(false);
-		}
-	}, [productionStatus?.status, isStopping]);
+	}, [
+		pollProductionStatus,
+		productionStatus?.activeJob,
+		productionStatus?.status,
+	]);
 
 	const handleDeploy = async () => {
 		try {
-			setIsDeploying(true);
 			const response = await fetch(`/api/projects/${projectId}/deploy`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 			});
-			if (response.ok) {
-				setIsDeploying(false);
+			if (!response.ok) {
+				const data = await response.json();
+				console.error("Deploy failed:", data.message);
 			}
+			// Polling will pick up the state change
+			await pollProductionStatus();
 		} catch (error) {
 			console.error("Deploy failed:", error);
-			setIsDeploying(false);
 		}
 	};
 
 	const handleStop = async () => {
 		try {
-			setIsStopping(true);
 			const response = await fetch(
 				`/api/projects/${projectId}/stop-production`,
 				{
@@ -288,13 +315,13 @@ export function PreviewPanel({
 				},
 			);
 			if (!response.ok) {
-				console.error("Stop production failed:", response.statusText);
-				setIsStopping(false);
+				const data = await response.json();
+				console.error("Stop production failed:", data.message);
 			}
-			// Keep isStopping true - it will be cleared when status updates to stopped
+			// Polling will pick up the state change
+			await pollProductionStatus();
 		} catch (error) {
 			console.error("Stop production failed:", error);
-			setIsStopping(false);
 		}
 	};
 
@@ -382,16 +409,19 @@ export function PreviewPanel({
 							Retry
 						</Button>
 					)}
-					<DeployButton
-						status={productionStatus?.status ?? null}
-						error={productionStatus?.error ?? null}
-						url={productionStatus?.url ?? null}
-						isDeploying={isDeploying}
-						isStopping={isStopping}
-						previewReady={state === "ready"}
-						onRetry={handleDeploy}
-						onStop={handleStop}
-					/>
+					{productionStatus && (
+						<DeployButton
+							state={{
+								status: productionStatus.status,
+								url: productionStatus.url,
+								error: productionStatus.error,
+								activeJob: productionStatus.activeJob,
+							}}
+							previewReady={state === "ready"}
+							onDeploy={handleDeploy}
+							onStop={handleStop}
+						/>
+					)}
 				</div>
 			</div>
 

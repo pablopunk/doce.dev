@@ -1,7 +1,10 @@
 import type { APIRoute } from "astro";
 import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 import { getProjectById } from "@/server/projects/projects.model";
-import { getProductionStatus } from "@/server/productions/productions.model";
+import {
+	getProductionStatus,
+	getActiveProductionJob,
+} from "@/server/productions/productions.model";
 
 export const GET: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;
@@ -28,8 +31,9 @@ export const GET: APIRoute = async ({ params, locals }) => {
 		return new Response("Project not found", { status: 404 });
 	}
 
-	// Get production status
+	// Get production status and active job
 	const status = getProductionStatus(project);
+	const activeJob = await getActiveProductionJob(projectId);
 
 	return new Response(
 		JSON.stringify({
@@ -38,6 +42,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
 			port: status.port,
 			error: status.error,
 			startedAt: status.startedAt?.toISOString() || null,
+			activeJob: activeJob
+				? {
+						type: activeJob.type,
+						state: activeJob.state,
+					}
+				: null,
 		}),
 		{
 			status: 200,

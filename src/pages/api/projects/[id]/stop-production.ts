@@ -4,6 +4,10 @@ import {
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
 import { enqueueProductionStop } from "@/server/queue/enqueue";
+import {
+	getActiveProductionJob,
+	getProductionStatus,
+} from "@/server/productions/productions.model";
 
 export const POST: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;
@@ -28,6 +32,36 @@ export const POST: APIRoute = async ({ params, locals }) => {
 	const project = await getProjectById(projectId);
 	if (!project) {
 		return new Response("Project not found", { status: 404 });
+	}
+
+	// Check if production is running
+	const status = getProductionStatus(project);
+	if (status.status !== "running") {
+		return new Response(
+			JSON.stringify({
+				success: false,
+				message: `Cannot stop production server (current status: ${status.status})`,
+			}),
+			{
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
+	}
+
+	// Check if a stop job is already in progress
+	const activeJob = await getActiveProductionJob(projectId);
+	if (activeJob?.type === "production.stop") {
+		return new Response(
+			JSON.stringify({
+				success: false,
+				message: "Production stop already in progress",
+			}),
+			{
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}
 
 	// Enqueue production stop job

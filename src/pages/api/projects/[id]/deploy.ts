@@ -4,6 +4,7 @@ import {
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
 import { enqueueProductionBuild } from "@/server/queue/enqueue";
+import { getActiveProductionJob } from "@/server/productions/productions.model";
 
 export const POST: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;
@@ -28,6 +29,21 @@ export const POST: APIRoute = async ({ params, locals }) => {
 	const project = await getProjectById(projectId);
 	if (!project) {
 		return new Response("Project not found", { status: 404 });
+	}
+
+	// Check if a production job is already in progress
+	const activeJob = await getActiveProductionJob(projectId);
+	if (activeJob) {
+		return new Response(
+			JSON.stringify({
+				success: false,
+				message: `Deployment already in progress (${activeJob.type})`,
+			}),
+			{
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}
 
 	// Enqueue production build job
