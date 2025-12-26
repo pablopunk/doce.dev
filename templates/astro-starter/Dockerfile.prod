@@ -8,11 +8,22 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install production dependencies only
+# Install all dependencies (needed for build)
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY src ./src
+COPY public ./public 2>/dev/null || true
+COPY astro.config.mjs tsconfig.json ./
+
+# Build the project
+RUN pnpm run build
+
+# Remove dev dependencies
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy pre-built dist folder (built on host by productionBuild.ts)
-COPY dist ./dist
+# Remove source files after build (keep only dist)
+RUN rm -rf src astro.config.mjs tsconfig.json
 
 # Health check - verify production server is responding
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
@@ -20,5 +31,5 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
 
 EXPOSE 3000
 
-# Simply run the preview server (no build needed, dist is pre-built)
+# Run the preview server
 CMD ["pnpm", "run", "preview", "--host"]
