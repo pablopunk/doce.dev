@@ -13,45 +13,22 @@
 > [!NOTE]
 > This project is not built by the OpenCode team and is not affiliated with them in any way.
 
-## Self-Hosted Deployment
+## docker-compose.yml
 
-Deploy doce.dev on your own infrastructure using Docker:
+Deploy doce.dev on your own infrastructure using Docker Compose:
 
 ```yaml
 # docker-compose.yml
 services:
   doce:
     image: ghcr.io/pablopunk/doce.dev:latest
-    container_name: doce-dev
+    container_name: doce
+    restart: unless-stopped
     ports:
-      - "80:4321"  # Change to 4321:4321 for local development
+      - "4321:4321"
     environment:
       OPENROUTER_API_KEY: "sk-or-v1-your-openrouter-api-key-here"
     volumes:
-      - doce-data:/app/data
+      - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock  # Required for project container management
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4321"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  doce-data:
-    driver: local
 ```
-
-**Environment Variables:**
-- `OPENROUTER_API_KEY` - Your OpenRouter API key (get one at https://openrouter.ai)
-
-**Volumes:**
-- `doce-data` - Persists SQLite database and project files
-- Docker socket - Allows spawning isolated containers for user-created projects
-
-**To deploy:**
-```bash
-docker-compose up -d
-```
-
-Access the application at `http://localhost` (or your server IP).
