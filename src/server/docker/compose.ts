@@ -260,6 +260,37 @@ export async function composeDown(
 }
 
 /**
+ * Stop only the production container (preserves preview and opencode).
+ */
+export async function composeDownProduction(
+	projectId: string,
+	projectPath: string,
+): Promise<ComposeResult> {
+	const logsDir = path.join(projectPath, "logs");
+	await writeHostMarker(
+		logsDir,
+		"docker compose --profile production down --remove-orphans",
+	);
+
+	const result = await runComposeCommand(
+		projectId,
+		projectPath,
+		["down", "--remove-orphans"],
+		"production",
+	);
+
+	if (result.stdout) {
+		await appendDockerLog(logsDir, result.stdout, false);
+	}
+	if (result.stderr) {
+		await appendDockerLog(logsDir, result.stderr, true);
+	}
+	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+
+	return result;
+}
+
+/**
  * Stop and remove containers + volumes for a project (destructive).
  */
 export async function composeDownWithVolumes(

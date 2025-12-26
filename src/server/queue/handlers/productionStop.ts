@@ -1,7 +1,7 @@
 import { logger } from "@/server/logger";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { composeDown } from "@/server/docker/compose";
+import { composeDownProduction } from "@/server/docker/compose";
 import { writeHostMarker } from "@/server/docker/logs";
 import path from "node:path";
 import type { QueueJobContext } from "../queue.worker";
@@ -33,8 +33,8 @@ export async function handleProductionStop(
 		const logsDir = path.join(project.pathOnDisk, "logs");
 		await writeHostMarker(logsDir, "Stopping production server");
 
-		// Stop the production container using docker compose with the production profile
-		const result = await composeDown(project.id, project.pathOnDisk);
+		// Stop only the production container, leaving preview and opencode running
+		const result = await composeDownProduction(project.id, project.pathOnDisk);
 
 		if (!result.success) {
 			const errorMsg = `compose down failed: ${result.stderr.slice(0, 500)}`;
