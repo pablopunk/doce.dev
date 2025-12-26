@@ -14,10 +14,10 @@ interface DashboardContentProps {
 export function DashboardContent({ projects, models, defaultModel }: DashboardContentProps) {
   return (
     <DockerHealthProvider>
-      <div className="flex flex-col gap-8">
+      <>
         <CreateProjectForm models={models} defaultModel={defaultModel} />
         <ProjectsList fallback={projects} />
-      </div>
+      </>
     </DockerHealthProvider>
   );
 }
