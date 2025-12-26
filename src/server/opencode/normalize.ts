@@ -27,9 +27,7 @@ export type NormalizedEventType =
   | "chat.session.status"
   | "chat.message.part.added"
   | "chat.message.final"
-  | "chat.tool.start"
-  | "chat.tool.finish"
-  | "chat.tool.error"
+  | "chat.tool.update"
   | "chat.reasoning.part"
   | "chat.file.changed"
   | "chat.event.unknown";
@@ -71,20 +69,13 @@ export interface ReasoningPartPayload {
   text: string;
 }
 
-export interface ToolStartPayload {
+export interface ToolUpdatePayload {
   toolCallId: string;
   name: string;
-  input: unknown;
-}
-
-export interface ToolFinishPayload {
-  toolCallId: string;
-  output: unknown;
-}
-
-export interface ToolErrorPayload {
-  toolCallId: string;
-  error: unknown;
+  input?: unknown;
+  status: "running" | "success" | "error";
+  output?: unknown;
+  error?: unknown;
 }
 
 export interface FileChangedPayload {
@@ -228,7 +219,7 @@ export function normalizeEvent(
         };
       }
 
-      // Tool part
+      // Tool part - emit single update event with current status
       if (part.type === "tool") {
         const toolPart = part as SDKToolPart;
         const { callID, tool, state: toolState } = toolPart;
@@ -236,49 +227,32 @@ export function normalizeEvent(
         if (!callID || !tool) return null;
 
         const toolCallId = getOrCreateToolId(state, callID);
-        const status = toolState?.status;
+        const sdkStatus = toolState?.status;
 
-        // Tool starting (pending or running)
-        if (status === "pending" || status === "running") {
-          return {
-            type: "chat.tool.start",
-            projectId,
-            time,
-            payload: {
-              toolCallId,
-              name: tool,
-              input: toolState?.input,
-            } satisfies ToolStartPayload,
-          };
-        }
-
-        // Tool completed
-        if (status === "completed") {
+        // Map SDK status to UI status
+        let uiStatus: "running" | "success" | "error" = "running";
+        if (sdkStatus === "completed") {
+          uiStatus = "success";
           state.toolCallMap.delete(callID);
-          return {
-            type: "chat.tool.finish",
-            projectId,
-            time,
-            payload: {
-              toolCallId,
-              output: toolState?.output,
-            } satisfies ToolFinishPayload,
-          };
+        } else if (sdkStatus === "error") {
+          uiStatus = "error";
+          state.toolCallMap.delete(callID);
         }
 
-        // Tool error
-        if (status === "error") {
-          state.toolCallMap.delete(callID);
-          return {
-            type: "chat.tool.error",
-            projectId,
-            time,
-            payload: {
-              toolCallId,
-              error: toolState?.error,
-            } satisfies ToolErrorPayload,
-          };
-        }
+        // Emit single tool update event
+        return {
+          type: "chat.tool.update",
+          projectId,
+          time,
+          payload: {
+            toolCallId,
+            name: tool,
+            input: (toolState as any)?.input,
+            status: uiStatus,
+            output: (toolState as any)?.output,
+            error: (toolState as any)?.error,
+          } satisfies ToolUpdatePayload,
+        };
       }
 
       return null;

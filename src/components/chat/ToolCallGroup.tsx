@@ -4,12 +4,14 @@ interface ToolCallGroupProps {
   toolCalls: ToolCall[];
   expandedTools: Set<string>;
   onToggle: (id: string) => void;
+  onFileOpen?: ((filePath: string) => void) | undefined;
 }
 
 export function ToolCallGroup({
   toolCalls,
   expandedTools,
   onToggle,
+  onFileOpen,
 }: ToolCallGroupProps) {
   return (
     <div className="flex gap-3 p-4 bg-background">
@@ -21,6 +23,7 @@ export function ToolCallGroup({
             toolCall={toolCall}
             isExpanded={expandedTools.has(toolCall.id)}
             onToggle={() => onToggle(toolCall.id)}
+            onFileOpen={onFileOpen}
           />
         ))}
       </div>

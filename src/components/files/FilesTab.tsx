@@ -30,6 +30,24 @@ interface FilesTabProps {
 	onFileSelect?: (path: string) => void;
 }
 
+/**
+ * Get all ancestor directory paths for a file path.
+ * e.g., "pages/api/index.ts" => ["pages", "pages/api"]
+ */
+function getAncestorPaths(filePath: string): string[] {
+	const parts = filePath.split("/");
+	// Remove the filename (last part)
+	parts.pop();
+	
+	const ancestors: string[] = [];
+	let currentPath = "";
+	for (const part of parts) {
+		currentPath = currentPath ? `${currentPath}/${part}` : part;
+		ancestors.push(currentPath);
+	}
+	return ancestors;
+}
+
 export function FilesTab({
 	projectId,
 	lastSelectedFile,
@@ -43,6 +61,7 @@ export function FilesTab({
 	const [isLoadingTree, setIsLoadingTree] = useState(true);
 	const [isLoadingContent, setIsLoadingContent] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
 	const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } =
 		useResizablePanel({
@@ -74,6 +93,15 @@ export function FilesTab({
 
 					// If we have a last selected file and it exists, fetch it
 					if (lastSelectedFile && data.tree && data.tree.length > 0) {
+						// Expand ancestors to reveal the file in tree
+						const ancestors = getAncestorPaths(lastSelectedFile);
+						setExpandedPaths((prev) => {
+							const newPaths = new Set(prev);
+							for (const ancestor of ancestors) {
+								newPaths.add(ancestor);
+							}
+							return newPaths;
+						});
 						await fetchFileContent(lastSelectedFile);
 					}
 				}
@@ -161,6 +189,8 @@ export function FilesTab({
 						files={files}
 						onFileSelect={fetchFileContent}
 						selectedPath={selectedPath || undefined}
+						expandedPaths={expandedPaths}
+						onExpandedPathsChange={setExpandedPaths}
 					/>
 				</div>
 

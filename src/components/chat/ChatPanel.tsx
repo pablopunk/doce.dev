@@ -11,6 +11,7 @@ import { toast } from "sonner";
 interface ChatPanelProps {
   projectId: string;
   models?: ReadonlyArray<{ id: string; name: string; provider: string; supportsImages?: boolean }>;
+  onOpenFile?: ((filePath: string) => void) | undefined;
 }
 
 interface ChatItem {
@@ -28,7 +29,7 @@ interface PresenceData {
   bootstrapSessionId: string | null;
 }
 
-export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
+export function ChatPanel({ projectId, models = [], onOpenFile }: ChatPanelProps) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -461,74 +462,58 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
         break;
       }
 
-      case "chat.tool.start": {
-        const { toolCallId, name, input } = payload as {
+      case "chat.tool.update": {
+        const { toolCallId, name, input, status, output, error } = payload as {
           toolCallId: string;
           name: string;
-          input: unknown;
+          input?: unknown;
+          status: "running" | "success" | "error";
+          output?: unknown;
+          error?: unknown;
         };
 
-        setItems((prev) => [
-          ...prev,
-          {
-            type: "tool",
-            id: toolCallId,
-            data: {
+        setItems((prev) => {
+          // Check if tool already exists
+          const existingIdx = prev.findIndex(
+            (item) => item.type === "tool" && item.id === toolCallId
+          );
+
+          if (existingIdx !== -1) {
+            // Update existing tool
+            return prev.map((item, idx) =>
+              idx === existingIdx && item.type === "tool"
+                ? {
+                    ...item,
+                    data: {
+                      ...(item.data as ToolCall),
+                      output,
+                      error,
+                      status,
+                    },
+                  }
+                : item
+            );
+          }
+
+          // Create new tool item
+          return [
+            ...prev,
+            {
+              type: "tool",
               id: toolCallId,
-              name,
-              input,
-              status: "running",
+              data: {
+                id: toolCallId,
+                name,
+                input,
+                output,
+                error,
+                status,
+              },
             },
-          },
-        ]);
+          ];
+        });
 
         scrollToBottom();
-        break;
-      }
-
-      case "chat.tool.finish": {
-        const { toolCallId, output } = payload as {
-          toolCallId: string;
-          output: unknown;
-        };
-
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === toolCallId && item.type === "tool"
-              ? {
-                  ...item,
-                  data: {
-                    ...(item.data as ToolCall),
-                    output,
-                    status: "success",
-                  },
-                }
-              : item
-          )
-        );
-        break;
-      }
-
-      case "chat.tool.error": {
-        const { toolCallId, error } = payload as {
-          toolCallId: string;
-          error: unknown;
-        };
-
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === toolCallId && item.type === "tool"
-              ? {
-                  ...item,
-                  data: {
-                    ...(item.data as ToolCall),
-                    error,
-                    status: "error",
-                  },
-                }
-              : item
-          )
-        );
         break;
       }
 
@@ -751,6 +736,7 @@ export function ChatPanel({ projectId, models = [] }: ChatPanelProps) {
                   toolCalls={item.data as ToolCall[]}
                   expandedTools={expandedTools}
                   onToggle={toggleToolExpanded}
+                  onFileOpen={onOpenFile}
                 />
               ) : null
             )}

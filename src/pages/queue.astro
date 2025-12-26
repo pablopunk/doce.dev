@@ -2,18 +2,11 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
 import { listJobs, isQueuePaused, getConcurrency, countJobs } from "@/server/queue/queue.model";
-import { checkDockerHealth } from "@/server/docker/health";
 import type { QueueJob } from "@/server/db/schema";
 
 const user = Astro.locals.user;
 if (!user) {
   return Astro.redirect("/login");
-}
-
-// Check if Docker is available
-const dockerHealth = await checkDockerHealth();
-if (!dockerHealth.ok) {
-  return Astro.redirect("/error/docker-unavailable");
 }
 
 const search = Astro.url.searchParams;

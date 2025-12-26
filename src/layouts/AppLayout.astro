@@ -2,7 +2,6 @@
 import "@/styles/globals.css";
 import { Navbar } from "@/components/navbar/Navbar";
 import ThemeProvider from "@/components/providers/ThemeProvider";
-import { DockerHealthProvider } from "@/components/providers/DockerHealthProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 interface Props {
@@ -30,10 +29,8 @@ const { title } = Astro.props;
   <body class="h-screen bg-background text-foreground antialiased flex flex-col">
     <Navbar client:load />
     <ThemeProvider client:load>
-      <DockerHealthProvider client:load>
-        <slot />
-        <Toaster client:load />
-      </DockerHealthProvider>
+      <slot />
+      <Toaster client:load />
     </ThemeProvider>
   </body>
 </html>

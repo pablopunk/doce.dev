@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Zap, Brain } from "lucide-react";
+import { ChevronDown, Zap, Brain, CameraOff } from "lucide-react";
 import { Openai } from "@/components/ui/svgs/openai";
 import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
@@ -37,6 +37,7 @@ interface ModelSelectorProps {
     provider: string;
     description?: string;
     tier?: "fast" | "top";
+    supportsImages?: boolean;
   }>;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
@@ -46,6 +47,13 @@ function getTierIcon(tier?: string) {
   if (tier === "fast") return <Zap className="w-4 h-4 text-muted-foreground" />;
   if (tier === "top")
     return <Brain className="w-4 h-4 text-muted-foreground" />;
+  return null;
+}
+
+function getImageSupportIcon(supportsImages?: boolean) {
+  if (supportsImages === false) {
+    return <CameraOff className="w-4 h-4 text-muted-foreground" />;
+  }
   return null;
 }
 
@@ -98,6 +106,7 @@ export function ModelSelector({
           name: string;
           provider: string;
           tier?: "fast" | "top";
+          supportsImages?: boolean;
         }>
       >(),
     ),
@@ -117,11 +126,12 @@ export function ModelSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:ring-ring">
-        {LogoVariants && <div className="w-4 h-4">{renderLogo(LogoVariants)}</div>}
-        <span>{selectedModel?.name || "Select model"}</span>
-        {selectedModel && getTierIcon(selectedModel.tier)}
-        <ChevronDown className="w-4 h-4" />
-      </DropdownMenuTrigger>
+         {LogoVariants && <div className="w-4 h-4">{renderLogo(LogoVariants)}</div>}
+         <span>{selectedModel?.name || "Select model"}</span>
+         {selectedModel && getTierIcon(selectedModel.tier)}
+         {selectedModel && getImageSupportIcon(selectedModel.supportsImages)}
+         <ChevronDown className="w-4 h-4" />
+       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuRadioGroup
           value={selectedModelId}
@@ -136,18 +146,19 @@ export function ModelSelector({
                   {LogoVariants && <div className="w-4 h-4">{renderLogo(LogoVariants)}</div>}
                   {provider}
                 </DropdownMenuLabel>
-                {providerModels.map((model) => (
-                  <DropdownMenuRadioItem
-                    key={model.id}
-                    value={model.id}
-                    className="flex flex-col items-start"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{model.name}</span>
-                      {getTierIcon(model.tier)}
-                    </div>
-                  </DropdownMenuRadioItem>
-                ))}
+                 {providerModels.map((model) => (
+                   <DropdownMenuRadioItem
+                     key={model.id}
+                     value={model.id}
+                     className="flex flex-col items-start"
+                   >
+                     <div className="flex items-center gap-2">
+                       <span className="font-medium">{model.name}</span>
+                       {getTierIcon(model.tier)}
+                       {getImageSupportIcon(model.supportsImages)}
+                     </div>
+                   </DropdownMenuRadioItem>
+                 ))}
               </DropdownMenuGroup>
             );
           })}

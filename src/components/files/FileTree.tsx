@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Folder, FolderOpen, File } from "lucide-react";
+import { ChevronRight, File } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileTreeNode {
@@ -13,14 +13,22 @@ interface FileTreeProps {
 	files: FileTreeNode[];
 	onFileSelect: (path: string) => void;
 	selectedPath?: string | undefined;
+	/** Paths to expand initially (e.g., to reveal a selected file) */
+	expandedPaths?: Set<string>;
+	/** Callback when expanded paths change */
+	onExpandedPathsChange?: (paths: Set<string>) => void;
 }
 
 export function FileTree({
 	files,
 	onFileSelect,
 	selectedPath,
+	expandedPaths: controlledExpandedPaths,
+	onExpandedPathsChange,
 }: FileTreeProps) {
-	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+	// Use controlled or uncontrolled mode
+	const [internalExpandedPaths, setInternalExpandedPaths] = useState<Set<string>>(new Set());
+	const expandedPaths = controlledExpandedPaths ?? internalExpandedPaths;
 
 	const toggleExpanded = (path: string) => {
 		const newExpanded = new Set(expandedPaths);
@@ -29,7 +37,12 @@ export function FileTree({
 		} else {
 			newExpanded.add(path);
 		}
-		setExpandedPaths(newExpanded);
+		// Update either controlled or internal state
+		if (onExpandedPathsChange) {
+			onExpandedPathsChange(newExpanded);
+		} else {
+			setInternalExpandedPaths(newExpanded);
+		}
 	};
 
 	const renderNode = (node: FileTreeNode, depth: number = 0) => {
@@ -57,24 +70,18 @@ export function FileTree({
 					)}
 					style={{ paddingLeft: `${depth * 12 + 8}px` }}
 				>
-					{isDirectory && (
-						<ChevronRight
-							className={`h-4 w-4 flex-shrink-0 transition-transform ${
-								isExpanded ? "rotate-90" : ""
-							}`}
-						/>
-					)}
-					{!isDirectory && <div className="h-4 w-4 flex-shrink-0" />}
+				{isDirectory && (
+					<ChevronRight
+						className={`h-4 w-4 flex-shrink-0 transition-transform ${
+							isExpanded ? "rotate-90" : ""
+						}`}
+					/>
+				)}
+				{!isDirectory && <div className="h-4 w-4 flex-shrink-0" />}
 
-					{isDirectory ? (
-						isExpanded ? (
-							<FolderOpen className="h-4 w-4 flex-shrink-0 text-blue-400" />
-						) : (
-							<Folder className="h-4 w-4 flex-shrink-0 text-blue-400" />
-						)
-					) : (
-						<File className="h-4 w-4 flex-shrink-0 text-gray-400" />
-					)}
+				{!isDirectory && (
+					<File className="h-4 w-4 flex-shrink-0 text-gray-400" />
+				)}
 
 					<span className="truncate">{node.name}</span>
 				</button>

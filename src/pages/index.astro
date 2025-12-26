@@ -3,7 +3,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import HeroSection from "@/components/dashboard/HeroSection.astro";
 import { CreateProjectForm } from "@/components/dashboard/CreateProjectForm";
 import { ProjectsList } from "@/components/projects/ProjectsList";
-import { DockerHealthProvider } from "@/components/providers/DockerHealthProvider";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/settings/openrouter";
 import { db } from "@/server/db/client";
@@ -28,11 +27,9 @@ const defaultModel = userSettings[0]?.defaultModel ?? DEFAULT_MODEL;
 ---
 
 <AppLayout title="Dashboard">
-  <DockerHealthProvider client:load>
-    <HeroSection>
-      <CreateProjectForm client:load models={AVAILABLE_MODELS} defaultModel={defaultModel} />
-    </HeroSection>
+  <HeroSection>
+    <CreateProjectForm client:load models={AVAILABLE_MODELS} defaultModel={defaultModel} />
+  </HeroSection>
 
-    <ProjectsList fallback={projects} client:load />
-  </DockerHealthProvider>
+  <ProjectsList fallback={projects} />
 </AppLayout>

@@ -1,11 +1,11 @@
+"use client";
+
 import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, Paperclip } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
-import { DockerBlockingOverlay } from "./DockerBlockingOverlay";
 import { actions } from "astro:actions";
 import { toast } from "sonner";
-import { useDocker } from "@/components/providers/DockerHealthProvider";
 import { ImagePreview } from "@/components/chat/ImagePreview";
 import {
 	type ImagePart,
@@ -24,7 +24,6 @@ export function CreateProjectForm({
 	models,
 	defaultModel,
 }: CreateProjectFormProps) {
-	const { dockerAvailable } = useDocker();
 	const [prompt, setPrompt] = useState("");
 	const [selectedModel, setSelectedModel] = useState(defaultModel);
 	const [isLoading, setIsLoading] = useState(false);
@@ -258,7 +257,6 @@ export function CreateProjectForm({
 
 	return (
 		<div className="w-full relative">
-			{!dockerAvailable && <DockerBlockingOverlay />}
 			<div className="flex flex-col gap-4">
 				<div
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${

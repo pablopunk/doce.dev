@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { actions } from "astro:actions";
 import { ProjectCard } from "./ProjectCard";
-import { DockerBlockingOverlay } from "@/components/dashboard/DockerBlockingOverlay";
-import { useDocker } from "@/components/providers/DockerHealthProvider";
 import type { Project } from "@/server/db/schema";
 
 interface ProjectsListProps {
@@ -16,7 +14,6 @@ interface ProjectsListProps {
  * Animates list changes with Motion layout animations
  */
 export function ProjectsList({ fallback }: ProjectsListProps) {
-	const { dockerAvailable } = useDocker();
 	const [projects, setProjects] = useState<Project[]>(fallback);
 	const [error, setError] = useState<string | null>(null);
 	const [deletedProjectIds, setDeletedProjectIds] = useState<Set<string>>(new Set());
@@ -68,7 +65,6 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 
 	return (
 		<section className="container mx-auto p-8 relative">
-			{!dockerAvailable && <DockerBlockingOverlay />}
 			<h2 className="mb-4 text-xl font-semibold">Your Projects</h2>
 			<LayoutGroup>
 				<motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" id="projects-grid">

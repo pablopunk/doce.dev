@@ -20,12 +20,14 @@ interface PresenceResponse {
 interface PreviewPanelProps {
 	projectId: string;
 	onStatusChange?: (status: PresenceResponse) => void;
+	fileToOpen?: string | null;
+	onFileOpened?: () => void;
 }
 
 type PreviewState = "initializing" | "starting" | "ready" | "error";
 type TabType = "preview" | "files";
 
-export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
+export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpened }: PreviewPanelProps) {
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -149,6 +151,15 @@ export function PreviewPanel({ projectId, onStatusChange }: PreviewPanelProps) {
 			}
 		};
 	}, [sendHeartbeat, handlePresenceResponse]);
+
+	// Handle file opening from chat panel
+	useEffect(() => {
+		if (fileToOpen) {
+			setActiveTab("files");
+			setLastSelectedFile(fileToOpen);
+			onFileOpened?.();
+		}
+	}, [fileToOpen, onFileOpened]);
 
 	const handleRefresh = () => {
 		setIframeKey((k) => k + 1);

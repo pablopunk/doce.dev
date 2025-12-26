@@ -18,6 +18,7 @@ interface PresenceResponse {
 
 export function ProjectContentWrapper({ projectId, models = [] }: ProjectContentWrapperProps) {
   const [showStartupDisplay, setShowStartupDisplay] = useState(true);
+  const [fileToOpen, setFileToOpen] = useState<string | null>(null);
 
   // Use custom resizable panel hook for managing layout with constraints
    const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } = useResizablePanel({
@@ -73,23 +74,31 @@ export function ProjectContentWrapper({ projectId, models = [] }: ProjectContent
             data-resizable-group
           >
             {/* Chat panel (left) */}
+              <div
+                className="flex flex-col h-full border-r overflow-hidden"
+                style={{ width: `${leftPercent}%` }}
+              >
+                <ChatPanel 
+                  projectId={projectId} 
+                  models={models} 
+                  onOpenFile={setFileToOpen}
+                />
+              </div>
+
+             {/* Draggable separator */}
+             <ResizableSeparator onMouseDown={onSeparatorMouseDown} />
+
+             {/* Preview panel (right) */}
              <div
-               className="flex flex-col h-full border-r overflow-hidden"
-               style={{ width: `${leftPercent}%` }}
+               className="flex flex-col h-full overflow-hidden"
+               style={{ width: `${rightPercent}%` }}
              >
-               <ChatPanel projectId={projectId} models={models} />
+               <PreviewPanel 
+                 projectId={projectId}
+                 fileToOpen={fileToOpen}
+                 onFileOpened={() => setFileToOpen(null)}
+               />
              </div>
-
-            {/* Draggable separator */}
-            <ResizableSeparator onMouseDown={onSeparatorMouseDown} />
-
-            {/* Preview panel (right) */}
-            <div
-              className="flex flex-col h-full overflow-hidden"
-              style={{ width: `${rightPercent}%` }}
-            >
-              <PreviewPanel projectId={projectId} />
-            </div>
 
             {/* Transparent overlay to capture mouse events during drag */}
             {isDragging && (
