@@ -2,10 +2,17 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { JobDetailLive } from "@/components/queue/JobDetailLive";
 import { getJobById } from "@/server/queue/queue.model";
+import { checkDockerHealth } from "@/server/docker/health";
 
 const user = Astro.locals.user;
 if (!user) {
   return Astro.redirect("/login");
+}
+
+// Check if Docker is available
+const dockerHealth = await checkDockerHealth();
+if (!dockerHealth.ok) {
+  return Astro.redirect("/error/docker-unavailable");
 }
 
 const jobId = Astro.params.id;

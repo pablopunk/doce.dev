@@ -1,8 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import HeroSection from "@/components/dashboard/HeroSection.astro";
-import { CreateProjectForm } from "@/components/dashboard/CreateProjectForm";
-import { ProjectsList } from "@/components/projects/ProjectsList";
+import { DashboardContent } from "@/components/dashboard/DashboardContent";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/settings/openrouter";
 import { db } from "@/server/db/client";
@@ -28,8 +27,6 @@ const defaultModel = userSettings[0]?.defaultModel ?? DEFAULT_MODEL;
 
 <AppLayout title="Dashboard">
   <HeroSection>
-    <CreateProjectForm client:load models={AVAILABLE_MODELS} defaultModel={defaultModel} />
+    <DashboardContent client:load projects={projects} models={AVAILABLE_MODELS} defaultModel={defaultModel} />
   </HeroSection>
-
-  <ProjectsList fallback={projects} client:load />
 </AppLayout>
