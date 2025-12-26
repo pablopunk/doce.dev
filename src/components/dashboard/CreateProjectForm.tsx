@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent } from "react";
+import {
+	useState,
+	useRef,
+	useEffect,
+	type DragEvent,
+	type ClipboardEvent,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, Paperclip } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
@@ -16,7 +22,12 @@ import {
 } from "@/types/message";
 
 interface CreateProjectFormProps {
-	models: readonly { id: string; name: string; provider: string; supportsImages?: boolean }[];
+	models: readonly {
+		id: string;
+		name: string;
+		provider: string;
+		supportsImages?: boolean;
+	}[];
 	defaultModel: string;
 }
 
@@ -128,7 +139,9 @@ export function CreateProjectForm({
 		if (files && files.length > 0) {
 			// Filter only images
 			const imageFiles = Array.from(files).filter((file) =>
-				VALID_IMAGE_MIME_TYPES.includes(file.type as typeof VALID_IMAGE_MIME_TYPES[number])
+				VALID_IMAGE_MIME_TYPES.includes(
+					file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
+				),
 			);
 			if (imageFiles.length > 0) {
 				// Show error if images aren't supported
@@ -237,7 +250,7 @@ export function CreateProjectForm({
 	};
 
 	const handleModelChange = (newModelId: string) => {
-		const newModelConfig = models.find(m => m.id === newModelId);
+		const newModelConfig = models.find((m) => m.id === newModelId);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
 
 		// Clear pending images if switching to a model that doesn't support them
@@ -253,7 +266,8 @@ export function CreateProjectForm({
 	};
 
 	// Check if the current model supports images
-	const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supportsImages ?? true;
+	const currentModelSupportsImages =
+		models.find((m) => m.id === selectedModel)?.supportsImages ?? true;
 
 	return (
 		<div className="w-full relative">
@@ -315,7 +329,9 @@ export function CreateProjectForm({
 									variant="ghost"
 									size="icon"
 									onClick={() => fileInputRef.current?.click()}
-									disabled={isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
+									disabled={
+										isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+									}
 									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
 									type="button"
 								>

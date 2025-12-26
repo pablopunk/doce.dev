@@ -7,7 +7,10 @@ interface AssetUploadZoneProps {
 	isLoading?: boolean;
 }
 
-export function AssetUploadZone({ onUpload, isLoading = false }: AssetUploadZoneProps) {
+export function AssetUploadZone({
+	onUpload,
+	isLoading = false,
+}: AssetUploadZoneProps) {
 	const [isDragging, setIsDragging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +38,9 @@ export function AssetUploadZone({ onUpload, isLoading = false }: AssetUploadZone
 		}
 	};
 
-	const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileInputChange = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
 		setError(null);
 		if (e.target.files && e.target.files.length > 0) {
 			try {

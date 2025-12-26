@@ -45,11 +45,23 @@ const SESSION_COOKIE_NAME = "doce_session";
 // Helper functions for assets
 const ALLOWED_EXTENSIONS = new Set([
 	// Images
-	"jpg", "jpeg", "png", "gif", "webp", "svg",
+	"jpg",
+	"jpeg",
+	"png",
+	"gif",
+	"webp",
+	"svg",
 	// Media
-	"mp4", "webm", "mp3", "wav",
+	"mp4",
+	"webm",
+	"mp3",
+	"wav",
 	// Documents
-	"pdf", "json", "txt", "md", "csv",
+	"pdf",
+	"json",
+	"txt",
+	"md",
+	"csv",
 ]);
 
 /**
@@ -79,13 +91,15 @@ function isAllowedExtension(extension: string): boolean {
 /**
  * Build assets list from public directory
  */
-async function buildAssetsList(publicPath: string): Promise<Array<{
-	name: string;
-	path: string;
-	size: number;
-	mimeType: string;
-	isImage: boolean;
-}>> {
+async function buildAssetsList(publicPath: string): Promise<
+	Array<{
+		name: string;
+		path: string;
+		size: number;
+		mimeType: string;
+		isImage: boolean;
+	}>
+> {
 	try {
 		const entries = await fs.readdir(publicPath, { withFileTypes: true });
 		const assets = [];
@@ -110,7 +124,9 @@ async function buildAssetsList(publicPath: string): Promise<Array<{
 				continue;
 			}
 
-			const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext.toLowerCase());
+			const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(
+				ext.toLowerCase(),
+			);
 
 			assets.push({
 				name: entry.name,
@@ -228,10 +244,7 @@ export const server = {
 				}
 
 				// Verify password
-				const isValid = await verifyPassword(
-					input.password,
-					user.passwordHash,
-				);
+				const isValid = await verifyPassword(input.password, user.passwordHash);
 				if (!isValid) {
 					throw new ActionError({
 						code: "UNAUTHORIZED",
@@ -363,7 +376,9 @@ export const server = {
 				}
 
 				// Parse images from JSON string if provided
-				let images: Array<{ filename: string; mime: string; dataUrl: string }> | undefined;
+				let images:
+					| Array<{ filename: string; mime: string; dataUrl: string }>
+					| undefined;
 				if (input.images) {
 					try {
 						images = JSON.parse(input.images);
@@ -532,7 +547,7 @@ export const server = {
 
 				// Update database
 				await updateProjectModel(input.projectId, input.model);
-				
+
 				// Also update opencode.json on disk for file-based persistence
 				if (input.model) {
 					try {
@@ -540,11 +555,11 @@ export const server = {
 					} catch (error) {
 						// Log warning but don't fail - DB is already updated
 						console.warn(
-							"Updated model in database but failed to update opencode.json. Next OpenCode session may not reflect model change until file is manually synced."
+							"Updated model in database but failed to update opencode.json. Next OpenCode session may not reflect model change until file is manually synced.",
 						);
 					}
 				}
-				
+
 				return { success: true };
 			},
 		}),
@@ -741,7 +756,8 @@ export const server = {
 				if (deleted === 0) {
 					throw new ActionError({
 						code: "BAD_REQUEST",
-						message: "Job not found or not in terminal state (can only delete succeeded, failed, or cancelled jobs)",
+						message:
+							"Job not found or not in terminal state (can only delete succeeded, failed, or cancelled jobs)",
 					});
 				}
 
@@ -810,7 +826,12 @@ export const server = {
 				}
 
 				try {
-					const projectPath = path.join(process.cwd(), "data", "projects", input.projectId);
+					const projectPath = path.join(
+						process.cwd(),
+						"data",
+						"projects",
+						input.projectId,
+					);
 					const publicPath = path.join(projectPath, "public");
 
 					// Check if public directory exists
@@ -857,7 +878,12 @@ export const server = {
 				}
 
 				try {
-					const projectPath = path.join(process.cwd(), "data", "projects", input.projectId);
+					const projectPath = path.join(
+						process.cwd(),
+						"data",
+						"projects",
+						input.projectId,
+					);
 					const publicPath = path.join(projectPath, "public");
 
 					// Create public directory if it doesn't exist
@@ -964,13 +990,21 @@ export const server = {
 						});
 					}
 
-					const projectPath = path.join(process.cwd(), "data", "projects", input.projectId);
+					const projectPath = path.join(
+						process.cwd(),
+						"data",
+						"projects",
+						input.projectId,
+					);
 					const publicPath = path.join(projectPath, "public");
 					const oldPath = path.join(publicPath, input.oldName);
 					const newPath = path.join(publicPath, sanitizedNewName);
 
 					// Prevent path traversal
-					if (!oldPath.startsWith(publicPath) || !newPath.startsWith(publicPath)) {
+					if (
+						!oldPath.startsWith(publicPath) ||
+						!newPath.startsWith(publicPath)
+					) {
 						throw new ActionError({
 							code: "FORBIDDEN",
 							message: "Invalid file path",
@@ -1037,7 +1071,12 @@ export const server = {
 				}
 
 				try {
-					const projectPath = path.join(process.cwd(), "data", "projects", input.projectId);
+					const projectPath = path.join(
+						process.cwd(),
+						"data",
+						"projects",
+						input.projectId,
+					);
 					const publicPath = path.join(projectPath, "public");
 					const filePath = path.join(publicPath, input.path);
 

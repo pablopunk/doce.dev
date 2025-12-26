@@ -9,7 +9,7 @@ const DB_PATH = process.env.DB_FILE_NAME ?? "data/db.sqlite";
 // Ensure data directory exists
 const dbDir = dirname(DB_PATH);
 if (!existsSync(dbDir)) {
-  mkdirSync(dbDir, { recursive: true });
+	mkdirSync(dbDir, { recursive: true });
 }
 
 const sqlite = new Database(DB_PATH);

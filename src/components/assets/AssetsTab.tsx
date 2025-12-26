@@ -35,7 +35,9 @@ export function AssetsTab({ projectId, previewUrl }: AssetsTabProps) {
 					setAssets(result.data.assets);
 				}
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "Failed to load assets");
+				toast.error(
+					err instanceof Error ? err.message : "Failed to load assets",
+				);
 			} finally {
 				setIsLoading(false);
 			}
@@ -158,7 +160,10 @@ export function AssetsTab({ projectId, previewUrl }: AssetsTabProps) {
 				{assets.length === 0 ? (
 					<div className="flex-1 flex items-center justify-center p-8">
 						<div className="w-full max-w-md">
-							<AssetUploadZone onUpload={handleUpload} isLoading={isUploading} />
+							<AssetUploadZone
+								onUpload={handleUpload}
+								isLoading={isUploading}
+							/>
 						</div>
 					</div>
 				) : (
@@ -168,14 +173,14 @@ export function AssetsTab({ projectId, previewUrl }: AssetsTabProps) {
 								{assets.length} asset{assets.length !== 1 ? "s" : ""}
 							</p>
 						</div>
-					<AssetsList
-						assets={assets}
-						onRename={handleRename}
-						onDelete={handleDelete}
-						onUpload={handleUpload}
-						isLoading={isUploading}
-						previewUrl={previewUrl}
-					/>
+						<AssetsList
+							assets={assets}
+							onRename={handleRename}
+							onDelete={handleDelete}
+							onUpload={handleUpload}
+							isLoading={isUploading}
+							previewUrl={previewUrl}
+						/>
 					</div>
 				)}
 			</div>

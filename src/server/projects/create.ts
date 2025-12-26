@@ -17,48 +17,48 @@ const TEMPLATE_DIR = "templates/astro-starter";
  * Get the absolute path to the data directory.
  */
 function getDataPath(): string {
-  return path.join(process.cwd(), DATA_DIR);
+	return path.join(process.cwd(), DATA_DIR);
 }
 
 /**
  * Get the absolute path to the projects directory.
  */
 function getProjectsPath(): string {
-  return path.join(getDataPath(), PROJECTS_DIR);
+	return path.join(getDataPath(), PROJECTS_DIR);
 }
 
 /**
  * Get the absolute path to the template directory.
  */
 function getTemplatePath(): string {
-  return path.join(process.cwd(), TEMPLATE_DIR);
+	return path.join(process.cwd(), TEMPLATE_DIR);
 }
 
 /**
  * Get the absolute path to a specific project.
  */
 export function getProjectPath(projectId: string): string {
-  return path.join(getProjectsPath(), projectId);
+	return path.join(getProjectsPath(), projectId);
 }
 
 /**
  * Get the relative path on disk for a project (stored in DB).
  */
 function getProjectRelativePath(projectId: string): string {
-  return `${DATA_DIR}/${PROJECTS_DIR}/${projectId}`;
+	return `${DATA_DIR}/${PROJECTS_DIR}/${projectId}`;
 }
 
 export interface CreateProjectInput {
-  prompt: string;
-  model: string | null;
-  ownerUserId: string;
-  openrouterApiKey: string;
+	prompt: string;
+	model: string | null;
+	ownerUserId: string;
+	openrouterApiKey: string;
 }
 
 export interface CreateProjectResult {
-  project: Project;
-  started: boolean;
-  error?: string;
+	project: Project;
+	started: boolean;
+	error?: string;
 }
 
 /**
@@ -73,124 +73,124 @@ export interface CreateProjectResult {
  * 7. Start Docker containers
  */
 export async function createProjectFromPrompt(
-  input: CreateProjectInput
+	input: CreateProjectInput,
 ): Promise<CreateProjectResult> {
-  const { prompt, model, ownerUserId, openrouterApiKey } = input;
+	const { prompt, model, ownerUserId, openrouterApiKey } = input;
 
-  logger.info({ prompt: prompt.slice(0, 100), model }, "Creating new project");
+	logger.info({ prompt: prompt.slice(0, 100), model }, "Creating new project");
 
-  // Generate project name using AI
-  const name = await generateProjectName(openrouterApiKey, prompt);
-  logger.debug({ name }, "Generated project name");
+	// Generate project name using AI
+	const name = await generateProjectName(openrouterApiKey, prompt);
+	logger.debug({ name }, "Generated project name");
 
-  // Generate unique slug
-  const slug = await generateUniqueSlug(name);
-  logger.debug({ slug }, "Generated unique slug");
+	// Generate unique slug
+	const slug = await generateUniqueSlug(name);
+	logger.debug({ slug }, "Generated unique slug");
 
-  // Generate project ID
-  const projectId = randomBytes(12).toString("hex");
+	// Generate project ID
+	const projectId = randomBytes(12).toString("hex");
 
-  // Allocate ports
-  const { devPort, opencodePort } = await allocateProjectPorts();
+	// Allocate ports
+	const { devPort, opencodePort } = await allocateProjectPorts();
 
-  // Get paths
-  const projectPath = getProjectPath(projectId);
-  const relativePath = getProjectRelativePath(projectId);
+	// Get paths
+	const projectPath = getProjectPath(projectId);
+	const relativePath = getProjectRelativePath(projectId);
 
-  // Ensure projects directory exists
-  await fs.mkdir(getProjectsPath(), { recursive: true });
+	// Ensure projects directory exists
+	await fs.mkdir(getProjectsPath(), { recursive: true });
 
-  // Copy template to project directory
-  await copyTemplate(projectPath);
-  logger.debug({ projectPath }, "Copied template to project directory");
+	// Copy template to project directory
+	await copyTemplate(projectPath);
+	logger.debug({ projectPath }, "Copied template to project directory");
 
-   // Write .env file with ports
-   await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
-   logger.debug({ devPort, opencodePort }, "Wrote project .env file");
+	// Write .env file with ports
+	await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
+	logger.debug({ devPort, opencodePort }, "Wrote project .env file");
 
-   // Update opencode.json with the selected model
-   if (model) {
-     await updateOpencodeJsonWithModel(projectPath, model);
-     logger.debug({ model }, "Updated opencode.json with model");
-   }
+	// Update opencode.json with the selected model
+	if (model) {
+		await updateOpencodeJsonWithModel(projectPath, model);
+		logger.debug({ model }, "Updated opencode.json with model");
+	}
 
-   // Create logs directory
-   await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
+	// Create logs directory
+	await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
 
-  // Create DB record
-  const project = await createProject({
-    id: projectId,
-    ownerUserId,
-    createdAt: new Date(),
-    name,
-    slug,
-    prompt,
-    model,
-    devPort,
-    opencodePort,
-    status: "created",
-    pathOnDisk: relativePath,
-  });
+	// Create DB record
+	const project = await createProject({
+		id: projectId,
+		ownerUserId,
+		createdAt: new Date(),
+		name,
+		slug,
+		prompt,
+		model,
+		devPort,
+		opencodePort,
+		status: "created",
+		pathOnDisk: relativePath,
+	});
 
-  logger.info({ projectId, name, slug }, "Created project in database");
+	logger.info({ projectId, name, slug }, "Created project in database");
 
-  // Docker containers are started on-demand via the queue worker
-  // (triggered by presence heartbeats / project page visits).
-  return { project, started: false };
+	// Docker containers are started on-demand via the queue worker
+	// (triggered by presence heartbeats / project page visits).
+	return { project, started: false };
 }
 
 /**
  * Copy the template directory to a new project directory.
  */
 async function copyTemplate(targetPath: string): Promise<void> {
-  const templatePath = getTemplatePath();
+	const templatePath = getTemplatePath();
 
-  // Check if template exists
-  try {
-    await fs.access(templatePath);
-  } catch {
-    throw new Error(`Template not found at ${templatePath}`);
-  }
+	// Check if template exists
+	try {
+		await fs.access(templatePath);
+	} catch {
+		throw new Error(`Template not found at ${templatePath}`);
+	}
 
-  // Copy recursively
-  await copyDir(templatePath, targetPath);
+	// Copy recursively
+	await copyDir(templatePath, targetPath);
 }
 
 /**
  * Recursively copy a directory.
  */
 async function copyDir(src: string, dest: string): Promise<void> {
-  await fs.mkdir(dest, { recursive: true });
-  const entries = await fs.readdir(src, { withFileTypes: true });
+	await fs.mkdir(dest, { recursive: true });
+	const entries = await fs.readdir(src, { withFileTypes: true });
 
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+	for (const entry of entries) {
+		const srcPath = path.join(src, entry.name);
+		const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory()) {
-      await copyDir(srcPath, destPath);
-    } else {
-      await fs.copyFile(srcPath, destPath);
-    }
-  }
+		if (entry.isDirectory()) {
+			await copyDir(srcPath, destPath);
+		} else {
+			await fs.copyFile(srcPath, destPath);
+		}
+	}
 }
 
 /**
  * Write the .env file for a project with ports and API key.
  */
 async function writeProjectEnv(
-  projectPath: string,
-  devPort: number,
-  opencodePort: number,
-  openrouterApiKey: string
+	projectPath: string,
+	devPort: number,
+	opencodePort: number,
+	openrouterApiKey: string,
 ): Promise<void> {
-  const envContent = `# Generated by doce.dev
+	const envContent = `# Generated by doce.dev
 DEV_PORT=${devPort}
 OPENCODE_PORT=${opencodePort}
 OPENROUTER_API_KEY=${openrouterApiKey}
 `;
 
-  await fs.writeFile(path.join(projectPath, ".env"), envContent);
+	await fs.writeFile(path.join(projectPath, ".env"), envContent);
 }
 
 /**
@@ -198,26 +198,26 @@ OPENROUTER_API_KEY=${openrouterApiKey}
  * If the model is in the format "provider/model-id", it will be set as the model field.
  */
 async function updateOpencodeJsonWithModel(
-  projectPath: string,
-  model: string
+	projectPath: string,
+	model: string,
 ): Promise<void> {
-  const opencodeJsonPath = path.join(projectPath, "opencode.json");
+	const opencodeJsonPath = path.join(projectPath, "opencode.json");
 
-  try {
-    // Read existing config
-    const content = await fs.readFile(opencodeJsonPath, "utf-8");
-    const config = JSON.parse(content);
+	try {
+		// Read existing config
+		const content = await fs.readFile(opencodeJsonPath, "utf-8");
+		const config = JSON.parse(content);
 
-    // Update the model field
-    config.model = model;
+		// Update the model field
+		config.model = model;
 
-    // Write back to file
-    await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
-  } catch (error) {
-    logger.warn(
-      { projectPath, model, error: String(error) },
-      "Failed to update opencode.json with model"
-    );
-    // Don't throw - this is not a critical failure
-  }
+		// Write back to file
+		await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
+	} catch (error) {
+		logger.warn(
+			{ projectPath, model, error: String(error) },
+			"Failed to update opencode.json with model",
+		);
+		// Don't throw - this is not a critical failure
+	}
 }

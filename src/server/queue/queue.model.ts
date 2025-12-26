@@ -7,60 +7,60 @@ import { queueJobTypeSchema, type QueueJobType } from "./types";
 export type QueueJobState = QueueJob["state"];
 
 export interface EnqueueJobInput<TPayload extends object> {
-  id: string;
-  type: QueueJobType;
-  payload: TPayload;
-  projectId?: string;
-  priority?: number;
-  runAt?: Date;
-  maxAttempts?: number;
-  dedupeKey?: string;
+	id: string;
+	type: QueueJobType;
+	payload: TPayload;
+	projectId?: string;
+	priority?: number;
+	runAt?: Date;
+	maxAttempts?: number;
+	dedupeKey?: string;
 }
 
 export interface ClaimOptions {
-  workerId: string;
-  leaseMs: number;
+	workerId: string;
+	leaseMs: number;
 }
 
 export interface ListJobsFilters {
-  state?: QueueJobState;
-  type?: QueueJobType;
-  projectId?: string;
-  q?: string;
-  limit?: number;
-  offset?: number;
+	state?: QueueJobState;
+	type?: QueueJobType;
+	projectId?: string;
+	q?: string;
+	limit?: number;
+	offset?: number;
 }
 
 const QUEUE_SETTINGS_ROW_ID = 1;
 
 export async function ensureQueueSettingsRow(): Promise<void> {
-  const existing = await db
-    .select({ id: queueSettings.id })
-    .from(queueSettings)
-    .where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID))
-    .limit(1);
+	const existing = await db
+		.select({ id: queueSettings.id })
+		.from(queueSettings)
+		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID))
+		.limit(1);
 
-  if (existing.length > 0) {
-    return;
-  }
+	if (existing.length > 0) {
+		return;
+	}
 
-  await db.insert(queueSettings).values({
-    id: QUEUE_SETTINGS_ROW_ID,
-    paused: false,
-    updatedAt: new Date(),
-  });
+	await db.insert(queueSettings).values({
+		id: QUEUE_SETTINGS_ROW_ID,
+		paused: false,
+		updatedAt: new Date(),
+	});
 }
 
 export async function isQueuePaused(): Promise<boolean> {
-  await ensureQueueSettingsRow();
+	await ensureQueueSettingsRow();
 
-  const result = await db
-    .select({ paused: queueSettings.paused })
-    .from(queueSettings)
-    .where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID))
-    .limit(1);
+	const result = await db
+		.select({ paused: queueSettings.paused })
+		.from(queueSettings)
+		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID))
+		.limit(1);
 
-  return result[0]?.paused ?? false;
+	return result[0]?.paused ?? false;
 }
 
 export async function setQueuePaused(paused: boolean): Promise<void> {
@@ -94,378 +94,408 @@ export async function setConcurrency(concurrency: number): Promise<void> {
 }
 
 export async function enqueueJob<TPayload extends object>(
-  input: EnqueueJobInput<TPayload>
+	input: EnqueueJobInput<TPayload>,
 ): Promise<QueueJob> {
-  const now = new Date();
+	const now = new Date();
 
-  try {
-    const result = await db
-      .insert(queueJobs)
-      .values({
-        id: input.id,
-        type: input.type,
-        state: "queued",
-        projectId: input.projectId,
-        payloadJson: JSON.stringify(input.payload),
-        priority: input.priority ?? 0,
-        attempts: 0,
-        maxAttempts: input.maxAttempts ?? 3,
-        runAt: input.runAt ?? now,
-        lockedAt: null,
-        lockExpiresAt: null,
-        lockedBy: null,
-        dedupeKey: input.dedupeKey,
-        dedupeActive: input.dedupeKey ? "active" : null,
-        cancelRequestedAt: null,
-        cancelledAt: null,
-        lastError: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+	try {
+		const result = await db
+			.insert(queueJobs)
+			.values({
+				id: input.id,
+				type: input.type,
+				state: "queued",
+				projectId: input.projectId,
+				payloadJson: JSON.stringify(input.payload),
+				priority: input.priority ?? 0,
+				attempts: 0,
+				maxAttempts: input.maxAttempts ?? 3,
+				runAt: input.runAt ?? now,
+				lockedAt: null,
+				lockExpiresAt: null,
+				lockedBy: null,
+				dedupeKey: input.dedupeKey,
+				dedupeActive: input.dedupeKey ? "active" : null,
+				cancelRequestedAt: null,
+				cancelledAt: null,
+				lastError: null,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
 
-    const job = result[0];
-    if (!job) {
-      throw new Error("Failed to enqueue job");
-    }
+		const job = result[0];
+		if (!job) {
+			throw new Error("Failed to enqueue job");
+		}
 
-    return job;
-  } catch (err) {
-    if (input.dedupeKey) {
-      const existing = await db
-        .select()
-        .from(queueJobs)
-        .where(and(eq(queueJobs.dedupeKey, input.dedupeKey), eq(queueJobs.dedupeActive, "active")))
-        .limit(1);
+		return job;
+	} catch (err) {
+		if (input.dedupeKey) {
+			const existing = await db
+				.select()
+				.from(queueJobs)
+				.where(
+					and(
+						eq(queueJobs.dedupeKey, input.dedupeKey),
+						eq(queueJobs.dedupeActive, "active"),
+					),
+				)
+				.limit(1);
 
-      if (existing[0]) {
-        return existing[0];
-      }
-    }
+			if (existing[0]) {
+				return existing[0];
+			}
+		}
 
-    throw err;
-  }
+		throw err;
+	}
 }
 
 export async function getJobById(jobId: string): Promise<QueueJob | null> {
-  const result = await db
-    .select()
-    .from(queueJobs)
-    .where(eq(queueJobs.id, jobId))
-    .limit(1);
+	const result = await db
+		.select()
+		.from(queueJobs)
+		.where(eq(queueJobs.id, jobId))
+		.limit(1);
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
-export async function retryJob(jobId: string, newJobId: string): Promise<QueueJob> {
-  const job = await getJobById(jobId);
-  if (!job) {
-    throw new Error("Job not found");
-  }
+export async function retryJob(
+	jobId: string,
+	newJobId: string,
+): Promise<QueueJob> {
+	const job = await getJobById(jobId);
+	if (!job) {
+		throw new Error("Job not found");
+	}
 
-  const type = queueJobTypeSchema.parse(job.type);
-  const payload = JSON.parse(job.payloadJson) as object;
+	const type = queueJobTypeSchema.parse(job.type);
+	const payload = JSON.parse(job.payloadJson) as object;
 
-  const input: EnqueueJobInput<object> = {
-    id: newJobId,
-    type,
-    payload,
-    priority: job.priority,
-    maxAttempts: job.maxAttempts,
-  };
+	const input: EnqueueJobInput<object> = {
+		id: newJobId,
+		type,
+		payload,
+		priority: job.priority,
+		maxAttempts: job.maxAttempts,
+	};
 
-  if (job.projectId) {
-    input.projectId = job.projectId;
-  }
+	if (job.projectId) {
+		input.projectId = job.projectId;
+	}
 
-  if (job.dedupeKey) {
-    input.dedupeKey = job.dedupeKey;
-  }
+	if (job.dedupeKey) {
+		input.dedupeKey = job.dedupeKey;
+	}
 
-  return enqueueJob(input);
+	return enqueueJob(input);
 }
 
-export async function getJobCancelRequestedAt(jobId: string): Promise<Date | null> {
-  const result = await db
-    .select({ cancelRequestedAt: queueJobs.cancelRequestedAt })
-    .from(queueJobs)
-    .where(eq(queueJobs.id, jobId))
-    .limit(1);
+export async function getJobCancelRequestedAt(
+	jobId: string,
+): Promise<Date | null> {
+	const result = await db
+		.select({ cancelRequestedAt: queueJobs.cancelRequestedAt })
+		.from(queueJobs)
+		.where(eq(queueJobs.id, jobId))
+		.limit(1);
 
-  return result[0]?.cancelRequestedAt ?? null;
+	return result[0]?.cancelRequestedAt ?? null;
 }
 
-export async function countJobs(filters: Omit<ListJobsFilters, "limit" | "offset">): Promise<number> {
-  const whereParts = [];
+export async function countJobs(
+	filters: Omit<ListJobsFilters, "limit" | "offset">,
+): Promise<number> {
+	const whereParts = [];
 
-  if (filters.state) {
-    whereParts.push(eq(queueJobs.state, filters.state));
-  }
+	if (filters.state) {
+		whereParts.push(eq(queueJobs.state, filters.state));
+	}
 
-  if (filters.type) {
-    whereParts.push(eq(queueJobs.type, filters.type));
-  }
+	if (filters.type) {
+		whereParts.push(eq(queueJobs.type, filters.type));
+	}
 
-  if (filters.projectId) {
-    whereParts.push(eq(queueJobs.projectId, filters.projectId));
-  }
+	if (filters.projectId) {
+		whereParts.push(eq(queueJobs.projectId, filters.projectId));
+	}
 
-  if (filters.q) {
-    const pattern = `%${filters.q}%`;
-    whereParts.push(or(like(queueJobs.payloadJson, pattern), like(queueJobs.lastError, pattern)));
-  }
+	if (filters.q) {
+		const pattern = `%${filters.q}%`;
+		whereParts.push(
+			or(
+				like(queueJobs.payloadJson, pattern),
+				like(queueJobs.lastError, pattern),
+			),
+		);
+	}
 
-  const where = whereParts.length > 0 ? and(...whereParts) : undefined;
+	const where = whereParts.length > 0 ? and(...whereParts) : undefined;
 
-  const result = await db
-    .select({ count: sql`COUNT(*)` })
-    .from(queueJobs)
-    .where(where);
+	const result = await db
+		.select({ count: sql`COUNT(*)` })
+		.from(queueJobs)
+		.where(where);
 
-  return result[0]?.count as number ?? 0;
+	return (result[0]?.count as number) ?? 0;
 }
 
 export async function listJobs(filters: ListJobsFilters): Promise<QueueJob[]> {
-  const whereParts = [];
+	const whereParts = [];
 
-  if (filters.state) {
-    whereParts.push(eq(queueJobs.state, filters.state));
-  }
+	if (filters.state) {
+		whereParts.push(eq(queueJobs.state, filters.state));
+	}
 
-  if (filters.type) {
-    whereParts.push(eq(queueJobs.type, filters.type));
-  }
+	if (filters.type) {
+		whereParts.push(eq(queueJobs.type, filters.type));
+	}
 
-  if (filters.projectId) {
-    whereParts.push(eq(queueJobs.projectId, filters.projectId));
-  }
+	if (filters.projectId) {
+		whereParts.push(eq(queueJobs.projectId, filters.projectId));
+	}
 
-  if (filters.q) {
-    const pattern = `%${filters.q}%`;
-    whereParts.push(or(like(queueJobs.payloadJson, pattern), like(queueJobs.lastError, pattern)));
-  }
+	if (filters.q) {
+		const pattern = `%${filters.q}%`;
+		whereParts.push(
+			or(
+				like(queueJobs.payloadJson, pattern),
+				like(queueJobs.lastError, pattern),
+			),
+		);
+	}
 
-  const where = whereParts.length > 0 ? and(...whereParts) : undefined;
+	const where = whereParts.length > 0 ? and(...whereParts) : undefined;
 
-  return db
-    .select()
-    .from(queueJobs)
-    .where(where)
-    .orderBy(desc(queueJobs.createdAt))
-    .limit(filters.limit ?? 100)
-    .offset(filters.offset ?? 0);
+	return db
+		.select()
+		.from(queueJobs)
+		.where(where)
+		.orderBy(desc(queueJobs.createdAt))
+		.limit(filters.limit ?? 100)
+		.offset(filters.offset ?? 0);
 }
 
 export async function cancelQueuedJob(jobId: string): Promise<QueueJob | null> {
-  const now = new Date();
+	const now = new Date();
 
-  const result = await db
-    .update(queueJobs)
-    .set({
-      state: "cancelled",
-      cancelledAt: now,
-      cancelRequestedAt: now,
-      dedupeActive: null,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
-    .returning();
+	const result = await db
+		.update(queueJobs)
+		.set({
+			state: "cancelled",
+			cancelledAt: now,
+			cancelRequestedAt: now,
+			dedupeActive: null,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
+		.returning();
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 export async function requestCancel(jobId: string): Promise<QueueJob | null> {
-  const now = new Date();
+	const now = new Date();
 
-  const result = await db
-    .update(queueJobs)
-    .set({ cancelRequestedAt: now, updatedAt: now })
-    .where(eq(queueJobs.id, jobId))
-    .returning();
+	const result = await db
+		.update(queueJobs)
+		.set({ cancelRequestedAt: now, updatedAt: now })
+		.where(eq(queueJobs.id, jobId))
+		.returning();
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 export async function runNow(jobId: string): Promise<QueueJob | null> {
-  const now = new Date();
+	const now = new Date();
 
-  const result = await db
-    .update(queueJobs)
-    .set({ runAt: now, updatedAt: now })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
-    .returning();
+	const result = await db
+		.update(queueJobs)
+		.set({ runAt: now, updatedAt: now })
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
+		.returning();
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 export async function forceUnlock(jobId: string): Promise<QueueJob | null> {
-  const now = new Date();
+	const now = new Date();
 
-  const result = await db
-    .update(queueJobs)
-    .set({
-      state: "failed",
-      lastError: "force-unlocked by admin",
-      dedupeActive: null,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(eq(queueJobs.id, jobId))
-    .returning();
+	const result = await db
+		.update(queueJobs)
+		.set({
+			state: "failed",
+			lastError: "force-unlocked by admin",
+			dedupeActive: null,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(eq(queueJobs.id, jobId))
+		.returning();
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 export async function heartbeatLease(
-  jobId: string,
-  workerId: string,
-  leaseMs: number
+	jobId: string,
+	workerId: string,
+	leaseMs: number,
 ): Promise<boolean> {
-  const now = new Date();
-  const lockExpiresAt = new Date(Date.now() + leaseMs);
+	const now = new Date();
+	const lockExpiresAt = new Date(Date.now() + leaseMs);
 
-  const result = await db
-    .update(queueJobs)
-    .set({ lockExpiresAt, updatedAt: now })
-    .where(
-      and(
-        eq(queueJobs.id, jobId),
-        eq(queueJobs.state, "running"),
-        eq(queueJobs.lockedBy, workerId)
-      )
-    )
-    .returning({ id: queueJobs.id });
+	const result = await db
+		.update(queueJobs)
+		.set({ lockExpiresAt, updatedAt: now })
+		.where(
+			and(
+				eq(queueJobs.id, jobId),
+				eq(queueJobs.state, "running"),
+				eq(queueJobs.lockedBy, workerId),
+			),
+		)
+		.returning({ id: queueJobs.id });
 
-  return result.length > 0;
+	return result.length > 0;
 }
 
-export async function completeJob(jobId: string, workerId: string): Promise<void> {
-  const now = new Date();
+export async function completeJob(
+	jobId: string,
+	workerId: string,
+): Promise<void> {
+	const now = new Date();
 
-  await db
-    .update(queueJobs)
-    .set({
-      state: "succeeded",
-      dedupeActive: null,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+	await db
+		.update(queueJobs)
+		.set({
+			state: "succeeded",
+			dedupeActive: null,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
-export async function cancelRunningJob(jobId: string, workerId: string): Promise<void> {
-  const now = new Date();
+export async function cancelRunningJob(
+	jobId: string,
+	workerId: string,
+): Promise<void> {
+	const now = new Date();
 
-  await db
-    .update(queueJobs)
-    .set({
-      state: "cancelled",
-      cancelledAt: now,
-      dedupeActive: null,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+	await db
+		.update(queueJobs)
+		.set({
+			state: "cancelled",
+			cancelledAt: now,
+			dedupeActive: null,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
 export async function scheduleRetry(
-  jobId: string,
-  workerId: string,
-  delayMs: number,
-  lastError: string
+	jobId: string,
+	workerId: string,
+	delayMs: number,
+	lastError: string,
 ): Promise<void> {
-  const now = new Date();
+	const now = new Date();
 
-  await db
-    .update(queueJobs)
-    .set({
-      state: "queued",
-      runAt: new Date(Date.now() + delayMs),
-      lastError,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+	await db
+		.update(queueJobs)
+		.set({
+			state: "queued",
+			runAt: new Date(Date.now() + delayMs),
+			lastError,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
 /**
  * Reschedule a job to run again later without incrementing attempts or setting error.
  * Used for "wait" jobs that need to poll until a condition is met.
- * 
+ *
  * IMPORTANT: Decrements attempts because polling reschedules should NOT consume the error-retry budget.
  * Only error-retry jobs should increment attempts.
- * 
+ *
  * Flow:
  * - Job claimed: attempts 0 → 1 (from claimNextJob increment)
  * - Job reschedules: attempts 1 → 0 (decremented here)
  * - Next claim: attempts 0 → 1 again
- * 
+ *
  * This allows polling jobs to reschedule indefinitely (until timeout) without hitting maxAttempts.
  */
 export async function rescheduleJob(
-  jobId: string,
-  workerId: string,
-  delayMs: number
+	jobId: string,
+	workerId: string,
+	delayMs: number,
 ): Promise<void> {
-  const now = new Date();
+	const now = new Date();
 
-  await db
-    .update(queueJobs)
-    .set({
-      state: "queued",
-      runAt: new Date(Date.now() + delayMs),
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-      attempts: sql`attempts - 1`,  // Decrement: polling isn't an error, just waiting
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+	await db
+		.update(queueJobs)
+		.set({
+			state: "queued",
+			runAt: new Date(Date.now() + delayMs),
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+			attempts: sql`attempts - 1`, // Decrement: polling isn't an error, just waiting
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
 export async function failJob(
-  jobId: string,
-  workerId: string,
-  lastError: string
+	jobId: string,
+	workerId: string,
+	lastError: string,
 ): Promise<void> {
-  const now = new Date();
+	const now = new Date();
 
-  await db
-    .update(queueJobs)
-    .set({
-      state: "failed",
-      lastError,
-      dedupeActive: null,
-      lockedAt: null,
-      lockExpiresAt: null,
-      lockedBy: null,
-      updatedAt: now,
-    })
-    .where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+	await db
+		.update(queueJobs)
+		.set({
+			state: "failed",
+			lastError,
+			dedupeActive: null,
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
 }
 
-export async function claimNextJob(options: ClaimOptions): Promise<QueueJob | null> {
-  if (await isQueuePaused()) {
-    return null;
-  }
+export async function claimNextJob(
+	options: ClaimOptions,
+): Promise<QueueJob | null> {
+	if (await isQueuePaused()) {
+		return null;
+	}
 
-  const nowMs = Date.now();
-  const leaseExpiresMs = nowMs + options.leaseMs;
+	const nowMs = Date.now();
+	const leaseExpiresMs = nowMs + options.leaseMs;
 
-  const stmt = sqlite
-    .prepare(
-      `UPDATE queue_jobs
+	const stmt = sqlite
+		.prepare(
+			`UPDATE queue_jobs
         SET state='running',
             locked_at=@now,
             lock_expires_at=@leaseExpires,
@@ -511,79 +541,94 @@ export async function claimNextJob(options: ClaimOptions): Promise<QueueJob | nu
           last_error as lastError,
           created_at as createdAt,
           updated_at as updatedAt
-        ;`
-    )
-    .get({
-      now: nowMs,
-      leaseExpires: leaseExpiresMs,
-      workerId: options.workerId,
-    }) as
-    | (Omit<QueueJob, "runAt" | "lockedAt" | "lockExpiresAt" | "cancelRequestedAt" | "cancelledAt" | "createdAt" | "updatedAt"> & {
-        runAt: number;
-        lockedAt: number | null;
-        lockExpiresAt: number | null;
-        cancelRequestedAt: number | null;
-        cancelledAt: number | null;
-        createdAt: number;
-        updatedAt: number;
-      })
-    | undefined;
+        ;`,
+		)
+		.get({
+			now: nowMs,
+			leaseExpires: leaseExpiresMs,
+			workerId: options.workerId,
+		}) as
+		| (Omit<
+				QueueJob,
+				| "runAt"
+				| "lockedAt"
+				| "lockExpiresAt"
+				| "cancelRequestedAt"
+				| "cancelledAt"
+				| "createdAt"
+				| "updatedAt"
+		  > & {
+				runAt: number;
+				lockedAt: number | null;
+				lockExpiresAt: number | null;
+				cancelRequestedAt: number | null;
+				cancelledAt: number | null;
+				createdAt: number;
+				updatedAt: number;
+		  })
+		| undefined;
 
-  if (!stmt) {
-    return null;
-  }
+	if (!stmt) {
+		return null;
+	}
 
-  return {
-    ...stmt,
-    runAt: new Date(stmt.runAt),
-    lockedAt: stmt.lockedAt ? new Date(stmt.lockedAt) : null,
-    lockExpiresAt: stmt.lockExpiresAt ? new Date(stmt.lockExpiresAt) : null,
-    cancelRequestedAt: stmt.cancelRequestedAt ? new Date(stmt.cancelRequestedAt) : null,
-    cancelledAt: stmt.cancelledAt ? new Date(stmt.cancelledAt) : null,
-    createdAt: new Date(stmt.createdAt),
-    updatedAt: new Date(stmt.updatedAt),
-  };
+	return {
+		...stmt,
+		runAt: new Date(stmt.runAt),
+		lockedAt: stmt.lockedAt ? new Date(stmt.lockedAt) : null,
+		lockExpiresAt: stmt.lockExpiresAt ? new Date(stmt.lockExpiresAt) : null,
+		cancelRequestedAt: stmt.cancelRequestedAt
+			? new Date(stmt.cancelRequestedAt)
+			: null,
+		cancelledAt: stmt.cancelledAt ? new Date(stmt.cancelledAt) : null,
+		createdAt: new Date(stmt.createdAt),
+		updatedAt: new Date(stmt.updatedAt),
+	};
 }
 
-export async function getRunningJobForProject(projectId: string): Promise<QueueJob | null> {
-  const result = await db
-    .select()
-    .from(queueJobs)
-    .where(and(eq(queueJobs.projectId, projectId), eq(queueJobs.state, "running")))
-    .limit(1);
+export async function getRunningJobForProject(
+	projectId: string,
+): Promise<QueueJob | null> {
+	const result = await db
+		.select()
+		.from(queueJobs)
+		.where(
+			and(eq(queueJobs.projectId, projectId), eq(queueJobs.state, "running")),
+		)
+		.limit(1);
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 export async function countActiveJobs(): Promise<number> {
-  const result = sqlite
-    .prepare(
-      `SELECT COUNT(1) as count
+	const result = sqlite
+		.prepare(
+			`SELECT COUNT(1) as count
        FROM queue_jobs
-       WHERE state IN ('queued', 'running')`
-    )
-    .get() as { count: number } | undefined;
+       WHERE state IN ('queued', 'running')`,
+		)
+		.get() as { count: number } | undefined;
 
-  return result?.count ?? 0;
+	return result?.count ?? 0;
 }
 
 export function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
+	if (error instanceof Error) {
+		return error.message;
+	}
 
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
 }
 
 export function logJobFailure(job: QueueJob, error: unknown): void {
-  logger.error(
-    { error, jobId: job.id, type: job.type, projectId: job.projectId },
-    "Queue job failed"
-  );
+	logger.error(
+		{ error, jobId: job.id, type: job.type, projectId: job.projectId },
+		"Queue job failed",
+	);
 }
 
 /**
@@ -592,17 +637,17 @@ export function logJobFailure(job: QueueJob, error: unknown): void {
  * Returns the number of rows deleted (0 if job not found or not in terminal state).
  */
 export async function deleteJob(jobId: string): Promise<number> {
-  const result = await db
-    .delete(queueJobs)
-    .where(
-      and(
-        eq(queueJobs.id, jobId),
-        sql`state IN ('succeeded', 'failed', 'cancelled')`
-      )
-    )
-    .returning({ id: queueJobs.id });
+	const result = await db
+		.delete(queueJobs)
+		.where(
+			and(
+				eq(queueJobs.id, jobId),
+				sql`state IN ('succeeded', 'failed', 'cancelled')`,
+			),
+		)
+		.returning({ id: queueJobs.id });
 
-  return result.length;
+	return result.length;
 }
 
 /**
@@ -611,42 +656,44 @@ export async function deleteJob(jobId: string): Promise<number> {
  * Returns the number of rows deleted.
  */
 export async function deleteJobsByState(state: QueueJobState): Promise<number> {
-  const terminalStates = ["succeeded", "failed", "cancelled"] as const;
-  if (!terminalStates.includes(state as (typeof terminalStates)[number])) {
-    throw new Error(`Cannot delete jobs in state: ${state}`);
-  }
+	const terminalStates = ["succeeded", "failed", "cancelled"] as const;
+	if (!terminalStates.includes(state as (typeof terminalStates)[number])) {
+		throw new Error(`Cannot delete jobs in state: ${state}`);
+	}
 
-  const result = await db
-    .delete(queueJobs)
-    .where(eq(queueJobs.state, state))
-    .returning({ id: queueJobs.id });
+	const result = await db
+		.delete(queueJobs)
+		.where(eq(queueJobs.state, state))
+		.returning({ id: queueJobs.id });
 
-  return result.length;
+	return result.length;
 }
 
 /**
  * Cancel all docker.ensureRunning jobs for a project (both queued and running).
  * Used when docker.stop is enqueued to prevent conflicts.
  */
-export async function cancelEnsureRunningForProject(projectId: string): Promise<void> {
-  const jobs = await listJobs({
-    projectId,
-    type: "docker.ensureRunning",
-  });
+export async function cancelEnsureRunningForProject(
+	projectId: string,
+): Promise<void> {
+	const jobs = await listJobs({
+		projectId,
+		type: "docker.ensureRunning",
+	});
 
-  for (const job of jobs) {
-    if (job.state === "queued") {
-      await cancelQueuedJob(job.id);
-      logger.info(
-        { jobId: job.id, projectId, reason: "docker.stop enqueued" },
-        "Cancelled queued docker.ensureRunning job"
-      );
-    } else if (job.state === "running") {
-      await requestCancel(job.id);
-      logger.info(
-        { jobId: job.id, projectId, reason: "docker.stop enqueued" },
-        "Requested cancellation of running docker.ensureRunning job"
-      );
-    }
-  }
+	for (const job of jobs) {
+		if (job.state === "queued") {
+			await cancelQueuedJob(job.id);
+			logger.info(
+				{ jobId: job.id, projectId, reason: "docker.stop enqueued" },
+				"Cancelled queued docker.ensureRunning job",
+			);
+		} else if (job.state === "running") {
+			await requestCancel(job.id);
+			logger.info(
+				{ jobId: job.id, projectId, reason: "docker.stop enqueued" },
+				"Requested cancellation of running docker.ensureRunning job",
+			);
+		}
+	}
 }

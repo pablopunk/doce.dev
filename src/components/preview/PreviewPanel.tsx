@@ -28,7 +28,12 @@ interface PreviewPanelProps {
 type PreviewState = "initializing" | "starting" | "ready" | "error";
 type TabType = "preview" | "files" | "assets";
 
-export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpened }: PreviewPanelProps) {
+export function PreviewPanel({
+	projectId,
+	onStatusChange,
+	fileToOpen,
+	onFileOpened,
+}: PreviewPanelProps) {
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -43,12 +48,14 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 		}
 		return "preview";
 	});
-	const [lastSelectedFile, setLastSelectedFile] = useState<string | null>(() => {
-		if (typeof window !== "undefined") {
-			return localStorage.getItem(`selectedFile_${projectId}`);
-		}
-		return null;
-	});
+	const [lastSelectedFile, setLastSelectedFile] = useState<string | null>(
+		() => {
+			if (typeof window !== "undefined") {
+				return localStorage.getItem(`selectedFile_${projectId}`);
+			}
+			return null;
+		},
+	);
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,7 +84,9 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 		} else if (activeTab === "preview" && currentTab !== null) {
 			// Remove tab param if it's the default "preview"
 			params.delete("tab");
-			const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+			const newUrl = params.toString()
+				? `?${params.toString()}`
+				: window.location.pathname;
 			window.history.replaceState(null, "", newUrl);
 		}
 	}, [activeTab]);
@@ -213,18 +222,12 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
 				{/* Left: Tabs + Status */}
 				<div className="flex items-center gap-4 flex-shrink-0">
-				{/* Tab Navigation */}
-				<TabsList className="p-1">
-					<TabsTrigger value="preview">
-						Preview
-					</TabsTrigger>
-					<TabsTrigger value="files">
-						Files
-					</TabsTrigger>
-					<TabsTrigger value="assets">
-						Assets
-					</TabsTrigger>
-				</TabsList>
+					{/* Tab Navigation */}
+					<TabsList className="p-1">
+						<TabsTrigger value="preview">Preview</TabsTrigger>
+						<TabsTrigger value="files">Files</TabsTrigger>
+						<TabsTrigger value="assets">Assets</TabsTrigger>
+					</TabsList>
 
 					{/* Status indicators (only for preview tab) */}
 					{activeTab === "preview" && (
@@ -249,7 +252,11 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 				{activeTab === "preview" && state === "ready" && previewUrl && (
 					<input
 						type="text"
-						value={previewUrl.length > 50 ? `${previewUrl.slice(0, 50)}...` : previewUrl}
+						value={
+							previewUrl.length > 50
+								? `${previewUrl.slice(0, 50)}...`
+								: previewUrl
+						}
 						disabled
 						title={previewUrl}
 						className="flex-1 min-w-0 px-2 py-1 text-xs bg-transparent border border-border rounded text-foreground cursor-default opacity-60 text-center"
@@ -289,7 +296,10 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 			</div>
 
 			{/* Preview Tab Content */}
-			<TabsContent value="preview" className="flex-1 flex flex-col overflow-hidden border-0 p-0 m-0">
+			<TabsContent
+				value="preview"
+				className="flex-1 flex flex-col overflow-hidden border-0 p-0 m-0"
+			>
 				{/* Preview iframe */}
 				<div className="flex-1 relative bg-background">
 					{state === "ready" && previewUrl ? (
@@ -328,22 +338,31 @@ export function PreviewPanel({ projectId, onStatusChange, fileToOpen, onFileOpen
 				<TerminalDocks projectId={projectId} defaultOpen={false} />
 			</TabsContent>
 
-		{/* Files Tab Content */}
-		<TabsContent value="files" className="flex-1 overflow-hidden border-0 p-0 m-0">
-			<FilesTab
-				projectId={projectId}
-				lastSelectedFile={lastSelectedFile}
-				onFileSelect={(path) => {
-					setLastSelectedFile(path);
-					localStorage.setItem(`selectedFile_${projectId}`, path);
-				}}
-			/>
-		</TabsContent>
+			{/* Files Tab Content */}
+			<TabsContent
+				value="files"
+				className="flex-1 overflow-hidden border-0 p-0 m-0"
+			>
+				<FilesTab
+					projectId={projectId}
+					lastSelectedFile={lastSelectedFile}
+					onFileSelect={(path) => {
+						setLastSelectedFile(path);
+						localStorage.setItem(`selectedFile_${projectId}`, path);
+					}}
+				/>
+			</TabsContent>
 
-		{/* Assets Tab Content */}
-		<TabsContent value="assets" className="flex-1 overflow-hidden border-0 p-0 m-0">
-			<AssetsTab projectId={projectId} {...(previewUrl ? { previewUrl } : {})} />
-		</TabsContent>
-	</Tabs>
-);
+			{/* Assets Tab Content */}
+			<TabsContent
+				value="assets"
+				className="flex-1 overflow-hidden border-0 p-0 m-0"
+			>
+				<AssetsTab
+					projectId={projectId}
+					{...(previewUrl ? { previewUrl } : {})}
+				/>
+			</TabsContent>
+		</Tabs>
+	);
 }

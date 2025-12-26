@@ -1,5 +1,5 @@
 interface ResizableSeparatorProps {
-  onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+	onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -7,13 +7,13 @@ interface ResizableSeparatorProps {
  * Provides visual feedback via cursor and background color on hover/drag
  */
 export function ResizableSeparator({ onMouseDown }: ResizableSeparatorProps) {
-  return (
-    <div
-      className="h-full w-1 bg-border transition-colors duration-150 hover:bg-accent cursor-col-resize active:bg-accent flex-shrink-0"
-      onMouseDown={onMouseDown}
-      role="separator"
-      aria-orientation="vertical"
-      tabIndex={0}
-    />
-  );
+	return (
+		<div
+			className="h-full w-1 bg-border transition-colors duration-150 hover:bg-accent cursor-col-resize active:bg-accent flex-shrink-0"
+			onMouseDown={onMouseDown}
+			role="separator"
+			aria-orientation="vertical"
+			tabIndex={0}
+		/>
+	);
 }

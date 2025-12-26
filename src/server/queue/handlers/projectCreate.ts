@@ -18,168 +18,171 @@ const PROJECTS_DIR = "projects";
 const TEMPLATE_DIR = "templates/astro-starter";
 
 function getDataPath(): string {
-  return path.join(process.cwd(), DATA_DIR);
+	return path.join(process.cwd(), DATA_DIR);
 }
 
 function getProjectsPath(): string {
-  return path.join(getDataPath(), PROJECTS_DIR);
+	return path.join(getDataPath(), PROJECTS_DIR);
 }
 
 function getTemplatePath(): string {
-  return path.join(process.cwd(), TEMPLATE_DIR);
+	return path.join(process.cwd(), TEMPLATE_DIR);
 }
 
 function getProjectPath(projectId: string): string {
-  return path.join(getProjectsPath(), projectId);
+	return path.join(getProjectsPath(), projectId);
 }
 
 function getProjectRelativePath(projectId: string): string {
-  return `${DATA_DIR}/${PROJECTS_DIR}/${projectId}`;
+	return `${DATA_DIR}/${PROJECTS_DIR}/${projectId}`;
 }
 
 export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
-  const payload = parsePayload("project.create", ctx.job.payloadJson);
-  const { projectId, ownerUserId, prompt, model, images } = payload;
+	const payload = parsePayload("project.create", ctx.job.payloadJson);
+	const { projectId, ownerUserId, prompt, model, images } = payload;
 
-  logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
+	logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
-  try {
-    await ctx.throwIfCancelRequested();
+	try {
+		await ctx.throwIfCancelRequested();
 
-    // Get user's OpenRouter API key
-    const settings = await db
-      .select()
-      .from(userSettings)
-      .where(eq(userSettings.userId, ownerUserId))
-      .limit(1);
+		// Get user's OpenRouter API key
+		const settings = await db
+			.select()
+			.from(userSettings)
+			.where(eq(userSettings.userId, ownerUserId))
+			.limit(1);
 
-    const openrouterApiKey = settings[0]?.openrouterApiKey;
-    if (!openrouterApiKey) {
-      throw new Error("User has no OpenRouter API key configured");
-    }
+		const openrouterApiKey = settings[0]?.openrouterApiKey;
+		if (!openrouterApiKey) {
+			throw new Error("User has no OpenRouter API key configured");
+		}
 
-    await ctx.throwIfCancelRequested();
+		await ctx.throwIfCancelRequested();
 
-    // Generate project name using AI
-    const name = await generateProjectName(openrouterApiKey, prompt);
-    logger.debug({ projectId, name }, "Generated project name");
+		// Generate project name using AI
+		const name = await generateProjectName(openrouterApiKey, prompt);
+		logger.debug({ projectId, name }, "Generated project name");
 
-    await ctx.throwIfCancelRequested();
+		await ctx.throwIfCancelRequested();
 
-    // Generate unique slug
-    const slug = await generateUniqueSlug(name);
-    logger.debug({ projectId, slug }, "Generated unique slug");
+		// Generate unique slug
+		const slug = await generateUniqueSlug(name);
+		logger.debug({ projectId, slug }, "Generated unique slug");
 
-    // Allocate ports
-    const { devPort, opencodePort } = await allocateProjectPorts();
-    logger.debug({ projectId, devPort, opencodePort }, "Allocated ports");
+		// Allocate ports
+		const { devPort, opencodePort } = await allocateProjectPorts();
+		logger.debug({ projectId, devPort, opencodePort }, "Allocated ports");
 
-    await ctx.throwIfCancelRequested();
+		await ctx.throwIfCancelRequested();
 
-    // Get paths
-    const projectPath = getProjectPath(projectId);
-    const relativePath = getProjectRelativePath(projectId);
+		// Get paths
+		const projectPath = getProjectPath(projectId);
+		const relativePath = getProjectRelativePath(projectId);
 
-    // Ensure projects directory exists
-    await fs.mkdir(getProjectsPath(), { recursive: true });
+		// Ensure projects directory exists
+		await fs.mkdir(getProjectsPath(), { recursive: true });
 
-    // Copy template to project directory
-    await copyTemplate(projectPath);
-    logger.debug({ projectId, projectPath }, "Copied template");
+		// Copy template to project directory
+		await copyTemplate(projectPath);
+		logger.debug({ projectId, projectPath }, "Copied template");
 
-    await ctx.throwIfCancelRequested();
+		await ctx.throwIfCancelRequested();
 
-     // Write .env file with ports
-     await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
-     logger.debug({ projectId, devPort, opencodePort }, "Wrote .env file");
+		// Write .env file with ports
+		await writeProjectEnv(projectPath, devPort, opencodePort, openrouterApiKey);
+		logger.debug({ projectId, devPort, opencodePort }, "Wrote .env file");
 
-     // Update opencode.json with the selected model
-     if (model) {
-       await updateOpencodeJsonWithModel(projectPath, model);
-       logger.debug({ projectId, model }, "Updated opencode.json with model");
-     }
+		// Update opencode.json with the selected model
+		if (model) {
+			await updateOpencodeJsonWithModel(projectPath, model);
+			logger.debug({ projectId, model }, "Updated opencode.json with model");
+		}
 
-      // Save images to temp file for later use in sendUserPrompt
-      if (images && images.length > 0) {
-        await writeProjectImages(projectPath, images);
-        logger.debug({ projectId, imageCount: images.length }, "Saved images for initial prompt");
-      }
+		// Save images to temp file for later use in sendUserPrompt
+		if (images && images.length > 0) {
+			await writeProjectImages(projectPath, images);
+			logger.debug(
+				{ projectId, imageCount: images.length },
+				"Saved images for initial prompt",
+			);
+		}
 
-     // Create logs directory
-     await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
+		// Create logs directory
+		await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
 
-     await ctx.throwIfCancelRequested();
+		await ctx.throwIfCancelRequested();
 
-     // Create DB record
-     await createProject({
-       id: projectId,
-       ownerUserId,
-       createdAt: new Date(),
-       name,
-       slug,
-       prompt,
-       model,
-       devPort,
-       opencodePort,
-       status: "created",
-       pathOnDisk: relativePath,
-     });
+		// Create DB record
+		await createProject({
+			id: projectId,
+			ownerUserId,
+			createdAt: new Date(),
+			name,
+			slug,
+			prompt,
+			model,
+			devPort,
+			opencodePort,
+			status: "created",
+			pathOnDisk: relativePath,
+		});
 
-    logger.info({ projectId, name, slug }, "Created project in database");
+		logger.info({ projectId, name, slug }, "Created project in database");
 
-    // Enqueue next step: docker compose up
-    await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
-    logger.debug({ projectId }, "Enqueued docker.composeUp");
-    } catch (error) {
-      throw error;
-    }
+		// Enqueue next step: docker compose up
+		await enqueueDockerComposeUp({ projectId, reason: "bootstrap" });
+		logger.debug({ projectId }, "Enqueued docker.composeUp");
+	} catch (error) {
+		throw error;
+	}
 }
 
 async function copyTemplate(targetPath: string): Promise<void> {
-  const templatePath = getTemplatePath();
+	const templatePath = getTemplatePath();
 
-  try {
-    await fs.access(templatePath);
-  } catch {
-    throw new Error(`Template not found at ${templatePath}`);
-  }
+	try {
+		await fs.access(templatePath);
+	} catch {
+		throw new Error(`Template not found at ${templatePath}`);
+	}
 
-  await copyDir(templatePath, targetPath);
+	await copyDir(templatePath, targetPath);
 }
 
 async function copyDir(src: string, dest: string): Promise<void> {
-  await fs.mkdir(dest, { recursive: true });
-  const entries = await fs.readdir(src, { withFileTypes: true });
+	await fs.mkdir(dest, { recursive: true });
+	const entries = await fs.readdir(src, { withFileTypes: true });
 
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+	for (const entry of entries) {
+		const srcPath = path.join(src, entry.name);
+		const destPath = path.join(dest, entry.name);
 
-    if (entry.isSymbolicLink()) {
-      // Preserve symlinks (important for pnpm node_modules)
-      const linkTarget = await fs.readlink(srcPath);
-      await fs.symlink(linkTarget, destPath);
-    } else if (entry.isDirectory()) {
-      await copyDir(srcPath, destPath);
-    } else {
-      await fs.copyFile(srcPath, destPath);
-    }
-  }
+		if (entry.isSymbolicLink()) {
+			// Preserve symlinks (important for pnpm node_modules)
+			const linkTarget = await fs.readlink(srcPath);
+			await fs.symlink(linkTarget, destPath);
+		} else if (entry.isDirectory()) {
+			await copyDir(srcPath, destPath);
+		} else {
+			await fs.copyFile(srcPath, destPath);
+		}
+	}
 }
 
 async function writeProjectEnv(
-  projectPath: string,
-  devPort: number,
-  opencodePort: number,
-  openrouterApiKey: string
+	projectPath: string,
+	devPort: number,
+	opencodePort: number,
+	openrouterApiKey: string,
 ): Promise<void> {
-  const envContent = `# Generated by doce.dev
+	const envContent = `# Generated by doce.dev
 DEV_PORT=${devPort}
 OPENCODE_PORT=${opencodePort}
 OPENROUTER_API_KEY=${openrouterApiKey}
 `;
 
-  await fs.writeFile(path.join(projectPath, ".env"), envContent);
+	await fs.writeFile(path.join(projectPath, ".env"), envContent);
 }
 
 /**
@@ -187,11 +190,11 @@ OPENROUTER_API_KEY=${openrouterApiKey}
  * This file will be read and deleted by opencodeSendUserPrompt handler.
  */
 async function writeProjectImages(
-  projectPath: string,
-  images: Array<{ filename: string; mime: string; dataUrl: string }>
+	projectPath: string,
+	images: Array<{ filename: string; mime: string; dataUrl: string }>,
 ): Promise<void> {
-  const imagesPath = path.join(projectPath, ".doce-images.json");
-  await fs.writeFile(imagesPath, JSON.stringify(images));
+	const imagesPath = path.join(projectPath, ".doce-images.json");
+	await fs.writeFile(imagesPath, JSON.stringify(images));
 }
 
 /**
@@ -199,26 +202,26 @@ async function writeProjectImages(
  * If the model is in the format "provider/model-id", it will be set as the model field.
  */
 async function updateOpencodeJsonWithModel(
-  projectPath: string,
-  model: string
+	projectPath: string,
+	model: string,
 ): Promise<void> {
-  const opencodeJsonPath = path.join(projectPath, "opencode.json");
+	const opencodeJsonPath = path.join(projectPath, "opencode.json");
 
-  try {
-    // Read existing config
-    const content = await fs.readFile(opencodeJsonPath, "utf-8");
-    const config = JSON.parse(content);
+	try {
+		// Read existing config
+		const content = await fs.readFile(opencodeJsonPath, "utf-8");
+		const config = JSON.parse(content);
 
-    // Update the model field
-    config.model = model;
+		// Update the model field
+		config.model = model;
 
-    // Write back to file
-    await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
-  } catch (error) {
-    logger.warn(
-      { projectPath, model, error: String(error) },
-      "Failed to update opencode.json with model"
-    );
-    // Don't throw - this is not a critical failure
-  }
+		// Write back to file
+		await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
+	} catch (error) {
+		logger.warn(
+			{ projectPath, model, error: String(error) },
+			"Failed to update opencode.json with model",
+		);
+		// Don't throw - this is not a critical failure
+	}
 }

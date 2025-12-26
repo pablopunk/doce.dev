@@ -143,7 +143,9 @@ export function AssetItem({
 				<div className="relative aspect-square w-full rounded bg-muted flex items-center justify-center overflow-hidden">
 					{asset.isImage ? (
 						<img
-							src={previewUrl ? `${previewUrl}/${asset.name}` : `/${asset.name}`}
+							src={
+								previewUrl ? `${previewUrl}/${asset.name}` : `/${asset.name}`
+							}
 							alt={asset.name}
 							className="w-full h-full object-cover"
 						/>
@@ -204,7 +206,10 @@ export function AssetItem({
 						</div>
 					) : (
 						<div className="w-full">
-							<p className="text-xs font-medium truncate break-all" title={asset.name}>
+							<p
+								className="text-xs font-medium truncate break-all"
+								title={asset.name}
+							>
 								{asset.name}
 							</p>
 							<p className="text-xs text-muted-foreground">
@@ -221,8 +226,9 @@ export function AssetItem({
 					<DialogHeader>
 						<DialogTitle>Delete Asset</DialogTitle>
 						<DialogDescription>
-							Are you sure you want to delete <span className="font-medium">{asset.name}</span>?
-							This action cannot be undone.
+							Are you sure you want to delete{" "}
+							<span className="font-medium">{asset.name}</span>? This action
+							cannot be undone.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex gap-2 justify-end">

@@ -32,7 +32,9 @@ export function AssetsList({
 	if (assets.length === 0) {
 		return (
 			<div className="flex items-center justify-center h-full text-muted-foreground">
-				<p className="text-sm">No assets yet. Upload some files to get started.</p>
+				<p className="text-sm">
+					No assets yet. Upload some files to get started.
+				</p>
 			</div>
 		);
 	}
@@ -65,7 +67,10 @@ export function AssetsList({
 			onDragLeave={handleDragLeave}
 			onDrop={handleDrop}
 		>
-			<div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
+			<div
+				className="grid gap-4"
+				style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}
+			>
 				{assets.map((asset) => (
 					<AssetItem
 						key={asset.name}

@@ -25,7 +25,12 @@ interface ChatInputProps {
 	disabled?: boolean;
 	placeholder?: string;
 	model?: string | null;
-	models?: ReadonlyArray<{ id: string; name: string; provider: string; supportsImages?: boolean }>;
+	models?: ReadonlyArray<{
+		id: string;
+		name: string;
+		provider: string;
+		supportsImages?: boolean;
+	}>;
 	onModelChange?: (modelId: string) => void;
 	// Image state lifted from parent
 	images?: ImagePart[];
@@ -51,7 +56,9 @@ export function ChatInput({
 	const [message, setMessage] = useState("");
 	// Internal state (used when external state is not provided)
 	const [internalImages, setInternalImages] = useState<ImagePart[]>([]);
-	const [internalImageError, setInternalImageError] = useState<string | null>(null);
+	const [internalImageError, setInternalImageError] = useState<string | null>(
+		null,
+	);
 	const [isDragging, setIsDragging] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,8 +68,11 @@ export function ChatInput({
 	const imageError = externalImageError ?? internalImageError;
 
 	// Wrapper to handle both external and internal state updates
-	const updateImages = (updater: ImagePart[] | ((prev: ImagePart[]) => ImagePart[])) => {
-		const newImages = typeof updater === "function" ? updater(selectedImages) : updater;
+	const updateImages = (
+		updater: ImagePart[] | ((prev: ImagePart[]) => ImagePart[]),
+	) => {
+		const newImages =
+			typeof updater === "function" ? updater(selectedImages) : updater;
 		if (onImagesChange) {
 			onImagesChange(newImages);
 		} else {
@@ -179,11 +189,12 @@ export function ChatInput({
 
 		// Show error if images aren't supported
 		if (!supportsImages) {
-			const imageFiles = e.dataTransfer?.files ? 
-				Array.from(e.dataTransfer.files).filter((file) =>
-					file.type.startsWith("image/")
-				) : [];
-			
+			const imageFiles = e.dataTransfer?.files
+				? Array.from(e.dataTransfer.files).filter((file) =>
+						file.type.startsWith("image/"),
+					)
+				: [];
+
 			if (imageFiles && imageFiles.length > 0) {
 				toast.error("Images not supported", {
 					description: "The selected model doesn't support image input",
@@ -196,7 +207,9 @@ export function ChatInput({
 		if (files && files.length > 0) {
 			// Filter only images
 			const imageFiles = Array.from(files).filter((file) =>
-				VALID_IMAGE_MIME_TYPES.includes(file.type as typeof VALID_IMAGE_MIME_TYPES[number])
+				VALID_IMAGE_MIME_TYPES.includes(
+					file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
+				),
 			);
 			if (imageFiles.length > 0) {
 				processFiles(imageFiles);
@@ -246,7 +259,9 @@ export function ChatInput({
 			<div className="flex flex-col gap-4">
 				<div
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
-						isDragging && supportsImages ? "border-primary bg-primary/5" : "border-input"
+						isDragging && supportsImages
+							? "border-primary bg-primary/5"
+							: "border-input"
 					}`}
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
@@ -303,7 +318,9 @@ export function ChatInput({
 									variant="ghost"
 									size="icon"
 									onClick={() => fileInputRef.current?.click()}
-									disabled={disabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE}
+									disabled={
+										disabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+									}
 									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
 									type="button"
 								>

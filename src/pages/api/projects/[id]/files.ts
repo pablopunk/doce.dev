@@ -130,7 +130,12 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 		// Serve file content
 		try {
 			// Validate path doesn't escape src/
-			const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+			const projectPath = path.join(
+				process.cwd(),
+				"data",
+				"projects",
+				projectId,
+			);
 			const srcPath = path.join(projectPath, "src");
 			// filePath is relative to src/, so join with srcPath
 			const fullPath = path.join(srcPath, filePath);

@@ -11,40 +11,40 @@ export type ProjectStatus = Project["status"];
  * Create a new project in the database.
  */
 export async function createProject(data: NewProject): Promise<Project> {
-  const result = await db.insert(projects).values(data).returning();
-  const project = result[0];
-  if (!project) {
-    throw new Error("Failed to create project");
-  }
-  return project;
+	const result = await db.insert(projects).values(data).returning();
+	const project = result[0];
+	if (!project) {
+		throw new Error("Failed to create project");
+	}
+	return project;
 }
 
 /**
  * Get a project by ID (excludes soft-deleted projects).
  */
 export async function getProjectById(id: string): Promise<Project | null> {
-  const result = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
-    .limit(1);
+	const result = await db
+		.select()
+		.from(projects)
+		.where(and(eq(projects.id, id), isNull(projects.deletedAt)))
+		.limit(1);
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 /**
  * Get a project by ID regardless of deletion status.
  */
 export async function getProjectByIdIncludeDeleted(
-  id: string
+	id: string,
 ): Promise<Project | null> {
-  const result = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, id))
-    .limit(1);
+	const result = await db
+		.select()
+		.from(projects)
+		.where(eq(projects.id, id))
+		.limit(1);
 
-  return result[0] ?? null;
+	return result[0] ?? null;
 }
 
 /**
@@ -54,11 +54,13 @@ export async function getProjectsByUserId(userId: string): Promise<Project[]> {
 	return db
 		.select()
 		.from(projects)
-		.where(and(
-			eq(projects.ownerUserId, userId),
-			isNull(projects.deletedAt),
-			ne(projects.status, "deleting")
-		))
+		.where(
+			and(
+				eq(projects.ownerUserId, userId),
+				isNull(projects.deletedAt),
+				ne(projects.status, "deleting"),
+			),
+		)
 		.orderBy(desc(projects.createdAt));
 }
 
@@ -66,20 +68,20 @@ export async function getProjectsByUserId(userId: string): Promise<Project[]> {
  * Update a project's status.
  */
 export async function updateProjectStatus(
-  id: string,
-  status: ProjectStatus
+	id: string,
+	status: ProjectStatus,
 ): Promise<void> {
-  await db.update(projects).set({ status }).where(eq(projects.id, id));
+	await db.update(projects).set({ status }).where(eq(projects.id, id));
 }
 
 /**
  * Update project model.
  */
 export async function updateProjectModel(
-  id: string,
-  model: string | null
+	id: string,
+	model: string | null,
 ): Promise<void> {
-  await db.update(projects).set({ model }).where(eq(projects.id, id));
+	await db.update(projects).set({ model }).where(eq(projects.id, id));
 }
 
 /**
@@ -87,115 +89,113 @@ export async function updateProjectModel(
  * This ensures the model persists when the OpenCode server reads the config.
  */
 export async function updateOpencodeJsonModel(
-  projectId: string,
-  newModel: string
+	projectId: string,
+	newModel: string,
 ): Promise<void> {
-  const projectPath = path.join(process.cwd(), "data", "projects", projectId);
-  const opencodeJsonPath = path.join(projectPath, "opencode.json");
+	const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+	const opencodeJsonPath = path.join(projectPath, "opencode.json");
 
-  try {
-    // Read existing config
-    const content = await fs.readFile(opencodeJsonPath, "utf-8");
-    const config = JSON.parse(content) as Record<string, unknown>;
+	try {
+		// Read existing config
+		const content = await fs.readFile(opencodeJsonPath, "utf-8");
+		const config = JSON.parse(content) as Record<string, unknown>;
 
-    // Update the model field
-    config.model = newModel;
+		// Update the model field
+		config.model = newModel;
 
-    // Write back to file
-    await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
-    
-    logger.debug({ projectId, newModel }, "Updated opencode.json model");
-  } catch (error) {
-    logger.error(
-      { projectId, newModel, error: String(error) },
-      "Failed to update opencode.json model"
-    );
-    throw error;
-  }
+		// Write back to file
+		await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
+
+		logger.debug({ projectId, newModel }, "Updated opencode.json model");
+	} catch (error) {
+		logger.error(
+			{ projectId, newModel, error: String(error) },
+			"Failed to update opencode.json model",
+		);
+		throw error;
+	}
 }
 
 /**
  * Soft-delete a project by setting deletedAt.
  */
 export async function softDeleteProject(id: string): Promise<void> {
-  await db
-    .update(projects)
-    .set({ deletedAt: new Date() })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ deletedAt: new Date() })
+		.where(eq(projects.id, id));
 }
 
 /**
  * Hard-delete a project from the database.
  */
 export async function hardDeleteProject(id: string): Promise<void> {
-  await db.delete(projects).where(eq(projects.id, id));
+	await db.delete(projects).where(eq(projects.id, id));
 }
 
 /**
  * Check if a project belongs to a user.
  */
 export async function isProjectOwnedByUser(
-  projectId: string,
-  userId: string
+	projectId: string,
+	userId: string,
 ): Promise<boolean> {
-  const result = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        eq(projects.ownerUserId, userId),
-        isNull(projects.deletedAt)
-      )
-    )
-    .limit(1);
+	const result = await db
+		.select({ id: projects.id })
+		.from(projects)
+		.where(
+			and(
+				eq(projects.id, projectId),
+				eq(projects.ownerUserId, userId),
+				isNull(projects.deletedAt),
+			),
+		)
+		.limit(1);
 
-  return result.length > 0;
+	return result.length > 0;
 }
 
 /**
  * Get all running projects (for shutdown/cleanup).
  */
 export async function getRunningProjects(): Promise<Project[]> {
-  return db
-    .select()
-    .from(projects)
-    .where(
-      and(eq(projects.status, "running"), isNull(projects.deletedAt))
-    );
+	return db
+		.select()
+		.from(projects)
+		.where(and(eq(projects.status, "running"), isNull(projects.deletedAt)));
 }
 
 /**
  * Mark a project's initial prompt as sent.
  */
 export async function markInitialPromptSent(id: string): Promise<void> {
-  await db
-    .update(projects)
-    .set({ initialPromptSent: true })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ initialPromptSent: true })
+		.where(eq(projects.id, id));
 }
 
 /**
  * Mark a project's initial prompt as completed (finished execution).
  */
 export async function markInitialPromptCompleted(id: string): Promise<void> {
-  await db
-    .update(projects)
-    .set({ initialPromptCompleted: true })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ initialPromptCompleted: true })
+		.where(eq(projects.id, id));
 }
 
 /**
  * Update a project's bootstrap session ID.
  */
 export async function updateBootstrapSessionId(
-  id: string,
-  sessionId: string
+	id: string,
+	sessionId: string,
 ): Promise<void> {
-  await db
-    .update(projects)
-    .set({ bootstrapSessionId: sessionId })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ bootstrapSessionId: sessionId })
+		.where(eq(projects.id, id));
 }
 
 // ============================================================================
@@ -207,13 +207,13 @@ export async function updateBootstrapSessionId(
  * This is set when the empty init prompt is created during session initialization.
  */
 export async function updateInitPromptMessageId(
-  id: string,
-  messageId: string
+	id: string,
+	messageId: string,
 ): Promise<void> {
-  await db
-    .update(projects)
-    .set({ initPromptMessageId: messageId })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ initPromptMessageId: messageId })
+		.where(eq(projects.id, id));
 }
 
 /**
@@ -221,23 +221,23 @@ export async function updateInitPromptMessageId(
  * This is set when the user's actual prompt is sent.
  */
 export async function updateUserPromptMessageId(
-  id: string,
-  messageId: string
+	id: string,
+	messageId: string,
 ): Promise<void> {
-  await db
-    .update(projects)
-    .set({ userPromptMessageId: messageId })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ userPromptMessageId: messageId })
+		.where(eq(projects.id, id));
 }
 
 /**
  * Mark the init prompt as completed (when it goes idle).
  */
 export async function markInitPromptCompleted(id: string): Promise<void> {
-  await db
-    .update(projects)
-    .set({ initPromptCompleted: true })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({ initPromptCompleted: true })
+		.where(eq(projects.id, id));
 }
 
 /**
@@ -245,12 +245,12 @@ export async function markInitPromptCompleted(id: string): Promise<void> {
  * Also marks the legacy initialPromptCompleted flag for backward compatibility.
  */
 export async function markUserPromptCompleted(id: string): Promise<void> {
-  await db
-    .update(projects)
-    .set({ 
-      userPromptCompleted: true,
-      // Also update legacy flag for backward compatibility
-      initialPromptCompleted: true,
-    })
-    .where(eq(projects.id, id));
+	await db
+		.update(projects)
+		.set({
+			userPromptCompleted: true,
+			// Also update legacy flag for backward compatibility
+			initialPromptCompleted: true,
+		})
+		.where(eq(projects.id, id));
 }

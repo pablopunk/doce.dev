@@ -38,7 +38,7 @@ function getAncestorPaths(filePath: string): string[] {
 	const parts = filePath.split("/");
 	// Remove the filename (last part)
 	parts.pop();
-	
+
 	const ancestors: string[] = [];
 	let currentPath = "";
 	for (const part of parts) {
@@ -108,9 +108,7 @@ export function FilesTab({
 					}
 				}
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Failed to fetch files",
-				);
+				setError(err instanceof Error ? err.message : "Failed to fetch files");
 				setFiles([]);
 			} finally {
 				setIsLoadingTree(false);
@@ -145,9 +143,7 @@ export function FilesTab({
 				onFileSelect?.(path);
 			}
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to load file",
-			);
+			setError(err instanceof Error ? err.message : "Failed to load file");
 			setFileContent("");
 		} finally {
 			setIsLoadingContent(false);
@@ -171,9 +167,7 @@ export function FilesTab({
 				<div className="flex flex-col items-center gap-2 text-center p-4">
 					<AlertTriangle className="h-8 w-8 text-red-500" />
 					<p className="text-sm text-red-500 font-medium">Error</p>
-					<p className="text-xs text-muted-foreground max-w-xs">
-						{error}
-					</p>
+					<p className="text-xs text-muted-foreground max-w-xs">{error}</p>
 				</div>
 			</div>
 		);
@@ -181,7 +175,11 @@ export function FilesTab({
 
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden">
-			<div className="flex-1 flex overflow-hidden relative" data-resizable-group ref={containerRef}>
+			<div
+				className="flex-1 flex overflow-hidden relative"
+				data-resizable-group
+				ref={containerRef}
+			>
 				{/* File Tree (left) */}
 				<div
 					className="flex flex-col h-full border-r overflow-hidden bg-muted/20"

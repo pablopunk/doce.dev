@@ -16,7 +16,9 @@ interface ProjectsListProps {
 export function ProjectsList({ fallback }: ProjectsListProps) {
 	const [projects, setProjects] = useState<Project[]>(fallback);
 	const [error, setError] = useState<string | null>(null);
-	const [deletedProjectIds, setDeletedProjectIds] = useState<Set<string>>(new Set());
+	const [deletedProjectIds, setDeletedProjectIds] = useState<Set<string>>(
+		new Set(),
+	);
 
 	useEffect(() => {
 		// Initial fetch
@@ -30,7 +32,9 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 					setError(null);
 				}
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to load projects");
+				setError(
+					err instanceof Error ? err.message : "Failed to load projects",
+				);
 			}
 		};
 
@@ -52,7 +56,7 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 
 	const displayProjects = projects && projects.length > 0 ? projects : fallback;
 	const filteredProjects = displayProjects.filter(
-		(project) => !deletedProjectIds.has(project.id)
+		(project) => !deletedProjectIds.has(project.id),
 	);
 
 	const handleProjectDeleted = (projectId: string) => {
@@ -67,7 +71,10 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 		<section className="container mx-auto p-8 relative">
 			<h2 className="mb-4 text-xl font-semibold">Your Projects</h2>
 			<LayoutGroup>
-				<motion.div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" id="projects-grid">
+				<motion.div
+					className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+					id="projects-grid"
+				>
 					<AnimatePresence>
 						{filteredProjects.map((project) => (
 							<motion.div
@@ -77,7 +84,10 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 								exit={{ opacity: 0, scale: 0.8 }}
 								transition={{ duration: 0.2 }}
 							>
-								<ProjectCard project={project} onDeleted={handleProjectDeleted} />
+								<ProjectCard
+									project={project}
+									onDeleted={handleProjectDeleted}
+								/>
 							</motion.div>
 						))}
 					</AnimatePresence>
