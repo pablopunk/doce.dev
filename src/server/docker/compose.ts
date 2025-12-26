@@ -164,7 +164,7 @@ export async function composeUp(
 }
 
 /**
- * Start production containers for a project with the production profile.
+ * Start production container for a project using docker-compose.production.yml.
  * Allocates port and updates .env with PRODUCTION_PORT.
  * Idempotent - safe to call when already running.
  */
@@ -201,15 +201,74 @@ export async function composeUpProduction(
 
 	await writeHostMarker(
 		logsDir,
-		`docker compose --profile production up -d --remove-orphans (PRODUCTION_PORT=${productionPort})`,
+		`docker compose -f docker-compose.production.yml up -d --remove-orphans (PRODUCTION_PORT=${productionPort})`,
 	);
 
-	const result = await runComposeCommand(
-		projectId,
-		projectPath,
-		["up", "-d", "--remove-orphans"],
-		"production",
+	// Use docker-compose.production.yml for production deployments
+	const compose = detectComposeCommand();
+	const baseArgs = ["--project-name", `doce_${projectId}`, "--ansi", "never"];
+	const fullArgs = [
+		...compose.slice(1),
+		...baseArgs,
+		"-f",
+		"docker-compose.production.yml",
+		"up",
+		"-d",
+		"--remove-orphans",
+	];
+
+	const command = compose[0] ?? "docker";
+
+	logger.debug(
+		{ command, args: fullArgs, cwd: projectPath },
+		"Running production compose command",
 	);
+
+	const result = await new Promise<ComposeResult>((resolve) => {
+		const proc = spawn(command, fullArgs, {
+			cwd: projectPath,
+		});
+
+		let stdout = "";
+		let stderr = "";
+
+		proc.stdout?.on("data", (data: Buffer) => {
+			stdout += data.toString();
+		});
+
+		proc.stderr?.on("data", (data: Buffer) => {
+			stderr += data.toString();
+		});
+
+		proc.on("close", (code: number | null) => {
+			const exitCode = code ?? 1;
+			const success = exitCode === 0;
+
+			logger.debug(
+				{
+					exitCode,
+					stdout: stdout.slice(0, 500),
+					stderr: stderr.slice(0, 500),
+				},
+				"Production compose command completed",
+			);
+
+			resolve({ success, exitCode, stdout, stderr });
+		});
+
+		proc.on("error", (err: Error) => {
+			logger.error(
+				{ error: err },
+				"Production compose command failed to spawn",
+			);
+			resolve({
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: err.message,
+			});
+		});
+	});
 
 	// Log output with stream markers
 	if (result.stdout) {
@@ -260,7 +319,8 @@ export async function composeDown(
 }
 
 /**
- * Stop only the production container (preserves preview and opencode).
+ * Stop only the production container using docker-compose.production.yml
+ * This preserves the preview and opencode containers.
  */
 export async function composeDownProduction(
 	projectId: string,
@@ -269,15 +329,76 @@ export async function composeDownProduction(
 	const logsDir = path.join(projectPath, "logs");
 	await writeHostMarker(
 		logsDir,
-		"docker compose --profile production down --remove-orphans",
+		"docker compose -f docker-compose.production.yml down --remove-orphans",
 	);
 
-	const result = await runComposeCommand(
-		projectId,
-		projectPath,
-		["down", "--remove-orphans"],
-		"production",
+	// Stop streaming container logs before stopping containers
+	stopStreamingContainerLogs(projectId);
+
+	// Use docker-compose.production.yml for production deployments
+	const compose = detectComposeCommand();
+	const baseArgs = ["--project-name", `doce_${projectId}`, "--ansi", "never"];
+	const fullArgs = [
+		...compose.slice(1),
+		...baseArgs,
+		"-f",
+		"docker-compose.production.yml",
+		"down",
+		"--remove-orphans",
+	];
+
+	const command = compose[0] ?? "docker";
+
+	logger.debug(
+		{ command, args: fullArgs, cwd: projectPath },
+		"Running production compose down command",
 	);
+
+	const result = await new Promise<ComposeResult>((resolve) => {
+		const proc = spawn(command, fullArgs, {
+			cwd: projectPath,
+		});
+
+		let stdout = "";
+		let stderr = "";
+
+		proc.stdout?.on("data", (data: Buffer) => {
+			stdout += data.toString();
+		});
+
+		proc.stderr?.on("data", (data: Buffer) => {
+			stderr += data.toString();
+		});
+
+		proc.on("close", (code: number | null) => {
+			const exitCode = code ?? 1;
+			const success = exitCode === 0;
+
+			logger.debug(
+				{
+					exitCode,
+					stdout: stdout.slice(0, 500),
+					stderr: stderr.slice(0, 500),
+				},
+				"Production compose down command completed",
+			);
+
+			resolve({ success, exitCode, stdout, stderr });
+		});
+
+		proc.on("error", (err: Error) => {
+			logger.error(
+				{ error: err },
+				"Production compose down command failed to spawn",
+			);
+			resolve({
+				success: false,
+				exitCode: 1,
+				stdout: "",
+				stderr: err.message,
+			});
+		});
+	});
 
 	if (result.stdout) {
 		await appendDockerLog(logsDir, result.stdout, false);

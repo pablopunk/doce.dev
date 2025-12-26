@@ -1,0 +1,20 @@
+services:
+  production:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    volumes:
+      - .:/app
+      - pnpm-store:/root/.local/share/pnpm/store
+    ports:
+      - "${PRODUCTION_PORT:-5000}:${PRODUCTION_PORT:-5000}"
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PRODUCTION_PORT=${PRODUCTION_PORT:-5000}
+    command: sh -c "pnpm install --prod && pnpm run build && pnpm run preview --port $${PRODUCTION_PORT:-5000} --host"
+
+volumes:
+  pnpm-store:
+    external: true
+    name: doce-global-pnpm-store
