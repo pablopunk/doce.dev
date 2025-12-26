@@ -1,14 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	getProjectByIdIncludeDeleted,
 	markInitialPromptSent,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
-import { createOpencodeClient } from "@/server/opencode/client";
 import type { QueueJobContext } from "../queue.worker";
-import { parsePayload, type ImageAttachment } from "../types";
+import { type ImageAttachment, parsePayload } from "../types";
 
 /**
  * Handler for sending the user's actual project prompt.

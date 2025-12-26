@@ -1,4 +1,4 @@
-import { ToolCallDisplay, type ToolCall } from "./ToolCallDisplay";
+import { type ToolCall, ToolCallDisplay } from "./ToolCallDisplay";
 
 interface ToolCallGroupProps {
 	toolCalls: ToolCall[];

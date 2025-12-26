@@ -1,12 +1,12 @@
-import { logger } from "@/server/logger";
 import { composeUp } from "@/server/docker/compose";
+import { logger } from "@/server/logger";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
+import { enqueueDockerWaitReady } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueDockerWaitReady } from "../enqueue";
 
 export async function handleDockerComposeUp(
 	ctx: QueueJobContext,

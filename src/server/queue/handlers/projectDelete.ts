@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
-import { logger } from "@/server/logger";
 import { composeDownWithVolumes } from "@/server/docker/compose";
+import { logger } from "@/server/logger";
 import {
 	getProjectByIdIncludeDeleted,
 	hardDeleteProject,

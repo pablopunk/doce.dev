@@ -1,13 +1,13 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
-import {
-	listJobs,
-	isQueuePaused,
-	getConcurrency,
-	countJobs,
-} from "@/server/queue/queue.model";
+import AppLayout from "@/layouts/AppLayout.astro";
 import type { QueueJob } from "@/server/db/schema";
+import {
+	countJobs,
+	getConcurrency,
+	isQueuePaused,
+	listJobs,
+} from "@/server/queue/queue.model";
 
 const user = Astro.locals.user;
 if (!user) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, LayoutGrid, Clock, Settings } from "lucide-react";
+import { Clock, LayoutGrid, Menu, Settings } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

@@ -1,8 +1,8 @@
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
-import { type MessagePart, type TextPart } from "@/types/message";
+import remarkGfm from "remark-gfm";
+import type { MessagePart, TextPart } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface PartRendererProps {

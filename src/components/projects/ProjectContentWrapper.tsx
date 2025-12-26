@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { useResizablePanel } from "@/hooks/useResizablePanel";
-import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
+import { useEffect, useRef, useState } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
+import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
+import { useResizablePanel } from "@/hooks/useResizablePanel";
 
 interface ProjectContentWrapperProps {
 	projectId: string;

@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
-import { PlayIcon, PauseIcon, CircleIcon } from "lucide-react";
+import { actions } from "astro:actions";
+import { CircleIcon, PauseIcon, PlayIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { actions } from "astro:actions";
 
 interface QueuePlayerControlProps {
 	paused: boolean;

@@ -1,14 +1,14 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { logger } from "@/server/logger";
 import {
-	isProjectOwnedByUser,
 	getProjectById,
+	isProjectOwnedByUser,
 	markInitPromptCompleted,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
-import { listJobs } from "@/server/queue/queue.model";
 import type { QueueJobState } from "@/server/queue/queue.model";
-import { logger } from "@/server/logger";
+import { listJobs } from "@/server/queue/queue.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

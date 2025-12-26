@@ -1,25 +1,25 @@
 "use client";
 
-import {
-	useState,
-	useRef,
-	useEffect,
-	type DragEvent,
-	type ClipboardEvent,
-} from "react";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, Paperclip } from "lucide-react";
-import { ModelSelector } from "./ModelSelector";
 import { actions } from "astro:actions";
+import { Loader2, Paperclip, Sparkles } from "lucide-react";
+import {
+	type ClipboardEvent,
+	type DragEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { ImagePreview } from "@/components/chat/ImagePreview";
+import { Button } from "@/components/ui/button";
 import {
-	type ImagePart,
 	createImagePartFromFile,
-	validateImageFile,
+	type ImagePart,
 	MAX_IMAGES_PER_MESSAGE,
 	VALID_IMAGE_MIME_TYPES,
+	validateImageFile,
 } from "@/types/message";
+import { ModelSelector } from "./ModelSelector";
 
 interface CreateProjectFormProps {
 	models: readonly {

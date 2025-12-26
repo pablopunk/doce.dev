@@ -10,13 +10,13 @@
 
 import type {
 	Event,
-	EventMessagePartUpdated,
-	EventSessionStatus,
-	EventMessageUpdated,
 	EventFileEdited,
-	ToolPart as SDKToolPart,
-	TextPart as SDKTextPart,
+	EventMessagePartUpdated,
+	EventMessageUpdated,
+	EventSessionStatus,
 	ReasoningPart as SDKReasoningPart,
+	TextPart as SDKTextPart,
+	ToolPart as SDKToolPart,
 } from "@opencode-ai/sdk/v2/client";
 
 // ============================================================================

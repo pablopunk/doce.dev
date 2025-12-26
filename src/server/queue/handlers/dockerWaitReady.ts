@@ -1,16 +1,16 @@
 import { logger } from "@/server/logger";
 import {
+	checkOpencodeReady,
+	checkPreviewReady,
+} from "@/server/projects/health";
+import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import {
-	checkPreviewReady,
-	checkOpencodeReady,
-} from "@/server/projects/health";
+import { enqueueOpencodeSessionCreate } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeSessionCreate } from "../enqueue";
 
 const WAIT_TIMEOUT_MS = 300_000; // 5 minutes max wait
 const POLL_DELAY_MS = 1_000; // 1 second between polls

@@ -1,12 +1,12 @@
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { randomBytes } from "node:crypto";
-import { logger } from "@/server/logger";
-import { generateProjectName } from "@/server/settings/openrouter";
-import { allocateProjectPorts } from "@/server/ports/allocate";
-import { generateUniqueSlug } from "./slug";
-import { createProject } from "./projects.model";
 import type { Project } from "@/server/db/schema";
+import { logger } from "@/server/logger";
+import { allocateProjectPorts } from "@/server/ports/allocate";
+import { generateProjectName } from "@/server/settings/openrouter";
+import { createProject } from "./projects.model";
+import { generateUniqueSlug } from "./slug";
 
 // Paths relative to project root
 const DATA_DIR = "data";

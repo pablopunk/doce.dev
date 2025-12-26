@@ -1,18 +1,18 @@
-import type React from "react";
 import {
-	Wrench,
 	Brain,
+	FileCode,
 	FileText,
 	FolderSearch,
-	Terminal,
-	Pencil,
-	Trash2,
-	ListTree,
-	Search,
 	Globe,
-	FileCode,
+	ListTree,
 	type LucideIcon,
+	Pencil,
+	Search,
+	Terminal,
+	Trash2,
+	Wrench,
 } from "lucide-react";
+import type React from "react";
 
 /**
  * Tool metadata for display purposes.

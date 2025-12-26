@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface ReadOnlyEditorProps {
 	filePath: string;

@@ -1,24 +1,24 @@
 "use client";
 
+import { Brain, CameraOff, ChevronDown, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ChevronDown, Zap, Brain, CameraOff } from "lucide-react";
-import { Openai } from "@/components/ui/svgs/openai";
-import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
-import { ZaiLight } from "@/components/ui/svgs/zaiLight";
+import { Openai } from "@/components/ui/svgs/openai";
+import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { ZaiDark } from "@/components/ui/svgs/zaiDark";
-import {
-	DropdownMenu,
-	DropdownMenuTrigger,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuGroup,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { ZaiLight } from "@/components/ui/svgs/zaiLight";
 
 const PROVIDER_LOGOS: Record<
 	string,

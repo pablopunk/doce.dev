@@ -1,11 +1,11 @@
+import * as path from "node:path";
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { readLogFromOffset, readLogTail } from "@/server/docker/logs";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
-import { readLogTail, readLogFromOffset } from "@/server/docker/logs";
-import * as path from "node:path";
 
 const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;

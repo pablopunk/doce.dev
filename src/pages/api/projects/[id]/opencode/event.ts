@@ -1,17 +1,17 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { logger } from "@/server/logger";
+import {
+	createNormalizationState,
+	normalizeEvent,
+	parseSSEData,
+} from "@/server/opencode/normalize";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
 	markInitPromptCompleted,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
-import {
-	normalizeEvent,
-	parseSSEData,
-	createNormalizationState,
-} from "@/server/opencode/normalize";
-import { logger } from "@/server/logger";
 
 const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;

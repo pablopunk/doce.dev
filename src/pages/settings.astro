@@ -1,5 +1,8 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
+import { actions } from "astro:actions";
+import { eq } from "drizzle-orm";
+import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -7,16 +10,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
-import { actions } from "astro:actions";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
+import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 
 const user = Astro.locals.user;
 if (!user) {

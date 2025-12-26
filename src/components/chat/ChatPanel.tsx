@@ -1,18 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { ChatMessage } from "./ChatMessage";
+import { actions } from "astro:actions";
+import { Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
+	createImagePart,
+	createTextPart,
+	type ImagePart,
 	type Message,
 	type MessagePart,
-	type ImagePart,
-	createTextPart,
-	createImagePart,
 } from "@/types/message";
-import { type ToolCall } from "./ToolCallDisplay";
-import { ToolCallGroup } from "./ToolCallGroup";
 import { ChatInput } from "./ChatInput";
-import { Loader2 } from "lucide-react";
-import { actions } from "astro:actions";
-import { toast } from "sonner";
+import { ChatMessage } from "./ChatMessage";
+import type { ToolCall } from "./ToolCallDisplay";
+import { ToolCallGroup } from "./ToolCallGroup";
 
 interface ChatPanelProps {
 	projectId: string;

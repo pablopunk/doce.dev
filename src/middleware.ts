@@ -2,8 +2,8 @@ import { defineMiddleware } from "astro:middleware";
 import { validateSession } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
-import { ensureQueueWorkerStarted } from "@/server/queue/start";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
+import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 ensureQueueWorkerStarted();
 ensureGlobalPnpmVolume();

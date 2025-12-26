@@ -1,10 +1,10 @@
-import { User, Bot } from "lucide-react";
+import { Bot, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { type Message, type TextPart, type ImagePart } from "@/types/message";
+import type { ImagePart, Message, TextPart } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface ChatMessageProps {

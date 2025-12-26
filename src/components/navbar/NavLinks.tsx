@@ -1,4 +1,4 @@
-import { LayoutGrid, Clock, Settings } from "lucide-react";
+import { Clock, LayoutGrid, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinkClasses = cn(

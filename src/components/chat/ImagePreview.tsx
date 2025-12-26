@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { type ImagePart } from "@/types/message";
+import type { ImagePart } from "@/types/message";
 
 interface ImagePreviewProps {
 	images: ImagePart[];

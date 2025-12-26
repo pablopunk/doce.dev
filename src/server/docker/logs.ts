@@ -1,7 +1,7 @@
+import type { ChildProcess } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { execSync, spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
 import { logger } from "@/server/logger";
 
 const LOG_FILE_NAME = "docker.log";

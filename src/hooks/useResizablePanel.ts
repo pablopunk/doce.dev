@@ -1,9 +1,9 @@
 import {
-	useState,
-	useEffect,
-	useCallback,
-	useRef,
 	type RefObject,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
 } from "react";
 
 interface UseResizablePanelOptions {

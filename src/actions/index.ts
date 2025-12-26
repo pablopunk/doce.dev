@@ -1,17 +1,21 @@
-import { defineAction, ActionError } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { db } from "@/server/db/client";
-import { users, userSettings } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession, invalidateSession } from "@/server/auth/sessions";
+import { db } from "@/server/db/client";
+import { userSettings, users } from "@/server/db/schema";
 import {
-	validateOpenRouterApiKey,
-	AVAILABLE_MODELS,
-	DEFAULT_MODEL,
-} from "@/server/settings/openrouter";
+	getProjectById,
+	getProjectsByUserId,
+	isProjectOwnedByUser,
+	updateOpencodeJsonModel,
+	updateProjectModel,
+	updateProjectStatus,
+} from "@/server/projects/projects.model";
 import {
 	enqueueDeleteAllProjectsForUser,
 	enqueueDockerStop,
@@ -20,25 +24,21 @@ import {
 } from "@/server/queue/enqueue";
 import {
 	cancelQueuedJob,
-	forceUnlock,
-	getJobById,
-	retryJob,
-	runNow,
-	requestCancel,
-	setQueuePaused,
-	setConcurrency,
 	deleteJob,
 	deleteJobsByState,
+	forceUnlock,
+	getJobById,
+	requestCancel,
+	retryJob,
+	runNow,
+	setConcurrency,
+	setQueuePaused,
 } from "@/server/queue/queue.model";
 import {
-	getProjectsByUserId,
-	getProjectById,
-	isProjectOwnedByUser,
-	updateProjectModel,
-	updateOpencodeJsonModel,
-	updateProjectStatus,
-} from "@/server/projects/projects.model";
-import { eq } from "drizzle-orm";
+	AVAILABLE_MODELS,
+	DEFAULT_MODEL,
+	validateOpenRouterApiKey,
+} from "@/server/settings/openrouter";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

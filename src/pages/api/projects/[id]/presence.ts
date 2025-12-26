@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 import { handlePresenceHeartbeat } from "@/server/presence/manager";
+import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

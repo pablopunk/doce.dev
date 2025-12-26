@@ -1,5 +1,16 @@
-import { logger } from "@/server/logger";
 import type { QueueJob } from "@/server/db/schema";
+import { logger } from "@/server/logger";
+import { handleDockerComposeUp } from "./handlers/dockerComposeUp";
+import { handleDockerEnsureRunning } from "./handlers/dockerEnsureRunning";
+import { handleDockerStop } from "./handlers/dockerStop";
+import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
+import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
+import { handleOpencodeSendUserPrompt } from "./handlers/opencodeSendUserPrompt";
+import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
+import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
+import { handleProjectCreate } from "./handlers/projectCreate";
+import { handleProjectDelete } from "./handlers/projectDelete";
+import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
 import {
 	cancelRunningJob,
 	claimNextJob,
@@ -12,17 +23,6 @@ import {
 	toErrorMessage,
 } from "./queue.model";
 import type { QueueJobType } from "./types";
-import { handleProjectDelete } from "./handlers/projectDelete";
-import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
-import { handleDockerEnsureRunning } from "./handlers/dockerEnsureRunning";
-import { handleDockerStop } from "./handlers/dockerStop";
-import { handleProjectCreate } from "./handlers/projectCreate";
-import { handleDockerComposeUp } from "./handlers/dockerComposeUp";
-import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
-import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
-import { handleOpencodeSessionInit } from "./handlers/opencodeSessionInit";
-import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
-import { handleOpencodeSendUserPrompt } from "./handlers/opencodeSendUserPrompt";
 
 export interface QueueWorkerOptions {
 	concurrency: number;

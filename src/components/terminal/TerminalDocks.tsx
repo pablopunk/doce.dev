@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { ChevronDown, ChevronUp, Terminal, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronUp, ChevronDown, Terminal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LogLine {

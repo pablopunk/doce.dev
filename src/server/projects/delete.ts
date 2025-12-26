@@ -1,13 +1,13 @@
 import * as fs from "node:fs/promises";
+import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
+import { getProjectPath } from "./create";
 import {
 	getProjectById,
+	getProjectsByUserId,
 	hardDeleteProject,
 	updateProjectStatus,
-	getProjectsByUserId,
 } from "./projects.model";
-import { composeDownWithVolumes } from "@/server/docker/compose";
-import { getProjectPath } from "./create";
 
 export interface DeleteProjectResult {
 	success: boolean;

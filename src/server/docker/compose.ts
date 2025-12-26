@@ -1,11 +1,11 @@
-import { spawn, execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import {
 	appendDockerLog,
-	writeHostMarker,
-	streamContainerLogs,
 	stopStreamingContainerLogs,
+	streamContainerLogs,
+	writeHostMarker,
 } from "./logs";
 
 // Cache the detected compose command

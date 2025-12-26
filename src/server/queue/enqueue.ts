@@ -1,18 +1,18 @@
 import { randomBytes } from "node:crypto";
 import type { QueueJob } from "@/server/db/schema";
-import { enqueueJob, cancelEnsureRunningForProject } from "./queue.model";
+import { cancelEnsureRunningForProject, enqueueJob } from "./queue.model";
 import type {
+	DockerComposeUpPayload,
+	DockerEnsureRunningPayload,
+	DockerStopPayload,
+	DockerWaitReadyPayload,
+	OpencodeSendInitialPromptPayload,
+	OpencodeSendUserPromptPayload,
+	OpencodeSessionCreatePayload,
+	OpencodeSessionInitPayload,
 	ProjectCreatePayload,
 	ProjectDeletePayload,
 	ProjectsDeleteAllForUserPayload,
-	DockerComposeUpPayload,
-	DockerWaitReadyPayload,
-	DockerEnsureRunningPayload,
-	DockerStopPayload,
-	OpencodeSessionCreatePayload,
-	OpencodeSessionInitPayload,
-	OpencodeSendInitialPromptPayload,
-	OpencodeSendUserPromptPayload,
 } from "./types";
 
 // --- Project lifecycle ---

@@ -1,16 +1,16 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { logger } from "@/server/logger";
+import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import { generateProjectName } from "@/server/settings/openrouter";
+import { logger } from "@/server/logger";
 import { allocateProjectPorts } from "@/server/ports/allocate";
-import { generateUniqueSlug } from "@/server/projects/slug";
 import { createProject } from "@/server/projects/projects.model";
+import { generateUniqueSlug } from "@/server/projects/slug";
+import { generateProjectName } from "@/server/settings/openrouter";
+import { enqueueDockerComposeUp } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueDockerComposeUp } from "../enqueue";
 
 // Paths relative to project root
 const DATA_DIR = "data";

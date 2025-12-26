@@ -6,26 +6,26 @@
 
 // Re-export SDK types directly - these are the canonical types from OpenCode
 export type {
-	TextPart as SDKTextPart,
-	ReasoningPart as SDKReasoningPart,
-	FilePart as SDKFilePart,
-	ToolPart as SDKToolPart,
-	ToolState,
-	ToolStatePending,
-	ToolStateRunning,
-	ToolStateCompleted,
-	ToolStateError,
-	Part as SDKPart,
-	Message as SDKMessage,
-	UserMessage as SDKUserMessage,
 	AssistantMessage as SDKAssistantMessage,
 	// Event types
 	Event,
-	EventSessionStatus,
-	EventSessionIdle,
-	EventMessageUpdated,
-	EventMessagePartUpdated,
 	EventFileEdited,
+	EventMessagePartUpdated,
+	EventMessageUpdated,
+	EventSessionIdle,
+	EventSessionStatus,
+	FilePart as SDKFilePart,
+	Message as SDKMessage,
+	Part as SDKPart,
+	ReasoningPart as SDKReasoningPart,
+	TextPart as SDKTextPart,
+	ToolPart as SDKToolPart,
+	ToolState,
+	ToolStateCompleted,
+	ToolStateError,
+	ToolStatePending,
+	ToolStateRunning,
+	UserMessage as SDKUserMessage,
 } from "@opencode-ai/sdk";
 
 /**

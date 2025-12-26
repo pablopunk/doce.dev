@@ -1,5 +1,6 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
+import { actions } from "astro:actions";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -7,10 +8,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { actions } from "astro:actions";
+import AppLayout from "@/layouts/AppLayout.astro";
 
 const result = Astro.getActionResult(actions.auth.login);
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Badge } from "@/components/ui/badge";
+import { MobileMenu } from "./MobileMenu";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
-import { MobileMenu } from "./MobileMenu";
-import ThemeProvider from "@/components/providers/ThemeProvider";
 
 function NavbarInner() {
 	return (

@@ -1,7 +1,7 @@
 import { getProjectsByUserId } from "@/server/projects/projects.model";
+import { enqueueProjectDelete } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueProjectDelete } from "../enqueue";
 
 export async function handleDeleteAllForUser(
 	ctx: QueueJobContext,

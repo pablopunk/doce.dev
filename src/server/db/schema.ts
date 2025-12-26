@@ -1,8 +1,8 @@
 import {
+	index,
+	integer,
 	sqliteTable,
 	text,
-	integer,
-	index,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 

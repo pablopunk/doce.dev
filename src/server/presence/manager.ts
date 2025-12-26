@@ -1,13 +1,13 @@
 import { logger } from "@/server/logger";
 import {
-	getProjectById,
-	updateProjectStatus,
-	type ProjectStatus,
-} from "@/server/projects/projects.model";
-import {
 	checkOpencodeReady,
 	checkPreviewReady,
 } from "@/server/projects/health";
+import {
+	getProjectById,
+	type ProjectStatus,
+	updateProjectStatus,
+} from "@/server/projects/projects.model";
 import {
 	enqueueDockerEnsureRunning,
 	enqueueDockerStop,
@@ -150,7 +150,7 @@ export async function handlePresenceHeartbeat(
 	const release = await acquireLock(projectId);
 
 	try {
-		let project = await getProjectById(projectId);
+		const project = await getProjectById(projectId);
 		if (!project) {
 			throw new Error("Project not found");
 		}

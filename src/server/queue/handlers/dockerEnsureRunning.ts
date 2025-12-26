@@ -1,16 +1,16 @@
-import { logger } from "@/server/logger";
 import { composeUp } from "@/server/docker/compose";
-import {
-	getProjectByIdIncludeDeleted,
-	updateProjectStatus,
-} from "@/server/projects/projects.model";
-import type { QueueJobContext } from "../queue.worker";
-import { parsePayload } from "../types";
+import { logger } from "@/server/logger";
 import {
 	checkOpencodeReady,
 	checkPreviewReady,
 } from "@/server/projects/health";
+import {
+	getProjectByIdIncludeDeleted,
+	updateProjectStatus,
+} from "@/server/projects/projects.model";
 import { enqueueOpencodeSessionInit } from "../enqueue";
+import type { QueueJobContext } from "../queue.worker";
+import { parsePayload } from "../types";
 
 const START_MAX_WAIT_MS = 30_000;
 

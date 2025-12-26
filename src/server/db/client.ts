@@ -1,8 +1,8 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import * as schema from "./schema";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "./schema";
 
 const DB_PATH = process.env.DB_FILE_NAME ?? "data/db.sqlite";
 

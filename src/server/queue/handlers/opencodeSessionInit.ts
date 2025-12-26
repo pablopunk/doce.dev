@@ -1,14 +1,14 @@
+import * as fs from "fs";
+import * as path from "path";
 import { logger } from "@/server/logger";
+import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	getProjectByIdIncludeDeleted,
 	updateInitPromptMessageId,
 } from "@/server/projects/projects.model";
-import { createOpencodeClient } from "@/server/opencode/client";
+import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeSendUserPrompt } from "../enqueue";
-import * as fs from "fs";
-import * as path from "path";
 
 interface OpencodeConfig {
 	model?: string;

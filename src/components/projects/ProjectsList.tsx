@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { actions } from "astro:actions";
-import { ProjectCard } from "./ProjectCard";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { useEffect, useState } from "react";
 import type { Project } from "@/server/db/schema";
+import { ProjectCard } from "./ProjectCard";
 
 interface ProjectsListProps {
 	fallback: Project[];

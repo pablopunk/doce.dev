@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Loader2 } from "lucide-react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -10,7 +11,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Loader2 } from "lucide-react";
 
 interface ConfirmQueueActionDialogProps {
 	isOpen: boolean;

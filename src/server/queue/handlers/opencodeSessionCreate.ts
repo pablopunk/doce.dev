@@ -1,12 +1,12 @@
 import { logger } from "@/server/logger";
+import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	getProjectByIdIncludeDeleted,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
-import { createOpencodeClient } from "@/server/opencode/client";
+import { enqueueOpencodeSessionInit } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { enqueueOpencodeSessionInit } from "../enqueue";
 
 export async function handleOpencodeSessionCreate(
 	ctx: QueueJobContext,

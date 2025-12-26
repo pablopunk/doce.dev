@@ -1,10 +1,10 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { logger } from "@/server/logger";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
-import { logger } from "@/server/logger";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

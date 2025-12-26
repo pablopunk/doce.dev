@@ -1,10 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ExternalLink, Trash2, Loader2 } from "lucide-react";
-import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { useState } from "react";
 import { actions } from "astro:actions";
+import { ExternalLink, Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Project } from "@/server/db/schema";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
 interface ProjectCardProps {
 	project: Project;

@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { FileTree } from "./FileTree";
-import { ReadOnlyEditor } from "./ReadOnlyEditor";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { FileTree } from "./FileTree";
+import { ReadOnlyEditor } from "./ReadOnlyEditor";
 
 interface FileTreeNode {
 	name: string;

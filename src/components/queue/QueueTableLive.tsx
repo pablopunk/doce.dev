@@ -1,25 +1,25 @@
+import {
+	AlertCircle,
+	CheckCircle2,
+	Clock,
+	Loader,
+	Play,
+	RotateCcw,
+	StopCircle,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import type { QueueJob } from "@/server/db/schema";
-import { QueuePlayerControl } from "./QueuePlayerControl";
-import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
-import { Pagination } from "./Pagination";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
-	TooltipTrigger,
 	TooltipContent,
+	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-	Play,
-	X,
-	RotateCcw,
-	AlertCircle,
-	Trash2,
-	CheckCircle2,
-	Loader,
-	Clock,
-	StopCircle,
-} from "lucide-react";
+import type { QueueJob } from "@/server/db/schema";
+import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
+import { Pagination } from "./Pagination";
+import { QueuePlayerControl } from "./QueuePlayerControl";
 
 interface PaginationData {
 	page: number;

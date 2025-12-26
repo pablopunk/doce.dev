@@ -1,6 +1,6 @@
+import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { projects } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
 
 /**
  * Convert a name to a URL-safe slug.

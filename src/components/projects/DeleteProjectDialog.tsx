@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import {
 	AlertDialog,
@@ -11,7 +12,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Loader2 } from "lucide-react";
 
 interface DeleteProjectDialogProps {
 	projectId: string;

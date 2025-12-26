@@ -1,6 +1,6 @@
-import { startQueueWorker, type QueueWorkerHandle } from "./queue.worker";
-import { getConcurrency } from "./queue.model";
 import { randomBytes } from "node:crypto";
+import { getConcurrency } from "./queue.model";
+import { type QueueWorkerHandle, startQueueWorker } from "./queue.worker";
 
 declare global {
 	// eslint-disable-next-line no-var

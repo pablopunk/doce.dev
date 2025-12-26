@@ -1,24 +1,24 @@
+import { Loader2, Paperclip, Send } from "lucide-react";
 import {
-	useState,
-	useRef,
-	useEffect,
-	type KeyboardEvent,
-	type FormEvent,
-	type DragEvent,
 	type ClipboardEvent,
+	type DragEvent,
+	type FormEvent,
+	type KeyboardEvent,
+	useEffect,
+	useRef,
+	useState,
 } from "react";
-import { Button } from "@/components/ui/button";
-import { Send, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { ModelSelector } from "@/components/dashboard/ModelSelector";
-import { ImagePreview } from "./ImagePreview";
+import { Button } from "@/components/ui/button";
 import {
-	type ImagePart,
 	createImagePartFromFile,
-	validateImageFile,
+	type ImagePart,
 	MAX_IMAGES_PER_MESSAGE,
 	VALID_IMAGE_MIME_TYPES,
+	validateImageFile,
 } from "@/types/message";
+import { ImagePreview } from "./ImagePreview";
 
 interface ChatInputProps {
 	onSend: (message: string, images?: ImagePart[]) => void;
