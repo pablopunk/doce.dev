@@ -11,10 +11,9 @@ COPY package.json pnpm-lock.yaml ./
 # Install all dependencies (needed for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY src ./src
-COPY public ./public 2>/dev/null || true
+# Copy required files for build
 COPY astro.config.mjs tsconfig.json ./
+COPY src ./src
 
 # Build the project
 RUN pnpm run build
