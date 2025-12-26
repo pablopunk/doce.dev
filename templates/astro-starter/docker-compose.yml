@@ -35,12 +35,12 @@ services:
       - .:/app
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
-      - "${PRODUCTION_PORT:-5000}:5000"
+      - "${PRODUCTION_PORT:-5000}:${PRODUCTION_PORT:-5000}"
     environment:
       - NODE_ENV=production
       - HOST=0.0.0.0
-      - PRODUCTION_PORT=5000
-    command: sh -c "pnpm install --prod && pnpm run build && pnpm run preview --port 5000 --host"
+      - PRODUCTION_PORT=${PRODUCTION_PORT:-5000}
+    command: sh -c "pnpm install --prod && pnpm run build && pnpm run preview --port $${PRODUCTION_PORT:-5000} --host"
     profiles:
       - production
     depends_on:

@@ -41,10 +41,29 @@ export async function handleProductionStart(
 
 		// Start production container using docker compose with the production profile
 		// This will run: pnpm install --prod && pnpm run build && pnpm run preview --host
+		logger.info(
+			{
+				projectId: project.id,
+				pathOnDisk: project.pathOnDisk,
+				productionPort,
+			},
+			"Calling composeUpProduction",
+		);
+
 		const result = await composeUpProduction(
 			project.id,
 			project.pathOnDisk,
 			productionPort,
+		);
+
+		logger.info(
+			{
+				projectId: project.id,
+				success: result.success,
+				exitCode: result.exitCode,
+				stderrSlice: result.stderr.slice(0, 200),
+			},
+			"composeUpProduction result",
 		);
 
 		if (!result.success) {
@@ -79,6 +98,10 @@ export async function handleProductionStart(
 			"Enqueued production.waitReady",
 		);
 	} catch (error) {
+		logger.error(
+			{ projectId: project.id, error },
+			"production.start handler failed",
+		);
 		throw error;
 	}
 }
