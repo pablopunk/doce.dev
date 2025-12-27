@@ -187,10 +187,13 @@ export function streamContainerLogs(
 		streamingProcesses.set(projectId, proc);
 
 		// Handle stdout and stderr (combined, no distinction)
-		const handleStream = (stream: NodeJS.ReadableStream | null) => {
-			if (!stream) return;
+		const setupStreamHandler = (
+			stream: NodeJS.ReadableStream | null,
+		): (() => void) => {
+			if (!stream) return () => {};
 			let buffer = "";
-			stream.on("data", async (chunk: Buffer) => {
+
+			const onData = async (chunk: Buffer) => {
 				buffer += chunk.toString();
 				const lines = buffer.split("\n");
 				// Keep the last incomplete line in the buffer
@@ -212,29 +215,49 @@ export function streamContainerLogs(
 						);
 					}
 				}
-			});
+			};
+
+			stream.on("data", onData);
+
+			// Return cleanup function to remove listener
+			return () => {
+				stream.removeListener("data", onData);
+			};
 		};
 
-		handleStream(proc.stdout);
-		handleStream(proc.stderr);
+		const cleanupStdout = setupStreamHandler(proc.stdout);
+		const cleanupStderr = setupStreamHandler(proc.stderr);
 
 		// Handle process exit
-		proc.on("exit", (code) => {
+		const onExit = (code: number | null) => {
+			cleanupStdout();
+			cleanupStderr();
 			streamingProcesses.delete(projectId);
 			logger.info(
 				{ projectId, exitCode: code },
 				"Container log streaming process exited",
 			);
-		});
+		};
 
 		// Handle process error
-		proc.on("error", (err) => {
+		const onError = (err: Error) => {
+			cleanupStdout();
+			cleanupStderr();
 			streamingProcesses.delete(projectId);
 			logger.warn(
 				{ error: err, projectId },
 				"Container log streaming process error",
 			);
-		});
+		};
+
+		proc.on("exit", onExit);
+		proc.on("error", onError);
+
+		// Store cleanup functions for manual cleanup (in stopStreamingContainerLogs)
+		(proc as any)._cleanup = () => {
+			cleanupStdout();
+			cleanupStderr();
+		};
 
 		logger.info({ projectId }, "Container log streaming started successfully");
 	} catch (err) {
@@ -252,6 +275,12 @@ export function stopStreamingContainerLogs(projectId: string): void {
 	const proc = streamingProcesses.get(projectId);
 	if (proc) {
 		try {
+			// Call cleanup functions to remove event listeners
+			const cleanup = (proc as any)._cleanup;
+			if (cleanup && typeof cleanup === "function") {
+				cleanup();
+			}
+
 			proc.kill("SIGTERM");
 			streamingProcesses.delete(projectId);
 			logger.debug({ projectId }, "Stopped container log streaming");
