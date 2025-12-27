@@ -170,8 +170,13 @@ export function ContainerStartupDisplay({
 			try {
 				const event = JSON.parse(e.data);
 				handleOpencodeEvent(event);
-			} catch {
-				// Ignore parse errors
+			} catch (error) {
+				// Log parsing errors for debugging, but don't crash
+				console.error(
+					"Failed to parse opencode event",
+					{ data: e.data, error },
+					error instanceof Error ? error.message : String(error),
+				);
 			}
 		});
 
@@ -282,8 +287,24 @@ export function ContainerStartupDisplay({
 				);
 				if (!response.ok) return;
 
-				const data = await response.json();
-				const sessions = (data.sessions || data || []) as unknown[];
+				let data: unknown;
+				try {
+					data = await response.json();
+				} catch (parseError) {
+					// Response is not valid JSON
+					console.error(
+						"Failed to parse session response",
+						parseError instanceof Error
+							? parseError.message
+							: String(parseError),
+					);
+					return;
+				}
+
+				// Type-safe extraction of sessions array
+				const sessions = Array.isArray(data)
+					? data
+					: (data as Record<string, unknown>)?.sessions || null;
 
 				// If we have at least one session, mark as loaded
 				if (Array.isArray(sessions) && sessions.length > 0) {
@@ -297,7 +318,10 @@ export function ContainerStartupDisplay({
 					setSessionsLoaded(true);
 				}
 			} catch (error) {
-				console.error("Failed to check session loading:", error);
+				console.error(
+					"Failed to check session loading",
+					error instanceof Error ? error.message : String(error),
+				);
 			}
 		};
 
