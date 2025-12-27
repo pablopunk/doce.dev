@@ -165,8 +165,8 @@ export function FilesTab({
 		return (
 			<div className="flex items-center justify-center h-full">
 				<div className="flex flex-col items-center gap-2 text-center p-4">
-					<AlertTriangle className="h-8 w-8 text-red-500" />
-					<p className="text-sm text-red-500 font-medium">Error</p>
+					<AlertTriangle className="h-8 w-8 text-status-error" />
+					<p className="text-sm text-status-error font-medium">Error</p>
 					<p className="text-xs text-muted-foreground max-w-xs">{error}</p>
 				</div>
 			</div>

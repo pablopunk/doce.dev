@@ -100,7 +100,7 @@ export function AssetUploadZone({
 			</div>
 
 			{error && (
-				<div className="flex gap-2 rounded-md bg-red-500/10 p-3 text-sm text-red-600">
+				<div className="flex gap-2 rounded-md bg-status-error-light p-3 text-sm text-status-error">
 					<AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
 					<p>{error}</p>
 				</div>

@@ -53,9 +53,9 @@ export function ToolCallDisplay({
 	}[toolCall.status];
 
 	const statusColor = {
-		running: "text-yellow-500",
-		success: "text-green-500",
-		error: "text-red-500",
+		running: "text-status-warning",
+		success: "text-status-success",
+		error: "text-status-error",
 	}[toolCall.status];
 
 	const formatOutput = (value: unknown): string => {
@@ -129,8 +129,10 @@ export function ToolCallDisplay({
 							)}
 							{toolCall.error !== undefined && (
 								<div>
-									<div className="font-medium text-red-500 mb-1">Error:</div>
-									<pre className="bg-destructive/20 p-2 rounded overflow-x-auto max-h-32 text-destructive">
+									<div className="font-medium text-status-error mb-1">
+										Error:
+									</div>
+									<pre className="bg-status-error-light p-2 rounded overflow-x-auto max-h-32 text-status-error">
 										{formatOutput(toolCall.error)}
 									</pre>
 								</div>

@@ -127,7 +127,7 @@ export function DeployButton({
 					{isBuilding && !isStopping && (
 						<>
 							<div className="flex items-center gap-2">
-								<Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+								<Loader2 className="h-4 w-4 animate-spin text-status-info" />
 								<span className="font-medium text-sm">
 									{isQueued ? "Queued" : "Building"}...
 								</span>
@@ -144,7 +144,7 @@ export function DeployButton({
 					{isDeployed && (
 						<>
 							<div className="flex items-center gap-2">
-								<CheckCircle2 className="h-4 w-4 text-green-500" />
+								<CheckCircle2 className="h-4 w-4 text-status-success" />
 								<span className="font-medium text-sm">Deployed</span>
 							</div>
 							{state.url ? (
@@ -156,7 +156,7 @@ export function DeployButton({
 										href={state.url}
 										target="_blank"
 										rel="noopener noreferrer"
-										className="block text-sm text-blue-500 hover:text-blue-600 hover:underline break-all"
+										className="block text-sm text-status-info hover:text-status-info hover:underline break-all"
 									>
 										{state.url}
 									</a>
@@ -179,13 +179,13 @@ export function DeployButton({
 					{isFailed && (
 						<>
 							<div className="flex items-center gap-2">
-								<AlertTriangle className="h-4 w-4 text-red-500" />
+								<AlertTriangle className="h-4 w-4 text-status-error" />
 								<span className="font-medium text-sm">Deployment Failed</span>
 							</div>
 							{state.error && (
 								<div className="space-y-2">
 									<p className="text-xs text-muted-foreground">Error:</p>
-									<p className="text-xs text-red-500 break-words">
+									<p className="text-xs text-status-error break-words">
 										{state.error.length > 200
 											? `${state.error.slice(0, 200)}...`
 											: state.error}

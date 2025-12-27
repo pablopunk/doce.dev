@@ -417,10 +417,10 @@ export function ContainerStartupDisplay({
 						// Error state
 						<div className="space-y-4">
 							<div className="flex justify-center">
-								<AlertTriangle className="h-12 w-12 text-red-500" />
+								<AlertTriangle className="h-12 w-12 text-status-error" />
 							</div>
-							<div className="p-4 bg-red-50 border border-red-200 rounded-lg text-left">
-								<p className="text-sm text-red-800 break-words">
+							<div className="p-4 bg-status-error-light border border-status-error rounded-lg text-left">
+								<p className="text-sm text-status-error break-words">
 									<span className="font-semibold">Error: </span>
 									{startupError}
 								</p>

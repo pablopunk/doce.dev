@@ -353,7 +353,7 @@ export function PreviewPanel({
 							)}
 							{state === "error" && (
 								<>
-									<AlertTriangle className="h-3 w-3 text-red-500" />
+									<AlertTriangle className="h-3 w-3 text-status-error" />
 									<span>{message || "Error"}</span>
 								</>
 							)}
@@ -448,9 +448,9 @@ export function PreviewPanel({
 								</div>
 							) : state === "error" ? (
 								<div className="flex flex-col items-center gap-4 text-center p-4">
-									<AlertTriangle className="h-8 w-8 text-red-500" />
+									<AlertTriangle className="h-8 w-8 text-status-error" />
 									<div>
-										<p className="font-medium text-red-500">Failed to start</p>
+										<p className="font-medium text-status-error">Failed to start</p>
 										<p className="text-sm text-muted-foreground mt-1 max-w-md">
 											{message || "Check the terminal for details."}
 										</p>

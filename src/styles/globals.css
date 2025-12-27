@@ -40,6 +40,14 @@
 	--sidebar-accent-foreground: oklch(0.985 0.002 247.839);
 	--sidebar-border: oklch(0.928 0.006 264.531);
 	--sidebar-ring: oklch(0.707 0.022 261.325);
+	/* Semantic status colors */
+	--status-error: oklch(0.577 0.245 27.325);
+	--status-error-light: oklch(0.967 0.016 17.39);
+	--status-error-dark: oklch(0.704 0.191 22.216);
+	--status-success: oklch(0.6 0.118 184.704);
+	--status-success-light: oklch(0.95 0.04 142.5);
+	--status-warning: oklch(0.788 0.189 70.08);
+	--status-info: oklch(0.59 0.159 253.376);
 }
 
 .dark {
@@ -76,6 +84,14 @@
 	--sidebar-accent-foreground: oklch(0.21 0.034 264.665);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.551 0.027 264.364);
+	/* Semantic status colors (dark mode) */
+	--status-error: oklch(0.704 0.191 22.216);
+	--status-error-light: oklch(0.42 0.15 27.325);
+	--status-error-dark: oklch(0.577 0.245 27.325);
+	--status-success: oklch(0.696 0.17 162.48);
+	--status-success-light: oklch(0.5 0.12 162.48);
+	--status-warning: oklch(0.645 0.246 16.439);
+	--status-info: oklch(0.488 0.243 264.376);
 }
 
 @theme inline {
@@ -113,6 +129,14 @@
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
+	/* Semantic status colors */
+	--color-status-error: var(--status-error);
+	--color-status-error-light: var(--status-error-light);
+	--color-status-error-dark: var(--status-error-dark);
+	--color-status-success: var(--status-success);
+	--color-status-success-light: var(--status-success-light);
+	--color-status-warning: var(--status-warning);
+	--color-status-info: var(--status-info);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -147,5 +171,38 @@
 
 	.animate-pulse-dot {
 		animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+
+	/* Semantic status color utilities */
+	.text-status-error {
+		@apply text-[var(--status-error)];
+	}
+
+	.text-status-success {
+		@apply text-[var(--status-success)];
+	}
+
+	.text-status-warning {
+		@apply text-[var(--status-warning)];
+	}
+
+	.text-status-info {
+		@apply text-[var(--status-info)];
+	}
+
+	.bg-status-error-light {
+		@apply bg-[var(--status-error-light)];
+	}
+
+	.bg-status-success-light {
+		@apply bg-[var(--status-success-light)];
+	}
+
+	.border-status-error {
+		@apply border-[var(--status-error)];
+	}
+
+	.border-status-error-light {
+		@apply border-[var(--status-error-light)];
 	}
 }

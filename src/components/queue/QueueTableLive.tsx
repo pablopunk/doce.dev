@@ -410,7 +410,7 @@ export function QueueTableLive({
 										<td className="py-2 px-2 font-mono text-xs">
 											<a
 												href={`/queue/${job.id}`}
-												className="hover:underline text-blue-500"
+												className="hover:underline text-status-info"
 											>
 												{job.id.slice(0, 8)}
 											</a>

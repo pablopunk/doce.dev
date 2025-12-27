@@ -183,8 +183,8 @@ export function TerminalDock({
 						lines.map((line, i) => {
 							const isError = line.streamType === "err";
 							const colorClass = isError
-								? "text-destructive"
-								: "text-green-400";
+								? "text-status-error"
+								: "text-status-success";
 							return (
 								<div
 									key={i}
