@@ -25,6 +25,7 @@ Manages user authentication sessions.
 | userId | Foreign key to users |
 | tokenHash | Hashed session token |
 | expiresAt | Session expiration time |
+| createdAt | Session creation timestamp |
 
 ### userSettings
 
@@ -54,7 +55,22 @@ Core table storing project metadata and state.
 | pathOnDisk | Filesystem path to project |
 | deletedAt | Soft delete timestamp |
 
-See [Project Lifecycle](./project-lifecycle.md) for status values and [Project Creation Flow](./project-creation-flow.md) for prompt tracking columns.
+#### Model Tracking Fields
+| Column | Description |
+|--------|-------------|
+| currentModelProviderID | Selected LLM provider ID (e.g., "openai", "anthropic") |
+| currentModelID | Selected model ID within provider (e.g., "gpt-4", "claude-3-opus") |
+
+#### Production Deployment Fields
+| Column | Description |
+|--------|-------------|
+| productionPort | Allocated port for production server (null if stopped) |
+| productionUrl | Full URL to running production (null if stopped) |
+| productionStatus | Deployment state: stopped, queued, building, running, failed |
+| productionStartedAt | Timestamp when production became ready (null if not running) |
+| productionError | Error message if build/startup failed (null if successful) |
+
+See [Project Lifecycle](./project-lifecycle.md) for status values, [Project Creation Flow](./project-creation-flow.md) for prompt tracking, and [Production Deployment](./production-deployment.md) for deployment details.
 
 ### queueJobs
 

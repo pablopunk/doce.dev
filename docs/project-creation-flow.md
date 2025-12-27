@@ -42,14 +42,23 @@ Projects are created through an async queue pipeline. The key optimization is th
 
 ## Why This Architecture
 
-### Pre-Initialized Template
+### Parallel Session Initialization (Optimization)
 
-- `session.init()` is called ONCE during template preparation (manual process)
-- This call generates `AGENTS.md` which gets committed to the template
-- Projects just copy the template + update `opencode.json` with their chosen model
-- No LLM call needed per project for initialization
+- `session.init()` is called **per-project** after session creation  
+- This call is made **asynchronously (fire-and-forget)** and does NOT block user prompt sending
+- The parallel execution means init and prompt events arrive concurrently on the event stream
+- Init events are processed before prompt events due to OpenCode SDK event ordering
 
-**Result**: 50-100% faster setup (skips 30-60 second init LLM call)
+**Flow**:
+```
+sessionCreate → [async] init() fires → event stream receives events
+         ↓
+    prompt() fires immediately (doesn't wait)
+         ↓
+    Both init and prompt events stream concurrently
+```
+
+**Result**: Faster perceived response time (user sees first token from init/reasoning while init completes in parallel)
 
 ### Session Lifecycle
 
@@ -102,26 +111,24 @@ docker.composeUp → services starting
        ↓
 docker.waitReady → polling health checks
        ↓
-sessionCreate → session.create() [no init call]
+sessionCreate → session.create() + [async] init() fires
        ↓
-sendUserPrompt → prompt_async() [sends user's request]
+sendUserPrompt → prompt_async() [sends user's request, doesn't wait for init]
        ↓
-SSE idle event detected
+Both init and prompt events arrive concurrently on event stream
+       ↓
+SSE idle event detected (from prompt)
        ↓
 userPromptCompleted = true, setup.complete sent
        ↓
 Chat ready (~15-60s total, depending on LLM response time)
 ```
 
-## Template Pre-Initialization
+**Key Difference**: Init no longer blocks prompt - they execute in parallel for faster setup.
 
-The template is manually initialized once:
+## Template Notes
 
-1. Start template with `docker compose up`
-2. Call `session.create()`
-3. Call `session.init()` with default model + DOCE.md
-4. Wait for idle event (AGENTS.md generated)
-5. Snapshot project directory including AGENTS.md
-6. Commit to repo
-
-All future projects copy this pre-initialized template.
+- Templates are copied for each project as-is
+- Per-project sessions initialize with OpenCode SDK's session.init() call
+- AGENTS.md is generated dynamically during session.init() (not pre-computed)
+- Each project gets its own AGENTS.md based on the project template and selected model

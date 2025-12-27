@@ -20,12 +20,8 @@ const REAPER_INTERVAL_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
 const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop containers if no heartbeat received
 
-export interface ViewerRecord {
-	viewerId: string;
-	lastSeenAt: number;
-}
-
-export interface ProjectPresence {
+// Internal only - not exported
+interface ProjectPresence {
 	projectId: string;
 	viewers: Map<string, number>; // viewerId -> lastSeenAt
 	lastHeartbeatAt?: number; // When we last received a heartbeat (for keep-alive timeout)
@@ -62,28 +58,53 @@ export interface PresenceResponse {
 // In-memory presence state
 const presenceMap = new Map<string, ProjectPresence>();
 
-// Per-project mutex to prevent concurrent lifecycle operations
-const projectLocks = new Map<string, Promise<void>>();
+// Per-project mutex using queue-based locking to prevent race conditions
+interface LockRequest {
+	resolve: () => void;
+}
+const projectLockQueues = new Map<string, LockRequest[]>();
+const projectLockHolders = new Map<string, number>(); // version counter per project
 
 /**
  * Acquire a lock for a project. Returns a release function.
+ * Uses a queue-based approach to ensure strictly sequential access.
  */
 async function acquireLock(projectId: string): Promise<() => void> {
-	// Wait for any existing lock
-	while (projectLocks.has(projectId)) {
-		await projectLocks.get(projectId);
-	}
-
-	let releaseFn: () => void;
+	let resolveLock: (() => void) | undefined;
 	const lockPromise = new Promise<void>((resolve) => {
-		releaseFn = resolve;
+		resolveLock = resolve;
 	});
 
-	projectLocks.set(projectId, lockPromise);
+	const queue = projectLockQueues.get(projectId) ?? [];
+	projectLockQueues.set(projectId, queue);
 
+	// Add ourselves to the queue
+	queue.push({ resolve: resolveLock! });
+
+	// If we're first in queue, acquire immediately
+	if (queue.length === 1) {
+		resolveLock!();
+	} else {
+		// Otherwise, wait for our turn
+		await lockPromise;
+	}
+
+	// Track that we hold the lock
+	const lockVersion = (projectLockHolders.get(projectId) ?? 0) + 1;
+	projectLockHolders.set(projectId, lockVersion);
+
+	// Return release function
 	return () => {
-		projectLocks.delete(projectId);
-		releaseFn!();
+		// Remove ourselves from queue
+		queue.shift();
+
+		// Wake up next waiter if any
+		if (queue.length > 0) {
+			queue[0]!.resolve();
+		} else {
+			// Clean up empty queue
+			projectLockQueues.delete(projectId);
+		}
 	};
 }
 

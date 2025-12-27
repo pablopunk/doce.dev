@@ -2,20 +2,49 @@ import {
 	createOpencodeClient as createClient,
 	type OpencodeClient,
 } from "@opencode-ai/sdk/v2/client";
+
 import { logger } from "@/server/logger";
 
+// Cache clients by port to avoid recreating connections
+const clientCache = new Map<number, OpencodeClient>();
+
 /**
- * Create an opencode client for a project.
+ * Get or create an opencode client for a project port.
+ * Reuses existing client connections to avoid overhead.
  * Uses the v2 SDK client which includes all the latest API methods.
  */
+export function getOpencodeClient(opencodePort: number): OpencodeClient {
+	if (!clientCache.has(opencodePort)) {
+		const baseUrl = `http://127.0.0.1:${opencodePort}`;
+		logger.debug({ baseUrl }, "Creating and caching opencode client");
+
+		clientCache.set(
+			opencodePort,
+			createClient({
+				baseUrl,
+			}),
+		);
+	}
+
+	return clientCache.get(opencodePort)!;
+}
+
+/**
+ * Legacy function name - use getOpencodeClient instead.
+ * @deprecated Use getOpencodeClient() for cached clients
+ */
 export function createOpencodeClient(opencodePort: number): OpencodeClient {
-	const baseUrl = `http://127.0.0.1:${opencodePort}`;
+	return getOpencodeClient(opencodePort);
+}
 
-	logger.debug({ baseUrl }, "Creating opencode client");
-
-	return createClient({
-		baseUrl,
-	});
+/**
+ * Clear cached client for a port (typically called during project cleanup).
+ */
+export function clearOpencodeClientCache(opencodePort: number): void {
+	if (clientCache.has(opencodePort)) {
+		logger.debug({ opencodePort }, "Clearing opencode client cache");
+		clientCache.delete(opencodePort);
+	}
 }
 
 /**

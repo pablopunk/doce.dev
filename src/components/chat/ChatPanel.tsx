@@ -336,31 +336,59 @@ export function ChatPanel({
 	useEffect(() => {
 		if (!opencodeReady) return;
 
+		const controller = new AbortController();
 		const eventSource = new EventSource(
 			`/api/projects/${projectId}/opencode/event`,
 		);
 		eventSourceRef.current = eventSource;
 
-		eventSource.addEventListener("chat.event", (e) => {
+		const handleChatEvent = (e: Event) => {
+			// Prevent handler execution after abort
+			if (controller.signal.aborted) return;
+
 			try {
-				const event = JSON.parse(e.data);
+				const messageEvent = e as MessageEvent<string>;
+				const event = JSON.parse(messageEvent.data);
 				handleEvent(event);
 			} catch {
 				// Ignore parse errors
 			}
-		});
+		};
+
+		eventSource.addEventListener("chat.event", handleChatEvent);
 
 		eventSource.onerror = () => {
-			// Reconnect after a delay
+			// Prevent further processing if component is unmounting
+			if (controller.signal.aborted) {
+				eventSource.close();
+				return;
+			}
+
+			// Close current connection
 			eventSource.close();
-			setTimeout(() => {
-				if (eventSourceRef.current === eventSource) {
+			eventSourceRef.current = null;
+
+			// Reconnect after a delay, but only if not aborted
+			const timeoutId = setTimeout(() => {
+				if (!controller.signal.aborted && eventSourceRef.current === null) {
 					// Will be handled by the useEffect cleanup/re-run
 				}
 			}, 2000);
+
+			// Cleanup timeout if abort signal fires
+			controller.signal.addEventListener("abort", () => {
+				clearTimeout(timeoutId);
+			});
 		};
 
 		return () => {
+			// Signal abort to prevent all async operations
+			controller.abort();
+
+			// Manually remove event listener
+			eventSource.removeEventListener("chat.event", handleChatEvent);
+
+			// Close connection
 			eventSource.close();
 			eventSourceRef.current = null;
 		};

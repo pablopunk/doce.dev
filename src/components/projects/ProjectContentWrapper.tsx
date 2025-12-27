@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
@@ -75,11 +77,13 @@ export function ProjectContentWrapper({
 		<div className="flex-1 flex flex-col overflow-hidden relative">
 			{/* Container restart display - shown until startup is complete */}
 			{showStartupDisplay && (
-				<ContainerStartupDisplay
-					projectId={projectId}
-					reason="restart"
-					onComplete={() => setShowStartupDisplay(false)}
-				/>
+				<ErrorBoundary componentName="ContainerStartupDisplay">
+					<ContainerStartupDisplay
+						projectId={projectId}
+						reason="restart"
+						onComplete={() => setShowStartupDisplay(false)}
+					/>
+				</ErrorBoundary>
 			)}
 
 			{/* Chat and preview panels - shown after startup or if already ready */}
@@ -94,11 +98,13 @@ export function ProjectContentWrapper({
 						className="flex flex-col h-full border-r overflow-hidden"
 						style={{ width: `${leftPercent}%` }}
 					>
-						<ChatPanel
-							projectId={projectId}
-							models={models}
-							onOpenFile={setFileToOpen}
-						/>
+						<ErrorBoundary componentName="ChatPanel">
+							<ChatPanel
+								projectId={projectId}
+								models={models}
+								onOpenFile={setFileToOpen}
+							/>
+						</ErrorBoundary>
 					</div>
 
 					{/* Draggable separator */}
@@ -109,11 +115,13 @@ export function ProjectContentWrapper({
 						className="flex flex-col h-full overflow-hidden"
 						style={{ width: `${rightPercent}%` }}
 					>
-						<PreviewPanel
-							projectId={projectId}
-							fileToOpen={fileToOpen}
-							onFileOpened={() => setFileToOpen(null)}
-						/>
+						<ErrorBoundary componentName="PreviewPanel">
+							<PreviewPanel
+								projectId={projectId}
+								fileToOpen={fileToOpen}
+								onFileOpened={() => setFileToOpen(null)}
+							/>
+						</ErrorBoundary>
 					</div>
 
 					{/* Transparent overlay to capture mouse events during drag */}

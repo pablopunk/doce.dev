@@ -1,3 +1,4 @@
+import { checkHttpServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { updateProductionStatus } from "@/server/productions/productions.model";
@@ -8,27 +9,6 @@ import { parsePayload } from "../types";
 const WAIT_TIMEOUT_MS = 300_000; // 5 minutes max wait
 const POLL_DELAY_MS = 1_000; // 1 second between polls
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
-
-async function checkProductionReady(port: number): Promise<boolean> {
-	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(
-			() => controller.abort(),
-			HEALTH_CHECK_TIMEOUT_MS,
-		);
-
-		const response = await fetch(`http://127.0.0.1:${port}`, {
-			signal: controller.signal,
-		});
-
-		clearTimeout(timeout);
-
-		// Any HTTP response means the server is up
-		return response.status >= 100 && response.status < 600;
-	} catch {
-		return false;
-	}
-}
 
 export async function handleProductionWaitReady(
 	ctx: QueueJobContext,
@@ -83,7 +63,10 @@ export async function handleProductionWaitReady(
 			"Checking if production server is ready",
 		);
 
-		const productionReady = await checkProductionReady(payload.productionPort);
+		const productionReady = await checkHttpServerReady(
+			payload.productionPort,
+			HEALTH_CHECK_TIMEOUT_MS,
+		);
 
 		logger.info(
 			{

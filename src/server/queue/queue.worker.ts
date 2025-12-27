@@ -93,6 +93,8 @@ export function startQueueWorker(
 ): QueueWorkerHandle {
 	const abort = new AbortController();
 	const inFlight = new Set<Promise<void>>();
+	let restartCount = 0;
+	const MAX_RESTARTS = 3;
 
 	const stop = async () => {
 		abort.abort();
@@ -127,8 +129,51 @@ export function startQueueWorker(
 		logger.info({ workerId }, "Queue worker stopped");
 	};
 
-	loop().catch((error) => {
-		logger.error({ error, workerId }, "Queue worker loop crashed");
+	const startLoop = async () => {
+		try {
+			await loop();
+		} catch (error) {
+			if (abort.signal.aborted) {
+				return; // Worker was stopped intentionally
+			}
+
+			restartCount++;
+			const exponentialDelay = Math.min(5000, 500 * 2 ** (restartCount - 1));
+
+			logger.error(
+				{
+					error,
+					workerId,
+					restartCount,
+					nextRetryMs: exponentialDelay,
+					maxRestarts: MAX_RESTARTS,
+				},
+				`Queue worker crashed (attempt ${restartCount}/${MAX_RESTARTS})`,
+			);
+
+			if (restartCount >= MAX_RESTARTS) {
+				logger.error(
+					{ workerId, restartCount, maxRestarts: MAX_RESTARTS },
+					"Queue worker exceeded max restart attempts - alerting",
+				);
+				// TODO: Send alert to monitoring system (e.g., Sentry, PagerDuty)
+				return;
+			}
+
+			// Wait before restarting
+			await sleep(exponentialDelay);
+
+			// Restart the loop
+			await startLoop();
+		}
+	};
+
+	// Start the loop with restart logic
+	startLoop().catch((error) => {
+		logger.error(
+			{ error, workerId },
+			"Queue worker loop fatal error - unable to recover",
+		);
 	});
 
 	return { stop };
