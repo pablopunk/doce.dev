@@ -130,7 +130,7 @@ export function ToolCallDisplay({
 							{toolCall.error !== undefined && (
 								<div>
 									<div className="font-medium text-red-500 mb-1">Error:</div>
-									<pre className="bg-red-50 dark:bg-red-950/20 p-2 rounded overflow-x-auto max-h-32 text-red-600">
+									<pre className="bg-destructive/20 p-2 rounded overflow-x-auto max-h-32 text-destructive">
 										{formatOutput(toolCall.error)}
 									</pre>
 								</div>

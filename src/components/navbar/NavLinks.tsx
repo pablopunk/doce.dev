@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const navLinkClasses = cn(
 	"px-3 py-1.5 rounded-md text-xs/relaxed font-medium",
-	"hover:bg-muted hover:text-foreground dark:hover:bg-muted/50",
+	"hover:bg-muted hover:text-foreground",
 	"transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
 	"flex items-center gap-1.5",
 );

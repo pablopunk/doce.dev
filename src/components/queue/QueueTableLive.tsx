@@ -1,6 +1,6 @@
 import {
 	AlertCircle,
-	CheckCircle2,
+	Check,
 	Clock,
 	Loader,
 	Play,
@@ -129,19 +129,18 @@ export function QueueTableLive({
 	}, [pagination.page, pagination.totalCount, filters]);
 
 	const getStateIcon = (state: QueueJob["state"]) => {
-		const iconProps = { className: "w-3 h-3" };
 		switch (state) {
 			case "succeeded":
-				return <CheckCircle2 {...iconProps} />;
+				return <Check className="w-3 h-3 text-success" />;
 			case "failed":
-				return <X {...iconProps} />;
+				return <X className="w-3 h-3 text-destructive" />;
 			case "running":
-				return <Loader {...iconProps} className="w-3 h-3 animate-spin" />;
+				return <Loader className="w-3 h-3 animate-spin" />;
 			case "cancelled":
-				return <AlertCircle {...iconProps} />;
+				return <AlertCircle className="w-3 h-3" />;
 			case "queued":
 			default:
-				return <Clock {...iconProps} />;
+				return <Clock className="w-3 h-3" />;
 		}
 	};
 

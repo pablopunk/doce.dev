@@ -82,7 +82,7 @@ export function QueuePlayerControl({
 					aria-valuemax={20}
 					aria-valuenow={localConcurrency}
 					aria-valuetext={`${localConcurrency} job${localConcurrency !== 1 ? "s" : ""} out of 20`}
-					className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
+					className="flex-1 h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring"
 				/>
 				<span className="text-sm text-muted-foreground whitespace-nowrap">
 					{localConcurrency} job{localConcurrency !== 1 ? "s" : ""} / 20

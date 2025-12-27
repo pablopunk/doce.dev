@@ -16,7 +16,7 @@ export const MobileMenu = () => {
 			<DropdownMenu>
 				<DropdownMenuTrigger
 					aria-label="Open menu"
-					className="p-2 rounded-lg hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600"
+					className="p-2 rounded-lg hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring"
 				>
 					<Menu className="h-5 w-5" />
 				</DropdownMenuTrigger>
