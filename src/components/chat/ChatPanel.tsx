@@ -425,17 +425,28 @@ export function ChatPanel({
 						// Find or create text part
 						const textPart = msg.parts.find((p) => p.type === "text") as any;
 
+						// Create new parts array instead of mutating
+						let updatedParts: MessagePart[];
 						if (textPart && deltaText) {
-							// Append delta to existing text part
-							textPart.text += deltaText;
+							// Append delta to existing text part (create new part object)
+							updatedParts = msg.parts.map((part) =>
+								part === textPart && part.type === "text"
+									? { ...part, text: part.text + deltaText }
+									: part,
+							);
 						} else if (deltaText) {
 							// Create new text part
-							msg.parts.push(createTextPart(deltaText, partId));
+							updatedParts = [...msg.parts, createTextPart(deltaText, partId)];
+						} else {
+							updatedParts = msg.parts;
 						}
 
 						return prev.map((item) =>
 							item.id === messageId
-								? { ...item, data: { ...msg, isStreaming: true } }
+								? {
+										...item,
+										data: { ...msg, parts: updatedParts, isStreaming: true },
+									}
 								: item,
 						);
 					}
@@ -480,17 +491,26 @@ export function ChatPanel({
 						const msg = existing.data as Message;
 						const textPart = msg.parts[msg.parts.length - 1];
 
+						// Create new parts array instead of mutating
+						let updatedParts: MessagePart[];
 						if (textPart && textPart.type === "text") {
-							// Append to existing text part
-							(textPart as any).text += deltaText;
+							// Append to existing text part (create new part object)
+							updatedParts = msg.parts.map((part, index) =>
+								index === msg.parts.length - 1 && part.type === "text"
+									? { ...part, text: part.text + deltaText }
+									: part,
+							);
 						} else {
 							// Create new text part
-							msg.parts.push(createTextPart(deltaText));
+							updatedParts = [...msg.parts, createTextPart(deltaText)];
 						}
 
 						return prev.map((item) =>
 							item.id === messageId
-								? { ...item, data: { ...msg, isStreaming: true } }
+								? {
+										...item,
+										data: { ...msg, parts: updatedParts, isStreaming: true },
+									}
 								: item,
 						);
 					}
