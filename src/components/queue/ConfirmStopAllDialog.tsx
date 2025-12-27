@@ -45,7 +45,7 @@ export function ConfirmStopAllDialog({
 					</AlertDialogTitle>
 					<AlertDialogDescription>
 						Are you sure you want to stop all projects? This will terminate all
-						running containers.
+						running development and production containers.
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 

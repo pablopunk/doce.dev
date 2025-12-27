@@ -680,14 +680,18 @@ export const server = {
 				// Get all projects for the user
 				const userProjects = await getProjectsByUserId(user.id);
 
-				// Enqueue docker.stop for each project
+				// Enqueue docker.stop and production.stop for each project
 				const jobs = [];
 				for (const project of userProjects) {
-					const job = await enqueueDockerStop({
+					const dockerStopJob = await enqueueDockerStop({
 						projectId: project.id,
 						reason: "user",
 					});
-					jobs.push(job);
+					jobs.push(dockerStopJob);
+
+					// Also stop production containers if they exist
+					const prodStopJob = await enqueueProductionStop(project.id);
+					jobs.push(prodStopJob);
 				}
 
 				return { success: true, jobsEnqueued: jobs.length };
