@@ -62,10 +62,9 @@ The OpenCode server emits typed SDK events during chat sessions. The normalizati
 ## Session Lifecycle
 
 1. **Create**: `client.session.create()` - Create a new session
-2. **Init**: `client.session.init({ sessionID, modelID, providerID, messageID })` - Initialize with model config (triggers AGENTS.md creation)
-3. **Prompt**: `client.session.promptAsync({ sessionID, parts })` - Send user messages
-4. **Stream**: Receive SSE events via `/event` endpoint
-5. **Idle**: Session goes idle when AI finishes responding
+2. **Prompt**: `client.session.promptAsync({ sessionID, model, parts })` - Send user messages with model config
+3. **Stream**: Receive SSE events via `/event` endpoint
+4. **Idle**: Session goes idle when AI finishes responding
 
 ## Types
 

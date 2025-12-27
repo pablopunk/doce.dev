@@ -39,6 +39,8 @@ export const GET: APIRoute = async ({ params, locals }) => {
 				hash: v.hash,
 				isActive: v.isActive,
 				createdAt: v.mtimeIso,
+				// Include URL for active version only (it's the current URL)
+				url: v.isActive ? project.productionUrl : undefined,
 			})),
 		}),
 		{

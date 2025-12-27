@@ -6,6 +6,7 @@ import { DeployButton } from "@/components/preview/DeployButton";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
 
 interface PresenceResponse {
 	projectId: string;
@@ -75,10 +76,16 @@ export function PreviewPanel({
 	);
 	const [productionStatus, setProductionStatus] =
 		useState<ProductionStatus | null>(null);
+	const [productionVersions, setProductionVersions] = useState<
+		ProductionVersion[]
+	>([]);
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const productionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const productionHistoryPollRef = useRef<ReturnType<
+		typeof setInterval
+	> | null>(null);
 
 	// Generate viewer ID on mount
 	useEffect(() => {
@@ -247,6 +254,22 @@ export function PreviewPanel({
 			return null;
 		}, [projectId]);
 
+	const pollProductionHistory = useCallback(async () => {
+		try {
+			const response = await fetch(
+				`/api/projects/${projectId}/production-history`,
+			);
+			if (response.ok) {
+				const data = (await response.json()) as {
+					versions: ProductionVersion[];
+				};
+				setProductionVersions(data.versions);
+			}
+		} catch (error) {
+			console.error("Failed to fetch production history:", error);
+		}
+	}, [projectId]);
+
 	// Adaptive polling for production status
 	useEffect(() => {
 		let mounted = true;
@@ -288,6 +311,30 @@ export function PreviewPanel({
 		};
 	}, [pollProductionStatus]);
 
+	// Poll production history when deployed
+	useEffect(() => {
+		let mounted = true;
+
+		const poll = async () => {
+			if (!mounted) return;
+			await pollProductionHistory();
+			if (mounted) {
+				productionHistoryPollRef.current = setTimeout(poll, 5_000); // Poll every 5s
+			}
+		};
+
+		if (productionStatus?.status === "running") {
+			poll();
+		}
+
+		return () => {
+			mounted = false;
+			if (productionHistoryPollRef.current) {
+				clearTimeout(productionHistoryPollRef.current);
+			}
+		};
+	}, [productionStatus?.status, pollProductionHistory]);
+
 	const handleDeploy = async () => {
 		try {
 			const response = await fetch(`/api/projects/${projectId}/deploy`, {
@@ -322,6 +369,30 @@ export function PreviewPanel({
 			await pollProductionStatus();
 		} catch (error) {
 			console.error("Stop production failed:", error);
+		}
+	};
+
+	const handleRollback = async (hash: string) => {
+		try {
+			const response = await fetch(
+				`/api/projects/${projectId}/rollback-production`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ toHash: hash }),
+				},
+			);
+			if (!response.ok) {
+				const data = await response.json();
+				console.error("Rollback failed:", data.error);
+				throw new Error(data.error ?? "Rollback failed");
+			}
+			// Polling will pick up the state change
+			await pollProductionStatus();
+			await pollProductionHistory();
+		} catch (error) {
+			console.error("Rollback failed:", error);
+			throw error;
 		}
 	};
 
@@ -420,6 +491,8 @@ export function PreviewPanel({
 							previewReady={state === "ready"}
 							onDeploy={handleDeploy}
 							onStop={handleStop}
+							versions={productionVersions}
+							onRollback={handleRollback}
 						/>
 					)}
 				</div>

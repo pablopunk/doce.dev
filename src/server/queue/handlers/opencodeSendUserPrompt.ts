@@ -13,7 +13,6 @@ import { type ImageAttachment, parsePayload } from "../types";
 
 /**
  * Handler for sending the user's actual project prompt.
- * This is called after session.init completes (which triggers AGENTS.md generation).
  *
  * Flow:
  * 1. Send the user's prompt via prompt_async

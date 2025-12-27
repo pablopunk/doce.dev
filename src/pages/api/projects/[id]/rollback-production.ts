@@ -4,6 +4,7 @@ import {
 	composeDownProduction,
 	composeUpProduction,
 } from "@/server/docker/compose";
+import { allocatePort } from "@/server/ports/allocate";
 import { logger } from "@/server/logger";
 import {
 	cleanupOldProductionVersions,
@@ -112,13 +113,20 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
 			throw error;
 		}
 
-		// Start target version
+		// Allocate a NEW port for the rolled back version
+		const newPort = await allocatePort();
+		logger.info(
+			{ projectId, targetHash, newPort },
+			"Allocated port for rollback",
+		);
+
+		// Start target version with new port
 		try {
 			const targetPath = getProductionPath(projectId, targetHash);
 			const result = await composeUpProduction(
 				projectId,
 				targetPath,
-				project.productionPort || 3001, // Fallback port if not set
+				newPort,
 				targetHash,
 			);
 
@@ -126,7 +134,7 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
 				throw new Error(`Failed to start target version: ${result.stderr}`);
 			}
 
-			logger.debug({ projectId, targetHash }, "Started target production");
+			logger.debug({ projectId, targetHash, newPort }, "Started target production");
 		} catch (error) {
 			logger.error(
 				{ projectId, targetHash, error },
@@ -135,14 +143,17 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
 			throw error;
 		}
 
-		// Update database
+		// Update database with new port and URL
+		const newUrl = `http://localhost:${newPort}`;
 		await updateProductionStatus(projectId, "running", {
 			productionHash: targetHash,
+			productionPort: newPort,
+			productionUrl: newUrl,
 			productionStartedAt: new Date(),
 		});
 
 		logger.info(
-			{ projectId, from: currentHash, to: targetHash },
+			{ projectId, from: currentHash, to: targetHash, port: newPort },
 			"Production rollback completed",
 		);
 
@@ -155,6 +166,8 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
 			JSON.stringify({
 				success: true,
 				hash: targetHash,
+				url: newUrl,
+				port: newPort,
 				message: `Rolled back to version ${targetHash}`,
 			}),
 			{

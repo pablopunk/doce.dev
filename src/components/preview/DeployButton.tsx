@@ -5,10 +5,13 @@ import {
 	Rocket,
 	RotateCcw,
 	Square,
+	RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ActiveProductionJob } from "@/server/productions/productions.model";
+import type { ProductionVersion } from "./DeploymentVersionHistory";
+import { DeploymentVersionHistory } from "./DeploymentVersionHistory";
 
 interface DeployButtonState {
 	status: "queued" | "building" | "running" | "failed" | "stopped";
@@ -22,6 +25,8 @@ interface DeployButtonProps {
 	previewReady: boolean;
 	onDeploy: () => void;
 	onStop: () => void;
+	versions?: ProductionVersion[];
+	onRollback?: (hash: string) => Promise<void>;
 }
 
 export function DeployButton({
@@ -29,11 +34,14 @@ export function DeployButton({
 	previewReady,
 	onDeploy,
 	onStop,
+	versions,
+	onRollback,
 }: DeployButtonProps) {
 	const [isHovering, setIsHovering] = useState(false);
 	const [hoverTimeoutId, setHoverTimeoutId] = useState<ReturnType<
 		typeof setTimeout
 	> | null>(null);
+	const [isRollingBack, setIsRollingBack] = useState(false);
 
 	// Derive button appearance from queue state
 	const isQueued = state.activeJob?.state === "queued";
@@ -123,7 +131,7 @@ export function DeployButton({
 						</>
 					)}
 
-					{/* Building/Queued State */}
+					{/* Building/Queued State - show current URL while building */}
 					{isBuilding && !isStopping && (
 						<>
 							<div className="flex items-center gap-2">
@@ -137,6 +145,27 @@ export function DeployButton({
 									? "Waiting to start deployment"
 									: "Compiling code and starting production container"}
 							</p>
+
+							{/* Show current production URL while building */}
+							{state.url && (
+								<div className="space-y-2 border-t border-border pt-3 mt-3">
+									<p className="text-xs text-muted-foreground">
+										Current Production URL:
+									</p>
+									<a
+										href={state.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="block text-sm text-status-info hover:text-status-info hover:underline break-all"
+									>
+										{state.url}
+									</a>
+									<p className="text-xs text-muted-foreground mt-2">
+										This deployment will replace the current one once building
+										completes.
+									</p>
+								</div>
+							)}
 						</>
 					)}
 
@@ -147,31 +176,44 @@ export function DeployButton({
 								<CheckCircle2 className="h-4 w-4 text-status-success" />
 								<span className="font-medium text-sm">Deployed</span>
 							</div>
-							{state.url ? (
-								<div className="space-y-2">
-									<p className="text-xs text-muted-foreground">
-										Production URL:
-									</p>
-									<a
-										href={state.url}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="block text-sm text-status-info hover:text-status-info hover:underline break-all"
-									>
-										{state.url}
-									</a>
-									<Button
-										size="sm"
-										variant="outline"
-										className="w-full gap-2 mt-2"
-										onClick={onStop}
-										disabled={!previewReady}
-									>
-										<Square className="h-3 w-3" />
-										Stop
-									</Button>
-								</div>
-							) : null}
+							<div className="flex gap-2 mt-3">
+								<Button
+									size="sm"
+									variant="outline"
+									className="flex-1 gap-2"
+									onClick={onDeploy}
+									disabled={isRollingBack || !previewReady}
+								>
+									<RefreshCw className="h-3 w-3" />
+									Update
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									className="flex-1 gap-2"
+									onClick={onStop}
+									disabled={isRollingBack || !previewReady}
+								>
+									<Square className="h-3 w-3" />
+									Stop
+								</Button>
+							</div>
+
+							{/* Deployment Version History */}
+							{versions && onRollback && (
+								<DeploymentVersionHistory
+									versions={versions}
+									onRollback={async (hash) => {
+										setIsRollingBack(true);
+										try {
+											await onRollback(hash);
+										} finally {
+											setIsRollingBack(false);
+										}
+									}}
+									isLoading={isRollingBack}
+								/>
+							)}
 						</>
 					)}
 
