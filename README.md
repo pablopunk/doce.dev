@@ -29,6 +29,6 @@ services:
     environment:
       OPENROUTER_API_KEY: "sk-or-v1-your-openrouter-api-key-here"
     volumes:
-      - ./data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock  # Required for project container management
+      - ./data:/app/data # DB and project files
+      - /var/run/docker.sock:/var/run/docker.sock  # Required since we use containers to run projects/opencode
 ```
