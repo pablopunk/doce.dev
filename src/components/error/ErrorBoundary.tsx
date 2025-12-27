@@ -2,8 +2,6 @@
 
 import React from "react";
 
-import { logger } from "@/server/logger";
-
 interface ErrorBoundaryProps {
 	children: React.ReactNode;
 	fallback?: (error: Error, retry: () => void) => React.ReactNode;
@@ -45,16 +43,29 @@ export class ErrorBoundary extends React.Component<
 	override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
 		this.setState({ errorInfo });
 
-		// Log error to monitoring system
-		logger.error(
+		// Log error to console (client-side only)
+		console.error(
+			`React component error caught by ErrorBoundary ${this.props.componentName ? `(${this.props.componentName})` : ""}:`,
 			{
 				error: error.message,
 				stack: error.stack,
 				componentStack: errorInfo.componentStack,
-				componentName: this.props.componentName,
 			},
-			"React component error caught by ErrorBoundary",
 		);
+
+		// Also send to server for monitoring
+		void fetch("/api/errors/log", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				error: error.message,
+				stack: error.stack,
+				componentStack: errorInfo.componentStack,
+				componentName: this.props.componentName,
+			}),
+		}).catch(() => {
+			// Silently fail if error logging fails
+		});
 
 		// Call optional error handler
 		if (this.props.onError) {
