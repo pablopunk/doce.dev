@@ -103,19 +103,36 @@ export async function handleOpencodeSendUserPrompt(
 		const client = createOpencodeClient(project.opencodePort);
 
 		// Send the user's prompt via SDK with model specified
-		await client.session.promptAsync({
-			sessionID: sessionId,
-			model: {
-				providerID: model.providerID,
-				modelID: model.modelID,
-			},
-			parts,
-		});
+		try {
+			const promptResponse = await client.session.promptAsync({
+				sessionID: sessionId,
+				model: {
+					providerID: model.providerID,
+					modelID: model.modelID,
+				},
+				parts,
+			});
 
-		logger.info(
-			{ projectId: project.id, sessionId, model },
-			"Sent user prompt with model",
-		);
+			// Validate response
+			if (!promptResponse) {
+				throw new Error("No response received from promptAsync");
+			}
+
+			logger.info(
+				{ projectId: project.id, sessionId, model },
+				"Sent user prompt with model",
+			);
+		} catch (error) {
+			logger.error(
+				{
+					projectId: project.id,
+					sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				},
+				"Failed to send user prompt",
+			);
+			throw error;
+		}
 
 		await ctx.throwIfCancelRequested();
 
@@ -124,16 +141,48 @@ export async function handleOpencodeSendUserPrompt(
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
 		// Fetch messages via SDK
-		const messagesResponse = await client.session.messages({
-			sessionID: sessionId,
-		});
-		const messagesData = messagesResponse.data as
-			| Array<{
+		let messages: Array<{
+			info?: { id?: string; role?: string };
+			parts?: Array<{ type?: string; text?: string }>;
+		}> = [];
+
+		try {
+			const messagesResponse = await client.session.messages({
+				sessionID: sessionId,
+			});
+
+			// Validate response structure
+			if (!messagesResponse.data) {
+				logger.warn(
+					{ projectId: project.id, sessionId },
+					"No messages data in response",
+				);
+			} else if (!Array.isArray(messagesResponse.data)) {
+				logger.warn(
+					{
+						projectId: project.id,
+						sessionId,
+						dataType: typeof messagesResponse.data,
+					},
+					"Messages response is not an array",
+				);
+			} else {
+				messages = messagesResponse.data as Array<{
 					info?: { id?: string; role?: string };
 					parts?: Array<{ type?: string; text?: string }>;
-			  }>
-			| undefined;
-		const messages = messagesData ?? [];
+				}>;
+			}
+		} catch (error) {
+			logger.warn(
+				{
+					projectId: project.id,
+					sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				},
+				"Failed to fetch messages after prompt",
+			);
+			// Non-fatal: we'll log the prompt as sent without a specific message ID
+		}
 
 		// We need to find the user message with the project prompt
 		// Since prompt_async is async, the message might not exist yet or might be the last one

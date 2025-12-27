@@ -78,6 +78,16 @@ export interface ToolUpdatePayload {
 	error?: unknown;
 }
 
+/**
+ * Internal type for tool state extracted from SDK ToolPart
+ */
+interface ToolState {
+	status?: string;
+	input?: unknown;
+	output?: unknown;
+	error?: unknown;
+}
+
 export interface FileChangedPayload {
 	path: string;
 }
@@ -256,6 +266,9 @@ export function normalizeEvent(
 					state.toolCallMap.delete(callID);
 				}
 
+				// Safely extract tool state with proper typing
+				const toolStateData = toolState as unknown as ToolState;
+
 				// Emit single tool update event
 				return {
 					type: "chat.tool.update",
@@ -264,10 +277,10 @@ export function normalizeEvent(
 					payload: {
 						toolCallId,
 						name: tool,
-						input: (toolState as any)?.input,
+						input: toolStateData?.input,
 						status: uiStatus,
-						output: (toolState as any)?.output,
-						error: (toolState as any)?.error,
+						output: toolStateData?.output,
+						error: toolStateData?.error,
 					} satisfies ToolUpdatePayload,
 				};
 			}
