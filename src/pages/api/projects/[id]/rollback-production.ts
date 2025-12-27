@@ -1,20 +1,9 @@
-import { promises as fs } from "node:fs";
 import type { APIRoute } from "astro";
-import {
-	composeDownProduction,
-	composeUpProduction,
-} from "@/server/docker/compose";
-import { allocatePort } from "@/server/ports/allocate";
+import { deriveVersionPort } from "@/server/ports/allocate";
 import { logger } from "@/server/logger";
-import {
-	cleanupOldProductionVersions,
-	getProductionVersions,
-} from "@/server/productions/cleanup";
+import { getProductionVersions } from "@/server/productions/cleanup";
+import { updateProjectNginxRouting } from "@/server/productions/nginx";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import {
-	getProductionCurrentSymlink,
-	getProductionPath,
-} from "@/server/projects/paths";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -74,101 +63,66 @@ export const POST: APIRoute = async ({ params, locals, request }) => {
 			});
 		}
 
-		logger.info(
-			{ projectId, from: currentHash, to: targetHash },
-			"Starting production rollback",
-		);
-
-		// Stop current version
-		if (project.productionPort) {
-			try {
-				const currentPath = getProductionPath(projectId, currentHash);
-				await composeDownProduction(projectId, currentPath, currentHash);
-				logger.debug({ projectId, currentHash }, "Stopped current production");
-			} catch (error) {
-				logger.error(
-					{ projectId, currentHash, error },
-					"Failed to stop current production",
-				);
-				// Continue with startup - previous version should handle cleanup
-			}
-		}
-
-		// Update symlink to point to target version
-		const symlinkPath = getProductionCurrentSymlink(projectId);
-		const projectDir = getProductionPath(projectId);
-		await fs.mkdir(projectDir, { recursive: true });
-
-		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}`;
-		try {
-			await fs.unlink(tempSymlink).catch(() => {});
-			await fs.symlink(targetHash, tempSymlink);
-			await fs.rename(tempSymlink, symlinkPath);
-			logger.debug(
-				{ projectId, symlinkPath, target: targetHash },
-				"Updated symlink",
+		const basePort = project.productionBasePort;
+		if (!basePort) {
+			return new Response(
+				"No production base port found - deployment not initialized",
+				{ status: 400 },
 			);
-		} catch (error) {
-			logger.error({ projectId, error }, "Failed to update symlink");
-			throw error;
 		}
 
-		// Allocate a NEW port for the rolled back version
-		const newPort = await allocatePort();
 		logger.info(
-			{ projectId, targetHash, newPort },
-			"Allocated port for rollback",
-		);
-
-		// Start target version with new port
-		try {
-			const targetPath = getProductionPath(projectId, targetHash);
-			const result = await composeUpProduction(
+			{
 				projectId,
-				targetPath,
-				newPort,
-				targetHash,
-			);
+				from: currentHash.slice(0, 8),
+				to: targetHash.slice(0, 8),
+				basePort,
+			},
+			"Starting instant production rollback",
+		);
 
-			if (!result.success) {
-				throw new Error(`Failed to start target version: ${result.stderr}`);
-			}
+		// Derive version port for target version (deterministic - always same for same hash)
+		const targetVersionPort = deriveVersionPort(projectId, targetHash);
 
-			logger.debug({ projectId, targetHash, newPort }, "Started target production");
-		} catch (error) {
-			logger.error(
-				{ projectId, targetHash, error },
-				"Failed to start target version",
-			);
-			throw error;
-		}
+		// Instantly switch nginx routing to target version
+		await updateProjectNginxRouting(projectId, targetHash, targetVersionPort);
 
-		// Update database with new port and URL
-		const newUrl = `http://localhost:${newPort}`;
+		logger.debug(
+			{
+				projectId,
+				targetHash: targetHash.slice(0, 8),
+				targetVersionPort,
+			},
+			"Updated nginx routing for rollback",
+		);
+
+		// Update database with new active hash
 		await updateProductionStatus(projectId, "running", {
 			productionHash: targetHash,
-			productionPort: newPort,
-			productionUrl: newUrl,
 			productionStartedAt: new Date(),
 		});
 
-		logger.info(
-			{ projectId, from: currentHash, to: targetHash, port: newPort },
-			"Production rollback completed",
-		);
+		// Return the public-facing URL (stays the same - base port)
+		const url = `http://localhost:${basePort}`;
 
-		// Clean up old versions
-		await cleanupOldProductionVersions(projectId, 2).catch((error) => {
-			logger.warn({ projectId, error }, "Failed to cleanup old versions");
-		});
+		logger.info(
+			{
+				projectId,
+				from: currentHash.slice(0, 8),
+				to: targetHash.slice(0, 8),
+				basePort,
+				url,
+			},
+			"Production rollback completed instantly",
+		);
 
 		return new Response(
 			JSON.stringify({
 				success: true,
 				hash: targetHash,
-				url: newUrl,
-				port: newPort,
-				message: `Rolled back to version ${targetHash}`,
+				url,
+				basePort,
+				message: `Rolled back to version ${targetHash.slice(0, 8)} - URL unchanged`,
 			}),
 			{
 				status: 200,

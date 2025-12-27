@@ -1,9 +1,6 @@
-import path from "node:path";
-import { composeDownProduction } from "@/server/docker/compose";
-import { writeHostMarker } from "@/server/docker/logs";
 import { logger } from "@/server/logger";
+import { removeProjectNginxConfig } from "@/server/productions/nginx";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { getProductionPath } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -31,63 +28,37 @@ export async function handleProductionStop(
 	}
 
 	try {
-		// Get current hash from database
 		const currentHash = project.productionHash;
 		if (!currentHash) {
 			logger.warn(
 				{ projectId: project.id },
 				"No production hash found, skipping stop",
 			);
-			await updateProductionStatus(project.id, "stopped", {
-				productionUrl: null,
-				productionPort: null,
-			});
+			await updateProductionStatus(project.id, "stopped");
 			return;
 		}
 
-		// Use hash-versioned production path
-		const productionPath = getProductionPath(project.id, currentHash);
-		const logsDir = path.join(productionPath, "logs");
-
-		try {
-			await writeHostMarker(logsDir, "Stopping production server");
-		} catch (error) {
-			// Log directory might not exist if stop is called before setup completes
-			logger.debug({ projectId: project.id }, "Could not write host marker");
-		}
-
-		// Stop the production container using the current hash's project name
-		const result = await composeDownProduction(
-			project.id,
-			productionPath,
-			currentHash,
-		);
-
-		if (!result.success) {
-			const errorMsg = `compose down failed: ${result.stderr.slice(0, 500)}`;
-			await updateProductionStatus(project.id, "failed", {
-				productionError: errorMsg,
-			});
-			throw new Error(errorMsg);
-		}
+		// Remove project from nginx routing
+		// This makes the public-facing URL inaccessible
+		// Containers continue running so they can be rolled back if needed
+		await removeProjectNginxConfig(project.id);
 
 		logger.info(
-			{ projectId: project.id, currentHash },
-			"Production server stopped successfully",
+			{
+				projectId: project.id,
+				currentHash: currentHash.slice(0, 8),
+			},
+			"Production server removed from nginx (containers kept alive for rollback)",
 		);
 
-		// Update production status to stopped (keep hash for rollback history)
-		await updateProductionStatus(project.id, "stopped", {
-			productionUrl: null,
-			productionPort: null,
-		});
-
-		try {
-			await writeHostMarker(logsDir, `exit=${result.exitCode}`);
-		} catch (error) {
-			logger.debug({ projectId: project.id }, "Could not write exit marker");
-		}
+		// Update production status to stopped
+		// Note: We don't clear the hash, port, or URL - this allows rollback
+		await updateProductionStatus(project.id, "stopped");
 	} catch (error) {
+		logger.error(
+			{ projectId: project.id, error },
+			"production.stop handler failed",
+		);
 		throw error;
 	}
 }

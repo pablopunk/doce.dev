@@ -36,6 +36,9 @@ export const projects = sqliteTable(
 		userPromptMessageId: text("user_prompt_message_id"),
 		initPromptCompleted: integer("init_prompt_completed").default(0).notNull(),
 		userPromptCompleted: integer("user_prompt_completed").default(0).notNull(),
+		// Production deployment versioning and reverse proxy
+		productionHash: text("production_hash"),
+		productionBasePort: integer("production_base_port"),
 	},
 	(table) => [uniqueIndex("projects_slug_unique").on(table.slug)],
 );

@@ -36,6 +36,7 @@ export async function updateProductionStatus(
 		productionError?: string | null;
 		productionStartedAt?: Date;
 		productionHash?: string | null;
+		productionBasePort?: number | null;
 	},
 ): Promise<Project | null> {
 	const data: Record<string, unknown> = {
@@ -56,6 +57,9 @@ export async function updateProductionStatus(
 	}
 	if (updates?.productionHash !== undefined) {
 		data.productionHash = updates.productionHash;
+	}
+	if (updates?.productionBasePort !== undefined) {
+		data.productionBasePort = updates.productionBasePort;
 	}
 
 	const result = await db

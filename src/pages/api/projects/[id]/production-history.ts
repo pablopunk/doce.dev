@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { deriveVersionPort } from "@/server/ports/allocate";
 import { getProductionVersions } from "@/server/productions/cleanup";
 import {
 	getProjectById,
@@ -32,16 +33,27 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 	// Get available production versions
 	const versions = await getProductionVersions(projectId);
+	const basePort = project.productionBasePort;
 
 	return new Response(
 		JSON.stringify({
-			versions: versions.map((v) => ({
-				hash: v.hash,
-				isActive: v.isActive,
-				createdAt: v.mtimeIso,
-				// Include URL for active version only (it's the current URL)
-				url: v.isActive ? project.productionUrl : undefined,
-			})),
+			basePort,
+			baseUrl: basePort ? `http://localhost:${basePort}` : null,
+			versions: versions.map((v) => {
+				const versionPort = deriveVersionPort(projectId, v.hash);
+				return {
+					hash: v.hash,
+					isActive: v.isActive,
+					createdAt: v.mtimeIso,
+					// Active version: public-facing URL on base port
+					// Inactive versions: accessible on their own version port
+					url:
+						v.isActive && basePort ? `http://localhost:${basePort}` : undefined,
+					basePort,
+					versionPort,
+					previewUrl: `http://localhost:${versionPort}`,
+				};
+			}),
 		}),
 		{
 			status: 200,

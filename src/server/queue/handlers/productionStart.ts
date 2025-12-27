@@ -3,8 +3,16 @@ import * as path from "node:path";
 import type { Project } from "@/server/db/schema";
 import { composeUpProduction } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { allocatePort } from "@/server/ports/allocate";
+import {
+	allocateProjectBasePort,
+	deriveVersionPort,
+	registerVersionPort,
+} from "@/server/ports/allocate";
 import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
+import {
+	initializeProjectNginxConfig,
+	registerVersionInNginx,
+} from "@/server/productions/nginx";
 import { updateProductionStatus } from "@/server/productions/productions.model";
 import {
 	getProductionCurrentSymlink,
@@ -168,12 +176,65 @@ export async function handleProductionStart(
 	try {
 		const payload = parsePayload("production.start", ctx.job.payloadJson);
 
-		// Allocate production port
-		const productionPort = await allocatePort();
+		// Allocate base port on first deployment (only)
+		let basePort = project.productionBasePort;
+		if (!basePort) {
+			basePort = await allocateProjectBasePort(project.id);
+			logger.info(
+				{ projectId: project.id, basePort },
+				"Allocated base port for project",
+			);
+		}
+
+		// Derive version port from hash (deterministic - same hash = same port)
+		const versionPort = deriveVersionPort(project.id, payload.productionHash);
 		logger.info(
-			{ projectId: project.id, productionPort },
-			"Allocated production port",
+			{
+				projectId: project.id,
+				hash: payload.productionHash.slice(0, 8),
+				versionPort,
+			},
+			"Derived version port",
 		);
+
+		await ctx.throwIfCancelRequested();
+
+		// Initialize nginx config for this project (first deployment only)
+		if (!project.productionBasePort) {
+			await initializeProjectNginxConfig(
+				project.id,
+				basePort,
+				payload.productionHash,
+				versionPort,
+			);
+			logger.info(
+				{
+					projectId: project.id,
+					basePort,
+					hash: payload.productionHash.slice(0, 8),
+					versionPort,
+				},
+				"Initialized nginx config",
+			);
+		} else {
+			// Register this version in nginx without making it active yet
+			await registerVersionInNginx(
+				project.id,
+				payload.productionHash,
+				versionPort,
+			);
+			logger.info(
+				{
+					projectId: project.id,
+					hash: payload.productionHash.slice(0, 8),
+					versionPort,
+				},
+				"Registered version in nginx",
+			);
+		}
+
+		// Register version port in allocation tracker
+		registerVersionPort(project.id, payload.productionHash, versionPort);
 
 		await ctx.throwIfCancelRequested();
 
@@ -186,7 +247,7 @@ export async function handleProductionStart(
 			{
 				projectId: project.id,
 				productionPath,
-				productionHash: payload.productionHash,
+				hash: payload.productionHash.slice(0, 8),
 			},
 			"Setting up production directory",
 		);
@@ -194,27 +255,29 @@ export async function handleProductionStart(
 		await setupProductionDirectory(
 			project,
 			productionPath,
-			productionPort,
+			versionPort,
 			payload.productionHash,
 		);
 
 		await ctx.throwIfCancelRequested();
 
 		// Start production container using docker compose
-		// This will run: pnpm install --prod && pnpm run preview --host
+		// Container runs on versionPort internally
+		// Nginx routes basePort to the current version
 		logger.info(
 			{
 				projectId: project.id,
 				productionPath,
-				productionPort,
+				versionPort,
+				hash: payload.productionHash.slice(0, 8),
 			},
-			"Calling composeUpProduction",
+			"Starting production container",
 		);
 
 		const result = await composeUpProduction(
 			project.id,
 			productionPath,
-			productionPort,
+			versionPort,
 			payload.productionHash,
 		);
 
@@ -237,7 +300,12 @@ export async function handleProductionStart(
 		}
 
 		logger.info(
-			{ projectId: project.id, productionPort },
+			{
+				projectId: project.id,
+				versionPort,
+				basePort,
+				hash: payload.productionHash.slice(0, 8),
+			},
 			"Docker compose up succeeded for production",
 		);
 
@@ -277,9 +345,9 @@ export async function handleProductionStart(
 			throw error;
 		}
 
-		// Update production status with port and hash (status still "building" until waitReady confirms)
+		// Update production status with base port and hash
 		await updateProductionStatus(project.id, "building", {
-			productionPort,
+			productionBasePort: basePort,
 			productionStartedAt: new Date(),
 			productionHash: payload.productionHash,
 		});
@@ -287,13 +355,18 @@ export async function handleProductionStart(
 		// Enqueue next step: wait for production server to be ready
 		await enqueueProductionWaitReady({
 			projectId: project.id,
-			productionPort,
+			productionPort: versionPort,
 			startedAt: Date.now(),
 			rescheduleCount: 0,
 		});
 
 		logger.debug(
-			{ projectId: project.id, productionPort },
+			{
+				projectId: project.id,
+				versionPort,
+				basePort,
+				hash: payload.productionHash.slice(0, 8),
+			},
 			"Enqueued production.waitReady",
 		);
 

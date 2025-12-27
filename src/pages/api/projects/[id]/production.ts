@@ -37,10 +37,15 @@ export const GET: APIRoute = async ({ params, locals }) => {
 	const status = getProductionStatus(project);
 	const activeJob = await getActiveProductionJob(projectId);
 
+	// Construct URL from base port (public-facing)
+	const basePort = project.productionBasePort;
+	const url = basePort ? `http://localhost:${basePort}` : null;
+
 	return new Response(
 		JSON.stringify({
 			status: status.status,
-			url: status.url,
+			url,
+			basePort,
 			port: status.port,
 			error: status.error,
 			startedAt: status.startedAt?.toISOString() || null,

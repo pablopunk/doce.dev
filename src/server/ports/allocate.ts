@@ -1,6 +1,17 @@
 import * as net from "node:net";
 import { logger } from "@/server/logger";
 
+// Port pools for different purposes
+const BASE_PORT_MIN = 3000; // For production base ports (public-facing)
+const BASE_PORT_MAX = 3999;
+const VERSION_PORT_MIN = 5000; // For version-specific ports (internal)
+const VERSION_PORT_MAX = 5999;
+
+// Track allocated ports
+const allocatedBasePorts = new Set<number>();
+const allocatedVersionPorts = new Set<number>();
+const allocatedDevPorts = new Set<number>();
+
 /**
  * Find an available port by attempting to bind to a random port.
  * Uses the OS to find an available port by binding to port 0.
@@ -27,21 +38,6 @@ export async function allocatePort(): Promise<number> {
 			reject(err);
 		});
 	});
-}
-
-/**
- * Allocate two ports for a project: devPort (preview) and opencodePort.
- */
-export async function allocateProjectPorts(): Promise<{
-	devPort: number;
-	opencodePort: number;
-}> {
-	const devPort = await allocatePort();
-	const opencodePort = await allocatePort();
-
-	logger.info({ devPort, opencodePort }, "Allocated project ports");
-
-	return { devPort, opencodePort };
 }
 
 /**
@@ -78,4 +74,131 @@ export async function ensurePortAvailable(
 		"Preferred port not available, allocating new one",
 	);
 	return allocatePort();
+}
+
+/**
+ * Allocate a port from the BASE port pool (3000-3999).
+ * Used once per project for the public-facing production port.
+ * Deterministic and reusable - always returns the same port for the same projectId.
+ */
+export async function allocateProjectBasePort(
+	projectId: string,
+): Promise<number> {
+	// Use projectId hash to deterministically assign base port
+	let hash = 0;
+	for (let i = 0; i < projectId.length; i++) {
+		const char = projectId.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+
+	const offset = Math.abs(hash) % (BASE_PORT_MAX - BASE_PORT_MIN + 1);
+	const basePort = BASE_PORT_MIN + offset;
+
+	// Check if available, if not, find an alternative
+	const available = await isPortAvailable(basePort);
+	if (!available) {
+		logger.warn(
+			{ projectId, basePort },
+			"Preferred base port not available, finding alternative",
+		);
+		// Find next available port in the range
+		for (let port = basePort + 1; port <= BASE_PORT_MAX; port++) {
+			if (!allocatedBasePorts.has(port)) {
+				const isAvail = await isPortAvailable(port);
+				if (isAvail) {
+					allocatedBasePorts.add(port);
+					logger.info({ projectId, basePort: port }, "Allocated base port");
+					return port;
+				}
+			}
+		}
+		throw new Error(
+			`No available base ports in range ${BASE_PORT_MIN}-${BASE_PORT_MAX}`,
+		);
+	}
+
+	allocatedBasePorts.add(basePort);
+	logger.info({ projectId, basePort }, "Allocated base port");
+	return basePort;
+}
+
+/**
+ * Derive a version port from a hash (deterministic).
+ * Multiple calls with the same hash and projectId will return the same port.
+ * Allows version containers to use consistent ports.
+ */
+export function deriveVersionPort(projectId: string, hash: string): number {
+	// Combine projectId and hash for deterministic port calculation
+	const combined = `${projectId}:${hash}`;
+	let hashValue = 0;
+	for (let i = 0; i < combined.length; i++) {
+		const char = combined.charCodeAt(i);
+		hashValue = (hashValue << 5) - hashValue + char;
+		hashValue = hashValue & hashValue; // Convert to 32bit integer
+	}
+
+	const offset =
+		Math.abs(hashValue) % (VERSION_PORT_MAX - VERSION_PORT_MIN + 1);
+	const versionPort = VERSION_PORT_MIN + offset;
+
+	logger.debug(
+		{
+			projectId,
+			hash: hash.slice(0, 8),
+			versionPort,
+		},
+		"Derived version port",
+	);
+
+	return versionPort;
+}
+
+/**
+ * Register a version port as allocated.
+ * Should be called when a version is created to prevent future conflicts.
+ */
+export function registerVersionPort(
+	_projectId: string,
+	_hash: string,
+	versionPort: number,
+): void {
+	allocatedVersionPorts.add(versionPort);
+	logger.debug({ versionPort }, "Registered version port");
+}
+
+/**
+ * Register a base port as allocated.
+ * Should be called when a project is created.
+ */
+export function registerBasePort(basePort: number): void {
+	allocatedBasePorts.add(basePort);
+	logger.debug({ basePort }, "Registered base port");
+}
+
+/**
+ * Unregister a port from the allocated set.
+ * Call when port is no longer in use.
+ */
+export function unregisterVersionPort(versionPort: number): void {
+	allocatedVersionPorts.delete(versionPort);
+	logger.debug({ versionPort }, "Unregistered version port");
+}
+
+/**
+ * Allocate two ports for a project: devPort (preview) and opencodePort.
+ */
+export async function allocateProjectPorts(): Promise<{
+	devPort: number;
+	opencodePort: number;
+}> {
+	const devPort = await allocatePort();
+	const opencodePort = await allocatePort();
+
+	allocatedDevPorts.add(devPort);
+	allocatedDevPorts.add(opencodePort);
+
+	logger.info({ devPort, opencodePort }, "Allocated project ports");
+
+	return { devPort, opencodePort };
 }

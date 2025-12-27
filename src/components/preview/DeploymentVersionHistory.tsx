@@ -14,6 +14,10 @@ export interface ProductionVersion {
 	isActive: boolean;
 	createdAt: string;
 	url?: string;
+	basePort?: number;
+	baseUrl?: string | null;
+	versionPort?: number;
+	previewUrl?: string;
 }
 
 interface DeploymentVersionHistoryProps {
@@ -70,11 +74,12 @@ export function DeploymentVersionHistory({
 				<button
 					type="button"
 					onClick={() => {
-						if (currentVersion.url) {
-							window.open(currentVersion.url, "_blank");
+						const url = currentVersion.url || currentVersion.previewUrl;
+						if (url) {
+							window.open(url, "_blank");
 						}
 					}}
-					disabled={!currentVersion.url}
+					disabled={!currentVersion.url && !currentVersion.previewUrl}
 					className="mb-2 w-full flex items-center justify-between px-2 py-2 rounded bg-neutral-800/50 hover:bg-neutral-800 disabled:hover:bg-neutral-800/50 transition-colors disabled:cursor-default"
 				>
 					<div className="flex items-center gap-2 flex-1 min-w-0">
@@ -83,14 +88,19 @@ export function DeploymentVersionHistory({
 						</div>
 						<div className="flex-1 min-w-0">
 							<div className="text-sm font-medium text-neutral-100 truncate">
-								{currentVersion.hash}
+								{currentVersion.hash.slice(0, 8)}
 							</div>
 							<div className="text-xs text-neutral-500">
 								{new Date(currentVersion.createdAt).toLocaleString()}
 							</div>
-							{currentVersion.url && (
+							{(currentVersion.url || currentVersion.previewUrl) && (
 								<div className="text-xs text-blue-400 truncate">
-									{currentVersion.url}
+									{currentVersion.url || currentVersion.previewUrl}
+								</div>
+							)}
+							{currentVersion.basePort && (
+								<div className="text-xs text-neutral-400">
+									Port: {currentVersion.basePort}
 								</div>
 							)}
 						</div>
@@ -106,11 +116,12 @@ export function DeploymentVersionHistory({
 						<button
 							type="button"
 							onClick={() => {
-								if (previousVersion.url) {
-									window.open(previousVersion.url, "_blank");
+								const url = previousVersion.url || previousVersion.previewUrl;
+								if (url) {
+									window.open(url, "_blank");
 								}
 							}}
-							disabled={!previousVersion.url}
+							disabled={!previousVersion.url && !previousVersion.previewUrl}
 							className="flex-1 flex items-center gap-2 min-w-0 hover:opacity-80 disabled:hover:opacity-100 disabled:cursor-default transition-opacity"
 						>
 							<div className="flex-shrink-0 w-5 h-5 rounded-full bg-neutral-600 flex items-center justify-center">
@@ -118,14 +129,19 @@ export function DeploymentVersionHistory({
 							</div>
 							<div className="flex-1 min-w-0 text-left">
 								<div className="text-sm font-medium text-neutral-300 truncate">
-									{previousVersion.hash}
+									{previousVersion.hash.slice(0, 8)}
 								</div>
 								<div className="text-xs text-neutral-500">
 									{new Date(previousVersion.createdAt).toLocaleString()}
 								</div>
-								{previousVersion.url && (
+								{(previousVersion.url || previousVersion.previewUrl) && (
 									<div className="text-xs text-blue-400 truncate">
-										{previousVersion.url}
+										{previousVersion.url || previousVersion.previewUrl}
+									</div>
+								)}
+								{previousVersion.versionPort && (
+									<div className="text-xs text-neutral-400">
+										Port: {previousVersion.versionPort}
 									</div>
 								)}
 							</div>
