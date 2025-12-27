@@ -1,0 +1,108 @@
+import { randomBytes } from "node:crypto";
+import { z } from "astro:schema";
+import { hashPassword } from "@/server/auth/password";
+import { createSession } from "@/server/auth/sessions";
+import { db } from "@/server/db/client";
+import { userSettings, users } from "@/server/db/schema";
+import {
+	AVAILABLE_MODELS,
+	DEFAULT_MODEL,
+	validateOpenRouterApiKey,
+} from "@/server/settings/openrouter";
+import { ActionError, defineAction } from "astro:actions";
+
+const SESSION_COOKIE_NAME = "doce_session";
+
+export const setup = {
+	createAdmin: defineAction({
+		accept: "form",
+		input: z.object({
+			username: z.string().min(1, "Username is required"),
+			password: z.string().min(1, "Password is required"),
+			confirmPassword: z.string(),
+			openrouterApiKey: z.string().min(1, "OpenRouter API key is required"),
+			defaultModel: z.string().default(DEFAULT_MODEL),
+		}),
+		handler: async (input, context) => {
+			try {
+				// Check if admin already exists
+				const existingUsers = await db.select().from(users).limit(1);
+				if (existingUsers.length > 0) {
+					throw new ActionError({
+						code: "FORBIDDEN",
+						message: "Admin user already exists",
+					});
+				}
+
+				// Validate passwords match
+				if (input.password !== input.confirmPassword) {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: "Passwords do not match",
+					});
+				}
+
+				// Validate OpenRouter API key
+				try {
+					await validateOpenRouterApiKey(input.openrouterApiKey);
+				} catch {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: "Invalid OpenRouter API key",
+					});
+				}
+
+				// Create admin user
+				const userId = randomBytes(16).toString("hex");
+				let passwordHash: string;
+				try {
+					passwordHash = await hashPassword(input.password);
+				} catch (error) {
+					// Password hashing failed (crypto error, invalid password, etc.)
+					throw new ActionError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to create admin user",
+					});
+				}
+
+				const now = new Date();
+
+				await db.insert(users).values({
+					id: userId,
+					username: input.username,
+					createdAt: now,
+					passwordHash,
+				});
+
+				// Create user settings
+				await db.insert(userSettings).values({
+					userId,
+					openrouterApiKey: input.openrouterApiKey,
+					defaultModel: input.defaultModel,
+					updatedAt: now,
+				});
+
+				// Create session and set cookie
+				const sessionToken = await createSession(userId);
+				context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+					path: "/",
+					httpOnly: true,
+					sameSite: "lax",
+					secure: import.meta.env.PROD,
+					maxAge: 60 * 60 * 24 * 30, // 30 days
+				});
+
+				return { success: true };
+			} catch (error) {
+				if (error instanceof ActionError) {
+					throw error;
+				}
+				// Unexpected error during admin creation
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create admin user",
+				});
+			}
+		},
+	}),
+};
