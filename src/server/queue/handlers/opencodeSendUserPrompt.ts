@@ -193,7 +193,7 @@ export async function handleOpencodeSendUserPrompt(
 		// First pass: find user message with matching text
 		for (let i = messages.length - 1; i >= 0; i--) {
 			const msg = messages[i];
-			if (msg?.info?.role === "user" && msg.info.id) {
+			if (msg?.info?.role === "user" && msg?.info?.id) {
 				// Check all parts for text content
 				const msgText =
 					msg.parts
@@ -222,7 +222,7 @@ export async function handleOpencodeSendUserPrompt(
 		if (!userMsgId) {
 			for (let i = messages.length - 1; i >= 0; i--) {
 				const msg = messages[i];
-				if (msg?.info?.role === "user" && msg.info.id) {
+				if (msg?.info?.role === "user" && msg?.info?.id) {
 					userMsgId = msg.info.id;
 					logger.warn(
 						{ projectId: project.id, msgId: msg.info.id, fallback: true },
