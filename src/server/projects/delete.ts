@@ -17,11 +17,14 @@ export interface DeleteProjectResult {
 /**
  * Delete a project completely.
  * This handles:
- * 1. Mark project as deleting in presence manager
- * 2. Stop and remove Docker containers + volumes
- * 3. Delete project directory
- * 4. Remove DB record
- * 5. Clean up presence tracking
+ * 1. Stop and remove Docker containers + volumes
+ * 2. Delete project directory
+ * 3. Delete production directory
+ * 4. Remove DB record (final, atomic step)
+ *
+ * Note: This function does synchronous deletion. For long-running deletions,
+ * use the queue system (enqueueProjectDelete) instead, which handles the
+ * operation asynchronously with better cancellation support.
  */
 export async function deleteProject(
 	projectId: string,
@@ -34,31 +37,23 @@ export async function deleteProject(
 		return { success: false, error: "Project not found" };
 	}
 
-	// Mark as deleting to prevent new starts
-	// (presence system now primarily relies on DB status)
-
 	const projectPath = getProjectPath(projectId);
 
-	// Update status to indicate deletion in progress
-	try {
-		await updateProjectStatus(projectId, "stopping");
-	} catch {
-		// Ignore status update errors
-	}
-
-	// Stop and remove Docker containers
+	// Step 1: Stop and remove Docker containers
+	// This is best-effort since Docker might not be available
 	try {
 		await composeDownWithVolumes(projectId, projectPath);
 		logger.debug({ projectId }, "Docker compose down completed");
 	} catch (err) {
 		logger.warn(
 			{ error: err, projectId },
-			"Failed to stop Docker containers (continuing with deletion)",
+			"Failed to stop Docker containers (continuing with file deletion)",
 		);
-		// Continue with deletion even if Docker fails
+		// Continue - Docker failure doesn't block deletion
 	}
 
-	// Delete project directory
+	// Step 2: Delete project directory
+	// This is best-effort since the directory might have permission issues
 	try {
 		await fs.rm(projectPath, { recursive: true, force: true });
 		logger.debug({ projectId, projectPath }, "Deleted project directory");
@@ -67,10 +62,11 @@ export async function deleteProject(
 			{ error: err, projectId },
 			"Failed to delete project directory (continuing with production deletion)",
 		);
-		// Continue with production deletion even if project directory deletion fails
+		// Continue - file deletion doesn't block database deletion
 	}
 
-	// Delete production directory (if it exists)
+	// Step 3: Delete production directory
+	// This is best-effort since production might not exist
 	try {
 		const productionPath = getProductionPath(projectId);
 		await fs.rm(productionPath, { recursive: true, force: true });
@@ -80,18 +76,20 @@ export async function deleteProject(
 			{ error: err, projectId },
 			"Failed to delete production directory (continuing with DB deletion)",
 		);
-		// Continue with DB deletion even if production directory deletion fails
+		// Continue - file deletion doesn't block database deletion
 	}
 
-	// Remove from database
+	// Step 4: Remove from database (critical step - must succeed)
+	// This is the final, atomic operation. If this fails, abort the deletion.
 	try {
 		await hardDeleteProject(projectId);
 		logger.info({ projectId }, "Project deleted from database");
 	} catch (err) {
 		logger.error(
 			{ error: err, projectId },
-			"Failed to delete project from database",
+			"Failed to delete project from database - deletion aborted",
 		);
+		// Return error - DB deletion is required for operation success
 		return {
 			success: false,
 			error:
@@ -99,8 +97,7 @@ export async function deleteProject(
 		};
 	}
 
-	// Clean up presence tracking (in-memory presence is reconciled on demand)
-
+	// Success: All critical steps completed
 	return { success: true };
 }
 
