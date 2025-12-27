@@ -127,6 +127,7 @@ export type ProductionBuildPayload = z.infer<
 
 export const productionStartPayloadSchema = z.object({
 	projectId: z.string().min(1),
+	productionHash: z.string().min(1),
 });
 
 export type ProductionStartPayload = z.infer<

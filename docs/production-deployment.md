@@ -1,10 +1,34 @@
 # Production Deployment System
 
-Production deployments allow projects to build and run as standalone services accessible via dedicated ports and URLs. This document describes the complete architecture, API, and workflow.
+Production deployments allow projects to build and run as standalone services accessible via dedicated ports and URLs. This document describes the complete architecture, API, and workflow with atomic versioning and rollback support.
 
 ## Overview
 
 The production system enables deploying project outputs (typically websites) as running containers on dedicated ports. Each project can have at most one active production deployment.
+
+Deployments are **atomic and versioned**: each build creates an immutable snapshot identified by a hash of the `dist/` folder. This enables safe multi-version management and instant rollback to previous deployments.
+
+### Directory Structure
+
+```
+data/
+  production/
+    my-project-id/
+      a1b2c3d4/         # Version 1: hash-based deployment
+        src/
+        dist/
+        logs/
+        docker-compose.production.yml
+        ...
+      b2c3d4e5/         # Version 2: newer deployment
+        src/
+        dist/
+        logs/
+        ...
+      current -> b2c3d4e5   # Symlink to active deployment (atomic switching)
+```
+
+The system keeps the last 2 versions (current + 1 for rollback) and automatically cleans up older ones.
 
 ### Status States
 
@@ -24,20 +48,24 @@ Production deployments use a 4-stage queue job pipeline:
 ### 1. `production.build`
 **File**: `src/server/queue/handlers/productionBuild.ts`
 
-Builds the project output from source code:
+Builds the project output from source code and calculates deployment hash:
 - Runs build command defined in Dockerfile
-- Creates production-ready artifacts
+- Creates production-ready artifacts in `dist/`
+- Calculates SHA256 hash of `dist/` folder (8-char prefix)
 - If fails, sets `productionStatus = "failed"` and `productionError` message
-- On success, enqueues `production.start`
+- On success, passes hash to `production.start` job
 
 ### 2. `production.start`
 **File**: `src/server/queue/handlers/productionStart.ts`
 
-Starts the built container on an allocated port:
+Sets up versioned deployment directory and starts container:
 - Allocates unused port for the production service
-- Updates `productionPort` in database
-- Generates `productionUrl` (typically `http://localhost:{port}`)
-- Starts container from built image
+- Creates hash-versioned directory: `data/production/{projectId}/{hash}/`
+- Copies artifacts (src/, dist/, configs) to versioned directory
+- Atomically updates `current` symlink to point to new hash (enables instant switching)
+- Starts container from versioned directory
+- Stores hash in `productionHash` database column
+- Automatically cleans up old versions (keeps last 2)
 - On success, enqueues `production.waitReady`
 - On failure, sets `productionStatus = "failed"`
 
@@ -72,6 +100,7 @@ Production-related columns in the `projects` table:
 | `productionUrl` | string | Full URL to running deployment (null if stopped) |
 | `productionError` | string | Error message if build/start failed (null if successful) |
 | `productionStartedAt` | timestamp | When the production server became ready (null if not running) |
+| `productionHash` | string | 8-character SHA256 hash of dist/ folder (identifies current version) |
 
 ## API Endpoints
 
@@ -209,6 +238,76 @@ Content-Type: application/json
 - Sets `productionStatus = "queued"` (for cleanup job)
 - Enqueues `production.stop` job
 - Clears port allocation and URL
+- Preserves `productionHash` for rollback history
+
+### GET `/api/projects/[id]/production-history`
+
+Get list of available production deployment versions for rollback.
+
+**Request**:
+```bash
+GET /api/projects/my-project-id/production-history
+```
+
+**Response** (200 OK):
+```json
+{
+  "versions": [
+    {
+      "hash": "b2c3d4e5",
+      "isActive": true,
+      "createdAt": "2025-12-27T14:30:00Z"
+    },
+    {
+      "hash": "a1b2c3d4",
+      "isActive": false,
+      "createdAt": "2025-12-27T13:15:00Z"
+    }
+  ]
+}
+```
+
+**Fields**:
+- `hash`: 8-character version identifier (hash of dist/)
+- `isActive`: Whether this is the currently running version
+- `createdAt`: ISO timestamp when this version was deployed
+
+### POST `/api/projects/[id]/rollback-production`
+
+Instantly rollback to a previous deployment version.
+
+**Request**:
+```bash
+POST /api/projects/my-project-id/rollback-production
+Content-Type: application/json
+
+{
+  "toHash": "a1b2c3d4"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "hash": "a1b2c3d4",
+  "message": "Rolled back to version a1b2c3d4"
+}
+```
+
+**Behavior**:
+- Stops the currently running version's container
+- Atomically switches the `current` symlink to target version
+- Starts the target version's container
+- Updates `productionHash` in database
+- Returns to `running` status immediately
+- Cleans up old versions (keeps last 2)
+- Can only rollback to non-active versions
+
+**Error Cases**:
+- `404`: Target version not found
+- `400`: Target version is already active
+- `500`: Rollback failed (container start, docker issue, etc.)
 
 ## Error Handling & Recovery
 
@@ -249,7 +348,7 @@ This:
 - **Project Status**: "running" project can have independent production status
 - **Setup vs Production**: Production is independent from OpenCode setup (both can run simultaneously)
 
-## Example Workflow
+## Example Workflow: New Deployment
 
 ```
 User clicks "Deploy to Production"
@@ -263,15 +362,20 @@ Frontend opens /production-stream
            ↓
 Event: building
 Handler: productionBuild
+  ├─ pnpm run build → dist/
+  └─ Calculate hash: SHA256(dist/) → "a1b2c3d4"
            ↓
 Build completes successfully
-Enqueue production.start
+Enqueue production.start with hash
            ↓
 Event: starting
 Handler: productionStart
+  ├─ Port 3001 allocated
+  ├─ Setup data/production/{id}/a1b2c3d4/
+  ├─ Docker compose up (project: doce_prod_{id}_a1b2c3d4)
+  ├─ Symlink: data/production/{id}/current → a1b2c3d4
+  └─ Cleanup: Remove old versions, keep last 2
            ↓
-Port 3001 allocated
-Container started
 Enqueue production.waitReady
            ↓
 Handler: productionWaitReady
@@ -280,13 +384,41 @@ Poll GET http://localhost:3001/
            ↓
 HTTP 200 received
 Status = "running"
-productionStartedAt = now
+productionHash = "a1b2c3d4"
            ↓
 Event: ready
 Event: stream.end
            ↓
 Frontend shows:
 "Production running at http://localhost:3001"
+```
+
+## Example Workflow: Rollback
+
+```
+User views /api/projects/{id}/production-history
+           ↓
+Response includes 2 versions:
+  - a1b2c3d4 (isActive: false)
+  - b2c3d4e5 (isActive: true)
+           ↓
+User clicks "Rollback to a1b2c3d4"
+           ↓
+POST /api/projects/{id}/rollback-production
+  { "toHash": "a1b2c3d4" }
+           ↓
+Handler:
+  ├─ Stop current: docker compose down (project: doce_prod_{id}_b2c3d4e5)
+  ├─ Update symlink: data/production/{id}/current → a1b2c3d4
+  ├─ Start target: docker compose up (project: doce_prod_{id}_a1b2c3d4)
+  ├─ Update DB: productionHash = "a1b2c3d4"
+  └─ Cleanup: Remove b2c3d4e5 (keep a1b2c3d4)
+           ↓
+Status: running (instant)
+Hash: a1b2c3d4
+           ↓
+Frontend shows:
+"Rolled back to version a1b2c3d4"
 ```
 
 ## Monitoring & Debugging
@@ -320,6 +452,34 @@ See: `docs/docker-management.md` for container log access
 - Verify Dockerfile exists and is correct
 - Check for npm/build errors
 
+## Atomic Deployment Guarantees
+
+The hash-based versioning system provides several safety guarantees:
+
+### Immutable Versions
+- Each deployment is identified by a content hash of `dist/`
+- The same `dist/` content always produces the same hash
+- Version directories are never modified after creation
+- All versions are independent and can coexist
+
+### Atomic Switching
+- Symlink updates are atomic at the filesystem level
+- New deployments are fully ready before symlink update
+- Users never see partial or inconsistent deployments
+- Failed deployments don't affect the running version
+
+### Easy Rollback
+- Previous versions remain on disk (last 2 kept)
+- Rollback is instant (just symlink + container restart)
+- No rebuild or file copy needed
+- Both forward and backward rollbacks are supported
+
+### Failure Isolation
+- Failed deployments don't remove previous versions
+- If new deployment fails, previous version continues running
+- Each version has isolated Docker containers (distinct project names)
+- Port conflicts are prevented through isolation
+
 ## Performance Notes
 
 - Build time depends on project size and dependencies
@@ -327,6 +487,8 @@ See: `docs/docker-management.md` for container log access
 - Health checks poll every 1-2 seconds (configurable)
 - Maximum wait time: 5 minutes
 - Deployments use dedicated ports (no conflicts)
+- Symlink switching is instant (microseconds)
+- Storage: typically 2x application size (keeps 2 versions)
 
 ## Future Enhancements
 

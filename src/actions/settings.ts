@@ -1,8 +1,8 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
+import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
 import {
 	AVAILABLE_MODELS,
 	DEFAULT_MODEL,

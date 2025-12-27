@@ -1,6 +1,6 @@
+import type { Project } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
-import type { Project } from "@/server/db/schema";
 
 /**
  * Helper to fetch a project and skip processing if not found or marked for deletion.

@@ -1,31 +1,38 @@
-import { allocatePort } from "@/server/ports/allocate";
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
+import type { Project } from "@/server/db/schema";
 import { composeUpProduction } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { allocatePort } from "@/server/ports/allocate";
+import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
 import { updateProductionStatus } from "@/server/productions/productions.model";
+import {
+	getProductionCurrentSymlink,
+	getProductionPath,
+	getTemplatePath,
+} from "@/server/projects/paths";
+import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { enqueueProductionWaitReady } from "../enqueue";
-import { getProductionPath, getTemplatePath } from "@/server/projects/paths";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import * as path from "node:path";
-import { promises as fs } from "node:fs";
-import type { Project } from "@/server/db/schema";
 
 /**
  * Setup production directory with pre-built artifacts.
+ * Creates a hash-versioned directory structure and updates the "current" symlink.
  * Copies dist/, public/, package.json, pnpm-lock.yaml, Dockerfile.prod, and docker-compose.production.yml.
  */
 async function setupProductionDirectory(
 	project: Project,
 	productionPath: string,
 	productionPort: number,
+	productionHash: string,
 ): Promise<void> {
 	logger.info(
-		{ projectId: project.id, productionPath },
+		{ projectId: project.id, productionPath, productionHash },
 		"Setting up production directory",
 	);
 
-	// Create production directory
+	// Create hash-versioned production directory
 	await fs.mkdir(productionPath, { recursive: true });
 
 	// Create logs directory
@@ -159,6 +166,8 @@ export async function handleProductionStart(
 	}
 
 	try {
+		const payload = parsePayload("production.start", ctx.job.payloadJson);
+
 		// Allocate production port
 		const productionPort = await allocatePort();
 		logger.info(
@@ -168,17 +177,26 @@ export async function handleProductionStart(
 
 		await ctx.throwIfCancelRequested();
 
-		// Setup production directory with pre-built artifacts
-		const productionPath = getProductionPath(project.id);
+		// Setup production directory with pre-built artifacts in hash-versioned path
+		const productionPath = getProductionPath(
+			project.id,
+			payload.productionHash,
+		);
 		logger.info(
 			{
 				projectId: project.id,
 				productionPath,
+				productionHash: payload.productionHash,
 			},
 			"Setting up production directory",
 		);
 
-		await setupProductionDirectory(project, productionPath, productionPort);
+		await setupProductionDirectory(
+			project,
+			productionPath,
+			productionPort,
+			payload.productionHash,
+		);
 
 		await ctx.throwIfCancelRequested();
 
@@ -197,6 +215,7 @@ export async function handleProductionStart(
 			project.id,
 			productionPath,
 			productionPort,
+			payload.productionHash,
 		);
 
 		logger.info(
@@ -222,10 +241,47 @@ export async function handleProductionStart(
 			"Docker compose up succeeded for production",
 		);
 
-		// Update production status with port (status still "building" until waitReady confirms)
+		// Atomically update the "current" symlink to point to the new hash directory
+		// This ensures atomic deployment and enables rollback
+		const symlinkPath = getProductionCurrentSymlink(project.id);
+		const projectDir = getProductionPath(project.id);
+
+		// Ensure project directory exists
+		await fs.mkdir(projectDir, { recursive: true });
+
+		// Create temporary symlink with a unique name for atomic rename
+		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}`;
+		try {
+			// Remove temp symlink if it exists (shouldn't, but be safe)
+			await fs.unlink(tempSymlink).catch(() => {});
+
+			// Create new symlink pointing to hash directory
+			await fs.symlink(payload.productionHash, tempSymlink);
+
+			// Atomically rename to final location (overwrites old symlink)
+			await fs.rename(tempSymlink, symlinkPath);
+
+			logger.debug(
+				{
+					projectId: project.id,
+					symlinkPath,
+					target: payload.productionHash,
+				},
+				"Updated production current symlink",
+			);
+		} catch (error) {
+			logger.error(
+				{ projectId: project.id, error },
+				"Failed to update production symlink",
+			);
+			throw error;
+		}
+
+		// Update production status with port and hash (status still "building" until waitReady confirms)
 		await updateProductionStatus(project.id, "building", {
 			productionPort,
 			productionStartedAt: new Date(),
+			productionHash: payload.productionHash,
 		});
 
 		// Enqueue next step: wait for production server to be ready
@@ -240,6 +296,15 @@ export async function handleProductionStart(
 			{ projectId: project.id, productionPort },
 			"Enqueued production.waitReady",
 		);
+
+		// Clean up old production versions in the background (keep last 2)
+		// This is non-blocking - failures don't affect the deployment
+		cleanupOldProductionVersions(project.id, 2).catch((error) => {
+			logger.warn(
+				{ projectId: project.id, error },
+				"Failed to cleanup old production versions",
+			);
+		});
 	} catch (error) {
 		logger.error(
 			{ projectId: project.id, error },

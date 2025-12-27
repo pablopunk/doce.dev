@@ -1,12 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { logger } from "@/server/logger";
 import {
 	getProjectPath,
+	getProjectRelativePath,
 	getProjectsPath,
 	getTemplatePath,
-	getProjectRelativePath,
 } from "./paths";
-import { logger } from "@/server/logger";
 
 export interface SetupProjectFilesystemResult {
 	projectPath: string;

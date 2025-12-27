@@ -1,5 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
+import { randomBytes } from "node:crypto";
 import { hashPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
@@ -9,7 +10,6 @@ import {
 	DEFAULT_MODEL,
 	validateOpenRouterApiKey,
 } from "@/server/settings/openrouter";
-import { ActionError, defineAction } from "astro:actions";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

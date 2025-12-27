@@ -50,14 +50,36 @@ export function getProductionsPath(): string {
 
 /**
  * Get the absolute path to a specific production directory.
+ * If hash is provided, returns the versioned hash directory.
+ * If hash is omitted, returns the project-level directory containing all versions.
+ *
+ * @param projectId - The project ID
+ * @param hash - Optional: 8-character hash for versioned directory
+ * @returns Absolute path to production directory
  */
-export function getProductionPath(projectId: string): string {
-	return path.join(getProductionsPath(), projectId);
+export function getProductionPath(projectId: string, hash?: string): string {
+	const projectPath = path.join(getProductionsPath(), projectId);
+	return hash ? path.join(projectPath, hash) : projectPath;
+}
+
+/**
+ * Get the absolute path to the production "current" symlink.
+ * This symlink points to the active deployment hash directory.
+ *
+ * @param projectId - The project ID
+ * @returns Absolute path to current symlink
+ */
+export function getProductionCurrentSymlink(projectId: string): string {
+	return path.join(getProductionsPath(), projectId, "current");
 }
 
 /**
  * Get the relative path on disk for production (for reference).
  */
-export function getProductionRelativePath(projectId: string): string {
-	return `${DATA_DIR}/${PRODUCTIONS_DIR}/${projectId}`;
+export function getProductionRelativePath(
+	projectId: string,
+	hash?: string,
+): string {
+	const basePath = `${DATA_DIR}/${PRODUCTIONS_DIR}/${projectId}`;
+	return hash ? `${basePath}/${hash}` : basePath;
 }

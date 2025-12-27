@@ -1,7 +1,9 @@
 import { execSync } from "node:child_process";
+import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { hashDistFolder } from "@/server/productions/hash";
 import { updateProductionStatus } from "@/server/productions/productions.model";
+import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { enqueueProductionStart } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -57,13 +59,25 @@ export async function handleProductionBuild(
 
 		logger.info({ projectId: project.id }, "Production build succeeded");
 
-		// Enqueue next step: start production container
+		// Calculate hash of dist folder for atomic versioned deployment
+		const distPath = path.join(project.pathOnDisk, "dist");
+		const productionHash = await hashDistFolder(distPath);
+		logger.debug(
+			{ projectId: project.id, productionHash },
+			"Calculated production hash",
+		);
+
+		// Enqueue next step: start production container with hash
 		// Port will be allocated by the production.start handler
 		await enqueueProductionStart({
 			projectId: project.id,
+			productionHash,
 		});
 
-		logger.debug({ projectId: project.id }, "Enqueued production.start");
+		logger.debug(
+			{ projectId: project.id, productionHash },
+			"Enqueued production.start",
+		);
 	} catch (error) {
 		throw error;
 	}

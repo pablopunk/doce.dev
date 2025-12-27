@@ -1,10 +1,10 @@
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
+import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession, invalidateSession } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import { ActionError, defineAction } from "astro:actions";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

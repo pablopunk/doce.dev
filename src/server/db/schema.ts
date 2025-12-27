@@ -88,6 +88,7 @@ export const projects = sqliteTable("projects", {
 	}).default("stopped"),
 	productionStartedAt: integer("production_started_at", { mode: "timestamp" }),
 	productionError: text("production_error"),
+	productionHash: text("production_hash"),
 });
 
 // Queue jobs table (durable background tasks)

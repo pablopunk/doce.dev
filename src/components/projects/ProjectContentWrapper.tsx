@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-
-import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";

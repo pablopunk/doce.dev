@@ -1,12 +1,11 @@
 import type { APIRoute } from "astro";
-import { getActiveProductionJob } from "@/server/productions/productions.model";
+import { getProductionVersions } from "@/server/productions/cleanup";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
-import { enqueueProductionBuild } from "@/server/queue/enqueue";
 
-export const POST: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;
 
 	if (!projectId) {
@@ -25,34 +24,22 @@ export const POST: APIRoute = async ({ params, locals }) => {
 		return new Response("Forbidden", { status: 403 });
 	}
 
-	// Get project
+	// Check project exists
 	const project = await getProjectById(projectId);
 	if (!project) {
 		return new Response("Project not found", { status: 404 });
 	}
 
-	// Check if a production job is already in progress
-	const activeJob = await getActiveProductionJob(projectId);
-	if (activeJob) {
-		return new Response(
-			JSON.stringify({
-				success: false,
-				message: `Deployment already in progress (${activeJob.type})`,
-			}),
-			{
-				status: 409,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
-
-	// Enqueue production build job
-	await enqueueProductionBuild({ projectId });
+	// Get available production versions
+	const versions = await getProductionVersions(projectId);
 
 	return new Response(
 		JSON.stringify({
-			success: true,
-			message: "Deployment started",
+			versions: versions.map((v) => ({
+				hash: v.hash,
+				isActive: v.isActive,
+				createdAt: v.mtimeIso,
+			})),
 		}),
 		{
 			status: 200,

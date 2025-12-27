@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { getProjectPath, getProductionPath } from "./paths";
+import { getProductionPath, getProjectPath } from "./paths";
 import {
 	getProjectById,
 	getProjectsByUserId,
@@ -65,12 +65,16 @@ export async function deleteProject(
 		// Continue - file deletion doesn't block database deletion
 	}
 
-	// Step 3: Delete production directory
+	// Step 3: Delete entire production directory tree
 	// This is best-effort since production might not exist
 	try {
-		const productionPath = getProductionPath(projectId);
-		await fs.rm(productionPath, { recursive: true, force: true });
-		logger.debug({ projectId, productionPath }, "Deleted production directory");
+		// Get the project-level production directory (contains all version hashes and symlink)
+		const productionsProjectPath = getProductionPath(projectId);
+		await fs.rm(productionsProjectPath, { recursive: true, force: true });
+		logger.debug(
+			{ projectId, productionsProjectPath },
+			"Deleted all production versions",
+		);
 	} catch (err) {
 		logger.warn(
 			{ error: err, projectId },

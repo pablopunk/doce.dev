@@ -1,13 +1,13 @@
 import type { APIRoute } from "astro";
 import {
+	getActiveProductionJob,
+	getProductionStatus,
+} from "@/server/productions/productions.model";
+import {
 	getProjectById,
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
 import { enqueueProductionStop } from "@/server/queue/enqueue";
-import {
-	getActiveProductionJob,
-	getProductionStatus,
-} from "@/server/productions/productions.model";
 
 export const POST: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;

@@ -1,10 +1,12 @@
 import type { APIRoute } from "astro";
-import { isProjectOwnedByUser } from "@/server/projects/projects.model";
-import { getProjectById } from "@/server/projects/projects.model";
 import {
-	getProductionStatus,
 	getActiveProductionJob,
+	getProductionStatus,
 } from "@/server/productions/productions.model";
+import {
+	getProjectById,
+	isProjectOwnedByUser,
+} from "@/server/projects/projects.model";
 
 export const GET: APIRoute = async ({ params, locals }) => {
 	const projectId = params.id;

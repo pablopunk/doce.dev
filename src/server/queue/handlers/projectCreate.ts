@@ -6,11 +6,11 @@ import { userSettings } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { createProject } from "@/server/projects/projects.model";
-import { generateUniqueSlug } from "@/server/projects/slug";
 import {
 	setupProjectFilesystem,
 	updateOpencodeModel,
 } from "@/server/projects/setup";
+import { generateUniqueSlug } from "@/server/projects/slug";
 import { generateProjectName } from "@/server/settings/openrouter";
 import { enqueueDockerComposeUp } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";

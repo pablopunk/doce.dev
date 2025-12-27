@@ -1,4 +1,4 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type Project, projects, queueJobs } from "@/server/db/schema";
 
@@ -35,6 +35,7 @@ export async function updateProductionStatus(
 		productionUrl?: string | null;
 		productionError?: string | null;
 		productionStartedAt?: Date;
+		productionHash?: string | null;
 	},
 ): Promise<Project | null> {
 	const data: Record<string, unknown> = {
@@ -52,6 +53,9 @@ export async function updateProductionStatus(
 	}
 	if (updates?.productionStartedAt !== undefined) {
 		data.productionStartedAt = updates.productionStartedAt;
+	}
+	if (updates?.productionHash !== undefined) {
+		data.productionHash = updates.productionHash;
 	}
 
 	const result = await db

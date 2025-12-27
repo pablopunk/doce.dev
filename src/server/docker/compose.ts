@@ -46,8 +46,12 @@ function getProjectName(projectId: string): string {
 
 /**
  * Get the production project name for docker compose (completely separate from dev).
+ * If hash is provided, includes it in the project name for complete isolation between versions.
  */
-function getProductionProjectName(projectId: string): string {
+function getProductionProjectName(projectId: string, hash?: string): string {
+	if (hash) {
+		return `doce_prod_${projectId.slice(0, 8)}_${hash}`;
+	}
 	return `doce_prod_${projectId}`;
 }
 
@@ -60,11 +64,15 @@ function buildComposeArgs(projectId: string): string[] {
 
 /**
  * Build the base compose command for production with separate project name.
+ * If hash is provided, includes it in the project name for isolation.
  */
-function buildComposeArgsProduction(projectId: string): string[] {
+function buildComposeArgsProduction(
+	projectId: string,
+	hash?: string,
+): string[] {
 	return [
 		"--project-name",
-		getProductionProjectName(projectId),
+		getProductionProjectName(projectId, hash),
 		"--ansi",
 		"never",
 	];
@@ -93,7 +101,7 @@ async function runComposeCommand(
 	const baseArgs = buildComposeArgs(projectId);
 
 	// Build args with optional profile and file flags (both must come BEFORE the subcommand)
-	let fullArgs = [...compose.slice(1), ...baseArgs];
+	const fullArgs = [...compose.slice(1), ...baseArgs];
 	if (filePath) {
 		fullArgs.push("-f", filePath);
 	}
@@ -162,12 +170,13 @@ async function runComposeCommandProduction(
 	productionPath: string,
 	args: string[],
 	filePath?: string,
+	hash?: string,
 ): Promise<ComposeResult> {
 	const compose = detectComposeCommand();
-	const baseArgs = buildComposeArgsProduction(projectId);
+	const baseArgs = buildComposeArgsProduction(projectId, hash);
 
 	// Build args with file flags (must come BEFORE the subcommand)
-	let fullArgs = [...compose.slice(1), ...baseArgs];
+	const fullArgs = [...compose.slice(1), ...baseArgs];
 	if (filePath) {
 		fullArgs.push("-f", filePath);
 	}
@@ -270,13 +279,18 @@ export async function composeUp(
 /**
  * Start production container for a project using docker-compose.production.yml.
  * Uses separate project name for complete isolation from dev containers.
+ * Includes hash in project name for multi-version isolation.
  * Idempotent - safe to call when already running.
- * @param productionPath Path to the production directory (data/productions/{projectId}/)
+ * @param projectId The project ID
+ * @param productionPath Path to the production directory (data/production/{projectId}/{hash}/)
+ * @param productionPort Port number for the production server
+ * @param productionHash Hash of the dist folder for versioning
  */
 export async function composeUpProduction(
 	projectId: string,
 	productionPath: string,
 	productionPort: number,
+	productionHash?: string,
 ): Promise<ComposeResult> {
 	const logsDir = path.join(productionPath, "logs");
 	await import("node:fs/promises").then((fs) =>
@@ -285,7 +299,7 @@ export async function composeUpProduction(
 
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml up -d (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId)})`,
+		`docker compose -f docker-compose.production.yml up -d (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId, productionHash)})`,
 	);
 
 	const result = await runComposeCommandProduction(
@@ -293,6 +307,7 @@ export async function composeUpProduction(
 		productionPath,
 		["up", "-d"],
 		"docker-compose.production.yml",
+		productionHash,
 	);
 
 	// Log output with stream markers
@@ -345,16 +360,19 @@ export async function composeDown(
 /**
  * Stop only the production container using docker-compose.production.yml
  * Uses separate project name to ensure dev containers are never affected.
- * @param productionPath Path to the production directory (data/productions/{projectId}/)
+ * @param projectId The project ID
+ * @param productionPath Path to the production directory (data/production/{projectId}/{hash}/)
+ * @param productionHash Hash of the dist folder (optional, for multiple versions)
  */
 export async function composeDownProduction(
 	projectId: string,
 	productionPath: string,
+	productionHash?: string,
 ): Promise<ComposeResult> {
 	const logsDir = path.join(productionPath, "logs");
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml down (project=${getProductionProjectName(projectId)})`,
+		`docker compose -f docker-compose.production.yml down (project=${getProductionProjectName(projectId, productionHash)})`,
 	);
 
 	// Stop streaming container logs before stopping containers
@@ -365,6 +383,7 @@ export async function composeDownProduction(
 		productionPath,
 		["down"],
 		"docker-compose.production.yml",
+		productionHash,
 	);
 
 	if (result.stdout) {

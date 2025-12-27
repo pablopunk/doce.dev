@@ -12,6 +12,8 @@
 		"shadcn:update": "bash scripts/shadcn-update.sh",
 		"icons:generate": "node scripts/generate-icons.js",
 		"format": "pnpm exec biome check --write src/",
+		"drizzle:migration:create": "drizzle-kit generate",
+		"drizzle:migration:migrate": "drizzle-kit migrate",
 		"drizzle:studio": "drizzle-kit studio"
 	},
 	"packageManager": "pnpm@10.20.0",

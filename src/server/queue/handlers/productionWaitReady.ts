@@ -1,7 +1,7 @@
 import { checkHttpServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
-import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { updateProductionStatus } from "@/server/productions/productions.model";
+import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
 import { RescheduleError } from "../queue.worker";
 import { parsePayload } from "../types";

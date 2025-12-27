@@ -1,11 +1,16 @@
 {
-  "extends": "astro/tsconfigs/strictest",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": [".astro/types.d.ts", "src/env.d.ts", "src/**/*", "astro.config.ts"],
-  "exclude": ["node_modules", "dist"]
+	"extends": "astro/tsconfigs/strictest",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": [
+		".astro/types.d.ts",
+		"src/env.d.ts",
+		"src/**/*",
+		"astro.config.ts"
+	],
+	"exclude": ["node_modules", "dist"]
 }
