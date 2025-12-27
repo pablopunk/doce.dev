@@ -159,64 +159,85 @@ export const server = {
 				defaultModel: z.string().default(DEFAULT_MODEL),
 			}),
 			handler: async (input, context) => {
-				// Check if admin already exists
-				const existingUsers = await db.select().from(users).limit(1);
-				if (existingUsers.length > 0) {
-					throw new ActionError({
-						code: "FORBIDDEN",
-						message: "Admin user already exists",
-					});
-				}
-
-				// Validate passwords match
-				if (input.password !== input.confirmPassword) {
-					throw new ActionError({
-						code: "BAD_REQUEST",
-						message: "Passwords do not match",
-					});
-				}
-
-				// Validate OpenRouter API key
 				try {
-					await validateOpenRouterApiKey(input.openrouterApiKey);
-				} catch {
+					// Check if admin already exists
+					const existingUsers = await db.select().from(users).limit(1);
+					if (existingUsers.length > 0) {
+						throw new ActionError({
+							code: "FORBIDDEN",
+							message: "Admin user already exists",
+						});
+					}
+
+					// Validate passwords match
+					if (input.password !== input.confirmPassword) {
+						throw new ActionError({
+							code: "BAD_REQUEST",
+							message: "Passwords do not match",
+						});
+					}
+
+					// Validate OpenRouter API key
+					try {
+						await validateOpenRouterApiKey(input.openrouterApiKey);
+					} catch {
+						throw new ActionError({
+							code: "BAD_REQUEST",
+							message: "Invalid OpenRouter API key",
+						});
+					}
+
+					// Create admin user
+					const userId = randomBytes(16).toString("hex");
+					let passwordHash: string;
+					try {
+						passwordHash = await hashPassword(input.password);
+					} catch (error) {
+						// Password hashing failed (crypto error, invalid password, etc.)
+						throw new ActionError({
+							code: "INTERNAL_SERVER_ERROR",
+							message: "Failed to create admin user",
+						});
+					}
+
+					const now = new Date();
+
+					await db.insert(users).values({
+						id: userId,
+						username: input.username,
+						createdAt: now,
+						passwordHash,
+					});
+
+					// Create user settings
+					await db.insert(userSettings).values({
+						userId,
+						openrouterApiKey: input.openrouterApiKey,
+						defaultModel: input.defaultModel,
+						updatedAt: now,
+					});
+
+					// Create session and set cookie
+					const sessionToken = await createSession(userId);
+					context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+						path: "/",
+						httpOnly: true,
+						sameSite: "lax",
+						secure: import.meta.env.PROD,
+						maxAge: 60 * 60 * 24 * 30, // 30 days
+					});
+
+					return { success: true };
+				} catch (error) {
+					if (error instanceof ActionError) {
+						throw error;
+					}
+					// Unexpected error during admin creation
 					throw new ActionError({
-						code: "BAD_REQUEST",
-						message: "Invalid OpenRouter API key",
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Failed to create admin user",
 					});
 				}
-
-				// Create admin user
-				const userId = randomBytes(16).toString("hex");
-				const passwordHash = await hashPassword(input.password);
-				const now = new Date();
-
-				await db.insert(users).values({
-					id: userId,
-					username: input.username,
-					createdAt: now,
-					passwordHash,
-				});
-
-				// Create user settings
-				await db.insert(userSettings).values({
-					userId,
-					openrouterApiKey: input.openrouterApiKey,
-					defaultModel: input.defaultModel,
-					updatedAt: now,
-				});
-
-				// Create session and set cookie
-				const sessionToken = await createSession(userId);
-				context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-					path: "/",
-					httpOnly: true,
-					sameSite: "lax",
-					secure: import.meta.env.PROD,
-					maxAge: 60 * 60 * 24 * 30, // 30 days
-				});
-
-				return { success: true };
 			},
 		}),
 	},
@@ -229,41 +250,62 @@ export const server = {
 				password: z.string().min(1, "Password is required"),
 			}),
 			handler: async (input, context) => {
-				// Get the user by username
-				const foundUsers = await db
-					.select()
-					.from(users)
-					.where(eq(users.username, input.username))
-					.limit(1);
-				const user = foundUsers[0];
+				try {
+					// Get the user by username
+					const foundUsers = await db
+						.select()
+						.from(users)
+						.where(eq(users.username, input.username))
+						.limit(1);
+					const user = foundUsers[0];
 
-				if (!user) {
+					if (!user) {
+						throw new ActionError({
+							code: "UNAUTHORIZED",
+							message: "Invalid username or password",
+						});
+					}
+
+					// Verify password
+					let isValid = false;
+					try {
+						isValid = await verifyPassword(input.password, user.passwordHash);
+					} catch (error) {
+						// Password verification failed (crypto error, invalid hash format, etc.)
+						throw new ActionError({
+							code: "UNAUTHORIZED",
+							message: "Invalid username or password",
+						});
+					}
+
+					if (!isValid) {
+						throw new ActionError({
+							code: "UNAUTHORIZED",
+							message: "Invalid username or password",
+						});
+					}
+
+					// Create session and set cookie
+					const sessionToken = await createSession(user.id);
+					context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+						path: "/",
+						httpOnly: true,
+						sameSite: "lax",
+						secure: import.meta.env.PROD,
+						maxAge: 60 * 60 * 24 * 30, // 30 days
+					});
+
+					return { success: true };
+				} catch (error) {
+					if (error instanceof ActionError) {
+						throw error;
+					}
+					// Unexpected error during login
 					throw new ActionError({
-						code: "UNAUTHORIZED",
-						message: "Invalid username or password",
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Login failed",
 					});
 				}
-
-				// Verify password
-				const isValid = await verifyPassword(input.password, user.passwordHash);
-				if (!isValid) {
-					throw new ActionError({
-						code: "UNAUTHORIZED",
-						message: "Invalid username or password",
-					});
-				}
-
-				// Create session and set cookie
-				const sessionToken = await createSession(user.id);
-				context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-					path: "/",
-					httpOnly: true,
-					sameSite: "lax",
-					secure: import.meta.env.PROD,
-					maxAge: 60 * 60 * 24 * 30, // 30 days
-				});
-
-				return { success: true };
 			},
 		}),
 
