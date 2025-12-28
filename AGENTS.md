@@ -66,26 +66,3 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 **OpenCode SDK** (`@opencode-ai/sdk`) - TypeScript client for communicating with OpenCode AI agents.
 
 **OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
-
-## Documentation
-
-### Architecture & Systems
-
-See `docs/` for implementation details:
-
-- `docs/queue-system.md` - Job queue, handlers, worker flow
-- `docs/docker-management.md` - Container lifecycle, compose operations
-- `docs/opencode-integration.md` - SDK v2 client, SSE event normalization
-- `docs/database-schema.md` - Tables, relationships
-- `docs/presence-system.md` - Real-time state, heartbeats, auto start/stop
-- `docs/project-lifecycle.md` - Creation & deletion flows, status states
-- `docs/model-selection.md` - AI model switching in chat
-- `docs/project-creation-flow.md` - Split prompt tracking during project setup
-- `docs/production-deployment.md` - Build and deployment system
-- `docs/asset-management.md` - Asset upload and storage
-
-### Development Patterns & Standards
-
-- `docs/error-handling-strategy.md` - Error handling patterns across all layers (backend, API, React)
-- `docs/async-patterns.md` - Fire-and-forget, polling, and waiting patterns with decision tree
-- `docs/TECH_STACK.md` - Technology choices and rationale
