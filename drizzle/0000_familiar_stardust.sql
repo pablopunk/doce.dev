@@ -14,10 +14,16 @@ CREATE TABLE `projects` (
 	`initial_prompt_sent` integer DEFAULT false NOT NULL,
 	`initial_prompt_completed` integer DEFAULT false NOT NULL,
 	`bootstrap_session_id` text,
-	`init_prompt_message_id` text,
 	`user_prompt_message_id` text,
-	`init_prompt_completed` integer DEFAULT false NOT NULL,
 	`user_prompt_completed` integer DEFAULT false NOT NULL,
+	`current_model_provider_id` text,
+	`current_model_id` text,
+	`production_port` integer,
+	`production_url` text,
+	`production_status` text DEFAULT 'stopped',
+	`production_started_at` integer,
+	`production_error` text,
+	`production_hash` text,
 	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
