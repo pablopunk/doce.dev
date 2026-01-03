@@ -65,15 +65,21 @@ export const projects = {
 
 			const projectId = randomBytes(12).toString("hex");
 
-			enqueueProjectCreate({
-				projectId,
-				ownerUserId: user.id,
-				prompt: input.prompt,
-				model: input.model ?? userSettingsData.defaultModel ?? null,
-				images,
-			}).catch((err) => {
+			try {
+				await enqueueProjectCreate({
+					projectId,
+					ownerUserId: user.id,
+					prompt: input.prompt,
+					model: input.model ?? userSettingsData.defaultModel ?? null,
+					images,
+				});
+			} catch (err) {
 				console.error("Failed to enqueue project creation:", err);
-			});
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to start project creation",
+				});
+			}
 
 			return {
 				success: true,
