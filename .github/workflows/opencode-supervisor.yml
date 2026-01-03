@@ -50,6 +50,7 @@ jobs:
           prompt: |
             Read and understand @AGENTS.md to learn the project's rules and conventions.
             Then analyze this codebase for any improvements that adhere to those rules.
+
             Focus on:
             - Clean code principles (single-purpose functions, proper abstractions, MVC patterns)
             - Following the tech stack conventions (pnpm, TypeScript strict mode, Astro + React, shadcn/ui, etc.)
