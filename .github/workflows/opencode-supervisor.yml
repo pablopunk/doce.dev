@@ -55,8 +55,7 @@ jobs:
             - Following the tech stack conventions (pnpm, TypeScript strict mode, Astro + React, shadcn/ui, etc.)
             - Any rules in AGENTS.md that may need updating based on recent changes
 
-            If you find improvements that align with AGENTS.md:
-            - Make the necessary code changes
-            - Create a PR with your changes
+            If you find improvements that align with AGENTS.md, and you're confident, create a PR to make those improvements.
+            If you're not confident or it requires opinionated changes, or more input, create an issue instead.
 
             If no improvements are found that align with AGENTS.md, don't do anything.
