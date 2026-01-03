@@ -15,6 +15,8 @@ import {
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
+import { Minimax } from "@/components/ui/svgs/minimax";
+import { MinimaxDark } from "@/components/ui/svgs/minimaxDark";
 import { Openai } from "@/components/ui/svgs/openai";
 import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { ZaiDark } from "@/components/ui/svgs/zaiDark";
@@ -28,6 +30,7 @@ const PROVIDER_LOGOS: Record<
 	Anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
 	Google: { light: Gemini, dark: Gemini },
 	"Z.ai": { light: ZaiLight, dark: ZaiDark },
+	MiniMax: { light: Minimax, dark: MinimaxDark },
 };
 
 interface ModelSelectorProps {
