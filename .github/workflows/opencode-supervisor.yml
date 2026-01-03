@@ -9,7 +9,7 @@ env:
   LOOKBACK_HOURS: 4
 
 jobs:
-  opencode-update:
+  opencode-supervisor:
     runs-on: ubuntu-latest
     permissions:
       contents: write
