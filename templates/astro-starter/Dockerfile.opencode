@@ -3,6 +3,9 @@ FROM node:22-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
+# Enable corepack and prepare pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 # Install OpenCode
 RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.202
 
