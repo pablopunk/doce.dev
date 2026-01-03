@@ -1,0 +1,61 @@
+on:
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+env:
+  LOOKBACK_HOURS: 4
+
+jobs:
+  opencode-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 20
+
+      - name: Get recent commits
+        id: commits
+        run: |
+          COMMITS=$(git log --since="${{ env.LOOKBACK_HOURS }} hours ago" --pretty=format:"- %h %s" 2>/dev/null || echo "")
+          if [ -z "$COMMITS" ]; then
+            echo "No commits in the last ${{ env.LOOKBACK_HOURS }} hours"
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+            {
+              echo "list<<EOF"
+              echo "$COMMITS"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run opencode
+        if: steps.commits.outputs.has_commits == 'true'
+        uses: sst/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/minimax-m2.1-free
+          prompt: |
+            Read and understand @AGENTS.md to learn the project's rules and conventions.
+            Then analyze this codebase for any improvements that adhere to those rules.
+            Focus on:
+            - Clean code principles (single-purpose functions, proper abstractions, MVC patterns)
+            - Following the tech stack conventions (pnpm, TypeScript strict mode, Astro + React, shadcn/ui, etc.)
+            - Any rules in AGENTS.md that may need updating based on recent changes
+
+            If you find improvements that align with AGENTS.md:
+            - Make the necessary code changes
+            - Create a PR with your changes
+
+            If no improvements are found that align with AGENTS.md, don't do anything.
