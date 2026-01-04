@@ -1,0 +1,417 @@
+================================================================================
+OPENCODE PROVIDER INTEGRATION - PLANNING COMPLETE
+================================================================================
+
+Date: January 4, 2026
+Analyst: Claude Code
+
+================================================================================
+DELIVERABLES CREATED
+================================================================================
+
+Four comprehensive planning documents have been created and committed to git:
+
+1. OPENCODE_PROVIDER_INTEGRATION_PLAN.md (1890 lines)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Complete technical specification covering:
+   - How OpenCode's Connect Provider feature works (section 1)
+   - OpenCode SDK integration patterns (section 2)  
+   - New database schema with providerConnections table (section 3)
+   - Redesigned Settings UI with React components (section 4)
+   - Queue handler for credential initialization (section 5)
+   - Backwards compatibility & migration strategy (section 6)
+   - Implementation roadmap (6 phases, ~60 hours)
+   - Security model and risk analysis
+   - Complete code examples
+   - Testing strategy
+
+2. INTEGRATION_PLAN_SUMMARY.md (412 lines)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Executive summary for stakeholders:
+   - High-level findings from analysis
+   - Direct answers to all 6 key questions
+   - Implementation roadmap overview
+   - Security improvements summary
+   - Risk assessment matrix
+   - Architecture diagrams
+   - Expected user & system outcomes
+   - Discussion questions for team
+
+3. INTEGRATION_NEXT_STEPS.md (695 lines)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Step-by-step implementation guide:
+   - Phase 1-6 detailed checklists
+   - Line-by-line coding instructions
+   - Critical decision points (encryption, OAuth, etc.)
+   - Files to create/modify with exact paths
+   - Comprehensive testing checklist
+   - Debugging tips for common issues
+   - Success criteria per phase
+   - Time estimates per component
+   - Resource links
+
+4. OPENCODE_INTEGRATION_QUICK_REFERENCE.md (329 lines)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Quick visual reference (one-pager format):
+   - One-page answer per question (Q1-Q6)
+   - ASCII art diagrams
+   - Architecture overview
+   - Phase summary table
+   - Critical file paths
+   - Key decisions
+   - Success criteria
+   - Quick navigation links
+
+Total Documentation: 3,655 lines of comprehensive planning
+
+================================================================================
+KEY FINDINGS FROM ANALYSIS
+================================================================================
+
+1. OPENCODE PROVIDER MECHANISM
+   ✓ OpenCode uses three auth types: API Key, OAuth, WellKnown
+   ✓ Credentials stored in ~/.local/share/opencode/auth.json (file permissions)
+   ✓ SDK provides client.auth.set() to configure credentials
+   ✓ Sessions automatically use credentials when providerID specified
+   ✗ NO environment variable mechanism needed
+
+2. CURRENT ARCHITECTURAL PROBLEM
+   ✗ doce.dev bypasses OpenCode's native security
+   ✗ API keys written to plaintext .env files
+   ✗ Credentials exposed in Docker environment
+   ✗ Single provider support only
+   ✓ BUT: System is functional for MVP
+
+3. PROPOSED SOLUTION
+   ✓ Use OpenCode's auth.set() after container health check
+   ✓ Never write credentials to .env
+   ✓ Store provider connections in new DB table
+   ✓ Support multiple providers per user
+   ✓ Backwards compatible with existing system
+
+4. ARCHITECTURE IMPROVEMENTS
+   Before: user_key → .env → docker env → OpenCode
+   After:  user_key → DB → queue handler → auth.set() → auth.json
+   
+   Result: Cleaner, more secure, more flexible
+
+================================================================================
+ANSWERS TO ALL 6 QUESTIONS
+================================================================================
+
+Q1: How does OpenCode "Connect Provider" work?
+A: Three-part flow:
+   1. User enters credentials (API key or OAuth token)
+   2. doce.dev calls client.auth.set(providerId, credentials)
+   3. OpenCode stores securely in auth.json
+   4. Sessions look up credentials by providerId automatically
+   
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 1
+
+Q2: How do we integrate with OpenCode SDK?
+A: Three operations:
+   1. client.config.providers() - discover available providers
+   2. client.auth.set() - set credentials (new responsibility)
+   3. client.session.prompt() - automatic credential lookup
+   
+   All methods already exist in SDK v2.
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 2
+
+Q3: What database changes are needed?
+A: Add providerConnections table:
+   - id, userId, providerId
+   - authType, apiKeyHash, oauthTokens
+   - status, lastUsedAt, createdAt
+   
+   Update userSettings:
+   - preferredProviderId
+   - providerAuthInitialized
+   
+   Unchanged: projects (already has model tracking)
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 3
+
+Q4: How should Settings UI change?
+A: Replace manual API key input with:
+   - List of connected providers
+   - [+ Add Provider] button
+   - Provider selector dialog
+   - Separate flows for API key vs OAuth
+   
+   Single cohesive page, no complex wizards.
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 4
+
+Q5: How does container environment change?
+A: Three new queue steps:
+   1. docker compose up
+   2. opencode.waitHealthy (existing)
+   3. [NEW] opencode.setProviderCredentials
+      - Retrieves credentials from DB
+      - Calls client.auth.set(providerId, key)
+      - Stores in OpenCode's auth.json
+   4. opencode.sessionCreate
+   5. opencode.sendInitialPrompt
+   
+   Result: No API keys in .env
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 5
+
+Q6: How do we maintain backwards compatibility?
+A: Three-phase migration:
+   1. Phase 1: Both systems coexist, users opt-in
+   2. Phase 2: Settings UI encourages migration, auto-import
+   3. Phase 3: Deprecate old system (hide UI, keep DB)
+   
+   Zero forced migrations, gradual user movement.
+   See: OPENCODE_PROVIDER_INTEGRATION_PLAN.md - Section 6
+
+================================================================================
+IMPLEMENTATION ROADMAP
+================================================================================
+
+Phase 1: Database Foundation (Week 1)
+  Duration: 13 hours
+  Tasks:
+    - Create providerConnections table
+    - Update userSettings schema
+    - Implement CRUD functions
+    - Write migration detection logic
+  Complexity: Low
+  Risk: Low
+  Dependencies: None
+
+Phase 2: Settings Actions (Week 1-2)
+  Duration: 8 hours
+  Tasks:
+    - Implement connectProvider action
+    - Implement disconnectProvider action
+    - Add validation and error handling
+  Complexity: Medium
+  Risk: Medium
+  Dependencies: Phase 1
+
+Phase 3: Queue Handler (Week 2)
+  Duration: 10 hours
+  Tasks:
+    - Create opencodeSetProviderCredentials handler
+    - Implement retry logic with exponential backoff
+    - Update queue job ordering
+    - Implement fallback to legacy system
+  Complexity: High
+  Risk: Medium
+  Dependencies: Phase 1, 2
+
+Phase 4: Settings UI (Week 2-3)
+  Duration: 11 hours
+  Tasks:
+    - Create React components for provider management
+    - Implement add/edit/delete flows
+    - Add OAuth dialog scaffolding
+  Complexity: Medium
+  Risk: Low
+  Dependencies: Phase 2
+
+Phase 5: Testing (Week 3)
+  Duration: 12 hours
+  Tasks:
+    - E2E testing of full flow
+    - Unit tests for all handlers
+    - Load testing with concurrent projects
+  Complexity: High
+  Risk: Low
+  Dependencies: Phases 1-4
+
+Phase 6: Migration & Launch (Week 4)
+  Duration: 6 hours
+  Tasks:
+    - Auto-migrate existing users
+    - Update documentation
+    - Launch coordination
+  Complexity: Low
+  Risk: Low
+  Dependencies: Phases 1-5
+
+TOTAL: ~60 hours of development (~2 weeks, 1 developer)
+
+================================================================================
+CRITICAL DECISION POINTS
+================================================================================
+
+Before implementing Phase 2, decide:
+
+1. ENCRYPTION STRATEGY
+   Option A: Hash only (faster, MVP)
+   Option B: Encrypt at rest (safer, more work)
+   → Recommendation: Option A for MVP
+
+2. OAUTH SUPPORT
+   Option A: API keys only (simpler, MVP)
+   Option B: Include OAuth (more providers, more work)
+   → Recommendation: Option A for MVP
+
+3. MULTI-PROVIDER PER SESSION
+   Option A: One provider per session (simplest)
+   Option B: Switch mid-conversation (complex)
+   → Recommendation: Option A (simplest)
+
+================================================================================
+SECURITY MODEL
+================================================================================
+
+Current Issues:
+  ✗ API keys in plaintext in .env files
+  ✗ Keys visible in Docker environment
+  ✗ No audit trail
+  ✗ No expiration/rotation
+
+Proposed Solution:
+  ✓ Keys only in OpenCode's auth.json (file permissions)
+  ✓ Keys never visible in .env or env vars
+  ✓ Full audit trail via queue handler logs
+  ✓ Status tracking (connected, expired, error)
+  ✓ Last-used timestamps
+
+Enhancement (Phase 2+):
+  ✓ Encrypted credential storage
+  ✓ OAuth token refresh
+  ✓ Credential rotation policies
+
+================================================================================
+RISK ANALYSIS
+================================================================================
+
+Risk 1: Credential Setting Fails (Medium Likelihood, High Impact)
+  Mitigation: Retry logic, fallback to legacy system, clear error logging
+
+Risk 2: OAuth Token Expiry (High Likelihood, Medium Impact)
+  Mitigation: Track expiry, auto-refresh, UI warnings
+
+Risk 3: Migration Data Loss (Low Likelihood, Catastrophic Impact)
+  Mitigation: Keep old table forever, dry-run before deployment, backups
+
+Risk 4: Provider Configuration Mismatch (Low Likelihood, Medium Impact)
+  Mitigation: Validate against OpenCode's provider list, fallback defaults
+
+Overall Risk Level: LOW-MEDIUM (mitigated by phased approach)
+
+================================================================================
+DOCUMENTATION STRUCTURE
+================================================================================
+
+Reading Path for Different Audiences:
+
+For Decision Makers:
+  1. Start: INTEGRATION_PLAN_SUMMARY.md (10 min read)
+  2. Reference: OPENCODE_INTEGRATION_QUICK_REFERENCE.md
+  3. Questions? See OPENCODE_PROVIDER_INTEGRATION_PLAN.md specific sections
+
+For Architects:
+  1. Start: INTEGRATION_PLAN_SUMMARY.md
+  2. Deep dive: OPENCODE_PROVIDER_INTEGRATION_PLAN.md sections 1-3
+  3. Implementation: INTEGRATION_NEXT_STEPS.md phases 1-3
+  4. Code examples: OPENCODE_PROVIDER_INTEGRATION_PLAN.md
+
+For Implementers:
+  1. Start: INTEGRATION_NEXT_STEPS.md (your implementation guide)
+  2. Reference: OPENCODE_PROVIDER_INTEGRATION_PLAN.md (detailed spec)
+  3. Quick lookup: OPENCODE_INTEGRATION_QUICK_REFERENCE.md
+  4. Code patterns: All three documents have examples
+
+For Reviewers:
+  1. Understand: OPENCODE_INTEGRATION_QUICK_REFERENCE.md
+  2. Validate: OPENCODE_PROVIDER_INTEGRATION_PLAN.md sections matching code
+  3. Security: Section on security model and risk analysis
+
+================================================================================
+FILES READY FOR IMPLEMENTATION
+================================================================================
+
+All planning documents have been committed to git:
+  ✓ OPENCODE_PROVIDER_INTEGRATION_PLAN.md (1890 lines)
+  ✓ INTEGRATION_PLAN_SUMMARY.md (412 lines)
+  ✓ INTEGRATION_NEXT_STEPS.md (695 lines)
+  ✓ OPENCODE_INTEGRATION_QUICK_REFERENCE.md (329 lines)
+  ✓ PLANNING_SUMMARY.txt (this file)
+
+Git commits:
+  - dab75ee: docs: Add comprehensive OpenCode Provider integration plan
+  - 728adf5: docs: Add executive summary
+  - 11a520d: docs: Add detailed implementation guide
+  - 0e28cb7: docs: Add quick reference guide
+
+================================================================================
+NEXT STEPS FOR THE TEAM
+================================================================================
+
+IMMEDIATELY (Before Implementation):
+  1. Review INTEGRATION_PLAN_SUMMARY.md as a team
+  2. Discuss the 3 critical decision points
+  3. Decide on answers (encryption, OAuth, multi-provider)
+  4. Schedule Phase 1 kickoff
+
+BEFORE PHASE 1:
+  1. Create Jira/Linear tickets for each phase
+  2. Assign implementation lead
+  3. Set up test environment
+  4. Create database backup
+  5. Review current credential handling code
+
+PHASE 1 EXECUTION:
+  1. Use INTEGRATION_NEXT_STEPS.md Phase 1 checklist
+  2. Create providerConnections table
+  3. Implement CRUD functions
+  4. Write tests
+  5. Get code review
+
+ONGOING:
+  1. Follow checklist for each phase
+  2. Reference code examples in plan
+  3. Run tests after each phase
+  4. Update AGENTS.md with architecture changes
+
+================================================================================
+ESTIMATED TIMELINE
+================================================================================
+
+Sprint Planning:      1 day (decision making, ticket creation)
+Phase 1:              3 days (Week 1 Mon-Wed)
+Phase 2:              2 days (Week 1 Thu-Fri)
+Phase 3:              2.5 days (Week 2 Mon-Tue, half Wed)
+Phase 4:              3 days (Week 2 Wed-Thu, Fri)
+Phase 5:              3 days (Week 3 Mon-Wed)
+Phase 6:              1.5 days (Week 3 Thu-Fri)
+Polish/Bug Fixes:     2 days (Week 4 Mon-Tue)
+Launch:              (Week 4)
+
+TOTAL: ~18 days wall-clock (2 weeks at 40h/week)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+OpenCode's provider system is well-designed for integration. The proposed
+architecture:
+
+✓ Eliminates manual API key handling
+✓ Leverages OpenCode's native security
+✓ Supports multiple providers
+✓ Maintains backwards compatibility
+✓ Follows clean code principles
+✓ Has clear testing strategy
+✓ Includes phased launch plan
+
+The comprehensive planning documents provide everything needed to execute
+this integration confidently. Start with Phase 1 checklist in INTEGRATION_NEXT_STEPS.md.
+
+================================================================================
+DOCUMENTS LOCATION
+================================================================================
+
+All documents in repository root:
+  /Users/pablopunk/src/doce.dev/
+    ├── OPENCODE_PROVIDER_INTEGRATION_PLAN.md
+    ├── INTEGRATION_PLAN_SUMMARY.md
+    ├── INTEGRATION_NEXT_STEPS.md
+    ├── OPENCODE_INTEGRATION_QUICK_REFERENCE.md
+    └── PLANNING_SUMMARY.txt (this file)
+
+Good luck with implementation! 🚀
+
