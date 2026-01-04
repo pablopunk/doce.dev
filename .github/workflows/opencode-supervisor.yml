@@ -2,11 +2,11 @@ name: Opencode Supervisor
 
 on:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 env:
-  LOOKBACK_HOURS: 4
+  LOOKBACK_HOURS: 24
 
 jobs:
   opencode-supervisor:
