@@ -10,7 +10,9 @@ import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 ensureQueueWorkerStarted();
 ensureGlobalPnpmVolume();
-cleanupExpiredSessions();
+cleanupExpiredSessions().catch((error) => {
+	console.error("Failed to cleanup expired sessions:", error);
+});
 
 const SESSION_COOKIE_NAME = "doce_session";
 
