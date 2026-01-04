@@ -15,9 +15,10 @@ jobs:
        contains(fromJson('["OWNER","MEMBER"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       id-token: write
+      issues: read
     steps:
       - name: Get PR number
         id: pr-number
