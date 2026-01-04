@@ -1,0 +1,46 @@
+name: Opencode Developer
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  opencode-supervisor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Run opencode
+        uses: sst/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/minimax-m2.1-free
+          prompt: |
+            You are an autonomous developer agent. Your task is to:
+            1. List all open GitHub issues in this repository using the `gh` command
+            2. Analyze each issue for complexity, scope, and feasibility to complete in a timely manner
+            3. Select ONE issue that you can confidently tackle - prioritize issues with clear requirements and minimal unknowns
+            4. Create a new branch named `issue-{issue_number}-$(date +%Y%m%d)`
+            5. Implement the solution for the selected issue
+            6. Commit your changes with a descriptive message referencing the issue
+            7. Push the branch and create a pull request that references the issue in both title and body
+
+            Important rules:
+            - If no issues are suitable, exit gracefully with message "No suitable issues found"
+            - Make meaningful, focused changes that directly address the issue
+            - Ensure code compiles/runs without errors before committing
+            - The PR title should be descriptive and include the issue number
+            - Use the `gh` CLI for all GitHub operations
+
