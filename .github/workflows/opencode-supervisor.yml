@@ -58,6 +58,7 @@ jobs:
 
             If you find improvements that align with AGENTS.md, and you're confident, create a PR to make those improvements.
             If you're not confident or it requires opinionated changes, or more input, create an issue instead.
+            If the improvements are from different domains (e.g. refactoring, code style, etc.), create a PR/issue for each.
 
             If there's an existing issue or PR tackling that same concern, do not do anything.
 
