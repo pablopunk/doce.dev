@@ -26,7 +26,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: opencode/minimax-m2.1-free
+          model: opencode/glm-4.7-free
           prompt: |
             You are an autonomous developer agent. Your task is to:
             1. List all open GitHub issues in this repository using the `gh` command
