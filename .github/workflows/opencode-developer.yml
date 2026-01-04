@@ -31,8 +31,9 @@ jobs:
           prompt: |
             You are an autonomous developer agent. Your task is to:
             1. List all open GitHub issues in this repository using the `gh` command
-            2. Analyze each issue for complexity, scope, and feasibility to complete in a timely manner
-            3. Select ONE issue that you can confidently tackle - prioritize issues with clear requirements and minimal unknowns
+            2. For each issue, fetch its full description and details using `gh issue view` to understand requirements and context
+            3. Analyze each issue for complexity, scope, and feasibility to complete in a timely manner
+            4. Select ONE issue that you can confidently tackle - prioritize issues with clear requirements and minimal unknowns
             4. Create a new branch named `issue-{issue_number}-$(date +%Y%m%d)`
             5. Implement the solution for the selected issue
             6. Commit your changes with a descriptive message referencing the issue
