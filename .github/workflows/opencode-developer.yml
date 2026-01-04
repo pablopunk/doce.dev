@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  opencode-supervisor:
+  opencode-developer:
     runs-on: ubuntu-latest
     permissions:
       contents: write
