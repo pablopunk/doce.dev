@@ -25,6 +25,7 @@ jobs:
         uses: sst/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode/glm-4.7-free
           prompt: |
