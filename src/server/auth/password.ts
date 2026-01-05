@@ -1,28 +1,21 @@
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
-
-const scryptAsync = promisify(scrypt);
-
-const SALT_LENGTH = 16;
-const KEY_LENGTH = 64;
+import * as argon2 from "argon2";
 
 export async function hashPassword(password: string): Promise<string> {
-	const salt = randomBytes(SALT_LENGTH).toString("hex");
-	const derivedKey = (await scryptAsync(password, salt, KEY_LENGTH)) as Buffer;
-	return `${salt}:${derivedKey.toString("hex")}`;
+	return await argon2.hash(password, {
+		type: argon2.argon2id,
+		memoryCost: 65536,
+		timeCost: 3,
+		parallelism: 4,
+	});
 }
 
 export async function verifyPassword(
 	password: string,
 	hash: string,
 ): Promise<boolean> {
-	const [salt, key] = hash.split(":");
-	if (!salt || !key) {
+	try {
+		return await argon2.verify(hash, password);
+	} catch {
 		return false;
 	}
-
-	const derivedKey = (await scryptAsync(password, salt, KEY_LENGTH)) as Buffer;
-	const keyBuffer = Buffer.from(key, "hex");
-
-	return timingSafeEqual(derivedKey, keyBuffer);
 }
