@@ -82,6 +82,10 @@ export function QueueTableLive({
 		handleAction,
 	} = useQueueActions();
 
+	const getJobsByState = (state: QueueJob["state"]) => {
+		return jobs.filter((j) => j.state === state);
+	};
+
 	const getStateIcon = (state: QueueJob["state"]) => {
 		switch (state) {
 			case "succeeded":
@@ -112,8 +116,8 @@ export function QueueTableLive({
 	};
 
 	const stats = {
-		queued: jobs.filter((j) => j.state === "queued").length,
-		running: jobs.filter((j) => j.state === "running").length,
+		queued: getJobsByState("queued").length,
+		running: getJobsByState("running").length,
 	};
 
 	return (
@@ -155,31 +159,26 @@ export function QueueTableLive({
 									onClick={() =>
 										handleBulkDelete(
 											"succeeded",
-											jobs.filter((j) => j.state === "succeeded").length,
+											getJobsByState("succeeded").length,
 										)
 									}
 									variant="ghost"
 									size="sm"
 								>
 									<Trash2 className="w-3 h-3" />
-									Delete {jobs.filter((j) => j.state === "succeeded").length}{" "}
-									Succeeded
+									Delete {getJobsByState("succeeded").length} Succeeded
 								</Button>
 							)}
 							{jobs.some((j) => j.state === "failed") && (
 								<Button
 									onClick={() =>
-										handleBulkDelete(
-											"failed",
-											jobs.filter((j) => j.state === "failed").length,
-										)
+										handleBulkDelete("failed", getJobsByState("failed").length)
 									}
 									variant="ghost"
 									size="sm"
 								>
 									<Trash2 className="w-3 h-3" />
-									Delete {jobs.filter((j) => j.state === "failed").length}{" "}
-									Failed
+									Delete {getJobsByState("failed").length} Failed
 								</Button>
 							)}
 							{jobs.some((j) => j.state === "cancelled") && (
@@ -187,15 +186,14 @@ export function QueueTableLive({
 									onClick={() =>
 										handleBulkDelete(
 											"cancelled",
-											jobs.filter((j) => j.state === "cancelled").length,
+											getJobsByState("cancelled").length,
 										)
 									}
 									variant="ghost"
 									size="sm"
 								>
 									<Trash2 className="w-3 h-3" />
-									Delete {jobs.filter((j) => j.state === "cancelled").length}{" "}
-									Cancelled
+									Delete {getJobsByState("cancelled").length} Cancelled
 								</Button>
 							)}
 						</>
