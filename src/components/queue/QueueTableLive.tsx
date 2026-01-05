@@ -9,7 +9,6 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -21,27 +20,18 @@ import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 import { ConfirmStopAllDialog } from "./ConfirmStopAllDialog";
 import { Pagination } from "./Pagination";
 import { QueuePlayerControl } from "./QueuePlayerControl";
-
-interface PaginationData {
-	page: number;
-	pageSize: number;
-	totalCount: number;
-	totalPages: number;
-}
-
-interface QueueStreamData {
-	type: "init" | "update";
-	jobs: QueueJob[];
-	paused: boolean;
-	concurrency: number;
-	pagination: PaginationData;
-	timestamp: string;
-}
+import { useQueueStream } from "@/hooks/useQueueStream";
+import { useQueueActions } from "@/hooks/useQueueActions";
 
 interface QueueTableLiveProps {
 	initialJobs: QueueJob[];
 	initialPage?: number;
-	initialPagination?: PaginationData;
+	initialPagination?: {
+		page: number;
+		pageSize: number;
+		totalCount: number;
+		totalPages: number;
+	};
 	initialPaused: boolean;
 	initialConcurrency?: number;
 	filters?: {
@@ -60,73 +50,37 @@ export function QueueTableLive({
 	initialConcurrency = 2,
 	filters = {},
 }: QueueTableLiveProps) {
-	const [jobs, setJobs] = useState<QueueJob[]>(initialJobs);
-	const [paused, setPaused] = useState(initialPaused);
-	const [concurrency, setConcurrency] = useState(initialConcurrency);
-	const [pagination, setPagination] = useState<PaginationData>(
-		initialPagination || {
-			page: initialPage,
-			pageSize: 25,
-			totalCount: initialJobs.length,
-			totalPages: 1,
-		},
+	const {
+		jobs,
+		paused,
+		concurrency,
+		pagination,
+		hasNewJobs,
+		setHasNewJobs,
+		setPagination,
+	} = useQueueStream(
+		initialPage,
+		initialJobs,
+		initialPaused,
+		initialConcurrency,
+		filters,
 	);
-	const [hasNewJobs, setHasNewJobs] = useState(false);
-	const [dialogOpen, setDialogOpen] = useState(false);
-	const [stopAllDialogOpen, setStopAllDialogOpen] = useState(false);
-	const [pendingAction, setPendingAction] = useState<{
-		jobId?: string;
-		action: "cancel" | "forceUnlock" | "delete" | "deleteByState";
-		state?: "succeeded" | "failed" | "cancelled";
-		jobCount?: number;
-	} | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
 
-	useEffect(() => {
-		// Clear new jobs indicator when changing pages
-		setHasNewJobs(false);
-
-		const params = new URLSearchParams();
-		params.set("page", String(pagination.page));
-		if (filters.state) params.set("state", filters.state);
-		if (filters.type) params.set("type", filters.type);
-		if (filters.projectId) params.set("projectId", filters.projectId);
-		if (filters.q) params.set("q", filters.q);
-
-		const eventSource = new EventSource(
-			`/api/queue/jobs-stream?${params.toString()}`,
-		);
-
-		eventSource.addEventListener("message", (event) => {
-			try {
-				const data = JSON.parse(event.data) as QueueStreamData;
-				setJobs(data.jobs);
-				setPaused(data.paused);
-				setConcurrency(data.concurrency);
-
-				// Show new jobs indicator: only if on page 1 AND total count increased
-				if (
-					pagination.page === 1 &&
-					data.pagination.totalCount > pagination.totalCount
-				) {
-					setHasNewJobs(true);
-				}
-
-				setPagination(data.pagination);
-			} catch (err) {
-				console.error("Failed to parse queue update:", err);
-			}
-		});
-
-		eventSource.addEventListener("error", (err) => {
-			console.error("Queue stream error:", err);
-			eventSource.close();
-		});
-
-		return () => {
-			eventSource.close();
-		};
-	}, [pagination.page, pagination.totalCount, filters]);
+	const {
+		isLoading,
+		pendingAction,
+		dialogOpen,
+		stopAllDialogOpen,
+		setDialogOpen,
+		setStopAllDialogOpen,
+		handleToggleQueue,
+		handleStopAll,
+		handleConfirmStopAll,
+		handleActionClick,
+		handleBulkDelete,
+		handleConfirmAction,
+		handleAction,
+	} = useQueueActions();
 
 	const getStateIcon = (state: QueueJob["state"]) => {
 		switch (state) {
@@ -144,146 +98,6 @@ export function QueueTableLive({
 		}
 	};
 
-	const handleToggleQueue = async () => {
-		try {
-			const action = paused
-				? "/_actions/queue.resume"
-				: "/_actions/queue.pause";
-			const res = await fetch(action, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
-
-			if (!res.ok) {
-				throw new Error("Failed to toggle queue");
-			}
-		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to toggle queue");
-		}
-	};
-
-	const handleStopAll = () => {
-		setStopAllDialogOpen(true);
-	};
-
-	const handleConfirmStopAll = async () => {
-		setIsLoading(true);
-		try {
-			const res = await fetch("/_actions/queue.stopAll", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
-
-			if (!res.ok) {
-				throw new Error("Failed to stop all projects");
-			}
-		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to stop all projects");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const handleActionClick = (
-		action: "cancel" | "forceUnlock" | "delete",
-		jobId: string,
-	) => {
-		setPendingAction({ jobId, action });
-		setDialogOpen(true);
-	};
-
-	const handleBulkDelete = (state: "succeeded" | "failed" | "cancelled") => {
-		const jobCount = jobs.filter((j) => j.state === state).length;
-		setPendingAction({ action: "deleteByState", state, jobCount });
-		setDialogOpen(true);
-	};
-
-	const handleConfirmAction = async () => {
-		if (!pendingAction) return;
-
-		setIsLoading(true);
-		try {
-			let path = "";
-			let body: Record<string, string> = {};
-
-			switch (pendingAction.action) {
-				case "cancel":
-					path = "/_actions/queue.cancel";
-					body = { jobId: pendingAction.jobId! };
-					break;
-				case "forceUnlock":
-					path = "/_actions/queue.forceUnlock";
-					body = { jobId: pendingAction.jobId! };
-					break;
-				case "delete":
-					path = "/_actions/queue.deleteJob";
-					body = { jobId: pendingAction.jobId! };
-					break;
-				case "deleteByState":
-					path = "/_actions/queue.deleteByState";
-					body = { state: pendingAction.state! };
-					break;
-				default:
-					throw new Error("Invalid action");
-			}
-
-			const res = await fetch(path, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			});
-
-			if (!res.ok) {
-				throw new Error("Failed to perform action");
-			}
-		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to perform action");
-		} finally {
-			setIsLoading(false);
-			setPendingAction(null);
-		}
-	};
-
-	const handleAction = async (action: string, jobId: string) => {
-		if (action === "runNow") {
-			try {
-				const res = await fetch("/_actions/queue.runNow", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ jobId }),
-				});
-
-				if (!res.ok) {
-					throw new Error("Failed to run job");
-				}
-			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to run job");
-			}
-		} else if (action === "retry") {
-			try {
-				const res = await fetch("/_actions/queue.retry", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ jobId }),
-				});
-
-				if (!res.ok) {
-					throw new Error("Failed to retry job");
-				}
-			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to retry job");
-			}
-		} else if (
-			action === "cancel" ||
-			action === "forceUnlock" ||
-			action === "delete"
-		) {
-			handleActionClick(action, jobId);
-		}
-	};
-
 	const handlePageChange = (newPage: number) => {
 		const params = new URLSearchParams();
 		params.set("page", newPage.toString());
@@ -292,7 +106,6 @@ export function QueueTableLive({
 		if (filters.projectId) params.set("projectId", filters.projectId);
 		if (filters.q) params.set("q", filters.q);
 
-		// Optimistically update pagination state for immediate feedback
 		setPagination((prev) => ({ ...prev, page: newPage }));
 
 		window.history.pushState({}, "", `?${params.toString()}`);
@@ -313,7 +126,7 @@ export function QueueTableLive({
 						paused={paused}
 						concurrency={concurrency}
 						stats={stats}
-						onToggleQueue={handleToggleQueue}
+						onToggleQueue={() => handleToggleQueue(paused)}
 					/>
 				</div>
 
@@ -339,7 +152,12 @@ export function QueueTableLive({
 						<>
 							{jobs.some((j) => j.state === "succeeded") && (
 								<Button
-									onClick={() => handleBulkDelete("succeeded")}
+									onClick={() =>
+										handleBulkDelete(
+											"succeeded",
+											jobs.filter((j) => j.state === "succeeded").length,
+										)
+									}
 									variant="ghost"
 									size="sm"
 								>
@@ -350,7 +168,12 @@ export function QueueTableLive({
 							)}
 							{jobs.some((j) => j.state === "failed") && (
 								<Button
-									onClick={() => handleBulkDelete("failed")}
+									onClick={() =>
+										handleBulkDelete(
+											"failed",
+											jobs.filter((j) => j.state === "failed").length,
+										)
+									}
 									variant="ghost"
 									size="sm"
 								>
@@ -361,7 +184,12 @@ export function QueueTableLive({
 							)}
 							{jobs.some((j) => j.state === "cancelled") && (
 								<Button
-									onClick={() => handleBulkDelete("cancelled")}
+									onClick={() =>
+										handleBulkDelete(
+											"cancelled",
+											jobs.filter((j) => j.state === "cancelled").length,
+										)
+									}
 									variant="ghost"
 									size="sm"
 								>
