@@ -42,85 +42,31 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.pr-number.outputs.number }}
         with:
           model: opencode/glm-4.7-free
           prompt: |
-            A pull request has been created for review. Please analyze all code changes against the doce.dev coding standards.
-
             <pr-number>
             ${{ steps.pr-number.outputs.number }}
             </pr-number>
 
-            Get the PR details using: gh api /repos/${{ github.repository }}/pulls/${{ steps.pr-number.outputs.number }}
+            <pr-description>
+            ${{ github.event.pull_request.body }}
+            </pr-description>
 
-             Review Checklist for doce.dev:
+            Please check all the code changes in this pull request against the style guide on @AGENTS.md, also look for any bugs if they exist. Diffs are important but make sure you read the entire file to get proper context. Make it clear the suggestions are merely suggestions and the human can decide what to do.
 
-             0. **Logic & Bugs (PRIORITIZE THESE FIRST!)**
-                - Check for potential bugs, edge cases, and logic errors
-                - Verify error handling is adequate and complete
-                - Look for race conditions or concurrency issues (especially in queue handlers)
-                - Check for SQL injection, XSS, or other security vulnerabilities
-                - Verify async/await usage is correct and promises are handled
-                - Check for memory leaks or resource cleanup issues
-                - Verify data validation is complete before processing
-                - Look for incorrect algorithm implementations
-                - Check Docker and container configuration issues
-                - Verify environment variable usage and default values
-                - Check for infinite loops or unbounded growth (e.g., session cleanup issues)
+            Use the gh cli to create comments on the files for the violations. Try to leave the comment on the exact line number. If you have a suggested fix include it in a suggestion code block.
+            If you are writing suggested fixes, BE SURE THAT the change you are recommending is actually valid typescript, often I have seen missing closing "}" or other syntax errors.
+            Generally, write a comment instead of writing suggested change if you can help it.
 
-             1. **Domain Organization**
-               - Check if domains are properly separated with folders
-               - Ensure appropriate nesting depth for structure
-
-             3. **Function Design**
-               - Functions should have single purpose
-               - Keep functions as short as possible
-               - Complex operations should be broken into smaller functions
-               - Function code should declare "what it does" not "how it does it"
-
-             4. **File Structure**
-               - Each file should have one clear purpose matching its name
-               - No mixed concerns in single files
-
-             5. **Component Patterns**
-               - Complex React components split into custom hooks (src/hooks/use[Feature].ts)
-               - Large files split into focused modules (e.g., queue.settings.ts, queue.crud.ts)
-               - API calls abstracted into service functions
-               - State management uses custom hooks
-
-             6. **Package Manager**
-               - Must use pnpm, never npm, yarn, or bun
-
-             7. **Styling**
-               - Use semantic color tokens from globals.css only
-               - No hardcoded colors or dark: prefixes
-               - Theme switching via CSS custom properties
-
-             8. **TypeScript**
-               - Strict mode compliance
-               - Proper type usage
-
-             9. **Comments**
-               - No comments unless necessary (follow existing patterns)
-               - Avoid over-commenting obvious code
-
-             When reviewing:
-             - **ALWAYS** check for logic bugs and security issues first - these are critical
-             - Read entire files for proper context, not just diffs
-             - Be specific about violations with exact line numbers
-             - Don't be overly strict about style if logic is sound - if code is clear and functional, it's fine
-             - Provide suggested fixes only when syntax is guaranteed valid
-             - Prefer general comments over suggested changes when possible
-
-            Use gh CLI to create review comments:
-            ```
+            Command MUST be like this.
+            \`\`\`
             gh api \
               --method POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H \"Accept: application/vnd.github+json\" \
+              -H \"X-GitHub-Api-Version: 2022-11-28\" \
               /repos/${{ github.repository }}/pulls/${{ steps.pr-number.outputs.number }}/comments \
-              -f 'body=[summary of issue]' -f 'commit_id=[commit-sha]' -f 'path=[path-to-file]' -F "line=[line]" -f 'side=RIGHT'
-            ```
+              -f 'body=[summary of issue]' -f 'commit_id=${{ steps.pr-details.outputs.sha }}' -f 'path=[path-to-file]' -F \"line=[line]\" -f 'side=RIGHT'
+            \`\`\`
 
-            Only create comments for actual violations. If code follows all guidelines, comment on the PR using: gh pr comment ${{ steps.pr-number.outputs.number }} --body "lgtm" AND NOTHING ELSE.
+            Only create comments for actual violations. If the code follows all guidelines, comment on the issue using gh cli: 'lgtm' AND NOTHING ELSE!!!!."

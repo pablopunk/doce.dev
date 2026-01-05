@@ -31,15 +31,14 @@ jobs:
           model: opencode/glm-4.7-free
           prompt: |
             You are an autonomous developer agent. Your task is to:
-            1. List all open GitHub issues in this repository using the `gh` command
+            1. List all open GitHub issues in this repository using `gh` command
             2. For each issue, fetch its full description and details using `gh issue view` to understand requirements and context
             3. Analyze each issue for complexity, scope, and feasibility to complete in a timely manner
             4. Select ONE issue that you can confidently tackle - prioritize issues with clear requirements and minimal unknowns
-            5. Create a new branch from `main` named `issue-{issue_number}-$(date +%Y%m%d)`
-            6. Implement the solution for the selected issue
-            7. Commit your changes using `git add . && git commit -m "your message"`
-            8. Push the branch with `git push -u origin branch-name`
-            9. Create a pull request using `gh pr create` that references the issue in both title and body
+            5. Implement the solution for the selected issue
+            6. Commit your changes using `git add . && git commit -m "your message"`
+            7. Push the branch with `git push -u origin branch-name`
+            8. Create a pull request using `gh pr create` that references the issue in both the title and body
 
             Important rules:
             - If no issues are suitable, exit gracefully with message "No suitable issues found"
@@ -48,4 +47,3 @@ jobs:
             - ALWAYS commit your changes BEFORE pushing or creating a PR
             - The PR title should be descriptive and include the issue number
             - Use the `gh` CLI for all GitHub operations
-
