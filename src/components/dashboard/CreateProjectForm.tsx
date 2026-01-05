@@ -57,7 +57,7 @@ export function CreateProjectForm({
 
 	useEffect(() => {
 		adjustTextareaHeight();
-	}, [prompt]);
+	}, []);
 
 	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {
@@ -268,6 +268,35 @@ export function CreateProjectForm({
 	// Check if the current model supports images
 	const currentModelSupportsImages =
 		models.find((m) => m.id === selectedModel)?.supportsImages ?? true;
+
+	// Check if any models are available
+	const hasModels = models.length > 0;
+
+	const handleGoToSettings = () => {
+		window.location.href = "/settings";
+	};
+
+	if (!hasModels) {
+		return (
+			<div className="w-full relative">
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-3 p-4 rounded-2xl border border-input bg-card">
+						<p className="text-muted-foreground">
+							No models available. Please configure a provider in Settings to
+							get started.
+						</p>
+						<Button
+							variant="outline"
+							onClick={handleGoToSettings}
+							type="button"
+						>
+							Go to Settings
+						</Button>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="w-full relative">
