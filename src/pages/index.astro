@@ -30,31 +30,40 @@ const settingsDefaultModel = userSettings[0]?.defaultModel;
 // Get connected provider IDs
 const connectedProviderIds = await listConnectedProviderIds();
 
-// Filter curated models to only those from connected providers
-let availableModels = CURATED_MODELS;
-if (connectedProviderIds.length > 0) {
-	availableModels = CURATED_MODELS.filter((model) => {
-		const providerId = String(model.id).split("/")[0];
-		return connectedProviderIds.includes(providerId);
-	});
-}
-
-// Enrich models with vision support data
+// Enrich all curated models with vision support data and availability status
 const enrichedModels = await Promise.all(
-	availableModels.map(async (model) => ({
-		id: String(model.id),
-		name: model.name,
-		provider: model.provider,
-		supportsImages: await modelSupportsVision(String(model.id)),
-	})),
+	CURATED_MODELS.map(async (model) => {
+		const modelId: string = String(model.id);
+		const providerId: string = modelId.split("/")[0] || "";
+		const isAvailable = connectedProviderIds.includes(providerId);
+		const visionSupport = await modelSupportsVision(modelId);
+
+		return {
+			id: modelId,
+			name: model.name,
+			provider: model.provider,
+			tier: model.tier,
+			supportsImages: visionSupport || model.supportsImages,
+			available: isAvailable,
+			unavailableReason: !isAvailable
+				? `Connect ${model.provider} API key in Settings to use this model`
+				: (undefined as any),
+		};
+	}),
 );
+
+// Get first available model for default
+const firstAvailableModel = enrichedModels.find((m) => m.available);
 
 // Determine default model: use settings default if it's available, otherwise use first available, otherwise fall back to DEFAULT_CURATED_MODEL
 const defaultModel = (() => {
-	if (settingsDefaultModel && enrichedModels.some((m) => m.id === settingsDefaultModel)) {
+	if (
+		settingsDefaultModel &&
+		enrichedModels.some((m) => m.id === settingsDefaultModel)
+	) {
 		return settingsDefaultModel;
 	}
-	return enrichedModels.length > 0 ? enrichedModels[0]!.id : DEFAULT_CURATED_MODEL;
+	return firstAvailableModel?.id ?? DEFAULT_CURATED_MODEL;
 })();
 ---
 

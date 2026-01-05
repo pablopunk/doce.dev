@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, CameraOff, ChevronDown, Zap } from "lucide-react";
+import { Brain, CameraOff, ChevronDown, Lock, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	DropdownMenu,
@@ -41,6 +41,8 @@ interface ModelSelectorProps {
 		description?: string;
 		tier?: "fast" | "top";
 		supportsImages?: boolean;
+		available?: boolean;
+		unavailableReason?: string;
 	}>;
 	selectedModelId: string;
 	onModelChange: (modelId: string) => void;
@@ -110,6 +112,8 @@ export function ModelSelector({
 					provider: string;
 					tier?: "fast" | "top";
 					supportsImages?: boolean;
+					available?: boolean;
+					unavailableReason?: string;
 				}>
 			>(),
 		),
@@ -153,19 +157,39 @@ export function ModelSelector({
 									)}
 									{provider}
 								</DropdownMenuLabel>
-								{providerModels.map((model) => (
-									<DropdownMenuRadioItem
-										key={model.id}
-										value={model.id}
-										className="flex flex-col items-start"
-									>
-										<div className="flex items-center gap-2">
-											<span className="font-medium">{model.name}</span>
-											{getTierIcon(model.tier)}
-											{getImageSupportIcon(model.supportsImages)}
-										</div>
-									</DropdownMenuRadioItem>
-								))}
+								{providerModels.map((model) => {
+									const isAvailable = model.available !== false;
+									return (
+										<DropdownMenuRadioItem
+											key={model.id}
+											value={model.id}
+											className={`flex flex-col items-start ${
+												!isAvailable ? "opacity-50 cursor-not-allowed" : ""
+											}`}
+											disabled={!isAvailable}
+											title={
+												!isAvailable && model.unavailableReason
+													? model.unavailableReason
+													: undefined
+											}
+										>
+											<div className="flex items-center gap-2">
+												<span
+													className={`font-medium ${
+														!isAvailable ? "text-muted-foreground" : ""
+													}`}
+												>
+													{model.name}
+												</span>
+												{getTierIcon(model.tier)}
+												{getImageSupportIcon(model.supportsImages)}
+												{!isAvailable && (
+													<Lock className="w-4 h-4 text-muted-foreground" />
+												)}
+											</div>
+										</DropdownMenuRadioItem>
+									);
+								})}
 							</DropdownMenuGroup>
 						);
 					})}
