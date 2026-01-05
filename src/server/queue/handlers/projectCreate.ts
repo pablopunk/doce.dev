@@ -53,7 +53,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		await ctx.throwIfCancelRequested();
 
-		const name = await generateProjectNameWithLLM(prompt);
+		const name = await generateProjectNameWithLLM(prompt, ownerUserId);
 		const slug = name;
 
 		await createProject({

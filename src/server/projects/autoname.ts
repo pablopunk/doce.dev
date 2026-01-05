@@ -1,9 +1,11 @@
+import { eq } from "drizzle-orm";
 import { logger } from "@/server/logger";
 import { generateUniqueSlug } from "./slug";
 import { getAutonameModel } from "@/server/opencode/models";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
 import { createOpenRouterClient } from "@/server/openrouter/client";
-import { getSettings } from "@/server/settings/storage";
+import { db } from "@/server/db/client";
+import { userSettings } from "@/server/db/schema";
 
 /**
  * Generate a project name using AI.
@@ -21,6 +23,7 @@ import { getSettings } from "@/server/settings/storage";
  */
 export async function generateProjectNameWithLLM(
 	prompt: string,
+	ownerUserId: string,
 ): Promise<string> {
 	try {
 		// Get connected providers
@@ -51,21 +54,28 @@ export async function generateProjectNameWithLLM(
 
 		logger.debug({ modelId }, "Selected model for auto-naming");
 
-		// Get OpenRouter API key from settings
-		const settings = await getSettings();
-		if (!settings?.openrouterApiKey) {
+		// Get OpenRouter API key from user settings
+		const userSettings_ = await db
+			.select()
+			.from(userSettings)
+			.where(eq(userSettings.userId, ownerUserId))
+			.limit(1);
+
+		const apiKey = userSettings_[0]?.openrouterApiKey;
+		if (!apiKey) {
 			logger.debug(
-				"No OpenRouter API key configured, using fallback slug generation",
+				{ ownerUserId },
+				"User has no OpenRouter API key configured, using fallback slug generation",
 			);
 			return generateUniqueSlug(prompt);
 		}
 
 		// Create OpenRouter client
-		const client = createOpenRouterClient(settings.openrouterApiKey);
+		const client = createOpenRouterClient(apiKey);
 
 		// Call LLM to generate project name
 		try {
-			const response = await client.chat.completions.create({
+			const response = await client.chat.send({
 				model: modelId,
 				messages: [
 					{
@@ -82,18 +92,27 @@ Requirements:
 Return only the project name, nothing else.`,
 					},
 				],
-				max_tokens: 50,
+				maxCompletionTokens: 50,
 			});
 
 			// Extract the generated name
-			const generatedName = response.choices[0]?.message?.content?.trim();
+			const content = response.choices[0]?.message?.content;
+			let generatedName: string | undefined;
+
+			// Handle both string and array content types
+			if (typeof content === "string") {
+				generatedName = content.trim();
+			}
 
 			if (!generatedName) {
 				logger.warn("LLM returned empty response for project name");
 				return generateUniqueSlug(prompt);
 			}
 
-			logger.info({ generatedName, modelId }, "Generated project name with LLM");
+			logger.info(
+				{ generatedName, modelId, ownerUserId },
+				"Generated project name with LLM",
+			);
 
 			// Validate it's a reasonable slug before using it
 			const normalized = generatedName
@@ -116,9 +135,7 @@ Return only the project name, nothing else.`,
 				{
 					modelId,
 					error:
-						llmError instanceof Error
-							? llmError.message
-							: String(llmError),
+						llmError instanceof Error ? llmError.message : String(llmError),
 				},
 				"LLM call for auto-naming failed, using fallback",
 			);
