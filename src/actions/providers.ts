@@ -8,11 +8,9 @@ import {
 	setApiKey,
 	removeProvider,
 } from "@/server/opencode/authFile";
-import {
-	getAvailableModels,
-	modelSupportsVision,
-} from "@/server/opencode/models";
+import { modelSupportsVision } from "@/server/opencode/models";
 import { logger } from "@/server/logger";
+import { CURATED_MODELS } from "@/server/models/curated";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
@@ -81,12 +79,17 @@ export const providers = {
 						return { models: [] };
 					}
 
-					const baseModels = await getAvailableModels(connectedProviderIds);
+					// Filter curated models to only those from connected providers
+					const filteredModels = CURATED_MODELS.filter((model) => {
+						// Extract provider ID from model ID (e.g., "openai" from "openai/gpt-5.2")
+						const providerId = String(model.id).split("/")[0];
+						return connectedProviderIds.includes(providerId);
+					});
 
-					// Enrich with vision support data
+					// Enrich with vision support data from modelsDev
 					const enrichedModels: AvailableModel[] = [];
-					for (const model of baseModels) {
-						const supportsImages = await modelSupportsVision(model.id);
+					for (const model of filteredModels) {
+						const supportsImages = await modelSupportsVision(String(model.id));
 						enrichedModels.push({
 							id: model.id,
 							name: model.name,
