@@ -9,8 +9,12 @@ const TEMPLATE_DIR = "templates/astro-starter";
 /**
  * Get the absolute path to the data directory.
  */
+export function getOpencodePath(): string {
+	return path.join(process.cwd(), "data", "opencode", "auth.json");
+}
+
 export function getDataPath(): string {
-	return path.join(process.cwd(), DATA_DIR);
+	return path.join(process.cwd(), "data");
 }
 
 /**

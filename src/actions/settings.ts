@@ -3,17 +3,12 @@ import { z } from "astro:schema";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import {
-	AVAILABLE_MODELS,
-	DEFAULT_MODEL,
-	validateOpenRouterApiKey,
-} from "@/server/settings/openrouter";
+import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/openrouter/models";
 
 export const settings = {
 	save: defineAction({
 		accept: "form",
 		input: z.object({
-			openrouterApiKey: z.string().min(1, "OpenRouter API key is required"),
 			defaultModel: z.string().default(DEFAULT_MODEL),
 		}),
 		handler: async (input, context) => {
@@ -25,21 +20,9 @@ export const settings = {
 				});
 			}
 
-			// Validate OpenRouter API key
-			try {
-				await validateOpenRouterApiKey(input.openrouterApiKey);
-			} catch {
-				throw new ActionError({
-					code: "BAD_REQUEST",
-					message: "Invalid OpenRouter API key",
-				});
-			}
-
-			// Update user settings
 			await db
 				.update(userSettings)
 				.set({
-					openrouterApiKey: input.openrouterApiKey,
 					defaultModel: input.defaultModel,
 					updatedAt: new Date(),
 				})
@@ -72,3 +55,5 @@ export const settings = {
 		},
 	}),
 };
+
+export { providers } from "@/actions/providers";

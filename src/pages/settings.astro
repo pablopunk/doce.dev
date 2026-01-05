@@ -1,8 +1,7 @@
 ---
 import { actions } from "astro:actions";
-import { eq } from "drizzle-orm";
+import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
 import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
-import { OpenRouterSettingsForm } from "@/components/settings/OpenRouterSettingsForm";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -12,75 +11,51 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { db } from "@/server/db/client";
-import { userSettings } from "@/server/db/schema";
-import { DEFAULT_MODEL } from "@/server/openrouter/models";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
-import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 
 const user = Astro.locals.user;
 if (!user) {
 	return Astro.redirect("/login");
 }
 
-// Get current settings
-const settings = await db
-	.select()
-	.from(userSettings)
-	.where(eq(userSettings.userId, user.id))
-	.limit(1);
+const result = Astro.getActionResult(actions.settings.get);
+const userSettings = result?.data?.settings ?? null;
 
-const currentSettings = settings[0];
-
-// Get project count for delete all section
 const projects = await getProjectsByUserId(user.id);
 const projectCount = projects.length;
 ---
 
 <AppLayout title="Settings">
-  <main class="container mx-auto max-w-2xl p-8">
-    <div class="mb-8 flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold">Settings</h1>
-        <p class="text-muted-foreground">Manage your doce.dev configuration</p>
-      </div>
+	<main class="container mx-auto max-w-2xl p-8">
+		<div class="mb-8 flex items-center justify-between">
+			<div>
+				<h1 class="text-3xl font-bold">Settings</h1>
+				<p class="text-muted-foreground">Manage your doce.dev configuration</p>
+			</div>
+		</div>
+
+		<div class="space-y-6">
+		<div class="space-y-6">
+      <ProvidersSettings client:load />
     </div>
 
-    <div class="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>OpenRouter Configuration</CardTitle>
-          <CardDescription>
-            Configure your OpenRouter API settings for AI-powered features.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <OpenRouterSettingsForm
-            initialOpenrouterApiKey={currentSettings?.openrouterApiKey ?? ""}
-            initialDefaultModel={currentSettings?.defaultModel ?? DEFAULT_MODEL}
-            models={AVAILABLE_MODELS}
-            client:load
-          />
-        </CardContent>
-      </Card>
+			<Card>
+				<CardHeader>
+					<CardTitle>Account</CardTitle>
+					<CardDescription>
+						Manage your account settings.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form method="POST" action={actions.auth.logout}>
+						<Button type="submit" variant="outline">
+							Logout
+						</Button>
+					</form>
+				</CardContent>
+			</Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>
-            Manage your account settings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form method="POST" action={actions.auth.logout}>
-            <Button type="submit" variant="outline">
-              Logout
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <DeleteAllProjectsSection projectCount={projectCount} client:load />
-    </div>
-  </main>
+			<DeleteAllProjectsSection projectCount={projectCount} client:load />
+		</div>
+	</main>
 </AppLayout>

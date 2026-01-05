@@ -1,9 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { db } from "@/server/db/client";
-import { userSettings } from "@/server/db/schema";
 import {
 	getProjectById,
 	getProjectsByUserId,
@@ -20,6 +17,8 @@ import {
 	enqueueProjectCreate,
 	enqueueProjectDelete,
 } from "@/server/queue/enqueue";
+import { listConnectedProviderIds } from "@/server/opencode/authFile";
+import { getAvailableModels } from "@/server/opencode/models";
 
 export const projects = {
 	create: defineAction({
@@ -38,17 +37,20 @@ export const projects = {
 				});
 			}
 
-			const settings = await db
-				.select()
-				.from(userSettings)
-				.where(eq(userSettings.userId, user.id))
-				.limit(1);
-
-			const userSettingsData = settings[0];
-			if (!userSettingsData?.openrouterApiKey) {
+			const connectedProviderIds = await listConnectedProviderIds();
+			if (connectedProviderIds.length === 0) {
 				throw new ActionError({
 					code: "BAD_REQUEST",
-					message: "Please configure your OpenRouter API key in settings",
+					message: "Please connect at least one provider in Settings",
+				});
+			}
+
+			const availableModels = await getAvailableModels(connectedProviderIds);
+			if (availableModels.length === 0) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message:
+						"No compatible models available. Please connect a provider in Settings",
 				});
 			}
 
@@ -58,9 +60,7 @@ export const projects = {
 			if (input.images) {
 				try {
 					images = JSON.parse(input.images);
-				} catch {
-					// Ignore invalid JSON
-				}
+				} catch {}
 			}
 
 			const projectId = randomBytes(12).toString("hex");
@@ -70,7 +70,7 @@ export const projects = {
 					projectId,
 					ownerUserId: user.id,
 					prompt: input.prompt,
-					model: input.model ?? userSettingsData.defaultModel ?? null,
+					model: input.model ?? null,
 					images,
 				});
 			} catch (err) {
@@ -158,9 +158,7 @@ export const projects = {
 
 			try {
 				await updateProjectStatus(input.projectId, "deleting");
-			} catch {
-				// ignore
-			}
+			} catch {}
 
 			const job = await enqueueProjectDelete({
 				projectId: input.projectId,
@@ -198,44 +196,6 @@ export const projects = {
 			});
 
 			return { success: true, jobId: job.id };
-		},
-	}),
-
-	updateModel: defineAction({
-		input: z.object({
-			projectId: z.string(),
-			model: z.string().nullable(),
-		}),
-		handler: async (input, context) => {
-			const user = context.locals.user;
-			if (!user) {
-				throw new ActionError({
-					code: "UNAUTHORIZED",
-					message: "You must be logged in to update a project",
-				});
-			}
-
-			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
-			if (!isOwner) {
-				throw new ActionError({
-					code: "FORBIDDEN",
-					message: "You don't have access to this project",
-				});
-			}
-
-			await updateProjectModel(input.projectId, input.model);
-
-			if (input.model) {
-				try {
-					await updateOpencodeJsonModel(input.projectId, input.model);
-				} catch (error) {
-					console.warn(
-						"Updated model in database but failed to update opencode.json.",
-					);
-				}
-			}
-
-			return { success: true };
 		},
 	}),
 
@@ -331,6 +291,44 @@ export const projects = {
 			const job = await enqueueDeleteAllProjectsForUser({ userId: user.id });
 
 			return { success: true, jobId: job.id };
+		},
+	}),
+
+	updateModel: defineAction({
+		input: z.object({
+			projectId: z.string(),
+			model: z.string().nullable(),
+		}),
+		handler: async (input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in to update a project",
+				});
+			}
+
+			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+			if (!isOwner) {
+				throw new ActionError({
+					code: "FORBIDDEN",
+					message: "You don't have access to this project",
+				});
+			}
+
+			await updateProjectModel(input.projectId, input.model);
+
+			if (input.model) {
+				try {
+					await updateOpencodeJsonModel(input.projectId, input.model);
+				} catch (error) {
+					console.warn(
+						"Updated model in database but failed to update opencode.json.",
+					);
+				}
+			}
+
+			return { success: true };
 		},
 	}),
 };

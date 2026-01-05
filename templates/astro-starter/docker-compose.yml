@@ -10,22 +10,17 @@ services:
       - "${DEV_PORT:-4321}:4321"
     environment:
       - HOST=0.0.0.0
-    command: sh -c "pnpm install && pnpm dev --host"
 
-  opencode:
-    build:
-      context: .
-      dockerfile: Dockerfile.opencode
-    volumes:
-      - .:/app
-      - opencode-data:/root/.local/share/opencode
-    ports:
-      - "${OPENCODE_PORT:-3000}:3000"
-    environment:
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-    depends_on:
-      preview:
-        condition: service_started
+    opencode:
+      build:
+        context: .
+        dockerfile: Dockerfile.opencode
+      volumes:
+        - .:/app
+        - opencode-data:/root/.local/share/opencode
+        - ../../opencode/auth.json:/root/.local/share/opencode/auth.json:ro
+      ports:
+        - "${OPENCODE_PORT:-3000}:3000"
 
 volumes:
   pnpm-store:

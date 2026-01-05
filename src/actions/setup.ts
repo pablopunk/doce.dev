@@ -5,11 +5,7 @@ import { hashPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
 import { userSettings, users } from "@/server/db/schema";
-import {
-	AVAILABLE_MODELS,
-	DEFAULT_MODEL,
-	validateOpenRouterApiKey,
-} from "@/server/settings/openrouter";
+import { DEFAULT_MODEL } from "@/server/openrouter/models";
 
 const SESSION_COOKIE_NAME = "doce_session";
 
@@ -20,8 +16,6 @@ export const setup = {
 			username: z.string().min(1, "Username is required"),
 			password: z.string().min(1, "Password is required"),
 			confirmPassword: z.string(),
-			openrouterApiKey: z.string().min(1, "OpenRouter API key is required"),
-			defaultModel: z.string().default(DEFAULT_MODEL),
 		}),
 		handler: async (input, context) => {
 			try {
@@ -39,16 +33,6 @@ export const setup = {
 					throw new ActionError({
 						code: "BAD_REQUEST",
 						message: "Passwords do not match",
-					});
-				}
-
-				// Validate OpenRouter API key
-				try {
-					await validateOpenRouterApiKey(input.openrouterApiKey);
-				} catch {
-					throw new ActionError({
-						code: "BAD_REQUEST",
-						message: "Invalid OpenRouter API key",
 					});
 				}
 
@@ -74,11 +58,10 @@ export const setup = {
 					passwordHash,
 				});
 
-				// Create user settings
+				// Create user settings (no provider credentials required at setup)
 				await db.insert(userSettings).values({
 					userId,
-					openrouterApiKey: input.openrouterApiKey,
-					defaultModel: input.defaultModel,
+					defaultModel: DEFAULT_MODEL,
 					updatedAt: now,
 				});
 
