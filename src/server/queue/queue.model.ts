@@ -3,11 +3,11 @@ import { type QueueJob, queueJobs } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { type QueueJobType, queueJobTypeSchema } from "./types";
 
+export * from "./queue.claim";
+export * from "./queue.crud";
+export * from "./queue.lifecycle";
 // Re-export queue functionality from focused modules for backward compatibility
 export * from "./queue.settings";
-export * from "./queue.crud";
-export * from "./queue.claim";
-export * from "./queue.lifecycle";
 
 export type QueueJobState = QueueJob["state"];
 

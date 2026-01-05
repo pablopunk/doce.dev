@@ -1,6 +1,6 @@
+import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { queueSettings } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
 
 const QUEUE_SETTINGS_ROW_ID = 1;
 

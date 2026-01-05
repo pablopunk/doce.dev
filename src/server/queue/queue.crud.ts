@@ -1,8 +1,8 @@
 import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
+import { type EnqueueJobInput, enqueueJob } from "./queue.model";
 import { type QueueJobType, queueJobTypeSchema } from "./types";
-import { enqueueJob, type EnqueueJobInput } from "./queue.model";
 
 export type QueueJobState = QueueJob["state"];
 

@@ -15,13 +15,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useQueueActions } from "@/hooks/useQueueActions";
+import { useQueueStream } from "@/hooks/useQueueStream";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 import { ConfirmStopAllDialog } from "./ConfirmStopAllDialog";
 import { Pagination } from "./Pagination";
 import { QueuePlayerControl } from "./QueuePlayerControl";
-import { useQueueStream } from "@/hooks/useQueueStream";
-import { useQueueActions } from "@/hooks/useQueueActions";
 
 interface QueueTableLiveProps {
 	initialJobs: QueueJob[];

@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { FilesTab } from "@/components/files/FilesTab";
 import { DeployButton } from "@/components/preview/DeployButton";
+import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
 
 interface PresenceResponse {
 	projectId: string;

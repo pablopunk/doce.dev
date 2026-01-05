@@ -2,6 +2,7 @@
 import { actions } from "astro:actions";
 import { eq } from "drizzle-orm";
 import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
+import { OpenRouterSettingsForm } from "@/components/settings/OpenRouterSettingsForm";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -10,11 +11,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
+import { DEFAULT_MODEL } from "@/server/openrouter/models";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 
@@ -22,8 +22,6 @@ const user = Astro.locals.user;
 if (!user) {
 	return Astro.redirect("/login");
 }
-
-const result = Astro.getActionResult(actions.settings.save);
 
 // Get current settings
 const settings = await db
@@ -57,62 +55,12 @@ const projectCount = projects.length;
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form method="POST" action={actions.settings.save} class="space-y-4">
-            {result?.error && (
-              <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {result.error.message}
-              </div>
-            )}
-
-            {result?.data?.success && (
-              <div class="rounded-md bg-success/10 p-3 text-sm text-success-foreground">
-                Settings saved successfully!
-              </div>
-            )}
-
-            <div class="space-y-2">
-              <Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
-              <Input
-                id="openrouterApiKey"
-                name="openrouterApiKey"
-                type="password"
-                placeholder="sk-or-..."
-                value={currentSettings?.openrouterApiKey ?? ""}
-                required
-              />
-              <p class="text-xs text-muted-foreground">
-                Get your API key from{" "}
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-primary underline"
-                >
-                  openrouter.ai/keys
-                </a>
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <Label htmlFor="defaultModel">Default Model</Label>
-              <select
-                id="defaultModel"
-                name="defaultModel"
-                class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {AVAILABLE_MODELS.map((model) => (
-                  <option
-                    value={model.id}
-                    selected={model.id === currentSettings?.defaultModel}
-                  >
-                    {model.name} ({model.provider}) - {model.tier === "top" ? "Top Tier" : "Fast"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button type="submit">Save Settings</Button>
-          </form>
+          <OpenRouterSettingsForm
+            initialOpenrouterApiKey={currentSettings?.openrouterApiKey ?? ""}
+            initialDefaultModel={currentSettings?.defaultModel ?? DEFAULT_MODEL}
+            models={AVAILABLE_MODELS}
+            client:load
+          />
         </CardContent>
       </Card>
 

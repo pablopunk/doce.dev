@@ -1,7 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import {
-	validateSession,
 	cleanupExpiredSessions,
+	validateSession,
 } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
