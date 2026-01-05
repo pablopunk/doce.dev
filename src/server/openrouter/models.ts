@@ -42,23 +42,23 @@ export const AVAILABLE_MODELS = [
 		tier: "fast",
 		supportsImages: true,
 	},
-	{
-		id: "opencode/minimax-m2.1-free",
-		name: "MiniMax M2.1 Free",
-		provider: "MiniMax",
-		tier: "top",
-		supportsImages: false,
-	},
-	{
-		id: "opencode/glm-4.7-free",
-		name: "GLM 4.7 Free",
-		provider: "Z.ai",
-		tier: "top",
-		supportsImages: false,
-	},
+	// {
+	// 	id: "opencode/minimax-m2.1-free",
+	// 	name: "MiniMax M2.1 Free",
+	// 	provider: "MiniMax",
+	// 	tier: "top",
+	// 	supportsImages: false,
+	// },
+	// {
+	// 	id: "opencode/glm-4.7-free",
+	// 	name: "GLM 4.7 Free",
+	// 	provider: "Z.ai",
+	// 	tier: "top",
+	// 	supportsImages: false,
+	// },
 ] as const;
 
 export type ModelId = (typeof AVAILABLE_MODELS)[number]["id"];
 
-export const DEFAULT_MODEL: ModelId = "opencode/minimax-m2.1-free";
+export const DEFAULT_MODEL: ModelId = "anthropic/claude-haiku-4.5";
 export const FAST_MODEL: ModelId = "google/gemini-2.5-flash";
