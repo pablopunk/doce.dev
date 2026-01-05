@@ -12,6 +12,11 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
@@ -159,7 +164,7 @@ export function ModelSelector({
 								</DropdownMenuLabel>
 								{providerModels.map((model) => {
 									const isAvailable = model.available !== false;
-									return (
+									const menuItem = (
 										<DropdownMenuRadioItem
 											key={model.id}
 											value={model.id}
@@ -167,11 +172,6 @@ export function ModelSelector({
 												!isAvailable ? "opacity-50 cursor-not-allowed" : ""
 											}`}
 											disabled={!isAvailable}
-											title={
-												!isAvailable && model.unavailableReason
-													? model.unavailableReason
-													: undefined
-											}
 										>
 											<div className="flex items-center gap-2">
 												<span
@@ -189,6 +189,20 @@ export function ModelSelector({
 											</div>
 										</DropdownMenuRadioItem>
 									);
+
+									// Wrap unavailable models with tooltip
+									if (!isAvailable && model.unavailableReason) {
+										return (
+											<Tooltip key={model.id}>
+												<TooltipTrigger asChild>{menuItem}</TooltipTrigger>
+												<TooltipContent side="right">
+													{model.unavailableReason}
+												</TooltipContent>
+											</Tooltip>
+										);
+									}
+
+									return menuItem;
 								})}
 							</DropdownMenuGroup>
 						);
