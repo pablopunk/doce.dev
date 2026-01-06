@@ -6,13 +6,24 @@ import {
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
+import { logger } from "@/server/logger";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 ensureQueueWorkerStarted();
 ensureGlobalPnpmVolume();
-cleanupExpiredSessions().catch((error) => {
-	console.error("Failed to cleanup expired sessions:", error);
-});
+
+const performSessionCleanup = async () => {
+	try {
+		await cleanupExpiredSessions();
+		logger.info("Expired sessions cleanup completed");
+	} catch (error) {
+		logger.error({ error }, "Failed to cleanup expired sessions");
+	}
+};
+
+performSessionCleanup();
+
+setInterval(performSessionCleanup, 24 * 60 * 60 * 1000);
 
 const SESSION_COOKIE_NAME = "doce_session";
 
