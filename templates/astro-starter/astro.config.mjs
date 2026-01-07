@@ -15,6 +15,16 @@ export default defineConfig({
 	integrations: [react()],
 	vite: {
 		plugins: [tailwindcss()],
+		server: {
+			watch: {
+				ignored: [
+					"**/opencode.json",
+					"**/node_modules/**",
+					"**/DOCE.md",
+					"**/components.json",
+				],
+			},
+		},
 	},
 	devToolbar: {
 		enabled: false,

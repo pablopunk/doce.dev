@@ -8,12 +8,6 @@ interface ContainerStartupDisplayProps {
 	onComplete?: () => void; // Called when startup/restart is complete
 }
 
-interface CurrentEvent {
-	type: "message" | "tool";
-	text: string;
-	isStreaming?: boolean;
-}
-
 interface QueueStatusResponse {
 	projectId: string;
 	currentStep: number;
@@ -36,7 +30,7 @@ const STEPS: Array<{ step: number; label: string }> = [
 // Descriptions for each step
 const STEP_DESCRIPTIONS: Record<number, string> = {
 	1: "Starting containers...",
-	2: "Initializing AI agent...",
+	2: "Leveraging agent...",
 };
 
 export function ContainerStartupDisplay({
@@ -45,8 +39,6 @@ export function ContainerStartupDisplay({
 	onComplete,
 }: ContainerStartupDisplayProps) {
 	const [isComplete, setIsComplete] = useState(false);
-	const [currentEvent, setCurrentEvent] = useState<CurrentEvent | null>(null);
-	const [isTransitioning, setIsTransitioning] = useState(false);
 	const [currentStep, setCurrentStep] = useState(1);
 	const [startupError, setStartupError] = useState<string | null>(null);
 	const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(
@@ -54,93 +46,29 @@ export function ContainerStartupDisplay({
 	);
 	const [sessionsLoaded, setSessionsLoaded] = useState(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
-	const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-		null,
-	);
 	const startTimeRef = useRef<number>(Date.now());
 
 	const handleOpencodeEvent = useCallback(
 		(event: { type: string; payload: Record<string, unknown> }) => {
-			const { type, payload } = event;
+			const { type } = event;
 
 			switch (type) {
-				case "chat.message.delta": {
-					// Ignore message events - only show tool calls
-					// Advance to agent step when we start streaming agent messages
+				case "chat.message.delta":
+				case "chat.message.part.added": {
+					// Agent is working - advance to step 2
 					setCurrentStep(2);
 					break;
 				}
 
 				case "chat.message.final": {
-					// Ignore message events
+					// Message complete
 					break;
 				}
 
-				case "chat.tool.start": {
-					const { name, input } = payload as {
-						name: string;
-						input: unknown;
-					};
-
-					const inputObj = (input as Record<string, unknown>) || {};
-					const filePath =
-						typeof inputObj.filePath === "string"
-							? inputObj.filePath
-							: typeof inputObj.path === "string"
-								? inputObj.path
-								: null;
-					const fileName = filePath ? filePath.split("/").pop() : null;
-
-					const toolDescriptions: Record<string, string> = {
-						read: "Reading",
-						write: "Creating",
-						edit: "Editing",
-						delete: "Deleting",
-						list: "Listing",
-						bash: "Running",
-						glob: "Finding files",
-					};
-
-					const action =
-						toolDescriptions[name] ||
-						name.charAt(0).toUpperCase() + name.slice(1);
-					const friendlyText = fileName
-						? `${action} ${fileName}...`
-						: `${action}...`;
-
-					// Fade transition to new tool
-					setIsTransitioning(true);
-					if (transitionTimeoutRef.current) {
-						clearTimeout(transitionTimeoutRef.current);
-					}
-					transitionTimeoutRef.current = setTimeout(() => {
-						setCurrentEvent({
-							type: "tool",
-							text: friendlyText,
-							isStreaming: true,
-						});
-						setIsTransitioning(false);
-					}, 300);
-					break;
-				}
-
-				case "chat.tool.finish": {
-					setCurrentEvent((prev) => {
-						if (prev?.type === "tool") {
-							return { ...prev, isStreaming: false };
-						}
-						return prev;
-					});
-					break;
-				}
-
+				case "chat.tool.start":
+				case "chat.tool.finish":
 				case "chat.tool.error": {
-					setCurrentEvent((prev) => {
-						if (prev?.type === "tool") {
-							return { ...prev, isStreaming: false };
-						}
-						return prev;
-					});
+					// Tool calls are happening but we don't show them
 					break;
 				}
 
@@ -334,14 +262,11 @@ export function ContainerStartupDisplay({
 		};
 	}, [projectId, reason, sessionsLoaded, isComplete]);
 
-	const displayMessage =
-		currentEvent?.type === "tool"
-			? currentEvent?.text
-			: jobTimeoutWarning
-				? jobTimeoutWarning
-				: reason === "restart" && !sessionsLoaded && currentStep >= 2
-					? "Loading your chat history..."
-					: (STEP_DESCRIPTIONS[currentStep] ?? "Starting your environment...");
+	const displayMessage = jobTimeoutWarning
+		? jobTimeoutWarning
+		: reason === "restart" && !sessionsLoaded && currentStep >= 2
+			? "Loading your chat history..."
+			: (STEP_DESCRIPTIONS[currentStep] ?? "Starting your environment...");
 
 	const hasError = startupError !== null;
 	const heading =
@@ -402,11 +327,7 @@ export function ContainerStartupDisplay({
 							</div>
 
 							{/* Status message */}
-							<div
-								className={`flex items-center justify-center gap-2 min-h-6 transition-opacity duration-300 ${
-									isTransitioning ? "opacity-0" : "opacity-100"
-								}`}
-							>
+							<div className="flex items-center justify-center gap-2 min-h-6">
 								<Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
 								<p className="text-sm text-muted-foreground">
 									{displayMessage}

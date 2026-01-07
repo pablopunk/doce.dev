@@ -82,7 +82,7 @@ const curatedModels = await Promise.all(
       />
     ) : (
       <!-- Setup complete: show chat + preview (with container startup overlay) -->
-      <ProjectContentWrapper projectId={project.id} models={curatedModels} client:load />
+      <ProjectContentWrapper projectId={project.id} projectSlug={project.slug} models={curatedModels} client:load />
     )}
    </div>
 </AppLayout>

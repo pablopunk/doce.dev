@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -35,10 +36,6 @@ export function DeleteAllProjectsSection({
 	const [isOpen, setIsOpen] = useState(false);
 	const [confirmText, setConfirmText] = useState("");
 	const [isDeleting, setIsDeleting] = useState(false);
-	const [result, setResult] = useState<{
-		success: boolean;
-		message: string;
-	} | null>(null);
 	const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
 	const confirmInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,7 +45,6 @@ export function DeleteAllProjectsSection({
 		if (!isConfirmed) return;
 
 		setIsDeleting(true);
-		setResult(null);
 
 		try {
 			const response = await fetch("/_actions/projects.deleteAll", {
@@ -68,19 +64,16 @@ export function DeleteAllProjectsSection({
 				}
 
 				setDeleteJobId(jobId);
-				setResult({
-					success: true,
-					message: `Deletion scheduled (job ${jobId}). Monitor progress in /queue.`,
-				});
+				toast.success(
+					`Deletion scheduled (job ${jobId}). Monitor progress in /queue.`,
+				);
 			} else {
 				throw new Error("Failed to delete projects");
 			}
 		} catch (error) {
-			setResult({
-				success: false,
-				message:
-					error instanceof Error ? error.message : "Failed to delete projects",
-			});
+			toast.error(
+				error instanceof Error ? error.message : "Failed to delete projects",
+			);
 		} finally {
 			setIsDeleting(false);
 		}
@@ -105,14 +98,12 @@ export function DeleteAllProjectsSection({
 				const state = data.job?.state;
 
 				if (state === "succeeded") {
+					toast.success("All projects deleted successfully.");
 					window.location.reload();
 				}
 
 				if (state === "failed" || state === "cancelled") {
-					setResult({
-						success: false,
-						message: data.job?.lastError || `Deletion job ${state}`,
-					});
+					toast.error(data.job?.lastError || `Deletion job ${state}`);
 					setDeleteJobId(null);
 				}
 			} catch {
@@ -130,7 +121,6 @@ export function DeleteAllProjectsSection({
 		setIsOpen(open);
 		if (!open) {
 			setConfirmText("");
-			setResult(null);
 			setDeleteJobId(null);
 		} else {
 			// Auto-focus confirmation input when dialog opens
@@ -220,18 +210,6 @@ export function DeleteAllProjectsSection({
 									title="Type 'delete all projects' to confirm this action"
 								/>
 							</div>
-
-							{result && (
-								<div
-									className={`rounded-md p-3 text-sm ${
-										result.success
-											? "bg-success/10 text-success-foreground"
-											: "bg-destructive/10 text-destructive"
-									}`}
-								>
-									{result.message}
-								</div>
-							)}
 
 							<DialogFooter>
 								<DialogClose asChild>

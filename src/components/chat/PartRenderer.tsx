@@ -3,11 +3,11 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import type {
-	MessagePart,
-	TextPart,
-	ReasoningPart,
 	ErrorPart,
 	FilePart,
+	MessagePart,
+	ReasoningPart,
+	TextPart,
 	ToolPart,
 } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";

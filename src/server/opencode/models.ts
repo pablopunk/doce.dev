@@ -93,10 +93,6 @@ export async function getAvailableModels(
 		if (providerModels) {
 			for (const model of providerModels) {
 				const { id, vendor } = normalizeModelId(model.id, providerId);
-				logger.debug(
-					{ providerId, rawId: model.id, normalizedId: id },
-					"Normalized model ID",
-				);
 				available.push({
 					id,
 					name: model.name,

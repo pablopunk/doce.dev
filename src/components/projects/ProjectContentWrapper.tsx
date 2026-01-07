@@ -8,6 +8,7 @@ import { useResizablePanel } from "@/hooks/useResizablePanel";
 
 interface ProjectContentWrapperProps {
 	projectId: string;
+	projectSlug?: string;
 	models?: ReadonlyArray<{
 		id: string;
 		name: string;
@@ -25,10 +26,13 @@ interface PresenceResponse {
 
 export function ProjectContentWrapper({
 	projectId,
+	projectSlug,
 	models = [],
 }: ProjectContentWrapperProps) {
 	const [showStartupDisplay, setShowStartupDisplay] = useState(true);
 	const [fileToOpen, setFileToOpen] = useState<string | null>(null);
+	const [userMessageCount, setUserMessageCount] = useState(0);
+	const [isStreaming, setIsStreaming] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	// Use custom resizable panel hook for managing layout with constraints
@@ -103,6 +107,10 @@ export function ProjectContentWrapper({
 								projectId={projectId}
 								models={models}
 								onOpenFile={setFileToOpen}
+								onStreamingStateChange={(count, streaming) => {
+									setUserMessageCount(count);
+									setIsStreaming(streaming);
+								}}
 							/>
 						</ErrorBoundary>
 					</div>
@@ -118,8 +126,11 @@ export function ProjectContentWrapper({
 						<ErrorBoundary componentName="PreviewPanel">
 							<PreviewPanel
 								projectId={projectId}
+								projectSlug={projectSlug}
 								fileToOpen={fileToOpen}
 								onFileOpened={() => setFileToOpen(null)}
+								userMessageCount={userMessageCount}
+								isStreaming={isStreaming}
 							/>
 						</ErrorBoundary>
 					</div>

@@ -5,12 +5,12 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type {
-	ImagePart,
-	Message,
-	TextPart,
-	ReasoningPart,
 	ErrorPart,
 	FilePart,
+	ImagePart,
+	Message,
+	ReasoningPart,
+	TextPart,
 } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 

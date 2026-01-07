@@ -38,6 +38,7 @@ interface ProductionStatus {
 
 interface PreviewPanelProps {
 	projectId: string;
+	projectSlug?: string;
 	onStatusChange?: (status: PresenceResponse) => void;
 	fileToOpen?: string | null;
 	onFileOpened?: () => void;
@@ -51,6 +52,7 @@ type TabType = "preview" | "files" | "assets";
 
 export function PreviewPanel({
 	projectId,
+	projectSlug,
 	onStatusChange,
 	fileToOpen,
 	onFileOpened,
@@ -548,7 +550,7 @@ export function PreviewPanel({
 						<div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
 							<div className="flex flex-col items-center gap-4 text-muted-foreground">
 								<Loader2 className="h-8 w-8 animate-spin" />
-								<p>Building preview...</p>
+								<p>Building {projectSlug}...</p>
 							</div>
 						</div>
 					)}

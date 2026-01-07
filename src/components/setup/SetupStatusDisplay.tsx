@@ -1,5 +1,5 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface SetupStatusDisplayProps {
@@ -7,7 +7,7 @@ interface SetupStatusDisplayProps {
 }
 
 interface CurrentEvent {
-	type: "message" | "tool";
+	type: "message";
 	text: string;
 	isStreaming?: boolean;
 }
@@ -23,69 +23,27 @@ interface QueueStatusResponse {
 	jobTimeoutWarning: string | undefined;
 }
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 // All steps in order for the timeline
 const STEPS: Array<{ step: number; label: string }> = [
 	{ step: 1, label: "Files" },
 	{ step: 2, label: "Docker" },
 	{ step: 3, label: "Agent" },
-	{ step: 4, label: "Build" },
-	{ step: 5, label: "Done" },
+	{ step: 4, label: "Done" },
 ];
 
 // Descriptions for each step when no events are streaming
 const STEP_DESCRIPTIONS: Record<number, string> = {
 	1: "Creating project files...",
 	2: "Setting up Docker containers...",
-	3: "Initializing AI agent...",
-	4: "Building your website...",
-	5: "Completing setup...",
+	3: "Leveraging agent...",
+	4: "Completing setup...",
 };
-
-/**
- * Extract friendly description from a tool call
- * Examples: "Creating index.tsx..." "Editing Layout.tsx..." "Reading package.json..."
- */
-function getFriendlyToolDescription(toolName: string, input: unknown): string {
-	const inputObj = (input as Record<string, unknown>) || {};
-
-	// Extract file path from input
-	const filePath =
-		typeof inputObj.filePath === "string"
-			? inputObj.filePath
-			: typeof inputObj.path === "string"
-				? inputObj.path
-				: null;
-
-	const fileName = filePath ? filePath.split("/").pop() : null;
-
-	// Map tool names to friendly descriptions
-	const toolDescriptions: Record<string, string> = {
-		read: "Reading",
-		write: "Creating",
-		edit: "Editing",
-		delete: "Deleting",
-		list: "Listing",
-		bash: "Running",
-		glob: "Finding files",
-	};
-
-	const action =
-		toolDescriptions[toolName] ||
-		toolName.charAt(0).toUpperCase() + toolName.slice(1);
-
-	if (fileName) {
-		return `${action} ${fileName}...`;
-	}
-
-	return `${action}...`;
-}
 
 export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 	const [isComplete, setIsComplete] = useState(false);
 	const [currentEvent, setCurrentEvent] = useState<CurrentEvent | null>(null);
-	const [isTransitioning, setIsTransitioning] = useState(false);
 	const [currentStep, setCurrentStep] = useState(1);
 	const [setupError, setSetupError] = useState<string | null>(null);
 	const [agentTimeoutWarning, setAgentTimeoutWarning] = useState<string | null>(
@@ -95,10 +53,102 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 		null,
 	);
 	const eventSourceRef = useRef<EventSource | null>(null);
-	const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-		null,
-	);
 	const promptSentTimeRef = useRef<number | null>(null);
+
+	const handleOpencodeEvent = useCallback(
+		(event: { type: string; payload: Record<string, unknown> }) => {
+			const { type, payload } = event;
+
+			switch (type) {
+				case "chat.message.part.added": {
+					// New event type for streaming text parts - show agent messages
+					const { deltaText } = payload as {
+						messageId: string;
+						partId: string;
+						partType: string;
+						deltaText?: string;
+					};
+
+					if (deltaText) {
+						setCurrentEvent((prev) => {
+							if (prev?.type === "message") {
+								return {
+									...prev,
+									text: prev.text + deltaText,
+									isStreaming: true,
+								};
+							}
+
+							return {
+								type: "message",
+								text: deltaText,
+								isStreaming: true,
+							};
+						});
+					}
+					break;
+				}
+
+				case "chat.message.delta": {
+					// Backward compatibility for old event type
+					const { deltaText } = payload as {
+						messageId: string;
+						deltaText: string;
+					};
+
+					setCurrentEvent((prev) => {
+						if (prev?.type === "message") {
+							return {
+								...prev,
+								text: prev.text + deltaText,
+								isStreaming: true,
+							};
+						}
+
+						return {
+							type: "message",
+							text: deltaText,
+							isStreaming: true,
+						};
+					});
+					break;
+				}
+
+				case "chat.message.final": {
+					setCurrentEvent((prev) => {
+						if (prev?.type === "message") {
+							return { ...prev, isStreaming: false };
+						}
+						return prev;
+					});
+					break;
+				}
+
+				case "chat.tool.start": {
+					// Tool calls are happening but we don't show them to the user
+					break;
+				}
+
+				case "chat.tool.finish": {
+					// Tool completed, nothing to display
+					break;
+				}
+
+				case "chat.tool.error": {
+					// Tool error occurred, nothing to display
+					break;
+				}
+
+				case "setup.complete": {
+					// Event stream signals that initial prompt was completed
+					setIsComplete(true);
+					setCurrentStep(4);
+					break;
+				}
+			}
+		},
+		[],
+	);
 
 	// Connect to opencode event stream to show progress
 	useEffect(() => {
@@ -129,135 +179,7 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 				eventSourceRef.current = null;
 			}
 		};
-	}, [projectId, isComplete]);
-
-	const handleOpencodeEvent = (event: {
-		type: string;
-		payload: Record<string, unknown>;
-	}) => {
-		const { type, payload } = event;
-
-		switch (type) {
-			case "chat.message.part.added": {
-				// New event type for streaming text parts
-				const { deltaText } = payload as {
-					messageId: string;
-					partId: string;
-					partType: string;
-					deltaText?: string;
-				};
-
-				if (deltaText) {
-					setCurrentEvent((prev) => {
-						if (prev?.type === "message") {
-							return {
-								...prev,
-								text: prev.text + deltaText,
-								isStreaming: true,
-							};
-						}
-
-						return {
-							type: "message",
-							text: deltaText,
-							isStreaming: true,
-						};
-					});
-					// Advance to build step when we start streaming agent messages
-					setCurrentStep(4);
-				}
-				break;
-			}
-
-			case "chat.message.delta": {
-				// Backward compatibility for old event type
-				const { deltaText } = payload as {
-					messageId: string;
-					deltaText: string;
-				};
-
-				setCurrentEvent((prev) => {
-					if (prev?.type === "message") {
-						return {
-							...prev,
-							text: prev.text + deltaText,
-							isStreaming: true,
-						};
-					}
-
-					return {
-						type: "message",
-						text: deltaText,
-						isStreaming: true,
-					};
-				});
-				// Advance to build step when we start streaming agent messages
-				setCurrentStep(4);
-				break;
-			}
-
-			case "chat.message.final": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "message") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "chat.tool.start": {
-				const { name, input } = payload as {
-					name: string;
-					input: unknown;
-				};
-
-				const friendlyText = getFriendlyToolDescription(name, input);
-
-				// Fade transition to new tool
-				setIsTransitioning(true);
-				if (transitionTimeoutRef.current) {
-					clearTimeout(transitionTimeoutRef.current);
-				}
-				transitionTimeoutRef.current = setTimeout(() => {
-					setCurrentEvent({
-						type: "tool",
-						text: friendlyText,
-						isStreaming: true,
-					});
-					setIsTransitioning(false);
-				}, 300);
-				break;
-			}
-
-			case "chat.tool.finish": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "tool") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "chat.tool.error": {
-				setCurrentEvent((prev) => {
-					if (prev?.type === "tool") {
-						return { ...prev, isStreaming: false };
-					}
-					return prev;
-				});
-				break;
-			}
-
-			case "setup.complete": {
-				// Event stream signals that initial prompt was completed
-				setIsComplete(true);
-				setCurrentStep(5);
-				break;
-			}
-		}
-	};
+	}, [projectId, isComplete, handleOpencodeEvent]);
 
 	// Poll queue status for steps 1-4
 	useEffect(() => {
@@ -295,9 +217,9 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 					setJobTimeoutWarning(data.jobTimeoutWarning);
 				}
 
-				// When we reach step 5, the backend has marked initial_prompt_completed
+				// When we reach step 4, the backend has marked initial_prompt_completed
 				// Reload the page so it shows the chat/preview instead of setup
-				if (data.currentStep >= 5 && data.isSetupComplete) {
+				if (data.currentStep >= 4 && data.isSetupComplete) {
 					// Wait a moment for the UI to show final state, then reload
 					setTimeout(() => {
 						window.location.reload();
@@ -320,7 +242,7 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 
 	// Monitor agent timeout (if prompt sent but no completion after 5 minutes)
 	useEffect(() => {
-		if (currentStep !== 4 || isComplete) {
+		if (currentStep !== 3 || isComplete) {
 			setAgentTimeoutWarning(null);
 			return;
 		}
@@ -347,15 +269,13 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 	}, [currentStep, isComplete]);
 
 	const displayMessage =
-		currentEvent?.type === "tool"
+		currentEvent?.type === "message"
 			? currentEvent?.text
-			: currentEvent?.type === "message"
-				? currentEvent?.text
-				: jobTimeoutWarning
-					? jobTimeoutWarning
-					: agentTimeoutWarning && currentStep === 4
-						? agentTimeoutWarning
-						: (STEP_DESCRIPTIONS[currentStep] ?? "Building your website...");
+			: jobTimeoutWarning
+				? jobTimeoutWarning
+				: agentTimeoutWarning && currentStep === 3
+					? agentTimeoutWarning
+					: (STEP_DESCRIPTIONS[currentStep] ?? "Leveraging agent...");
 	const hasError = setupError !== null;
 
 	return (
@@ -411,11 +331,7 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 							</div>
 
 							{/* Status message */}
-							<div
-								className={`flex items-center justify-center gap-2 min-h-6 transition-opacity duration-300 ${
-									isTransitioning ? "opacity-0" : "opacity-100"
-								}`}
-							>
+							<div className="flex items-center justify-center gap-2 min-h-6">
 								<Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
 								<p className="text-sm text-muted-foreground line-clamp-1">
 									{displayMessage}

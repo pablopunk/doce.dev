@@ -17,8 +17,12 @@ export default defineConfig({
 		plugins: [tailwindcss() as any],
 		server: {
 			watch: {
-				// Ignore project data directory to prevent restarts when projects are created
-				ignored: ["**/data/**"],
+				ignored: [
+					"**/opencode.json",
+					"**/node_modules/**",
+					"**/DOCE.md",
+					"**/components.json",
+				],
 			},
 		},
 	},

@@ -35,7 +35,7 @@ interface JobStatus {
 
 interface QueueStatusResponse {
 	projectId: string;
-	currentStep: number; // 1-5 (5 = all queue jobs done)
+	currentStep: number; // 1-4 (4 = all queue jobs done)
 	setupJobs: Record<string, JobStatus>;
 	hasError: boolean;
 	errorMessage: string | undefined;
@@ -152,34 +152,68 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 					isSetupComplete = false;
 				}
 
-				// Track current step based on highest succeeded job
-				if (job.state === "succeeded") {
-					currentStep = SETUP_JOBS.indexOf(jobType) + 1;
-
-					// Track when prompt was sent (for agent timeout detection)
-					if (jobType === "opencode.sendUserPrompt") {
-						promptSentAt = job.updatedAt.getTime();
-					}
-				} else {
-					isSetupComplete = false;
+				// Track when prompt was sent (for agent timeout detection)
+				if (jobType === "opencode.sendUserPrompt") {
+					promptSentAt = job.updatedAt.getTime();
 				}
 			}
 		}
 
-		// If all setup jobs are complete, we're on step 5 (Done)
-		// Mark user prompt as completed in the database so UI properly transitions
-		if (isSetupComplete) {
-			currentStep = 5;
+		// Calculate current step based on job progression
+		// Step 1: project.create succeeded
+		// Step 2: docker.composeUp AND docker.waitReady succeeded
+		// Step 3: opencode.sessionCreate AND opencode.sendUserPrompt succeeded (Agent step combines both)
+		// Step 4: All complete (Done)
+		const projectCreateJob = jobsByType.get("project.create");
+		const dockerComposeUpJob = jobsByType.get("docker.composeUp");
+		const dockerWaitReadyJob = jobsByType.get("docker.waitReady");
+		const sessionCreateJob = jobsByType.get("opencode.sessionCreate");
+		const sendPromptJob = jobsByType.get("opencode.sendUserPrompt");
 
-			// Mark completion in database if not already marked
-			// This is a fallback in case the SSE event-based completion wasn't triggered
-			if (project.initialPromptSent && !project.userPromptCompleted) {
-				await markUserPromptCompleted(projectId);
-				logger.info(
-					{ projectId },
-					"Marked user prompt completed via queue-status endpoint",
-				);
-			}
+		if (
+			projectCreateJob?.state === "succeeded" &&
+			dockerComposeUpJob?.state === "succeeded" &&
+			dockerWaitReadyJob?.state === "succeeded" &&
+			sessionCreateJob?.state === "succeeded" &&
+			sendPromptJob?.state === "succeeded"
+		) {
+			// All jobs complete - step 4 (Done)
+			currentStep = 4;
+		} else if (
+			projectCreateJob?.state === "succeeded" &&
+			dockerComposeUpJob?.state === "succeeded" &&
+			dockerWaitReadyJob?.state === "succeeded" &&
+			sessionCreateJob?.state === "succeeded"
+		) {
+			// Session created but prompt not sent yet - still step 3 (Agent)
+			currentStep = 3;
+			isSetupComplete = false;
+		} else if (
+			projectCreateJob?.state === "succeeded" &&
+			dockerComposeUpJob?.state === "succeeded" &&
+			dockerWaitReadyJob?.state === "succeeded"
+		) {
+			// Docker ready but agent session not created yet - step 2 (Docker)
+			currentStep = 2;
+			isSetupComplete = false;
+		} else if (projectCreateJob?.state === "succeeded") {
+			// Project created but docker not ready yet - step 1 (Files)
+			currentStep = 1;
+			isSetupComplete = false;
+		}
+
+		// Mark user prompt as completed in the database so UI properly transitions
+		// This is a fallback in case the SSE event-based completion wasn't triggered
+		if (
+			currentStep === 4 &&
+			project.initialPromptSent &&
+			!project.userPromptCompleted
+		) {
+			await markUserPromptCompleted(projectId);
+			logger.info(
+				{ projectId },
+				"Marked user prompt completed via queue-status endpoint",
+			);
 		}
 
 		// Check for job timeout warning (if any setup job is stuck for >5 min)

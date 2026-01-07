@@ -33,7 +33,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * **Complex React components** should be split into custom hooks for logic and presentational components for UI. Put hooks in `src/hooks/` with the naming convention `use[Feature].ts`.
 * **Large model files** (e.g., `queue.model.ts`) should be split into focused modules: `queue.settings.ts`, `queue.crud.ts`, `queue.claim.ts`, `queue.lifecycle.ts`. The main model file should re-export from smaller modules for backward compatibility.
 * **API calls** should be abstracted into service functions rather than scattered directly in components.
-* **State management** should use custom hooks to encapsulate complex state logic and side effects.
+* **State management** should use `zustand` to create domain-specific stores for complex state on components, or custom hooks if a store is not needed.
 
 ## Tech Stack
 
