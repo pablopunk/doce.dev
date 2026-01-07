@@ -885,8 +885,14 @@ export function ChatPanel({
 			</div>
 
 			{(() => {
+				// Extract model ID without provider prefix for ModelSelector
+				// currentModel format: "provider/model-id" (e.g., "openrouter/google/gemini-3-flash")
+				// models[].id format: "model-id" (e.g., "google/gemini-3-flash")
+				const modelIdOnly = currentModel
+					? currentModel.split("/").slice(1).join("/")
+					: null;
 				const modelSupport =
-					models.find((m) => m.id === currentModel)?.supportsImages ?? true;
+					models.find((m) => m.id === modelIdOnly)?.supportsImages ?? true;
 				return (
 					<ChatInput
 						onSend={handleSend}
@@ -898,7 +904,7 @@ export function ChatPanel({
 									? "Processing..."
 									: "Type a message..."
 						}
-						model={currentModel}
+						model={modelIdOnly}
 						models={models}
 						onModelChange={handleModelChange}
 						images={pendingImages}
