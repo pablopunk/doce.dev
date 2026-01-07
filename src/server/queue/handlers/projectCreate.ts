@@ -67,6 +67,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			opencodePort,
 			status: "created",
 			pathOnDisk: relativePath,
+			currentModel: model || null,
 		});
 
 		logger.info({ projectId, name, slug }, "Created project in database");
