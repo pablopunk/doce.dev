@@ -9,6 +9,39 @@ import {
 
 const PAGE_SIZE = 25;
 
+// Type assertion helper: validates type param matches allowed types before returning
+function validateJobType(typeParam: string): QueueJob["type"] | undefined {
+	const allowedTypes = [
+		"project.create",
+		"project.delete",
+		"projects.deleteAllForUser",
+		"docker.composeUp",
+		"docker.waitReady",
+		"docker.ensureRunning",
+		"docker.stop",
+		"opencode.sessionCreate",
+		"opencode.sendInitialPrompt",
+		"opencode.waitIdle",
+	] as const;
+	return allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
+		? (typeParam as QueueJob["type"])
+		: undefined;
+}
+
+// Type assertion helper: validates state param matches allowed states before returning
+function validateJobState(stateParam: string): QueueJob["state"] | undefined {
+	const allowedStates = [
+		"queued",
+		"running",
+		"succeeded",
+		"failed",
+		"cancelled",
+	] as const;
+	return allowedStates.includes(stateParam as (typeof allowedStates)[number])
+		? (stateParam as QueueJob["state"])
+		: undefined;
+}
+
 export const GET: APIRoute = async ({ request, locals }) => {
 	const user = locals.user;
 	if (!user) {
@@ -26,34 +59,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const page = Math.max(1, parseInt(pageParam, 10) || 1);
 	const offset = (page - 1) * PAGE_SIZE;
 
-	const allowedStates = [
-		"queued",
-		"running",
-		"succeeded",
-		"failed",
-		"cancelled",
-	] as const;
-	const state = allowedStates.includes(
-		stateParam as (typeof allowedStates)[number],
-	)
-		? (stateParam as QueueJob["state"])
-		: undefined;
-
-	const allowedTypes = [
-		"project.create",
-		"project.delete",
-		"projects.deleteAllForUser",
-		"docker.composeUp",
-		"docker.waitReady",
-		"docker.ensureRunning",
-		"docker.stop",
-		"opencode.sessionCreate",
-		"opencode.sendInitialPrompt",
-		"opencode.waitIdle",
-	] as const;
-	const type = allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
-		? (typeParam as QueueJob["type"])
-		: undefined;
+	// Validate parameters using helper functions
+	const state = validateJobState(stateParam);
+	const type = validateJobType(typeParam);
 
 	// SSE response with headers
 	const headers = new Headers({
@@ -77,13 +85,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					q: qParam || undefined,
 					limit: PAGE_SIZE,
 					offset,
-				} as any);
+				});
 				const totalCount = await countJobs({
 					state,
 					type,
 					projectId: projectIdParam || undefined,
 					q: qParam || undefined,
-				} as any);
+				});
 				const paused = await isQueuePaused();
 				const concurrency = await getConcurrency();
 
@@ -133,13 +141,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
 							q: qParam || undefined,
 							limit: PAGE_SIZE,
 							offset,
-						} as any);
+						});
 						const updatedTotalCount = await countJobs({
 							state,
 							type,
 							projectId: projectIdParam || undefined,
 							q: qParam || undefined,
-						} as any);
+						});
 						const updatedPaused = await isQueuePaused();
 						const updatedConcurrency = await getConcurrency();
 

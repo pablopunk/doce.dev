@@ -79,7 +79,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 
 ## Subagents
 
-- For ui-specifict tasks, use the @frontend-developer agent
+- For ui-specific tasks, use the @frontend-developer agent
 - For backend-specific tasks, use the @backend-developer agent
 - For opencode integration tasks, use the @opencode-expert agent
 - For github-related tasks, use the @github-expert agent

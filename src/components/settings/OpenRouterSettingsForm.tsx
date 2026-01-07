@@ -30,16 +30,14 @@ export function OpenRouterSettingsForm({
 	const [defaultModel, setDefaultModel] = useState(initialDefaultModel);
 	const [isSaving, setIsSaving] = useState(false);
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleSave = async () => {
 		setIsSaving(true);
 
 		try {
-			const formData = new FormData();
-			formData.append("openrouterApiKey", openrouterApiKey);
-			formData.append("defaultModel", defaultModel);
-
-			const result = await actions.settings.save(formData);
+			const result = await actions.settings.save({
+				openrouterApiKey,
+				defaultModel,
+			});
 
 			if (result.error) {
 				toast.error(result.error.message);
@@ -56,17 +54,15 @@ export function OpenRouterSettingsForm({
 	};
 
 	return (
-		<form onSubmit={handleSubmit} className="space-y-4">
+		<div className="space-y-4">
 			<div className="space-y-2">
 				<Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
 				<Input
 					id="openrouterApiKey"
-					name="openrouterApiKey"
 					type="password"
 					placeholder="sk-or-..."
 					value={openrouterApiKey}
 					onChange={(e) => setOpenrouterApiKey(e.target.value)}
-					required
 				/>
 				<p className="text-xs text-muted-foreground">
 					Get your API key from{" "}
@@ -85,7 +81,6 @@ export function OpenRouterSettingsForm({
 				<Label htmlFor="defaultModel">Default Model</Label>
 				<select
 					id="defaultModel"
-					name="defaultModel"
 					value={defaultModel}
 					onChange={(e) => setDefaultModel(e.target.value)}
 					className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -99,9 +94,9 @@ export function OpenRouterSettingsForm({
 				</select>
 			</div>
 
-			<Button type="submit" disabled={isSaving}>
+			<Button onClick={handleSave} disabled={isSaving}>
 				{isSaving ? "Saving..." : "Save Settings"}
 			</Button>
-		</form>
+		</div>
 	);
 }

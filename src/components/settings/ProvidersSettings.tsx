@@ -67,8 +67,7 @@ export function ProvidersSettings() {
 		};
 	}, []);
 
-	async function handleConnect(e: React.FormEvent) {
-		e.preventDefault();
+	async function handleConnect() {
 		if (!selectedProvider || !apiKey.trim()) return;
 
 		setIsConnecting(true);
@@ -138,7 +137,7 @@ export function ProvidersSettings() {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-6">
-				<form onSubmit={handleConnect} className="space-y-4">
+				<div className="space-y-4">
 					<div>
 						<label
 							htmlFor="provider-select"
@@ -206,16 +205,15 @@ export function ProvidersSettings() {
 							value={apiKey}
 							onChange={(e) => setApiKey(e.target.value)}
 							placeholder="sk-..."
-							required
 						/>
 					</div>
 					<Button
-						type="submit"
+						onClick={handleConnect}
 						disabled={isConnecting || !selectedProvider || !apiKey.trim()}
 					>
 						{isConnecting ? "Connecting..." : "Connect"}
 					</Button>
-				</form>
+				</div>
 
 				{providers.filter((p) => p.connected).length > 0 && (
 					<div>

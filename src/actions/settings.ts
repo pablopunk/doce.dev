@@ -7,9 +7,10 @@ import { userSettings } from "@/server/db/schema";
 
 export const settings = {
 	save: defineAction({
-		accept: "form",
+		accept: "json",
 		input: z.object({
 			defaultModel: z.string().default(DEFAULT_MODEL),
+			openrouterApiKey: z.string().optional(),
 		}),
 		handler: async (input, context) => {
 			const user = context.locals.user;

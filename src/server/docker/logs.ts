@@ -254,6 +254,7 @@ export function streamContainerLogs(
 		proc.on("error", onError);
 
 		// Store cleanup functions for manual cleanup (in stopStreamingContainerLogs)
+		// ChildProcess type doesn't expose _cleanup property; using any to add custom cleanup tracker
 		(proc as any)._cleanup = () => {
 			cleanupStdout();
 			cleanupStderr();
@@ -276,6 +277,7 @@ export function stopStreamingContainerLogs(projectId: string): void {
 	if (proc) {
 		try {
 			// Call cleanup functions to remove event listeners
+			// ChildProcess doesn't expose _cleanup; using any to access custom property set in startStreamingContainerLogs
 			const cleanup = (proc as any)._cleanup;
 			if (cleanup && typeof cleanup === "function") {
 				cleanup();

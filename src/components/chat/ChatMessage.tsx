@@ -4,7 +4,14 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import type { ImagePart, Message, TextPart } from "@/types/message";
+import type {
+	ImagePart,
+	Message,
+	TextPart,
+	ReasoningPart,
+	ErrorPart,
+	FilePart,
+} from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface ChatMessageProps {
@@ -66,32 +73,34 @@ export function ChatMessage({ message }: ChatMessageProps) {
 						// Handle other part types (reasoning, error, file, tool)
 						// For now, just render their content
 						if (part.type === "reasoning") {
+							const reasoningPart = part as ReasoningPart;
 							return (
 								<details key={part.id || idx} className="cursor-pointer">
 									<summary className="font-medium text-sm text-muted-foreground hover:text-foreground">
 										💭 Thinking...
 									</summary>
 									<pre className="whitespace-pre-wrap font-mono text-xs mt-2 p-2 bg-muted rounded overflow-auto max-h-48">
-										{(part as any).text}
+										{reasoningPart.text}
 									</pre>
 								</details>
 							);
 						}
 
 						if (part.type === "error") {
+							const errorPart = part as ErrorPart;
 							return (
 								<div
 									key={part.id || idx}
 									className="p-2 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive"
 								>
-									<strong>Error:</strong> {(part as any).message}
-									{(part as any).stack && (
+									<strong>Error:</strong> {errorPart.message}
+									{errorPart.stack && (
 										<details className="mt-2">
 											<summary className="cursor-pointer text-xs">
 												Stack trace
 											</summary>
 											<pre className="text-xs overflow-auto max-h-32 mt-1">
-												{(part as any).stack}
+												{errorPart.stack}
 											</pre>
 										</details>
 									)}
@@ -100,15 +109,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
 						}
 
 						if (part.type === "file") {
+							const filePart = part as FilePart;
 							return (
 								<div
 									key={part.id || idx}
 									className="p-2 bg-muted rounded text-sm inline-block"
 								>
-									📄 {(part as any).path}
-									{(part as any).size && (
+									📄 {filePart.path}
+									{filePart.size && (
 										<span className="text-xs text-muted-foreground ml-2">
-											({((part as any).size / 1024).toFixed(1)} KB)
+											({(filePart.size / 1024).toFixed(1)} KB)
 										</span>
 									)}
 								</div>

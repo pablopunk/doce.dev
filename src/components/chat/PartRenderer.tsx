@@ -2,7 +2,14 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import type { MessagePart, TextPart } from "@/types/message";
+import type {
+	MessagePart,
+	TextPart,
+	ReasoningPart,
+	ErrorPart,
+	FilePart,
+	ToolPart,
+} from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface PartRendererProps {
@@ -32,7 +39,7 @@ export function PartRenderer({ part, isStreaming }: PartRendererProps) {
 		}
 
 		case "reasoning": {
-			const reasoningPart = part as any;
+			const reasoningPart = part as ReasoningPart;
 			return (
 				<details className="cursor-pointer">
 					<summary className="font-medium text-sm text-muted-foreground hover:text-foreground">
@@ -46,7 +53,7 @@ export function PartRenderer({ part, isStreaming }: PartRendererProps) {
 		}
 
 		case "error": {
-			const errorPart = part as any;
+			const errorPart = part as ErrorPart;
 			return (
 				<div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm">
 					<div className="font-semibold text-destructive">⚠️ Error</div>
@@ -66,7 +73,7 @@ export function PartRenderer({ part, isStreaming }: PartRendererProps) {
 		}
 
 		case "file": {
-			const filePart = part as any;
+			const filePart = part as FilePart;
 			return (
 				<div className="p-2 bg-muted rounded text-sm inline-flex items-center gap-2">
 					<span>📄</span>
@@ -83,7 +90,7 @@ export function PartRenderer({ part, isStreaming }: PartRendererProps) {
 		case "tool": {
 			// Tool parts are handled separately by ToolCallDisplay
 			// This is a fallback render
-			const toolPart = part as any;
+			const toolPart = part as ToolPart;
 			return (
 				<div className="p-2 bg-muted rounded text-sm">
 					<strong>{toolPart.name}</strong>
