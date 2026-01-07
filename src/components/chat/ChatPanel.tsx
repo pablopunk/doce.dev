@@ -2,6 +2,7 @@ import { actions } from "astro:actions";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { type ChatItem, useChatStore } from "@/stores/useChatStore";
 import {
 	createImagePart,
 	createTextPart,
@@ -9,10 +10,9 @@ import {
 	type Message,
 	type MessagePart,
 } from "@/types/message";
-import { useChatStore, type ChatItem } from "@/stores/useChatStore";
-import type { ToolCall } from "./ToolCallDisplay";
 import { ChatInput } from "./ChatInput";
 import { ChatMessage } from "./ChatMessage";
+import type { ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 
 interface ChatPanelProps {

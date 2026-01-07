@@ -1,28 +1,10 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { FileTree } from "./FileTree";
 import { ReadOnlyEditor } from "./ReadOnlyEditor";
-
-interface FileTreeNode {
-	name: string;
-	type: "file" | "directory";
-	path: string;
-	children?: FileTreeNode[];
-}
-
-interface FileContentResponse {
-	path: string;
-	content: string;
-	encoding: "utf-8";
-	error?: string;
-}
-
-interface FilesTreeResponse {
-	tree: FileTreeNode[];
-	error?: string;
-}
+import { useFilesTab } from "./useFilesTab";
 
 interface FilesTabProps {
 	projectId: string;
@@ -30,38 +12,23 @@ interface FilesTabProps {
 	onFileSelect?: (path: string) => void;
 }
 
-/**
- * Get all ancestor directory paths for a file path.
- * e.g., "pages/api/index.ts" => ["pages", "pages/api"]
- */
-function getAncestorPaths(filePath: string): string[] {
-	const parts = filePath.split("/");
-	// Remove the filename (last part)
-	parts.pop();
-
-	const ancestors: string[] = [];
-	let currentPath = "";
-	for (const part of parts) {
-		currentPath = currentPath ? `${currentPath}/${part}` : part;
-		ancestors.push(currentPath);
-	}
-	return ancestors;
-}
-
 export function FilesTab({
 	projectId,
 	lastSelectedFile,
 	onFileSelect,
 }: FilesTabProps) {
-	const [files, setFiles] = useState<FileTreeNode[]>([]);
-	const [selectedPath, setSelectedPath] = useState<string | null>(
-		lastSelectedFile ?? null,
-	);
-	const [fileContent, setFileContent] = useState<string>("");
-	const [isLoadingTree, setIsLoadingTree] = useState(true);
-	const [isLoadingContent, setIsLoadingContent] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+	const {
+		files,
+		selectedPath,
+		fileContent,
+		isLoadingTree,
+		isLoadingContent,
+		error,
+		expandedPaths,
+		setExpandedPaths,
+		fetchFileContent,
+	} = useFilesTab({ projectId, lastSelectedFile, onFileSelect });
+
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } =
@@ -72,83 +39,6 @@ export function FilesTab({
 			defaultSize: 25,
 			containerRef,
 		});
-
-	// Fetch file tree on mount
-	useEffect(() => {
-		const fetchFileTree = async () => {
-			try {
-				setIsLoadingTree(true);
-				setError(null);
-
-				const response = await fetch(`/api/projects/${projectId}/files`);
-				if (!response.ok) {
-					throw new Error("Failed to fetch file tree");
-				}
-
-				const data = (await response.json()) as FilesTreeResponse;
-
-				if (data.error) {
-					setError(data.error);
-					setFiles([]);
-				} else {
-					setFiles(data.tree || []);
-
-					// If we have a last selected file and it exists, fetch it
-					if (lastSelectedFile && data.tree && data.tree.length > 0) {
-						// Expand ancestors to reveal the file in tree
-						const ancestors = getAncestorPaths(lastSelectedFile);
-						setExpandedPaths((prev) => {
-							const newPaths = new Set(prev);
-							for (const ancestor of ancestors) {
-								newPaths.add(ancestor);
-							}
-							return newPaths;
-						});
-						await fetchFileContent(lastSelectedFile);
-					}
-				}
-			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to fetch files");
-				setFiles([]);
-			} finally {
-				setIsLoadingTree(false);
-			}
-		};
-
-		fetchFileTree();
-	}, [projectId, lastSelectedFile]);
-
-	// Fetch file content when selected file changes
-	const fetchFileContent = async (path: string) => {
-		try {
-			setSelectedPath(path);
-			setIsLoadingContent(true);
-			setError(null);
-
-			const response = await fetch(
-				`/api/projects/${projectId}/files?path=${encodeURIComponent(path)}`,
-			);
-
-			if (!response.ok) {
-				throw new Error("Failed to fetch file content");
-			}
-
-			const data = (await response.json()) as FileContentResponse;
-
-			if (data.error) {
-				setError(data.error);
-				setFileContent("");
-			} else {
-				setFileContent(data.content);
-				onFileSelect?.(path);
-			}
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load file");
-			setFileContent("");
-		} finally {
-			setIsLoadingContent(false);
-		}
-	};
 
 	if (isLoadingTree) {
 		return (
