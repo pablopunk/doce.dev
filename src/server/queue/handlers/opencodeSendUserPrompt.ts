@@ -6,6 +6,7 @@ import {
 	getProjectByIdIncludeDeleted,
 	getProjectModel,
 	markInitialPromptSent,
+	parseModelString,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
@@ -95,8 +96,26 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		// Get the current model for this project
-		const model = await getProjectModel(project.id);
+		// Get the current model for this project (returns provider-prefixed string)
+		const modelString = await getProjectModel(project.id);
+
+		// Parse the provider-prefixed model string
+		const modelInfo = parseModelString(modelString);
+		if (!modelInfo) {
+			throw new Error(`Invalid model string: ${modelString}`);
+		}
+
+		// For OpenCode provider, strip the vendor prefix from the model ID
+		// OpenCode models are stored as "vendor/model" for display, but the SDK expects just "model"
+		// e.g., "anthropic/claude-haiku-4-5" should be sent as "claude-haiku-4-5"
+		let sdkModelID = modelInfo.modelID;
+		if (modelInfo.providerID === "opencode") {
+			// Remove vendor prefix if present (e.g., "anthropic/claude-haiku-4-5" -> "claude-haiku-4-5")
+			const modelParts = modelInfo.modelID.split("/");
+			if (modelParts.length > 1) {
+				sdkModelID = modelParts.slice(1).join("/");
+			}
+		}
 
 		// Create SDK client for this project
 		const client = createOpencodeClient(project.opencodePort);
@@ -106,8 +125,8 @@ export async function handleOpencodeSendUserPrompt(
 			const promptResponse = await client.session.promptAsync({
 				sessionID: sessionId,
 				model: {
-					providerID: model.providerID,
-					modelID: model.modelID,
+					providerID: modelInfo.providerID,
+					modelID: sdkModelID,
 				},
 				parts,
 			});
@@ -118,7 +137,7 @@ export async function handleOpencodeSendUserPrompt(
 			}
 
 			logger.info(
-				{ projectId: project.id, sessionId, model },
+				{ projectId: project.id, sessionId, modelInfo },
 				"Sent user prompt with model",
 			);
 		} catch (error) {
@@ -150,6 +169,15 @@ export async function handleOpencodeSendUserPrompt(
 				sessionID: sessionId,
 			});
 
+			logger.info(
+				{
+					projectId: project.id,
+					sessionId,
+					responseData: JSON.stringify(messagesResponse),
+				},
+				"Messages response received",
+			);
+
 			// Validate response structure
 			if (!messagesResponse.data) {
 				logger.warn(
@@ -170,6 +198,14 @@ export async function handleOpencodeSendUserPrompt(
 					info?: { id?: string; role?: string };
 					parts?: Array<{ type?: string; text?: string }>;
 				}>;
+				logger.debug(
+					{
+						projectId: project.id,
+						sessionId,
+						messageCount: messages.length,
+					},
+					"Messages fetched successfully",
+				);
 			}
 		} catch (error) {
 			logger.warn(
@@ -189,6 +225,15 @@ export async function handleOpencodeSendUserPrompt(
 
 		let userMsgId: string | undefined;
 
+		logger.info(
+			{
+				projectId: project.id,
+				totalMessages: messages.length,
+				promptLength: project.prompt.length,
+			},
+			"Starting message search",
+		);
+
 		// First pass: find user message with matching text
 		for (let i = messages.length - 1; i >= 0; i--) {
 			const msg = messages[i];
@@ -202,6 +247,20 @@ export async function handleOpencodeSendUserPrompt(
 						.toLowerCase() || "";
 
 				const promptText = project.prompt.toLowerCase();
+
+				logger.debug(
+					{
+						projectId: project.id,
+						messageIndex: i,
+						msgId: msg.info.id,
+						msgTextLength: msgText.length,
+						promptTextLength: promptText.length,
+						firstCharsMatch: msgText.startsWith(
+							promptText.slice(0, Math.min(30, promptText.length)),
+						),
+					},
+					"Checking message for match",
+				);
 
 				// Check if message contains at least the first 30 characters of prompt
 				if (
@@ -219,6 +278,10 @@ export async function handleOpencodeSendUserPrompt(
 
 		// If no match found, use the last user message (fallback)
 		if (!userMsgId) {
+			logger.debug(
+				{ projectId: project.id },
+				"No text match found, looking for fallback",
+			);
 			for (let i = messages.length - 1; i >= 0; i--) {
 				const msg = messages[i];
 				if (msg?.info?.role === "user" && msg?.info?.id) {

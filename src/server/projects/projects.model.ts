@@ -4,6 +4,7 @@ import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type NewProject, type Project, projects } from "@/server/db/schema";
 import { logger } from "@/server/logger";
+import { FALLBACK_MODEL } from "@/server/config/models";
 
 export type ProjectStatus = Project["status"];
 
@@ -15,10 +16,8 @@ interface OpencodeConfig {
 	[key: string]: unknown;
 }
 
-interface ModelInfo {
-	providerID: string;
-	modelID: string;
-}
+// Model strings are now stored as provider-prefixed format: "provider/model-id"
+// e.g., "openrouter/google/gemini-3-flash"
 
 /**
  * Load opencode.json configuration from a project directory.
@@ -37,32 +36,17 @@ export async function loadOpencodeConfig(
 }
 
 /**
- * Parse model string into components.
- * Handles both direct providers ("provider/model") and OpenRouter proxied models ("upstream/model").
+ * Parse provider-prefixed model string into components.
+ * Format: "provider/model-id" (e.g., "openrouter/google/gemini-3-flash")
  *
- * For OpenRouter, the format is "upstream_provider/model_name" (e.g., "anthropic/claude-haiku-4.5")
- * but it should be sent as providerID="openrouter", modelID="upstream_provider/model_name"
- *
- * @param modelString - The model string to parse
- * @param isOpenRouter - Whether this is for an OpenRouter-configured OpenCode instance
- * @returns ModelInfo with providerID and modelID, or null if invalid
+ * @param modelString - Full model string with provider prefix
+ * @returns Object with providerID and modelID, or null if invalid
  */
 export function parseModelString(
 	modelString: string,
-	isOpenRouter = true,
-): ModelInfo | null {
+): { providerID: string; modelID: string } | null {
 	try {
-		if (isOpenRouter) {
-			// For OpenRouter, the entire string is the modelID
-			// OpenRouter proxy format: "upstream_provider/model_name"
-			// e.g., "anthropic/claude-haiku-4.5" -> providerID="openrouter", modelID="anthropic/claude-haiku-4.5"
-			return {
-				providerID: "openrouter",
-				modelID: modelString,
-			};
-		}
-
-		// For direct providers, split on first "/" only
+		// Split on first "/" to separate provider from model
 		const parts = modelString.split("/");
 		if (parts.length < 2) {
 			return null;
@@ -83,37 +67,23 @@ export function parseModelString(
  */
 export async function storeProjectModel(
 	projectId: string,
-	model: ModelInfo,
+	model: string, // e.g., "openrouter/google/gemini-3-flash"
 ): Promise<void> {
 	await db
 		.update(projects)
-		.set({
-			currentModelProviderID: model.providerID,
-			currentModelID: model.modelID,
-		})
+		.set({ currentModel: model })
 		.where(eq(projects.id, projectId));
 }
 
 /**
  * Get the current model for a project.
  */
-export async function getProjectModel(projectId: string): Promise<ModelInfo> {
+export async function getProjectModel(projectId: string): Promise<string> {
 	const project = await db.query.projects.findFirst({
 		where: eq(projects.id, projectId),
 	});
 
-	if (project?.currentModelProviderID && project?.currentModelID) {
-		return {
-			providerID: project.currentModelProviderID,
-			modelID: project.currentModelID,
-		};
-	}
-
-	// Fallback to default model
-	return {
-		providerID: "openrouter",
-		modelID: "google/gemini-2.5-flash",
-	};
+	return project?.currentModel ?? FALLBACK_MODEL;
 }
 
 /**
@@ -185,30 +155,15 @@ export async function updateProjectStatus(
 
 /**
  * Update project model.
- * Parses a model string (format: "provider/model") into components and stores them.
+ * Stores the full provider-prefixed model string.
  */
 export async function updateProjectModel(
 	id: string,
-	model: string | null,
+	model: string | null, // e.g., "openrouter/google/gemini-3-flash"
 ): Promise<void> {
-	let modelInfo = {
-		providerID: null as string | null,
-		modelID: null as string | null,
-	};
-
-	if (model) {
-		const parsed = parseModelString(model);
-		if (parsed) {
-			modelInfo = parsed;
-		}
-	}
-
 	await db
 		.update(projects)
-		.set({
-			currentModelProviderID: modelInfo.providerID,
-			currentModelID: modelInfo.modelID,
-		})
+		.set({ currentModel: model })
 		.where(eq(projects.id, id));
 }
 

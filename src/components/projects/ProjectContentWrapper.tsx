@@ -12,6 +12,7 @@ interface ProjectContentWrapperProps {
 		id: string;
 		name: string;
 		provider: string;
+		vendor: string;
 		supportsImages?: boolean;
 	}>;
 }

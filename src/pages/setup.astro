@@ -11,14 +11,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { DEFAULT_MODEL } from "@/server/openrouter/models";
 
 const result = Astro.getActionResult(actions.setup.createAdmin);
 
 if (result?.data?.success) {
 	return Astro.redirect("/");
 }
-
 ---
 
 <AppLayout title="Setup">

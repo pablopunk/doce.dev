@@ -1,16 +1,20 @@
 import { defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
-import { getProvidersIndex } from "@/server/opencode/modelsDev";
+import { logger } from "@/server/logger";
 import {
 	listConnectedProviderIds,
-	setApiKey,
 	removeProvider,
+	setApiKey,
 } from "@/server/opencode/authFile";
-import { modelSupportsVision } from "@/server/opencode/models";
-import { logger } from "@/server/logger";
-import { CURATED_MODELS } from "@/server/models/curated";
+
+import { getProvidersIndex } from "@/server/opencode/modelsDev";
+import {
+	getAvailableModels,
+	modelSupportsVision,
+} from "@/server/opencode/models";
+import { CURATED_MODELS } from "@/server/config/models";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
@@ -20,6 +24,7 @@ interface AvailableModel {
 	id: string;
 	name: string;
 	provider: string;
+	vendor: string;
 	supportsImages: boolean;
 }
 
@@ -79,21 +84,24 @@ export const providers = {
 						return { models: [] };
 					}
 
-					// Filter curated models to only those from connected providers
-					const filteredModels = CURATED_MODELS.filter((model) => {
-						// Extract provider ID from model ID (e.g., "openai" from "openai/gpt-5.2")
-						const providerId = String(model.id).split("/")[0];
-						return connectedProviderIds.includes(providerId);
-					});
+					// Get all available models from connected providers
+					const availableModels =
+						await getAvailableModels(connectedProviderIds);
 
-					// Enrich with vision support data from modelsDev
+					// Filter to only include curated models
+					const filteredModels = availableModels.filter((model) =>
+						CURATED_MODELS.includes(model.id as any),
+					);
+
+					// Enrich with vision support data
 					const enrichedModels: AvailableModel[] = [];
 					for (const model of filteredModels) {
-						const supportsImages = await modelSupportsVision(String(model.id));
+						const supportsImages = await modelSupportsVision(model.id);
 						enrichedModels.push({
 							id: model.id,
 							name: model.name,
 							provider: model.provider,
+							vendor: model.vendor,
 							supportsImages,
 						});
 					}

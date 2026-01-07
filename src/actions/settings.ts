@@ -1,9 +1,9 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/server/openrouter/models";
+import { DEFAULT_MODEL } from "@/server/config/models";
 
 export const settings = {
 	save: defineAction({
@@ -50,7 +50,6 @@ export const settings = {
 
 			return {
 				settings: settings[0] ?? null,
-				availableModels: AVAILABLE_MODELS,
 			};
 		},
 	}),

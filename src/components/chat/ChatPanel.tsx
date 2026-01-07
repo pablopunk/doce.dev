@@ -20,6 +20,7 @@ interface ChatPanelProps {
 		id: string;
 		name: string;
 		provider: string;
+		vendor: string;
 		supportsImages?: boolean;
 	}>;
 	onOpenFile?: ((filePath: string) => void) | undefined;
@@ -723,12 +724,22 @@ export function ChatPanel({
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						parts: apiParts,
-						// Include model if available - OpenCode will use this for the response
+						// Include model if available - currentModel is in format "provider/vendor/model"
 						...(currentModel && {
-							model: {
-								providerID: "openrouter",
-								modelID: currentModel,
-							},
+							model: (() => {
+								const parts = currentModel.split("/");
+								if (parts.length >= 2) {
+									return {
+										providerID: parts[0],
+										modelID: parts.slice(1).join("/"),
+									};
+								}
+								// Fallback for plain model IDs (shouldn't happen but be safe)
+								return {
+									providerID: "openrouter",
+									modelID: currentModel,
+								};
+							})(),
 						}),
 					}),
 				},
@@ -747,6 +758,7 @@ export function ChatPanel({
 	};
 
 	const handleModelChange = async (newModelId: string) => {
+		// newModelId is now without provider prefix (e.g., "google/gemini-3-flash")
 		// Check if new model supports images
 		const newModelConfig = models.find((m) => m.id === newModelId);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
@@ -760,14 +772,19 @@ export function ChatPanel({
 			});
 		}
 
+		// Combine provider and model ID for storage
+		const fullModelId = newModelConfig
+			? `${newModelConfig.provider}/${newModelConfig.id}`
+			: newModelId;
+
 		// Optimistic update - update UI immediately
 		const previousModel = currentModel;
-		setCurrentModel(newModelId);
+		setCurrentModel(fullModelId);
 
 		try {
 			const result = await actions.projects.updateModel({
 				projectId,
-				model: newModelId,
+				model: fullModelId,
 			});
 
 			if (!result.data?.success) {

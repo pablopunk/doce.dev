@@ -1,5 +1,5 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession, invalidateSession } from "@/server/auth/sessions";

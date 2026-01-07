@@ -22,13 +22,14 @@ import {
 import { ModelSelector } from "./ModelSelector";
 
 interface CreateProjectFormProps {
-	models: readonly {
+	models: {
 		id: string;
 		name: string;
 		provider: string;
+		vendor: string;
 		supportsImages?: boolean;
 	}[];
-	defaultModel: string;
+	defaultModel?: string;
 }
 
 export function CreateProjectForm({
@@ -171,7 +172,17 @@ export function CreateProjectForm({
 			// Create FormData for the form-based action
 			const formData = new FormData();
 			formData.append("prompt", prompt.trim());
-			formData.append("model", selectedModel);
+			if (selectedModel) {
+				// Combine provider and model ID for storage
+				// selectedModel is the model.id (without provider prefix)
+				// We need to find the full model object to get the provider
+				const modelWithProvider = models.find((m) => m.id === selectedModel);
+				if (modelWithProvider) {
+					const fullModelId = `${modelWithProvider.provider}/${modelWithProvider.id}`;
+					console.log("Sending model to create action:", fullModelId);
+					formData.append("model", fullModelId);
+				}
+			}
 
 			// Add images as base64 JSON array
 			if (selectedImages.length > 0) {
@@ -249,7 +260,9 @@ export function CreateProjectForm({
 		// Timeout after ~20 seconds - project should definitely exist by now
 	};
 
-	const handleModelChange = (newModelId: string) => {
+	const handleModelChange = async (newModelId: string) => {
+		// newModelId is now without provider prefix (e.g., "google/gemini-3-flash")
+		// We'll combine with provider when sending to backend
 		const newModelConfig = models.find((m) => m.id === newModelId);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
 
@@ -263,6 +276,16 @@ export function CreateProjectForm({
 		}
 
 		setSelectedModel(newModelId);
+
+		// Save as default model in DB
+		try {
+			const formData = new FormData();
+			formData.append("defaultModel", newModelId);
+			await actions.settings.save(formData);
+		} catch (error) {
+			console.error("Failed to save default model:", error);
+			// Silently fail - don't disrupt user experience
+		}
 	};
 
 	// Check if the current model supports images
@@ -337,7 +360,7 @@ export function CreateProjectForm({
 					<div className="flex items-center justify-between gap-3">
 						<ModelSelector
 							models={models}
-							selectedModelId={selectedModel}
+							selectedModelId={selectedModel || ""}
 							onModelChange={handleModelChange}
 						/>
 						<div className="flex items-center gap-2">

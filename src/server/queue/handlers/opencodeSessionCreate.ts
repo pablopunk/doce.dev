@@ -11,6 +11,7 @@ import {
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
+import { FALLBACK_MODEL } from "@/server/config/models";
 
 export async function handleOpencodeSessionCreate(
 	ctx: QueueJobContext,
@@ -51,15 +52,16 @@ export async function handleOpencodeSessionCreate(
 		const config = await loadOpencodeConfig(projectPath);
 		let modelInfo = {
 			providerID: "openrouter",
-			modelID: "google/gemini-2.5-flash",
+			modelID: FALLBACK_MODEL.split("/").slice(1).join("/"),
 		};
 
 		if (config?.model) {
-			const parsed = parseModelString(config.model);
+			const modelStr = config.model; // e.g., "openrouter/google/gemini-3-flash"
+			const parsed = parseModelString(modelStr);
 			if (parsed) {
 				modelInfo = parsed;
 				logger.debug(
-					{ projectId: project.id, model: config.model },
+					{ projectId: project.id, model: modelStr },
 					"Loaded model from opencode.json",
 				);
 			}
@@ -104,9 +106,12 @@ export async function handleOpencodeSessionCreate(
 		await updateBootstrapSessionId(project.id, sessionId);
 
 		// Store the initial model configuration
-		await storeProjectModel(project.id, modelInfo);
+		await storeProjectModel(project.id, config?.model || FALLBACK_MODEL);
 		logger.debug(
-			{ projectId: project.id, modelInfo },
+			{
+				projectId: project.id,
+				model: config?.model || FALLBACK_MODEL,
+			},
 			"Stored initial model configuration",
 		);
 

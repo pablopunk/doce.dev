@@ -5,22 +5,22 @@ services:
       dockerfile: Dockerfile.preview
     volumes:
       - .:/app
+      - /app/node_modules
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
       - "${DEV_PORT:-4321}:4321"
     environment:
       - HOST=0.0.0.0
-
-    opencode:
-      build:
-        context: .
-        dockerfile: Dockerfile.opencode
-      volumes:
-        - .:/app
-        - opencode-data:/root/.local/share/opencode
-        - ../../opencode/auth.json:/root/.local/share/opencode/auth.json:ro
-      ports:
-        - "${OPENCODE_PORT:-3000}:3000"
+  opencode:
+    build:
+      context: .
+      dockerfile: Dockerfile.opencode
+    volumes:
+      - .:/app
+      - opencode-data:/root/.local/share/opencode
+      - ../../opencode/auth.json:/root/.local/share/opencode/auth.json
+    ports:
+      - "${OPENCODE_PORT:-3000}:3000"
 
 volumes:
   pnpm-store:

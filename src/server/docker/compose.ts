@@ -249,11 +249,15 @@ export async function composeUp(
 	const logsDir = path.join(projectPath, "logs");
 
 	// Don't use --remove-orphans when production might be running with a separate compose file
+	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
 	const args = preserveProduction
-		? ["up", "-d"]
-		: ["up", "-d", "--remove-orphans"];
+		? ["up", "-d", "--build"]
+		: ["up", "-d", "--remove-orphans", "--build"];
 
-	await writeHostMarker(logsDir, `docker compose ${args.join(" ")}`);
+	await writeHostMarker(
+		logsDir,
+		`docker compose ${args.join(" ")} (project=${getProjectName(projectId)})`,
+	);
 
 	const result = await runComposeCommand(projectId, projectPath, args);
 
@@ -299,13 +303,13 @@ export async function composeUpProduction(
 
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml up -d (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId, productionHash)})`,
+		`docker compose -f docker-compose.production.yml up -d --build (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId, productionHash)})`,
 	);
 
 	const result = await runComposeCommandProduction(
 		projectId,
 		productionPath,
-		["up", "-d"],
+		["up", "-d", "--build"],
 		"docker-compose.production.yml",
 		productionHash,
 	);

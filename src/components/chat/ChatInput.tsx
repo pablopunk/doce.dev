@@ -29,6 +29,7 @@ interface ChatInputProps {
 		id: string;
 		name: string;
 		provider: string;
+		vendor: string;
 		supportsImages?: boolean;
 	}>;
 	onModelChange?: (modelId: string) => void;

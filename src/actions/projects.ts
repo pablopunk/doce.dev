@@ -1,6 +1,8 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import { randomBytes } from "node:crypto";
+import { listConnectedProviderIds } from "@/server/opencode/authFile";
+
 import {
 	getProjectById,
 	getProjectsByUserId,
@@ -17,8 +19,6 @@ import {
 	enqueueProjectCreate,
 	enqueueProjectDelete,
 } from "@/server/queue/enqueue";
-import { listConnectedProviderIds } from "@/server/opencode/authFile";
-import { getAvailableModels } from "@/server/opencode/models";
 
 export const projects = {
 	create: defineAction({
@@ -29,6 +29,10 @@ export const projects = {
 			images: z.string().optional(),
 		}),
 		handler: async (input, context) => {
+			console.log("Projects create handler called", {
+				input,
+				contextLocals: !!context.locals,
+			});
 			const user = context.locals.user;
 			if (!user) {
 				throw new ActionError({
@@ -42,15 +46,6 @@ export const projects = {
 				throw new ActionError({
 					code: "BAD_REQUEST",
 					message: "Please connect at least one provider in Settings",
-				});
-			}
-
-			const availableModels = await getAvailableModels(connectedProviderIds);
-			if (availableModels.length === 0) {
-				throw new ActionError({
-					code: "BAD_REQUEST",
-					message:
-						"No compatible models available. Please connect a provider in Settings",
 				});
 			}
 

@@ -1,17 +1,17 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
+import { ensureAuthDirectory } from "@/server/opencode/authFile";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { createProject } from "@/server/projects/projects.model";
 import {
 	setupProjectFilesystem,
 	updateOpencodeModel,
 } from "@/server/projects/setup";
-import { generateProjectNameWithLLM } from "@/server/projects/autoname";
 import { enqueueDockerComposeUp } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { ensureAuthDirectory } from "@/server/opencode/authFile";
 
 export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 	const payload = parsePayload("project.create", ctx.job.payloadJson);
@@ -53,7 +53,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		await ctx.throwIfCancelRequested();
 
-		const name = await generateProjectNameWithLLM(prompt, ownerUserId);
+		const name = await generateProjectName(prompt);
 		const slug = name;
 
 		await createProject({
@@ -63,7 +63,6 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			name,
 			slug,
 			prompt,
-			model,
 			devPort,
 			opencodePort,
 			status: "created",

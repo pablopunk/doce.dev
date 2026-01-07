@@ -46,7 +46,6 @@ export const projects = sqliteTable("projects", {
 	name: text("name").notNull(),
 	slug: text("slug").notNull().unique(),
 	prompt: text("prompt").notNull(),
-	model: text("model"),
 	devPort: integer("dev_port").notNull(),
 	opencodePort: integer("opencode_port").notNull(),
 	status: text("status", {
@@ -78,8 +77,7 @@ export const projects = sqliteTable("projects", {
 		.notNull()
 		.default(false),
 	// Model selection - tracks which model is currently being used for this project
-	currentModelProviderID: text("current_model_provider_id"),
-	currentModelID: text("current_model_id"),
+	currentModel: text("current_model"),
 	// Production deployment fields
 	productionPort: integer("production_port"),
 	productionUrl: text("production_url"),

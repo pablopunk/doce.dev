@@ -1,5 +1,5 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro:schema";
+import { z } from "astro/zod";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isProjectOwnedByUser } from "@/server/projects/projects.model";
@@ -62,7 +62,7 @@ export const assets = {
 		accept: "form",
 		input: z.object({
 			projectId: z.string().min(1),
-			files: z.array(z.instanceof(File)),
+			files: z.array(z.any()),
 		}),
 		handler: async (input, context) => {
 			const user = context.locals.user;

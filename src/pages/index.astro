@@ -6,10 +6,10 @@ import { ProjectsList } from "@/components/projects/ProjectsList";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { db } from "@/server/db/client";
 import { userSettings as userSettingsTable } from "@/server/db/schema";
-import { getProjectsByUserId } from "@/server/projects/projects.model";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
-import { modelSupportsVision } from "@/server/opencode/models";
-import { CURATED_MODELS, DEFAULT_CURATED_MODEL } from "@/server/models/curated";
+
+import { CURATED_MODELS } from "@/server/config/models";
+import { getProjectsByUserId } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -30,46 +30,45 @@ const settingsDefaultModel = userSettings[0]?.defaultModel;
 // Get connected provider IDs
 const connectedProviderIds = await listConnectedProviderIds();
 
-// Enrich all curated models with vision support data and availability status
-const enrichedModels = await Promise.all(
-	CURATED_MODELS.map(async (model) => {
-		const modelId: string = String(model.id);
-		const providerId: string = modelId.split("/")[0] || "";
-		const isAvailable = connectedProviderIds.includes(providerId);
-		const visionSupport = await modelSupportsVision(modelId);
+// Get available models from connected providers
+let curatedModels: Array<{
+	id: string;
+	name: string;
+	provider: string;
+	vendor: string;
+	supportsImages?: boolean;
+}> = [];
 
-		return {
-			id: modelId,
+try {
+	const { getAvailableModels } = await import("@/server/opencode/models");
+	const { modelSupportsVision } = await import("@/server/opencode/models");
+	const { CURATED_MODELS } = await import("@/server/config/models");
+
+	const availableModels = await getAvailableModels(connectedProviderIds);
+
+	// Filter to only include curated models and add vision support
+	const filteredModels = availableModels.filter((model) =>
+		CURATED_MODELS.includes(model.id as any),
+	);
+
+	curatedModels = await Promise.all(
+		filteredModels.map(async (model) => ({
+			id: model.id,
 			name: model.name,
 			provider: model.provider,
-			tier: model.tier,
-			supportsImages: visionSupport || model.supportsImages,
-			available: isAvailable,
-			unavailableReason: !isAvailable
-				? `Connect ${model.provider} API key in Settings to use this model`
-				: (undefined as any),
-		};
-	}),
-);
-
-// Get first available model for default
-const firstAvailableModel = enrichedModels.find((m) => m.available);
-
-// Determine default model: use settings default if it's available, otherwise use first available, otherwise fall back to DEFAULT_CURATED_MODEL
-const defaultModel = (() => {
-	if (
-		settingsDefaultModel &&
-		enrichedModels.some((m) => m.id === settingsDefaultModel)
-	) {
-		return settingsDefaultModel;
-	}
-	return firstAvailableModel?.id ?? DEFAULT_CURATED_MODEL;
-})();
+			vendor: model.vendor,
+			supportsImages: await modelSupportsVision(model.id),
+		})),
+	);
+} catch (error) {
+	console.error("Failed to load models:", error);
+	// Fallback to empty array
+}
 ---
 
 <AppLayout title="Dashboard">
   <HeroSection>
-    <CreateProjectForm client:load models={enrichedModels} defaultModel={defaultModel} />
+    <CreateProjectForm client:load models={curatedModels} defaultModel={settingsDefaultModel ?? curatedModels[0]?.id ?? undefined} />
   </HeroSection>
 
   <ProjectsList fallback={projects} client:load />

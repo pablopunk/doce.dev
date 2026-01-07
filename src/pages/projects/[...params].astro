@@ -2,8 +2,13 @@
 import { ProjectContentWrapper } from "@/components/projects/ProjectContentWrapper";
 import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { listConnectedProviderIds } from "@/server/opencode/authFile";
+import {
+	getAvailableModels,
+	modelSupportsVision,
+} from "@/server/opencode/models";
+import { CURATED_MODELS } from "@/server/config/models";
 import { getProjectById } from "@/server/projects/projects.model";
-import { AVAILABLE_MODELS } from "@/server/settings/openrouter";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -30,6 +35,39 @@ if (!project || project.ownerUserId !== user.id) {
 if (slug && slug !== project.slug) {
 	return Astro.redirect(`/projects/${project.id}/${project.slug}`);
 }
+
+// Get connected provider IDs and build curated models list
+const connectedProviderIds = await listConnectedProviderIds();
+const availableModels = await getAvailableModels(connectedProviderIds);
+
+type ModelWithVendor = {
+	id: string;
+	name: string;
+	provider: string;
+	vendor: string;
+};
+const curatedModelsMap: Map<string, ModelWithVendor[]> = new Map();
+
+for (const model of availableModels as ModelWithVendor[]) {
+	if (CURATED_MODELS.includes(model.id as any)) {
+		if (!curatedModelsMap.has(model.id)) {
+			curatedModelsMap.set(model.id, []);
+		}
+		curatedModelsMap.get(model.id)!.push(model);
+	}
+}
+
+const curatedModels = await Promise.all(
+	Array.from(curatedModelsMap.values())
+		.flatMap((models) => models)
+		.map(async (model) => ({
+			id: model.id,
+			name: model.name,
+			provider: model.provider,
+			vendor: model.vendor,
+			supportsImages: await modelSupportsVision(model.id),
+		})),
+);
 ---
 
 <AppLayout title={project.name}>
@@ -44,7 +82,7 @@ if (slug && slug !== project.slug) {
       />
     ) : (
       <!-- Setup complete: show chat + preview (with container startup overlay) -->
-      <ProjectContentWrapper projectId={project.id} models={AVAILABLE_MODELS} client:load />
+      <ProjectContentWrapper projectId={project.id} models={curatedModels} client:load />
     )}
    </div>
 </AppLayout>

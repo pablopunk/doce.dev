@@ -1,5 +1,5 @@
-import { getModelsIndex, getModelById } from "./modelsDev";
 import { logger } from "@/server/logger";
+import { getModelById, getModelsIndex } from "./modelsDev";
 
 export interface ModelCapabilities {
 	supportsVision: boolean;
@@ -9,11 +9,72 @@ export interface ModelCapabilities {
 }
 
 /**
+ * Map opencode model IDs to normalized vendor/model format
+ * opencode uses simple model names, we need to infer vendor from the model name
+ */
+function normalizeModelId(
+	modelId: string,
+	providerId: string,
+): { id: string; vendor: string } {
+	// For openrouter, models are already in vendor/model format
+	// Don't add provider prefix - it's redundant (provider is tracked separately)
+	if (providerId === "openrouter") {
+		// Extract vendor from the model ID (first part before /)
+		const parts = modelId.split("/");
+		const vendor = parts[0] ?? modelId;
+		return { id: modelId, vendor };
+	}
+
+	// If already in vendor/model format, return as-is (for non-openrouter providers)
+	if (modelId.includes("/")) {
+		const parts = modelId.split("/");
+		const vendor = parts[0]!;
+		return { id: modelId, vendor };
+	}
+
+	// For opencode provider, DON'T add vendor prefix - OpenCode SDK expects just the model name
+	// The vendor prefix is only for display purposes in the UI
+	// The SDK's normalizeModelId (in opencodeSendUserPrompt) will strip it anyway
+	if (providerId === "opencode") {
+		if (modelId.startsWith("gpt-") || modelId.startsWith("gpt_")) {
+			return { id: `openai/${modelId}`, vendor: "openai" };
+		}
+		if (modelId.startsWith("claude-")) {
+			return { id: `anthropic/${modelId}`, vendor: "anthropic" };
+		}
+		if (modelId.startsWith("gemini-")) {
+			return { id: `google/${modelId}`, vendor: "google" };
+		}
+		if (modelId.startsWith("grok-")) {
+			return { id: `xai/${modelId}`, vendor: "xai" };
+		}
+		if (modelId.includes("kimi") || modelId.startsWith("kimi-")) {
+			return { id: `moonshot/${modelId}`, vendor: "moonshot" };
+		}
+		// Default: use the model ID as vendor if no match
+		return { id: modelId, vendor: modelId };
+	}
+
+	// For other providers, use the first part of the model ID as vendor if available
+	const parts = modelId.split("/");
+	const vendor = parts[0] ?? modelId;
+
+	return { id: modelId, vendor };
+}
+
+/**
  * Get all available models from connected providers, sorted by input cost (cheapest first)
  */
 export async function getAvailableModels(
 	connectedProviderIds: string[],
-): Promise<Array<{ id: string; name: string; provider: string }>> {
+): Promise<
+	Array<{
+		id: string;
+		name: string;
+		provider: string;
+		vendor: string;
+	}>
+> {
 	if (connectedProviderIds.length === 0) {
 		return [];
 	}
@@ -23,6 +84,7 @@ export async function getAvailableModels(
 		id: string;
 		name: string;
 		provider: string;
+		vendor: string;
 		cost: number;
 	}> = [];
 
@@ -30,10 +92,16 @@ export async function getAvailableModels(
 		const providerModels = allModels[providerId];
 		if (providerModels) {
 			for (const model of providerModels) {
+				const { id, vendor } = normalizeModelId(model.id, providerId);
+				logger.debug(
+					{ providerId, rawId: model.id, normalizedId: id },
+					"Normalized model ID",
+				);
 				available.push({
-					id: model.id,
+					id,
 					name: model.name,
 					provider: providerId,
+					vendor,
 					cost: model.cost.input ?? 0,
 				});
 			}
@@ -43,10 +111,11 @@ export async function getAvailableModels(
 	// Sort by cost (cheapest first)
 	available.sort((a, b) => a.cost - b.cost);
 
-	return available.map(({ id, name, provider }) => ({
+	return available.map(({ id, name, provider, vendor }) => ({
 		id,
 		name,
 		provider,
+		vendor,
 	}));
 }
 

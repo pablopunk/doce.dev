@@ -16,6 +16,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Always use `pnpm` for everything, never `npm` nor `yarn` nor `bun`
 * When debugging problems, be proactive (with read-only actions please), i.e. you can always get more info running DB queries yourself, checking docker logs from the CLI, running the server yourself in the background piping the logs to a file... Be creative, without making destructive operations just for debugging.
 * For CRUD operations, prefer React hooks or programmatic fetch calls over HTML forms and feedback via Sonner component. Exception: simple auth forms (login/setup) may use HTML forms.
+* Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
 
 ## Clean code
 
@@ -74,3 +75,11 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 **OpenCode SDK** (`@opencode-ai/sdk`) - TypeScript client for communicating with OpenCode AI agents.
 
 **OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
+
+
+## Subagents
+
+- For ui-specifict tasks, use the @frontend-developer agent
+- For backend-specific tasks, use the @backend-developer agent
+- For opencode integration tasks, use the @opencode-expert agent
+- For github-related tasks, use the @github-expert agent
