@@ -9,9 +9,10 @@ import {
 	type Message,
 	type MessagePart,
 } from "@/types/message";
+import { useChatStore, type ChatItem } from "@/stores/useChatStore";
+import type { ToolCall } from "./ToolCallDisplay";
 import { ChatInput } from "./ChatInput";
 import { ChatMessage } from "./ChatMessage";
-import type { ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 
 interface ChatPanelProps {
@@ -29,12 +30,6 @@ interface ChatPanelProps {
 		| undefined;
 }
 
-interface ChatItem {
-	type: "message" | "tool";
-	id: string;
-	data: Message | ToolCall;
-}
-
 interface PresenceData {
 	opencodeReady: boolean;
 	initialPromptSent: boolean;
@@ -50,25 +45,42 @@ export function ChatPanel({
 	onOpenFile,
 	onStreamingStateChange,
 }: ChatPanelProps) {
-	const [items, setItems] = useState<ChatItem[]>([]);
-	const [isStreaming, setIsStreaming] = useState(false);
+	// Get chat store for this project
+	const store = useChatStore(projectId);
+	const {
+		items,
+		sessionId,
+		opencodeReady,
+		initialPromptSent,
+		userPromptMessageId,
+		projectPrompt,
+		currentModel,
+		historyLoaded,
+		presenceLoaded,
+		isStreaming,
+		pendingImages,
+		pendingImageError,
+		setSessionId,
+		setOpenCodeReady,
+		setInitialPromptSent,
+		setUserPromptMessageId,
+		setProjectPrompt,
+		setCurrentModel,
+		setHistoryLoaded,
+		setPresenceLoaded,
+		setIsStreaming,
+		setPendingImages,
+		setPendingImageError,
+		setItems,
+		addItem,
+		handleChatEvent,
+	} = store;
+
+	// UI-only state (not in store)
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-	const [sessionId, setSessionId] = useState<string | null>(null);
-	const [opencodeReady, setOpencodeReady] = useState(false);
-	const [initialPromptSent, setInitialPromptSent] = useState(true); // Assume sent until we know otherwise
-	const [userPromptMessageId, setUserPromptMessageId] = useState<string | null>(
-		null,
-	);
-	const [projectPrompt, setProjectPrompt] = useState<string | null>(null);
-	const [currentModel, setCurrentModel] = useState<string | null>(null);
-	const [historyLoaded, setHistoryLoaded] = useState(false);
-	const [presenceLoaded, setPresenceLoaded] = useState(false);
 	const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-	// Pending images for the chat input (lifted state for model switch handling)
-	const [pendingImages, setPendingImages] = useState<ImagePart[]>([]);
-	const [pendingImageError, setPendingImageError] = useState<string | null>(
-		null,
-	);
+
+	// Refs for managing side effects
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -96,10 +108,8 @@ export function ChatPanel({
 	// Handle manual scroll events
 	const handleScroll = useCallback(() => {
 		if (isNearBottom()) {
-			// User scrolled back to bottom, re-enable auto-scroll
 			setShouldAutoScroll(true);
 		} else {
-			// User scrolled up, disable auto-scroll
 			setShouldAutoScroll(false);
 		}
 	}, [isNearBottom]);
@@ -112,11 +122,7 @@ export function ChatPanel({
 	}, [shouldAutoScroll]);
 
 	// Load existing session history when opencode is ready
-	// We must wait for initPromptMessageId to be set (or confirmed null) before loading history
-	// so we can properly filter out the init prompt conversation
 	useEffect(() => {
-		// Wait for opencodeReady and for presence data to be fully loaded
-		// presenceLoaded ensures initPromptMessageId has been populated from presence API
 		if (
 			!opencodeReady ||
 			historyLoaded ||
@@ -164,17 +170,12 @@ export function ChatPanel({
 				}
 
 				const messagesData = await messagesRes.json();
-				// API returns array of { info, parts } objects
 				const messages = Array.isArray(messagesData)
 					? messagesData
 					: messagesData.messages || [];
 
 				// Convert messages to chat items
 				const historyItems: ChatItem[] = [];
-
-				// Filter out init prompt conversation (AGENTS.md generation)
-				// We skip ALL messages BEFORE the userPromptMessageId
-				// This hides the initialization conversation from users
 				let foundUserPrompt = false;
 
 				for (const msg of messages) {
@@ -185,25 +186,21 @@ export function ChatPanel({
 						info.id ||
 						`hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-					// If we have a userPromptMessageId, skip all messages until we find it
 					if (userPromptMessageId && !foundUserPrompt) {
 						if (messageId === userPromptMessageId) {
 							foundUserPrompt = true;
-							// Continue to process this message (don't skip it)
 						} else {
-							continue; // Skip this message (it's part of init prompt conversation)
+							continue;
 						}
 					}
 
 					if (role === "user" || role === "assistant") {
-						// Build structured parts for this message
 						const messageParts: MessagePart[] = [];
 
 						for (const part of msgParts) {
 							if (part.type === "text" && part.text) {
 								messageParts.push(createTextPart(part.text, part.id));
 							}
-							// Handle tool calls in history
 							if (part.type === "tool" && part.tool && part.callID) {
 								historyItems.push({
 									type: "tool",
@@ -256,6 +253,9 @@ export function ChatPanel({
 		projectId,
 		opencodeReady,
 		historyLoaded,
+		setHistoryLoaded,
+		setSessionId,
+		setItems,
 		scrollToBottom,
 		userPromptMessageId,
 		presenceLoaded,
@@ -277,16 +277,14 @@ export function ChatPanel({
 				if (response.ok) {
 					const data = (await response.json()) as PresenceData;
 					if (data.opencodeReady) {
-						setOpencodeReady(true);
+						setOpenCodeReady(true);
 						setInitialPromptSent(data.initialPromptSent);
 						setUserPromptMessageId(data.userPromptMessageId);
 						setProjectPrompt(data.prompt);
 						setCurrentModel(data.model);
-						// Set session ID from bootstrap session created by queue
 						if (data.bootstrapSessionId) {
 							setSessionId(data.bootstrapSessionId);
 						}
-						// Mark presence data as loaded so history can be fetched with proper filtering
 						setPresenceLoaded(true);
 					}
 				}
@@ -303,297 +301,57 @@ export function ChatPanel({
 				clearInterval(pollIntervalRef.current);
 			}
 		};
-	}, [projectId, opencodeReady]);
+	}, [
+		projectId,
+		opencodeReady,
+		setOpenCodeReady,
+		setInitialPromptSent,
+		setUserPromptMessageId,
+		setProjectPrompt,
+		setCurrentModel,
+		setSessionId,
+		setPresenceLoaded,
+	]);
 
-	// Load initial prompt message when opencode is ready and prompt hasn't been sent yet
+	// Load initial prompt message when opencode is ready
 	useEffect(() => {
 		if (!opencodeReady || initialPromptSent || !projectPrompt || !sessionId) {
 			return;
 		}
 
-		// Add user message to UI to show the initial project prompt
 		const userMessageId = `user_initial_${Date.now()}`;
-		setItems((prev) => [
-			...prev,
-			{
-				type: "message",
+		addItem({
+			type: "message",
+			id: userMessageId,
+			data: {
 				id: userMessageId,
-				data: {
-					id: userMessageId,
-					role: "user",
-					parts: [createTextPart(projectPrompt)],
-				},
+				role: "user",
+				parts: [createTextPart(projectPrompt)],
 			},
-		]);
+		});
 		scrollToBottom();
-
-		// Mark that we've displayed the initial prompt in UI
 		setInitialPromptSent(true);
 	}, [
 		opencodeReady,
 		initialPromptSent,
 		projectPrompt,
 		sessionId,
+		addItem,
 		scrollToBottom,
+		setInitialPromptSent,
 	]);
 
 	// Notify parent when streaming state or user message count changes
 	useEffect(() => {
 		const userMessageCount = items.filter((item) => {
 			if (item.type === "message") {
-				const msg = item.data as any as Message;
+				const msg = item.data as Message;
 				return msg.role === "user";
 			}
 			return false;
 		}).length;
 		onStreamingStateChange?.(userMessageCount, isStreaming);
 	}, [items, isStreaming, onStreamingStateChange]);
-
-	// Handle event from OpenCode - wrapped in useCallback for proper dependency tracking
-	const handleEvent = useCallback(
-		(event: {
-			type: string;
-			projectId: string;
-			sessionId?: string;
-			payload: Record<string, unknown>;
-		}) => {
-			const { type, payload, sessionId: eventSessionId } = event;
-
-			if (eventSessionId) {
-				setSessionId(eventSessionId as string);
-			}
-
-			switch (type) {
-				case "chat.message.part.added": {
-					const { messageId, partId, partType, deltaText } = payload as {
-						messageId: string;
-						partId: string;
-						partType: string;
-						deltaText?: string;
-					};
-
-					setItems((prev) => {
-						const existing = prev.find(
-							(item) => item.type === "message" && item.id === messageId,
-						);
-
-						if (existing && existing.type === "message") {
-							const msg = existing.data as Message;
-							// Find or create text part
-							const textPart = msg.parts.find((p) => p.type === "text") as any;
-
-							// Create new parts array instead of mutating
-							let updatedParts: MessagePart[];
-							if (textPart && deltaText) {
-								// Append delta to existing text part (create new part object)
-								updatedParts = msg.parts.map((part) =>
-									part === textPart && part.type === "text"
-										? { ...part, text: part.text + deltaText }
-										: part,
-								);
-							} else if (deltaText) {
-								// Create new text part
-								updatedParts = [
-									...msg.parts,
-									createTextPart(deltaText, partId),
-								];
-							} else {
-								updatedParts = msg.parts;
-							}
-
-							return prev.map((item) =>
-								item.id === messageId
-									? {
-											...item,
-											data: { ...msg, parts: updatedParts, isStreaming: true },
-										}
-									: item,
-							);
-						}
-
-						// New message
-						if (partType === "text" && deltaText) {
-							return [
-								...prev,
-								{
-									type: "message",
-									id: messageId,
-									data: {
-										id: messageId,
-										role: "assistant",
-										parts: [createTextPart(deltaText, partId)],
-										isStreaming: true,
-									},
-								},
-							];
-						}
-						return prev;
-					});
-
-					setIsStreaming(true);
-					scrollToBottom();
-					break;
-				}
-
-				case "chat.message.delta": {
-					// Backward compatibility: handle old-style delta events
-					const { messageId, deltaText } = payload as {
-						messageId: string;
-						deltaText: string;
-					};
-
-					setItems((prev) => {
-						const existing = prev.find(
-							(item) => item.type === "message" && item.id === messageId,
-						);
-
-						if (existing && existing.type === "message") {
-							const msg = existing.data as Message;
-							const textPart = msg.parts[msg.parts.length - 1];
-
-							// Create new parts array instead of mutating
-							let updatedParts: MessagePart[];
-							if (textPart && textPart.type === "text") {
-								// Append to existing text part (create new part object)
-								updatedParts = msg.parts.map((part, index) =>
-									index === msg.parts.length - 1 && part.type === "text"
-										? { ...part, text: part.text + deltaText }
-										: part,
-								);
-							} else {
-								// Create new text part
-								updatedParts = [...msg.parts, createTextPart(deltaText)];
-							}
-
-							return prev.map((item) =>
-								item.id === messageId
-									? {
-											...item,
-											data: { ...msg, parts: updatedParts, isStreaming: true },
-										}
-									: item,
-							);
-						}
-
-						// New message
-						return [
-							...prev,
-							{
-								type: "message",
-								id: messageId,
-								data: {
-									id: messageId,
-									role: "assistant",
-									parts: [createTextPart(deltaText)],
-									isStreaming: true,
-								},
-							},
-						];
-					});
-
-					setIsStreaming(true);
-					scrollToBottom();
-					break;
-				}
-
-				case "chat.message.final": {
-					const { messageId } = payload as { messageId: string };
-
-					// Mark the message as no longer streaming text, but don't set session-wide
-					// isStreaming to false yet - the agent might still be executing tools.
-					// We rely on chat.session.status event to determine overall completion.
-					setItems((prev) =>
-						prev.map((item) =>
-							item.id === messageId && item.type === "message"
-								? {
-										...item,
-										data: { ...(item.data as Message), isStreaming: false },
-									}
-								: item,
-						),
-					);
-
-					// Note: Do NOT set setIsStreaming(false) here.
-					// The session might still be executing tools. We wait for
-					// chat.session.status to become "idle" or "completed".
-					break;
-				}
-
-				case "chat.reasoning.part": {
-					// Reasoning parts are handled as visual elements within messages
-					// For now, we'll treat them similarly to tool parts - as separate items
-					// This can be enhanced later to nest them within messages
-					break;
-				}
-
-				case "chat.tool.update": {
-					const { toolCallId, name, input, status, output, error } =
-						payload as {
-							toolCallId: string;
-							name: string;
-							input?: unknown;
-							status: "running" | "success" | "error";
-							output?: unknown;
-							error?: unknown;
-						};
-
-					setItems((prev) => {
-						// Check if tool already exists
-						const existingIdx = prev.findIndex(
-							(item) => item.type === "tool" && item.id === toolCallId,
-						);
-
-						if (existingIdx !== -1) {
-							// Update existing tool
-							return prev.map((item, idx) =>
-								idx === existingIdx && item.type === "tool"
-									? {
-											...item,
-											data: {
-												...(item.data as ToolCall),
-												input,
-												output,
-												error,
-												status,
-											},
-										}
-									: item,
-							);
-						}
-
-						// Create new tool item
-						return [
-							...prev,
-							{
-								type: "tool",
-								id: toolCallId,
-								data: {
-									id: toolCallId,
-									name,
-									input,
-									output,
-									error,
-									status,
-								},
-							},
-						];
-					});
-
-					scrollToBottom();
-					break;
-				}
-
-				case "chat.session.status": {
-					const { status } = payload as { status: string };
-					if (status === "completed" || status === "idle") {
-						setIsStreaming(false);
-					}
-					break;
-				}
-			}
-		},
-		[scrollToBottom],
-	);
 
 	// Connect to event stream
 	useEffect(() => {
@@ -605,63 +363,51 @@ export function ChatPanel({
 		);
 		eventSourceRef.current = eventSource;
 
-		const handleChatEvent = (e: Event) => {
-			// Prevent handler execution after abort
+		const handleChatEventWrapper = (e: Event) => {
 			if (controller.signal.aborted) return;
 
 			try {
 				const messageEvent = e as MessageEvent<string>;
 				const event = JSON.parse(messageEvent.data);
-				handleEvent(event);
+				handleChatEvent(event);
 			} catch {
 				// Ignore parse errors
 			}
 		};
 
-		eventSource.addEventListener("chat.event", handleChatEvent);
+		eventSource.addEventListener("chat.event", handleChatEventWrapper);
 
 		eventSource.onerror = () => {
-			// Prevent further processing if component is unmounting
 			if (controller.signal.aborted) {
 				eventSource.close();
 				return;
 			}
 
-			// Close current connection
 			eventSource.close();
 			eventSourceRef.current = null;
 
-			// Reconnect after a delay, but only if not aborted
 			const timeoutId = setTimeout(() => {
 				if (!controller.signal.aborted && eventSourceRef.current === null) {
 					// Will be handled by the useEffect cleanup/re-run
 				}
 			}, 2000);
 
-			// Cleanup timeout if abort signal fires
 			controller.signal.addEventListener("abort", () => {
 				clearTimeout(timeoutId);
 			});
 		};
 
 		return () => {
-			// Signal abort to prevent all async operations
 			controller.abort();
-
-			// Manually remove event listener
-			eventSource.removeEventListener("chat.event", handleChatEvent);
-
-			// Close connection
+			eventSource.removeEventListener("chat.event", handleChatEventWrapper);
 			eventSource.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, opencodeReady, handleEvent]);
+	}, [projectId, opencodeReady, handleChatEvent]);
 
 	const handleSend = async (content: string, images?: ImagePart[]) => {
-		// Build message parts for UI
 		const messageParts: MessagePart[] = [];
 
-		// Add images first (displayed above text, following OpenCode pattern)
 		if (images && images.length > 0) {
 			for (const img of images) {
 				messageParts.push(
@@ -676,30 +422,23 @@ export function ChatPanel({
 			}
 		}
 
-		// Add text part
 		if (content) {
 			messageParts.push(createTextPart(content));
 		}
 
-		// Add user message to UI immediately
 		const userMessageId = `user_${Date.now()}`;
-		setItems((prev) => [
-			...prev,
-			{
-				type: "message",
+		addItem({
+			type: "message",
+			id: userMessageId,
+			data: {
 				id: userMessageId,
-				data: {
-					id: userMessageId,
-					role: "user",
-					parts: messageParts,
-				},
+				role: "user",
+				parts: messageParts,
 			},
-		]);
+		});
 		scrollToBottom();
 
-		// Send to opencode
 		try {
-			// First, get or create a session
 			let currentSessionId = sessionId;
 
 			if (!currentSessionId) {
@@ -719,7 +458,6 @@ export function ChatPanel({
 				return;
 			}
 
-			// Build parts for API (following OpenCode pattern: images as "file" type)
 			const apiParts: Array<{
 				type: string;
 				text?: string;
@@ -728,12 +466,10 @@ export function ChatPanel({
 				filename?: string;
 			}> = [];
 
-			// Add text part first for API
 			if (content) {
 				apiParts.push({ type: "text", text: content });
 			}
 
-			// Add images as file parts (OpenCode pattern)
 			if (images && images.length > 0) {
 				for (const img of images) {
 					apiParts.push({
@@ -745,7 +481,6 @@ export function ChatPanel({
 				}
 			}
 
-			// Send message (async - response comes via SSE)
 			const res = await fetch(
 				`/api/projects/${projectId}/opencode/session/${currentSessionId}/prompt_async`,
 				{
@@ -753,7 +488,6 @@ export function ChatPanel({
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						parts: apiParts,
-						// Include model if available - currentModel is in format "provider/vendor/model"
 						...(currentModel && {
 							model: (() => {
 								const parts = currentModel.split("/");
@@ -763,7 +497,6 @@ export function ChatPanel({
 										modelID: parts.slice(1).join("/"),
 									};
 								}
-								// Fallback for plain model IDs (shouldn't happen but be safe)
 								return {
 									providerID: "openrouter",
 									modelID: currentModel,
@@ -774,10 +507,8 @@ export function ChatPanel({
 				},
 			);
 
-			// prompt_async returns 204 No Content on success
 			if (res.ok || res.status === 204) {
 				setIsStreaming(true);
-				// Clear pending images after successful send
 				setPendingImages([]);
 				setPendingImageError(null);
 			}
@@ -787,12 +518,9 @@ export function ChatPanel({
 	};
 
 	const handleModelChange = async (newModelId: string) => {
-		// newModelId is now without provider prefix (e.g., "google/gemini-3-flash")
-		// Check if new model supports images
 		const newModelConfig = models.find((m) => m.id === newModelId);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
 
-		// Clear pending images if switching to a model that doesn't support them
 		if (pendingImages.length > 0 && !newModelSupportsImages) {
 			setPendingImages([]);
 			setPendingImageError(null);
@@ -801,12 +529,10 @@ export function ChatPanel({
 			});
 		}
 
-		// Combine provider and model ID for storage
 		const fullModelId = newModelConfig
 			? `${newModelConfig.provider}/${newModelConfig.id}`
 			: newModelId;
 
-		// Optimistic update - update UI immediately
 		const previousModel = currentModel;
 		setCurrentModel(fullModelId);
 
@@ -817,12 +543,10 @@ export function ChatPanel({
 			});
 
 			if (!result.data?.success) {
-				// Revert on error
 				setCurrentModel(previousModel);
 				console.error("Failed to update model");
 			}
 		} catch (error) {
-			// Revert on error
 			setCurrentModel(previousModel);
 			console.error("Failed to update model:", error);
 		}
@@ -852,7 +576,6 @@ export function ChatPanel({
 			const item = items[i]!;
 
 			if (item.type === "tool") {
-				// Collect consecutive tool items
 				const toolGroup: ToolCall[] = [item.data as ToolCall];
 
 				while (i + 1 < items.length && items[i + 1]?.type === "tool") {
@@ -914,9 +637,6 @@ export function ChatPanel({
 			</div>
 
 			{(() => {
-				// Extract model ID without provider prefix for ModelSelector
-				// currentModel format: "provider/model-id" (e.g., "openrouter/google/gemini-3-flash")
-				// models[].id format: "model-id" (e.g., "google/gemini-3-flash")
 				const modelIdOnly = currentModel
 					? currentModel.split("/").slice(1).join("/")
 					: null;
