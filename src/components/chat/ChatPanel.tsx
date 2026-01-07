@@ -24,6 +24,9 @@ interface ChatPanelProps {
 		supportsImages?: boolean;
 	}>;
 	onOpenFile?: ((filePath: string) => void) | undefined;
+	onStreamingStateChange?:
+		| ((userMessageCount: number, isStreaming: boolean) => void)
+		| undefined;
 }
 
 interface ChatItem {
@@ -45,6 +48,7 @@ export function ChatPanel({
 	projectId,
 	models = [],
 	onOpenFile,
+	onStreamingStateChange,
 }: ChatPanelProps) {
 	const [items, setItems] = useState<ChatItem[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
@@ -105,7 +109,7 @@ export function ChatPanel({
 		if (shouldAutoScroll && scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [items, shouldAutoScroll]);
+	}, [shouldAutoScroll]);
 
 	// Load existing session history when opencode is ready
 	// We must wait for initPromptMessageId to be set (or confirmed null) before loading history
@@ -333,6 +337,264 @@ export function ChatPanel({
 		scrollToBottom,
 	]);
 
+	// Notify parent when streaming state or user message count changes
+	useEffect(() => {
+		const userMessageCount = items.filter((item) => {
+			if (item.type === "message") {
+				const msg = item.data as any as Message;
+				return msg.role === "user";
+			}
+			return false;
+		}).length;
+		onStreamingStateChange?.(userMessageCount, isStreaming);
+	}, [items, isStreaming, onStreamingStateChange]);
+
+	// Handle event from OpenCode - wrapped in useCallback for proper dependency tracking
+	const handleEvent = useCallback(
+		(event: {
+			type: string;
+			projectId: string;
+			sessionId?: string;
+			payload: Record<string, unknown>;
+		}) => {
+			const { type, payload, sessionId: eventSessionId } = event;
+
+			if (eventSessionId) {
+				setSessionId(eventSessionId as string);
+			}
+
+			switch (type) {
+				case "chat.message.part.added": {
+					const { messageId, partId, partType, deltaText } = payload as {
+						messageId: string;
+						partId: string;
+						partType: string;
+						deltaText?: string;
+					};
+
+					setItems((prev) => {
+						const existing = prev.find(
+							(item) => item.type === "message" && item.id === messageId,
+						);
+
+						if (existing && existing.type === "message") {
+							const msg = existing.data as Message;
+							// Find or create text part
+							const textPart = msg.parts.find((p) => p.type === "text") as any;
+
+							// Create new parts array instead of mutating
+							let updatedParts: MessagePart[];
+							if (textPart && deltaText) {
+								// Append delta to existing text part (create new part object)
+								updatedParts = msg.parts.map((part) =>
+									part === textPart && part.type === "text"
+										? { ...part, text: part.text + deltaText }
+										: part,
+								);
+							} else if (deltaText) {
+								// Create new text part
+								updatedParts = [
+									...msg.parts,
+									createTextPart(deltaText, partId),
+								];
+							} else {
+								updatedParts = msg.parts;
+							}
+
+							return prev.map((item) =>
+								item.id === messageId
+									? {
+											...item,
+											data: { ...msg, parts: updatedParts, isStreaming: true },
+										}
+									: item,
+							);
+						}
+
+						// New message
+						if (partType === "text" && deltaText) {
+							return [
+								...prev,
+								{
+									type: "message",
+									id: messageId,
+									data: {
+										id: messageId,
+										role: "assistant",
+										parts: [createTextPart(deltaText, partId)],
+										isStreaming: true,
+									},
+								},
+							];
+						}
+						return prev;
+					});
+
+					setIsStreaming(true);
+					scrollToBottom();
+					break;
+				}
+
+				case "chat.message.delta": {
+					// Backward compatibility: handle old-style delta events
+					const { messageId, deltaText } = payload as {
+						messageId: string;
+						deltaText: string;
+					};
+
+					setItems((prev) => {
+						const existing = prev.find(
+							(item) => item.type === "message" && item.id === messageId,
+						);
+
+						if (existing && existing.type === "message") {
+							const msg = existing.data as Message;
+							const textPart = msg.parts[msg.parts.length - 1];
+
+							// Create new parts array instead of mutating
+							let updatedParts: MessagePart[];
+							if (textPart && textPart.type === "text") {
+								// Append to existing text part (create new part object)
+								updatedParts = msg.parts.map((part, index) =>
+									index === msg.parts.length - 1 && part.type === "text"
+										? { ...part, text: part.text + deltaText }
+										: part,
+								);
+							} else {
+								// Create new text part
+								updatedParts = [...msg.parts, createTextPart(deltaText)];
+							}
+
+							return prev.map((item) =>
+								item.id === messageId
+									? {
+											...item,
+											data: { ...msg, parts: updatedParts, isStreaming: true },
+										}
+									: item,
+							);
+						}
+
+						// New message
+						return [
+							...prev,
+							{
+								type: "message",
+								id: messageId,
+								data: {
+									id: messageId,
+									role: "assistant",
+									parts: [createTextPart(deltaText)],
+									isStreaming: true,
+								},
+							},
+						];
+					});
+
+					setIsStreaming(true);
+					scrollToBottom();
+					break;
+				}
+
+				case "chat.message.final": {
+					const { messageId } = payload as { messageId: string };
+
+					// Mark the message as no longer streaming text, but don't set session-wide
+					// isStreaming to false yet - the agent might still be executing tools.
+					// We rely on chat.session.status event to determine overall completion.
+					setItems((prev) =>
+						prev.map((item) =>
+							item.id === messageId && item.type === "message"
+								? {
+										...item,
+										data: { ...(item.data as Message), isStreaming: false },
+									}
+								: item,
+						),
+					);
+
+					// Note: Do NOT set setIsStreaming(false) here.
+					// The session might still be executing tools. We wait for
+					// chat.session.status to become "idle" or "completed".
+					break;
+				}
+
+				case "chat.reasoning.part": {
+					// Reasoning parts are handled as visual elements within messages
+					// For now, we'll treat them similarly to tool parts - as separate items
+					// This can be enhanced later to nest them within messages
+					break;
+				}
+
+				case "chat.tool.update": {
+					const { toolCallId, name, input, status, output, error } =
+						payload as {
+							toolCallId: string;
+							name: string;
+							input?: unknown;
+							status: "running" | "success" | "error";
+							output?: unknown;
+							error?: unknown;
+						};
+
+					setItems((prev) => {
+						// Check if tool already exists
+						const existingIdx = prev.findIndex(
+							(item) => item.type === "tool" && item.id === toolCallId,
+						);
+
+						if (existingIdx !== -1) {
+							// Update existing tool
+							return prev.map((item, idx) =>
+								idx === existingIdx && item.type === "tool"
+									? {
+											...item,
+											data: {
+												...(item.data as ToolCall),
+												input,
+												output,
+												error,
+												status,
+											},
+										}
+									: item,
+							);
+						}
+
+						// Create new tool item
+						return [
+							...prev,
+							{
+								type: "tool",
+								id: toolCallId,
+								data: {
+									id: toolCallId,
+									name,
+									input,
+									output,
+									error,
+									status,
+								},
+							},
+						];
+					});
+
+					scrollToBottom();
+					break;
+				}
+
+				case "chat.session.status": {
+					const { status } = payload as { status: string };
+					if (status === "completed" || status === "idle") {
+						setIsStreaming(false);
+					}
+					break;
+				}
+			}
+		},
+		[scrollToBottom],
+	);
+
 	// Connect to event stream
 	useEffect(() => {
 		if (!opencodeReady) return;
@@ -393,240 +655,7 @@ export function ChatPanel({
 			eventSource.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, opencodeReady]);
-
-	const handleEvent = (event: {
-		type: string;
-		projectId: string;
-		sessionId?: string;
-		payload: Record<string, unknown>;
-	}) => {
-		const { type, payload, sessionId: eventSessionId } = event;
-
-		if (eventSessionId && !sessionId) {
-			setSessionId(eventSessionId as string);
-		}
-
-		switch (type) {
-			case "chat.message.part.added": {
-				const { messageId, partId, partType, deltaText } = payload as {
-					messageId: string;
-					partId: string;
-					partType: string;
-					deltaText?: string;
-				};
-
-				setItems((prev) => {
-					const existing = prev.find(
-						(item) => item.type === "message" && item.id === messageId,
-					);
-
-					if (existing && existing.type === "message") {
-						const msg = existing.data as Message;
-						// Find or create text part
-						const textPart = msg.parts.find((p) => p.type === "text") as any;
-
-						// Create new parts array instead of mutating
-						let updatedParts: MessagePart[];
-						if (textPart && deltaText) {
-							// Append delta to existing text part (create new part object)
-							updatedParts = msg.parts.map((part) =>
-								part === textPart && part.type === "text"
-									? { ...part, text: part.text + deltaText }
-									: part,
-							);
-						} else if (deltaText) {
-							// Create new text part
-							updatedParts = [...msg.parts, createTextPart(deltaText, partId)];
-						} else {
-							updatedParts = msg.parts;
-						}
-
-						return prev.map((item) =>
-							item.id === messageId
-								? {
-										...item,
-										data: { ...msg, parts: updatedParts, isStreaming: true },
-									}
-								: item,
-						);
-					}
-
-					// New message
-					if (partType === "text" && deltaText) {
-						return [
-							...prev,
-							{
-								type: "message",
-								id: messageId,
-								data: {
-									id: messageId,
-									role: "assistant",
-									parts: [createTextPart(deltaText, partId)],
-									isStreaming: true,
-								},
-							},
-						];
-					}
-					return prev;
-				});
-
-				setIsStreaming(true);
-				scrollToBottom();
-				break;
-			}
-
-			case "chat.message.delta": {
-				// Backward compatibility: handle old-style delta events
-				const { messageId, deltaText } = payload as {
-					messageId: string;
-					deltaText: string;
-				};
-
-				setItems((prev) => {
-					const existing = prev.find(
-						(item) => item.type === "message" && item.id === messageId,
-					);
-
-					if (existing && existing.type === "message") {
-						const msg = existing.data as Message;
-						const textPart = msg.parts[msg.parts.length - 1];
-
-						// Create new parts array instead of mutating
-						let updatedParts: MessagePart[];
-						if (textPart && textPart.type === "text") {
-							// Append to existing text part (create new part object)
-							updatedParts = msg.parts.map((part, index) =>
-								index === msg.parts.length - 1 && part.type === "text"
-									? { ...part, text: part.text + deltaText }
-									: part,
-							);
-						} else {
-							// Create new text part
-							updatedParts = [...msg.parts, createTextPart(deltaText)];
-						}
-
-						return prev.map((item) =>
-							item.id === messageId
-								? {
-										...item,
-										data: { ...msg, parts: updatedParts, isStreaming: true },
-									}
-								: item,
-						);
-					}
-
-					// New message
-					return [
-						...prev,
-						{
-							type: "message",
-							id: messageId,
-							data: {
-								id: messageId,
-								role: "assistant",
-								parts: [createTextPart(deltaText)],
-								isStreaming: true,
-							},
-						},
-					];
-				});
-
-				setIsStreaming(true);
-				scrollToBottom();
-				break;
-			}
-
-			case "chat.message.final": {
-				const { messageId } = payload as { messageId: string };
-
-				setItems((prev) =>
-					prev.map((item) =>
-						item.id === messageId && item.type === "message"
-							? {
-									...item,
-									data: { ...(item.data as Message), isStreaming: false },
-								}
-							: item,
-					),
-				);
-
-				setIsStreaming(false);
-				break;
-			}
-
-			case "chat.reasoning.part": {
-				// Reasoning parts are handled as visual elements within messages
-				// For now, we'll treat them similarly to tool parts - as separate items
-				// This can be enhanced later to nest them within messages
-				break;
-			}
-
-			case "chat.tool.update": {
-				const { toolCallId, name, input, status, output, error } = payload as {
-					toolCallId: string;
-					name: string;
-					input?: unknown;
-					status: "running" | "success" | "error";
-					output?: unknown;
-					error?: unknown;
-				};
-
-				setItems((prev) => {
-					// Check if tool already exists
-					const existingIdx = prev.findIndex(
-						(item) => item.type === "tool" && item.id === toolCallId,
-					);
-
-					if (existingIdx !== -1) {
-						// Update existing tool
-						return prev.map((item, idx) =>
-							idx === existingIdx && item.type === "tool"
-								? {
-										...item,
-										data: {
-											...(item.data as ToolCall),
-											input,
-											output,
-											error,
-											status,
-										},
-									}
-								: item,
-						);
-					}
-
-					// Create new tool item
-					return [
-						...prev,
-						{
-							type: "tool",
-							id: toolCallId,
-							data: {
-								id: toolCallId,
-								name,
-								input,
-								output,
-								error,
-								status,
-							},
-						},
-					];
-				});
-
-				scrollToBottom();
-				break;
-			}
-
-			case "chat.session.status": {
-				const { status } = payload as { status: string };
-				if (status === "completed" || status === "idle") {
-					setIsStreaming(false);
-				}
-				break;
-			}
-		}
-	};
+	}, [projectId, opencodeReady, handleEvent]);
 
 	const handleSend = async (content: string, images?: ImagePart[]) => {
 		// Build message parts for UI

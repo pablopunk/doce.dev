@@ -41,6 +41,9 @@ interface PreviewPanelProps {
 	onStatusChange?: (status: PresenceResponse) => void;
 	fileToOpen?: string | null;
 	onFileOpened?: () => void;
+	initialResponseProcessing?: boolean;
+	userMessageCount?: number;
+	isStreaming?: boolean;
 }
 
 type PreviewState = "initializing" | "starting" | "ready" | "error";
@@ -51,6 +54,8 @@ export function PreviewPanel({
 	onStatusChange,
 	fileToOpen,
 	onFileOpened,
+	userMessageCount = 0,
+	isStreaming = false,
 }: PreviewPanelProps) {
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
@@ -535,6 +540,16 @@ export function PreviewPanel({
 									</Button>
 								</div>
 							) : null}
+						</div>
+					)}
+
+					{/* Overlay when initial prompt is processing (only one user message and streaming) */}
+					{userMessageCount === 1 && isStreaming && (
+						<div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+							<div className="flex flex-col items-center gap-4 text-muted-foreground">
+								<Loader2 className="h-8 w-8 animate-spin" />
+								<p>Building preview...</p>
+							</div>
 						</div>
 					)}
 				</div>
