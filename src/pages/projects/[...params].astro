@@ -2,12 +2,12 @@
 import { ProjectContentWrapper } from "@/components/projects/ProjectContentWrapper";
 import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { CURATED_MODELS } from "@/server/config/models";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
 import {
 	getAvailableModels,
 	modelSupportsVision,
 } from "@/server/opencode/models";
-import { CURATED_MODELS } from "@/server/config/models";
 import { getProjectById } from "@/server/projects/projects.model";
 
 const user = Astro.locals.user;

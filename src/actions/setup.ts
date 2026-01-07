@@ -1,11 +1,11 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro/zod";
 import { randomBytes } from "node:crypto";
+import { z } from "astro/zod";
 import { hashPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/sessions";
+import { DEFAULT_MODEL } from "@/server/config/models";
 import { db } from "@/server/db/client";
 import { userSettings, users } from "@/server/db/schema";
-import { DEFAULT_MODEL } from "@/server/config/models";
 
 const SESSION_COOKIE_NAME = "doce_session";
 

@@ -1,6 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
-import { z } from "astro/zod";
 import { randomBytes } from "node:crypto";
+import { z } from "astro/zod";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
 
 import {

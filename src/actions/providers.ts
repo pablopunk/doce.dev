@@ -2,19 +2,18 @@ import { defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
+import { CURATED_MODELS } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import {
 	listConnectedProviderIds,
 	removeProvider,
 	setApiKey,
 } from "@/server/opencode/authFile";
-
-import { getProvidersIndex } from "@/server/opencode/modelsDev";
 import {
 	getAvailableModels,
 	modelSupportsVision,
 } from "@/server/opencode/models";
-import { CURATED_MODELS } from "@/server/config/models";
+import { getProvidersIndex } from "@/server/opencode/modelsDev";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";

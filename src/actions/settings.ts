@@ -1,9 +1,9 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { eq } from "drizzle-orm";
+import { DEFAULT_MODEL } from "@/server/config/models";
 import { db } from "@/server/db/client";
 import { userSettings } from "@/server/db/schema";
-import { DEFAULT_MODEL } from "@/server/config/models";
 
 export const settings = {
 	save: defineAction({

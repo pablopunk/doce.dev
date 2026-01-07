@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
 import {
@@ -11,7 +12,6 @@ import {
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
-import { FALLBACK_MODEL } from "@/server/config/models";
 
 export async function handleOpencodeSessionCreate(
 	ctx: QueueJobContext,
