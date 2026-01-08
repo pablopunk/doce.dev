@@ -77,6 +77,53 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 **OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
 
 
+## Infrastructure & Deployment
+
+### PR Preview Environments
+Every PR automatically gets a live preview environment deployed at `http://doce.pangolin-frog.ts.net:PORT` (accessible via Tailscale).
+
+**Architecture:**
+- **VM**: Ubuntu 22.04 at `192.168.1.112` (accessed via Tailscale DNS: `doce.pangolin-frog.ts.net`)
+- **Port allocation**: Each PR gets a unique port in range `48000-49000` based on PR number
+- **Containerization**: Docker containers for each preview with volume-mounted SQLite database
+- **Database initialization**: Drizzle migrations run automatically before app starts
+
+**Workflows:**
+- `.github/workflows/pr-preview.yml` - Deploys previews on PR open/reopen/synchronize, tears down on close
+- `.github/workflows/docker-build.yml` - Builds and pushes Docker image to `ghcr.io` on main branch
+
+**Deployment Flow:**
+1. PR triggered → GitHub Actions runs `pr-preview.yml`
+2. Creates PR directory at `/root/previews/pr-{N}/`
+3. Builds or pulls Docker image (reuses if Dockerfile unchanged)
+4. Creates pnpm Docker volume for dependency caching
+5. Runs database migrations in temporary container
+6. Starts main app container with mounted data volume
+7. Health check + comments preview URL on PR
+8. On PR close → Cleanup job removes container, image, and directory
+
+**Database Migration:**
+- Migrations run in isolated temporary container using: `pnpm exec drizzle-kit migrate`
+- Reads `DB_FILE_NAME` env var which drizzle.config.ts uses to locate database
+- Creates SQLite database at `/app/data/db.sqlite` with all tables
+- Main app container inherits initialized database via shared volume mount
+
+**VM Helper Scripts:**
+- `/root/previews/scripts/allocate-port.sh` - Allocates unique port from registry
+- `/root/previews/scripts/release-port.sh` - Frees port allocation on PR close
+- `/root/previews/scripts/cleanup-stale.sh` - Removes orphaned containers/directories
+
+**Testing:**
+To test PR preview changes:
+```bash
+git checkout -b test/feature
+# Make changes
+git push origin test/feature
+# Open PR and wait for "Deploy PR Preview" workflow
+# Check PR comments for preview URL
+# Access via Tailscale when available
+```
+
 ## Subagents
 
 - For ui-specific tasks, use the @frontend-developer agent
