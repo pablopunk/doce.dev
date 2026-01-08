@@ -42,9 +42,10 @@ jobs:
           
           echo "🚀 Deploying PR #$PR_NUM to $VM_HOST"
           
-          # Step 1: Cleanup stale previews
+          # Step 1: Clean up stale previews and containers
           echo "📦 Cleaning up stale previews..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/cleanup-stale.sh"
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            "for dir in /root/previews/pr-*; do [ -d \"\$dir\" ] && docker rm -f \$(basename \$dir) 2>/dev/null || true; done"
           
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
@@ -65,8 +66,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "cd $REPO_DIR && docker build -t doce-pr-$PR_NUM:latest ."
           
-          # Step 6: Run container
-          echo "▶️  Starting container..."
+          # Step 6: Run container with direct port access
+          echo "▶️  Starting container on port $PORT..."
           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "docker run -d \
               --name doce-pr-$PR_NUM \
@@ -83,7 +84,7 @@ jobs:
           echo "⏳ Waiting for app to start..."
           for i in {1..60}; do
             if ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-              "curl -f http://localhost:$PORT/health 2>/dev/null || exit 1" >/dev/null 2>&1; then
+              "curl -f http://localhost:$PORT/ 2>/dev/null" >/dev/null 2>&1; then
               echo "✅ App is healthy!"
               break
             fi
@@ -96,10 +97,6 @@ jobs:
             sleep 1
           done
           
-          # Step 8: Update Caddyfile
-          echo "🔄 Updating Caddyfile..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/update-caddyfile.sh"
-          
           echo "✅ PR preview deployed successfully!"
 
       - name: Comment preview URL
@@ -108,12 +105,13 @@ jobs:
         with:
           script: |
             const prNumber = context.issue.number;
-            const previewUrl = `https://pr-${prNumber}.preview.doce.dev`;
+            const port = 48000 + prNumber;
+            const previewUrl = `http://doce.pangolin-frog.ts.net:${port}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 **Preview deployed!**\n\n[Open preview environment](${previewUrl})\n\nℹ️ This preview will be automatically cleaned up when the PR is closed.`
+              body: `🚀 **Preview deployed!**\n\n[Open preview environment](${previewUrl})\n\n**Note:** Accessible via Tailscale network\n\nℹ️ This preview will be automatically cleaned up when the PR is closed.`
             });
 
       - name: Comment on failure
@@ -152,6 +150,7 @@ jobs:
           VM_HOST="doce.pangolin-frog.ts.net"
           SSH_USER="root"
           SCRIPTS_DIR="/root/previews/scripts"
+          PR_DIR="/root/previews/pr-$PR_NUM"
           
           echo "🧹 Cleaning up PR #$PR_NUM preview"
           
@@ -164,7 +163,7 @@ jobs:
           # Remove Docker image
           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
           
-          # Update Caddyfile
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/update-caddyfile.sh"
+          # Clean up directory
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "rm -rf $PR_DIR || true"
           
           echo "✅ PR preview cleaned up!"
