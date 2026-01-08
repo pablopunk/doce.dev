@@ -1,41 +1,19 @@
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
 import { handlePresenceHeartbeat } from "@/server/presence/manager";
-import { isProjectOwnedByUser } from "@/server/projects/projects.model";
-
-const SESSION_COOKIE_NAME = "doce_session";
+import { requireAuthenticatedProjectAccess } from "@/server/auth/validators";
 
 export const POST: APIRoute = async ({ params, request, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
+	// Authenticate and verify project access
+	const authResult = await requireAuthenticatedProjectAccess(
+		cookies,
+		params.id ?? "",
+	);
+	if (!authResult.success) {
+		const jsonResponse = JSON.stringify({
+			error: authResult.response.status === 401 ? "Unauthorized" : "Not found",
 		});
-	}
-
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
-
-	const projectId = params.id;
-	if (!projectId) {
-		return new Response(JSON.stringify({ error: "Project ID required" }), {
-			status: 400,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
-
-	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
-	if (!isOwner) {
-		return new Response(JSON.stringify({ error: "Not found" }), {
-			status: 404,
+		return new Response(jsonResponse, {
+			status: authResult.response.status,
 			headers: { "Content-Type": "application/json" },
 		});
 	}
@@ -56,7 +34,10 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 	}
 
 	try {
-		const response = await handlePresenceHeartbeat(projectId, viewerId);
+		const response = await handlePresenceHeartbeat(
+			authResult.project.id,
+			viewerId,
+		);
 		return new Response(JSON.stringify(response), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },

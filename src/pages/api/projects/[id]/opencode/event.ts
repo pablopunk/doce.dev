@@ -1,51 +1,30 @@
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
 import { logger } from "@/server/logger";
 import {
 	createNormalizationState,
 	normalizeEvent,
 	parseSSEData,
 } from "@/server/opencode/normalize";
-import {
-	getProjectById,
-	isProjectOwnedByUser,
-	markUserPromptCompleted,
-} from "@/server/projects/projects.model";
+import { markUserPromptCompleted } from "@/server/projects/projects.model";
+import { requireAuthenticatedProjectAccess } from "@/server/auth/validators";
 
-const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 10_000;
 
 export const GET: APIRoute = async ({ params, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response("Unauthorized", { status: 401 });
+	const authResult = await requireAuthenticatedProjectAccess(
+		cookies,
+		params.id ?? "",
+	);
+	if (!authResult.success) {
+		return authResult.response;
 	}
 
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response("Unauthorized", { status: 401 });
-	}
-
-	const projectId = params.id;
-	if (!projectId) {
-		return new Response("Project ID required", { status: 400 });
-	}
-
-	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
-	if (!isOwner) {
-		return new Response("Not found", { status: 404 });
-	}
-
-	const project = await getProjectById(projectId);
-	if (!project) {
-		return new Response("Not found", { status: 404 });
-	}
+	const { project } = authResult;
 
 	// Connect to upstream opencode SSE
 	const upstreamUrl = `http://127.0.0.1:${project.opencodePort}/event`;
+	const projectId = project.id;
 
 	let upstreamResponse: Response;
 	try {
@@ -85,7 +64,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 	let hasMarkedUserPromptCompleted = project.userPromptCompleted;
 
 	/**
-	 * Check if the user prompt has completed (session.init was done in template).
+	 * Check if user prompt has completed (session.init was done in template).
 	 * Listens for the first idle event to mark setup complete.
 	 * This is called server-side so it works even if client disconnects.
 	 */
@@ -104,12 +83,8 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		// Only process idle events
 		if (status !== "idle") return;
 
-		// Re-fetch project to get latest state (in case it was updated elsewhere)
-		const currentProject = await getProjectById(projectId);
-		if (!currentProject) return;
-
 		// Don't process if prompts haven't been sent yet
-		if (!currentProject.initialPromptSent) return;
+		if (!project.initialPromptSent) return;
 
 		logger.debug(
 			{

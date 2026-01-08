@@ -1,49 +1,27 @@
 import * as path from "node:path";
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
 import { readLogFromOffset, readLogTail } from "@/server/docker/logs";
-import {
-	getProjectById,
-	isProjectOwnedByUser,
-} from "@/server/projects/projects.model";
+import { requireAuthenticatedProjectAccess } from "@/server/auth/validators";
 
-const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const POLL_INTERVAL_MS = 1_000;
 
 export const GET: APIRoute = async ({ params, url, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response("Unauthorized", { status: 401 });
+	const authResult = await requireAuthenticatedProjectAccess(
+		cookies,
+		params.id ?? "",
+	);
+	if (!authResult.success) {
+		return authResult.response;
 	}
 
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response("Unauthorized", { status: 401 });
-	}
-
-	const projectId = params.id;
-	if (!projectId) {
-		return new Response("Project ID required", { status: 400 });
-	}
-
-	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
-	if (!isOwner) {
-		return new Response("Not found", { status: 404 });
-	}
-
-	const project = await getProjectById(projectId);
-	if (!project) {
-		return new Response("Not found", { status: 404 });
-	}
+	const { project } = authResult;
 
 	// Get offset from query params
 	const offsetParam = url.searchParams.get("offset");
 	const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : null;
 
-	const logsDir = path.join(project.pathOnDisk, "logs");
+	const logsDir = path.join(project.path, "logs");
 
 	// Create a streaming response
 	const encoder = new TextEncoder();

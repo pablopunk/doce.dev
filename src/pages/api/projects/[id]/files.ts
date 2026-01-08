@@ -1,10 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
-import { isProjectOwnedByUser } from "@/server/projects/projects.model";
-
-const SESSION_COOKIE_NAME = "doce_session";
+import { requireAuthenticatedProjectAccess } from "@/server/auth/validators";
 
 interface FileTreeNode {
 	name: string;
@@ -76,51 +73,24 @@ async function buildFileTree(
 }
 
 export const GET: APIRoute = async ({ params, request, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
+	const authResult = await requireAuthenticatedProjectAccess(
+		cookies,
+		params.id ?? "",
+	);
+	if (!authResult.success) {
 		return new Response(
-			JSON.stringify({ error: "Unauthorized" } as FilesTreeResponse),
+			JSON.stringify({
+				error:
+					authResult.response.status === 401 ? "Unauthorized" : "Not found",
+			} as FilesTreeResponse),
 			{
-				status: 401,
+				status: authResult.response.status,
 				headers: { "Content-Type": "application/json" },
 			},
 		);
 	}
 
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response(
-			JSON.stringify({ error: "Unauthorized" } as FilesTreeResponse),
-			{
-				status: 401,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
-
-	const projectId = params.id;
-	if (!projectId) {
-		return new Response(
-			JSON.stringify({ error: "Project ID required" } as FilesTreeResponse),
-			{
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
-
-	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
-	if (!isOwner) {
-		return new Response(
-			JSON.stringify({ error: "Not found" } as FilesTreeResponse),
-			{
-				status: 404,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
+	const { project } = authResult;
 
 	// Check if this is a file content request
 	const url = new URL(request.url);
@@ -130,12 +100,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 		// Serve file content
 		try {
 			// Validate path doesn't escape src/
-			const projectPath = path.join(
-				process.cwd(),
-				"data",
-				"projects",
-				projectId,
-			);
+			const projectPath = project.path;
 			const srcPath = path.join(projectPath, "src");
 			// filePath is relative to src/, so join with srcPath
 			const fullPath = path.join(srcPath, filePath);
@@ -184,7 +149,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 
 	// Serve file tree
 	try {
-		const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+		const projectPath = project.path;
 		const srcPath = path.join(projectPath, "src");
 
 		// Check if src directory exists
