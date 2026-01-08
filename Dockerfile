@@ -35,6 +35,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
+# Create data directory for SQLite database
+RUN mkdir -p /app/data
+
 # Change ownership to node user (node user exists in node:20-alpine)
 RUN chown -R node:node /app
 
