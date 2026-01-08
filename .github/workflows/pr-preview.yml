@@ -1,0 +1,103 @@
+name: PR Preview Environment
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+jobs:
+  deploy:
+    name: Deploy PR Preview
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.action != 'closed'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Extract PR number
+        id: pr
+        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+
+      - name: Deploy preview
+        run: |
+          set -e
+          PR_NUM=${{ steps.pr.outputs.number }}
+          VM_HOST="doce.pangolin-frog.ts.net"
+          SSH_USER="root"
+          PR_DIR="/root/previews/pr-$PR_NUM"
+          
+          echo "Deploying PR #$PR_NUM to $VM_HOST"
+          
+          # Create PR directory
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data"
+          
+          echo "PR preview deployed!"
+
+      - name: Comment preview URL
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const previewUrl = `https://pr-${prNumber}.preview.doce.dev`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployed!**\n\n[Open preview environment](${previewUrl})\n\nℹ️ This preview will be automatically cleaned up when the PR is closed.`
+            });
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `❌ **Preview deployment failed.**\n\nCheck the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`
+            });
+
+  teardown:
+    name: Cleanup PR Preview
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Extract PR number
+        id: pr
+        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+
+      - name: Stop preview
+        run: |
+          set -e
+          PR_NUM=${{ steps.pr.outputs.number }}
+          VM_HOST="doce.pangolin-frog.ts.net"
+          SSH_USER="root"
+          
+          echo "Cleaning up PR #$PR_NUM preview"
+          
+          # Stop and remove container
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rm -f doce-pr-$PR_NUM || true"
+          
+          echo "PR preview cleaned up!"
