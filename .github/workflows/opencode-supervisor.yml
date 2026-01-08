@@ -52,15 +52,9 @@ jobs:
             Read and understand @AGENTS.md to learn the project's rules and conventions.
             Then analyze this codebase for any improvements that adhere to those rules.
 
-            Focus on:
-            - Clean code principles (single-purpose functions, proper abstractions, MVC patterns)
-            - Following the tech stack conventions (pnpm, TypeScript strict mode, Astro + React, shadcn/ui, etc.)
-            - Any rules in AGENTS.md that may need updating based on recent changes
+            **IMPORTANT**: Bundle all improvements into a SINGLE pull request. Do not create separate PRs for different domains.
 
-            If you find improvements that align with AGENTS.md, and you're confident, create a PR to make those improvements.
-            If you're not confident or it requires opinionated changes, or more input, create an issue instead.
-            If the improvements are from different domains (e.g. refactoring, code style, etc.), create a PR/issue for each.
-
+            If you find improvements that align with AGENTS.md and you're confident, create one comprehensive PR with all the changes.
+            If you're not confident or it requires opinionated input, create an issue instead.
+            If no improvements are found, exit silently without creating a PR or issue.
             If there's an existing issue or PR tackling that same concern, do not do anything.
-
-            If no improvements are found that align with AGENTS.md, don't do anything.
