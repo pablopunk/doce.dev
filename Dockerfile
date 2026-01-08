@@ -50,7 +50,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:4321 || exit 1
 
 # Use dumb-init to handle signals properly
-ENTRYPOINT ["/sbin/dumb-init", "--"]
+ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
 
 # Start the application
 CMD ["node", "./dist/server/entry.mjs"]
