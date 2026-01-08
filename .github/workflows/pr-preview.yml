@@ -37,13 +37,70 @@ jobs:
           VM_HOST="doce.pangolin-frog.ts.net"
           SSH_USER="root"
           PR_DIR="/root/previews/pr-$PR_NUM"
+          REPO_DIR="$PR_DIR/repo"
+          SCRIPTS_DIR="/root/previews/scripts"
           
-          echo "Deploying PR #$PR_NUM to $VM_HOST"
+          echo "🚀 Deploying PR #$PR_NUM to $VM_HOST"
           
-          # Create PR directory
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data"
+          # Step 1: Cleanup stale previews
+          echo "📦 Cleaning up stale previews..."
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/cleanup-stale.sh"
           
-          echo "PR preview deployed!"
+          # Step 2: Create PR directory
+          echo "📁 Creating PR directory..."
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data $REPO_DIR"
+          
+          # Step 3: Copy PR code to VM via tar (faster than git clone for Actions)
+          echo "📋 Copying PR code..."
+          tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
+            ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "cd $REPO_DIR && tar xzf -"
+          
+          # Step 4: Allocate port
+          echo "🔌 Allocating port..."
+          PORT=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
+          echo "Allocated port: $PORT"
+          
+          # Step 5: Build Docker image
+          echo "🔨 Building Docker image..."
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            "cd $REPO_DIR && docker build -t doce-pr-$PR_NUM:latest ."
+          
+          # Step 6: Run container
+          echo "▶️  Starting container..."
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            "docker run -d \
+              --name doce-pr-$PR_NUM \
+              -p $PORT:4321 \
+              -e PORT=4321 \
+              -e HOST=0.0.0.0 \
+              -e DB_FILE_NAME=/app/data/db.sqlite \
+              -v $PR_DIR/data:/app/data \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              --restart unless-stopped \
+              doce-pr-$PR_NUM:latest"
+          
+          # Step 7: Wait for container to be healthy
+          echo "⏳ Waiting for app to start..."
+          for i in {1..60}; do
+            if ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+              "curl -f http://localhost:$PORT/health 2>/dev/null || exit 1" >/dev/null 2>&1; then
+              echo "✅ App is healthy!"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "❌ App failed to start after 60 seconds"
+              ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker logs doce-pr-$PR_NUM" || true
+              exit 1
+            fi
+            echo "Waiting for app... ($i/60)"
+            sleep 1
+          done
+          
+          # Step 8: Update Caddyfile
+          echo "🔄 Updating Caddyfile..."
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/update-caddyfile.sh"
+          
+          echo "✅ PR preview deployed successfully!"
 
       - name: Comment preview URL
         if: success()
@@ -94,10 +151,20 @@ jobs:
           PR_NUM=${{ steps.pr.outputs.number }}
           VM_HOST="doce.pangolin-frog.ts.net"
           SSH_USER="root"
+          SCRIPTS_DIR="/root/previews/scripts"
           
-          echo "Cleaning up PR #$PR_NUM preview"
+          echo "🧹 Cleaning up PR #$PR_NUM preview"
+          
+          # Release port
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/release-port.sh $PR_NUM"
           
           # Stop and remove container
           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rm -f doce-pr-$PR_NUM || true"
           
-          echo "PR preview cleaned up!"
+          # Remove Docker image
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
+          
+          # Update Caddyfile
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/update-caddyfile.sh"
+          
+          echo "✅ PR preview cleaned up!"
