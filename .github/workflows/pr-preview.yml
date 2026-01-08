@@ -69,7 +69,7 @@ jobs:
           
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data $REPO_DIR"
+          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data $REPO_DIR && chmod 777 $PR_DIR/data"
           
           # Step 3: Copy PR code to VM via tar (faster than git clone for Actions)
           echo "📋 Copying PR code..."
