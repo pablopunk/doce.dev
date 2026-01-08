@@ -139,6 +139,27 @@ export const queueSettings = sqliteTable("queue_settings", {
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
+// Project presence table - tracks viewer presence and container state
+export const projectPresence = sqliteTable(
+	"project_presence",
+	{
+		projectId: text("project_id")
+			.primaryKey()
+			.references(() => projects.id, { onDelete: "cascade" }),
+		viewersJson: text("viewers_json").notNull(),
+		lastHeartbeatAt: integer("last_heartbeat_at", { mode: "timestamp" }),
+		stopAt: integer("stop_at", { mode: "timestamp" }),
+		startedAt: integer("started_at", { mode: "timestamp" }),
+		isStarting: integer("is_starting", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+	},
+	(table) => ({
+		updatedAtIdx: index("project_presence_updated_at_idx").on(table.updatedAt),
+	}),
+);
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -151,4 +172,6 @@ export type NewProject = typeof projects.$inferInsert;
 export type QueueJob = typeof queueJobs.$inferSelect;
 export type NewQueueJob = typeof queueJobs.$inferInsert;
 export type QueueSettings = typeof queueSettings.$inferSelect;
-export type NewQueueSettings = typeof queueSettings.$inferInsert;
+export type NewQueueSettings = typeof queueSettings.$inferSelect;
+export type ProjectPresence = typeof projectPresence.$inferSelect;
+export type NewProjectPresence = typeof projectPresence.$inferInsert;

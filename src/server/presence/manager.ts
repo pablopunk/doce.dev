@@ -1,5 +1,15 @@
 import { logger } from "@/server/logger";
 import {
+	clearLastHeartbeat,
+	getPresence,
+	getStableViewers,
+	listAllPresence,
+	removeViewers,
+	updateLastHeartbeat,
+	updateStartingState,
+	updateViewer,
+} from "@/server/presence/presence.model";
+import {
 	checkOpencodeReady,
 	checkPreviewReady,
 } from "@/server/projects/health";
@@ -24,9 +34,9 @@ const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop contai
 interface ProjectPresence {
 	projectId: string;
 	viewers: Map<string, number>; // viewerId -> lastSeenAt
-	lastHeartbeatAt?: number; // When we last received a heartbeat (for keep-alive timeout)
-	stopAt?: number; // Scheduled stop time
-	startedAt?: number; // When we started the starting process
+	lastHeartbeatAt?: Date; // When we last received a heartbeat (for keep-alive timeout)
+	stopAt?: Date; // Scheduled stop time
+	startedAt?: Date; // When we started the starting process
 	isStarting: boolean;
 }
 
@@ -54,9 +64,6 @@ export interface PresenceResponse {
 	// Setup error (if a queue job failed during setup)
 	setupError: string | null;
 }
-
-// In-memory presence state
-const presenceMap = new Map<string, ProjectPresence>();
 
 // Per-project mutex using queue-based locking to prevent race conditions
 interface LockRequest {
@@ -111,24 +118,29 @@ async function acquireLock(projectId: string): Promise<() => void> {
 /**
  * Get or create presence record for a project.
  */
-function getPresence(projectId: string): ProjectPresence {
-	let presence = presenceMap.get(projectId);
-	if (!presence) {
-		presence = {
+async function getOrCreatePresence(
+	projectId: string,
+): Promise<ProjectPresence> {
+	const dbPresence = await getPresence(projectId);
+	if (dbPresence) {
+		return {
 			projectId,
-			viewers: new Map(),
-			isStarting: false,
+			...dbPresence,
 		};
-		presenceMap.set(projectId, presence);
 	}
-	return presence;
+
+	return {
+		projectId,
+		viewers: new Map(),
+		isStarting: false,
+	};
 }
 
 /**
  * Calculate next poll interval based on how long we've been starting.
  */
-function calculateNextPollMs(startedAt: number): number {
-	const elapsed = Date.now() - startedAt;
+function calculateNextPollMs(startedAt: Date): number {
+	const elapsed = Date.now() - startedAt.getTime();
 	const pollCount = Math.floor(elapsed / 500);
 
 	if (pollCount < 3) return 500;
@@ -174,7 +186,7 @@ export async function handlePresenceHeartbeat(
 			throw new Error("Project not found");
 		}
 
-		const presence = getPresence(projectId);
+		const presence = await getOrCreatePresence(projectId);
 
 		// Check for setup errors from failed queue jobs
 		const setupError = await getSetupError(projectId);
@@ -203,12 +215,15 @@ export async function handlePresenceHeartbeat(
 
 		// Update viewer presence
 		presence.viewers.set(viewerId, Date.now());
+		await updateViewer(projectId, viewerId, Date.now());
 
 		// Cancel any scheduled stop
 		delete presence.stopAt;
 
 		// Update last heartbeat time to reset the keep-alive timer
-		presence.lastHeartbeatAt = Date.now();
+		const now = new Date();
+		presence.lastHeartbeatAt = now;
+		await updateLastHeartbeat(projectId, now);
 
 		// Check current health and periodically capture container logs
 		const [previewReady, opencodeReady] = await Promise.all([
@@ -228,22 +243,25 @@ export async function handlePresenceHeartbeat(
 				status = "running";
 			}
 			presence.isStarting = false;
+			await updateStartingState(projectId, false);
 			message = null;
 		} else if (presence.isStarting) {
 			// We're in the process of starting
 			status = "starting";
 
 			if (!presence.startedAt) {
-				presence.startedAt = Date.now();
+				presence.startedAt = new Date();
+				await updateStartingState(projectId, true, presence.startedAt);
 			}
 
-			const elapsed = Date.now() - presence.startedAt;
+			const elapsed = Date.now() - presence.startedAt.getTime();
 
 			if (elapsed > START_MAX_WAIT_MS) {
 				// Timeout - mark as error
 				await updateProjectStatus(projectId, "error");
 				status = "error";
 				presence.isStarting = false;
+				await updateStartingState(projectId, false);
 				message = "Failed to start containers. Open terminal for details.";
 				nextPollMs = 2000;
 			} else {
@@ -264,7 +282,8 @@ export async function handlePresenceHeartbeat(
 		) {
 			// Need to start the containers
 			presence.isStarting = true;
-			presence.startedAt = Date.now();
+			presence.startedAt = new Date();
+			await updateStartingState(projectId, true, presence.startedAt);
 
 			try {
 				await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
@@ -285,7 +304,8 @@ export async function handlePresenceHeartbeat(
 
 			// Trigger restart
 			presence.isStarting = true;
-			presence.startedAt = Date.now();
+			presence.startedAt = new Date();
+			await updateStartingState(projectId, true, presence.startedAt);
 
 			try {
 				await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
@@ -332,28 +352,38 @@ export async function handlePresenceHeartbeat(
  * Reaper function that runs periodically to clean up idle projects.
  */
 async function runReaper(): Promise<void> {
-	const now = Date.now();
+	const now = new Date();
+	const staleThreshold = new Date(now.getTime() - 2 * PRESENCE_HEARTBEAT_MS);
 
-	for (const [projectId, presence] of presenceMap) {
+	const allPresence = await listAllPresence();
+
+	for (const { projectId, data: presence } of allPresence) {
 		// Skip if operations in progress
 		if (presence.isStarting) {
 			continue;
 		}
 
 		// Prune stale viewers (haven't heartbeated in 2x interval)
-		const staleThreshold = now - 2 * PRESENCE_HEARTBEAT_MS;
-		for (const [viewerId, lastSeen] of presence.viewers) {
-			if (lastSeen < staleThreshold) {
-				presence.viewers.delete(viewerId);
-				logger.debug({ projectId, viewerId }, "Pruned stale viewer");
-			}
+		const staleViewers = await getStableViewers(projectId, staleThreshold);
+		if (staleViewers.length > 0) {
+			await removeViewers(projectId, staleViewers);
+			logger.debug(
+				{ projectId, viewerIds: staleViewers },
+				"Pruned stale viewers",
+			);
+		}
+
+		// Update local presence after DB update
+		for (const viewerId of staleViewers) {
+			presence.viewers.delete(viewerId);
 		}
 
 		// Handle keep-alive timeout for running containers
 		const project = await getProjectById(projectId);
 		if (project?.status === "running") {
-			if (presence.lastHeartbeatAt !== undefined) {
-				const timeSinceLastHeartbeat = now - presence.lastHeartbeatAt;
+			if (presence.lastHeartbeatAt) {
+				const timeSinceLastHeartbeat =
+					now.getTime() - presence.lastHeartbeatAt.getTime();
 
 				// Stop if no heartbeat received for keep-alive timeout AND no active viewers
 				if (
@@ -362,7 +392,7 @@ async function runReaper(): Promise<void> {
 				) {
 					try {
 						await enqueueDockerStop({ projectId, reason: "idle" });
-						delete presence.lastHeartbeatAt;
+						await clearLastHeartbeat(projectId);
 						logger.info(
 							{ projectId, timeSinceLastHeartbeat },
 							"Container stopped due to keep-alive timeout",
