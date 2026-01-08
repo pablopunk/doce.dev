@@ -74,7 +74,12 @@ jobs:
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "cd $REPO_DIR && docker build -t doce-pr-$PR_NUM:latest ."
           
-          # Step 6: Run container with direct port access
+          # Step 6: Remove any existing container with the same name
+          echo "🧹 Removing any existing container..."
+          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true"
+          
+          # Step 7: Run container with direct port access
           echo "▶️  Starting container on port $PORT..."
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "docker run -d \
@@ -88,7 +93,7 @@ jobs:
               --restart unless-stopped \
               doce-pr-$PR_NUM:latest"
           
-          # Step 7: Wait for container to be healthy
+          # Step 8: Wait for container to be healthy
           echo "⏳ Waiting for app to start..."
           for i in {1..60}; do
             if ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
