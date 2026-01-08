@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN apk add --no-cache python3 make g++
 
 # Install dependencies and build native modules
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --allow-scripts
 
 # Copy source code
 COPY . .
