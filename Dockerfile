@@ -28,9 +28,12 @@ RUN apk add --no-cache dumb-init curl
 WORKDIR /app
 
 # Copy built application from builder
-COPY --from=builder --chown=node:nodejs /app/dist ./dist
-COPY --from=builder --chown=node:nodejs /app/node_modules ./node_modules
-COPY --chown=node:nodejs package.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY package.json ./
+
+# Change ownership to node user (node user exists in node:20-alpine)
+RUN chown -R node:node /app
 
 # Switch to non-root user
 USER node
