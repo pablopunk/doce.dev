@@ -50,6 +50,7 @@ jobs:
           ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy preview
+        id: deploy
         run: |
           set -e
           PR_NUM=${{ steps.pr.outputs.number }}
@@ -150,6 +151,7 @@ jobs:
           done
           
           echo "✅ PR preview deployed successfully!"
+           echo "port=$PORT" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL
         if: success()
@@ -157,7 +159,7 @@ jobs:
         with:
           script: |
             const prNumber = context.issue.number;
-            const port = 48000 + prNumber;
+            const port = ${{ steps.deploy.outputs.port }};
             const previewUrl = `http://doce.pangolin-frog.ts.net:${port}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
