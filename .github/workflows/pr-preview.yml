@@ -106,18 +106,22 @@ jobs:
            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
              "docker volume create doce-global-pnpm-store 2>/dev/null || true"
            
-           # Step 6.75: Run database migrations
-           echo "🗄️  Running database migrations..."
-           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-             "docker run --rm \
-               -e DB_FILE_NAME=/app/data/db.sqlite \
-               -v $PR_DIR/data:/app/data \
-               doce-pr-$PR_NUM:latest \
-               pnpm exec drizzle-kit migrate" || {
-             echo "❌ Migration failed"
-             exit 1
-           }
-           echo "✅ Database migrations completed!"
+            # Step 6.75: Clean database for fresh state and run migrations
+            echo "🗄️  Preparing database (removing old database for clean state)..."
+            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+              "rm -f $PR_DIR/data/db.sqlite"
+            
+            echo "🗄️  Running database migrations..."
+            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+              "docker run --rm \
+                -e DB_FILE_NAME=/app/data/db.sqlite \
+                -v $PR_DIR/data:/app/data \
+                doce-pr-$PR_NUM:latest \
+                pnpm exec drizzle-kit migrate" || {
+              echo "❌ Migration failed"
+              exit 1
+            }
+            echo "✅ Database migrations completed!"
            
            # Step 7: Run container with direct port access
           echo "▶️  Starting container on port $PORT..."
