@@ -222,10 +222,14 @@ jobs:
           # Stop and remove container
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rm -f doce-pr-$PR_NUM || true"
           
-          # Remove Docker image
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
-          
-          # Clean up directory
+           # Remove Docker image
+           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
+
+           # Clean up old Docker images
+           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "docker image prune -a --force" || true
+
+           # Clean up directory
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "rm -rf $PR_DIR || true"
           
           echo "✅ PR preview cleaned up!"
