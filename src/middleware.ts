@@ -22,8 +22,8 @@ const PUBLIC_ROUTES = ["/setup", "/login"];
 // Routes that should redirect to dashboard if already logged in
 const AUTH_ROUTES = ["/setup", "/login"];
 
-// Routes that handle their own authentication (API routes)
-const SELF_AUTH_PREFIXES = ["/api/"];
+// Routes that handle their own authentication (API routes and Actions)
+const SELF_AUTH_PREFIXES = ["/api/", "/_actions/"];
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = context.url;
