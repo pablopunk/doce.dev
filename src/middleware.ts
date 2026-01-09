@@ -25,6 +25,9 @@ const AUTH_ROUTES = ["/setup", "/login"];
 // Routes that handle their own authentication (API routes and Actions)
 const SELF_AUTH_PREFIXES = ["/api/", "/_actions/"];
 
+// Routes that should always be accessible (bypasses setup check redirects)
+const ALWAYS_ACCESSIBLE = ["/api/setup", "/_actions/setup.createAdmin/"];
+
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = context.url;
 
@@ -38,7 +41,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	// If setup done and on setup page, redirect to login or dashboard
-	if (!needsSetup && pathname === "/setup") {
+	// But allow setup.createAdmin action to work even after setup is done
+	const isSetupAction = ALWAYS_ACCESSIBLE.some((path) => pathname === path);
+	if (!needsSetup && pathname === "/setup" && !isSetupAction) {
 		const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
 		if (sessionToken) {
 			const session = await validateSession(sessionToken);
