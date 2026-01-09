@@ -6,6 +6,7 @@ import { createSession } from "@/server/auth/sessions";
 import { DEFAULT_MODEL } from "@/server/config/models";
 import { db } from "@/server/db/client";
 import { userSettings, users } from "@/server/db/schema";
+import { logger } from "@/server/logger";
 
 const SESSION_COOKIE_NAME = "doce_session";
 
@@ -77,16 +78,31 @@ export const setup = {
 
 				return { success: true };
 			} catch (error) {
+				// Log the actual error for debugging
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				const errorStack = error instanceof Error ? error.stack : "no stack";
+				logger.error(`[setup.createAdmin] Error caught: ${errorMsg}`);
+				logger.error(`[setup.createAdmin] Error stack: ${errorStack}`);
+				logger.error(
+					`[setup.createAdmin] Error type: ${typeof error}, constructor: ${error?.constructor?.name}`,
+				);
+
 				// Check if error is already an ActionError by checking for code and message properties
 				if (
 					error &&
 					typeof error === "object" &&
 					"code" in error &&
-					"message" in error
+					"message" in error &&
+					typeof (error as Record<string, unknown>).message === "string"
 				) {
+					logger.error("[setup.createAdmin] Re-throwing ActionError");
 					throw error;
 				}
+
 				// Unexpected error - wrap in ActionError
+				logger.error(
+					"[setup.createAdmin] Wrapping unexpected error in ActionError",
+				);
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to create admin user",
