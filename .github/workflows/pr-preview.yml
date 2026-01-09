@@ -76,7 +76,7 @@ jobs:
           echo "📋 Copying PR code..."
           tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
             ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "cd $REPO_DIR && tar xzf -"
-          
+
            # Step 4: Allocate port
            echo "🔌 Allocating port..."
            PORT=$(ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
