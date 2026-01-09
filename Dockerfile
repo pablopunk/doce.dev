@@ -28,9 +28,8 @@ FROM node:20-alpine
 # Install dumb-init for proper PID 1 handling
 RUN apk add --no-cache dumb-init curl
 
-# Copy pnpm from builder stage to have it available for migrations
-COPY --from=builder /usr/local/bin/pnpm /usr/local/bin/pnpm
-COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
+# Install pnpm for running migrations
+RUN npm install -g pnpm@10.20.0
 
 WORKDIR /app
 
