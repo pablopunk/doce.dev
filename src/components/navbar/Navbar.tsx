@@ -16,7 +16,6 @@ function NavbarInner() {
 					href="/"
 					className="flex items-center font-semibold text-sm tracking-tight hover:opacity-80 transition-opacity gap-2"
 				>
-					<img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
 					<span>
 						doce<span className="text-muted-foreground">.dev</span>
 					</span>
