@@ -25,7 +25,6 @@ export async function listConnectedProviderIds(): Promise<string[]> {
 			{ type: string; key: string }
 		>;
 		const providerIds = Object.keys(config).filter((key) => config[key]?.key);
-		logger.debug({ providerIds }, "Listed connected providers");
 		return providerIds;
 	} catch {
 		logger.debug("No auth file found, returning no connected providers");

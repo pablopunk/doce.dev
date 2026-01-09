@@ -11,7 +11,7 @@ const SESSION_COOKIE_NAME = "doce_session";
 
 export const auth = {
 	login: defineAction({
-		accept: "form",
+		accept: "json",
 		input: z.object({
 			username: z.string().min(1, "Username is required"),
 			password: z.string().min(1, "Password is required"),
@@ -95,6 +95,7 @@ export const auth = {
 	}),
 
 	logout: defineAction({
+		accept: "json",
 		handler: async (_input, context) => {
 			const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
 			if (sessionToken) {
