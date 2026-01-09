@@ -54,11 +54,13 @@ export const auth = {
 
 				// Create session and set cookie
 				const sessionToken = await createSession(user.id);
+				// Only set secure flag if request is over HTTPS, not just based on PROD
+				const isSecure = context.request.url.startsWith("https://");
 				context.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
 					path: "/",
 					httpOnly: true,
 					sameSite: "lax",
-					secure: import.meta.env.PROD,
+					secure: isSecure,
 					maxAge: 60 * 60 * 24 * 30, // 30 days
 				});
 
