@@ -14,7 +14,7 @@ export const CURATED_MODELS = [
 	"gpt-5.2",
 	"openai/gpt-5.2",
 	"claude-haiku-4-5",
-	"anthropic/claude-3.7-sonnet",
+	"anthropic/claude-haiku-4.5",
 	"gemini-3-flash",
 ] as const;
 
