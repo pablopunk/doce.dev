@@ -35,15 +35,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const existingUsers = await db.select().from(users).limit(1);
 	const needsSetup = existingUsers.length === 0;
 
-	// If needs setup and not on setup page or setup API, redirect
-	if (needsSetup && pathname !== "/setup" && pathname !== "/api/setup") {
+	// Check if this is a route that should always be accessible
+	const isAlwaysAccessible = ALWAYS_ACCESSIBLE.some(
+		(path) => pathname === path,
+	);
+
+	// If needs setup and not on setup page or always-accessible route, redirect
+	if (needsSetup && pathname !== "/setup" && !isAlwaysAccessible) {
 		return context.redirect("/setup");
 	}
 
 	// If setup done and on setup page, redirect to login or dashboard
 	// But allow setup.createAdmin action to work even after setup is done
-	const isSetupAction = ALWAYS_ACCESSIBLE.some((path) => pathname === path);
-	if (!needsSetup && pathname === "/setup" && !isSetupAction) {
+	if (!needsSetup && pathname === "/setup" && !isAlwaysAccessible) {
 		const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
 		if (sessionToken) {
 			const session = await validateSession(sessionToken);
