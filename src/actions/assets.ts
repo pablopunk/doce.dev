@@ -62,7 +62,7 @@ export const assets = {
 		accept: "form",
 		input: z.object({
 			projectId: z.string().min(1),
-			files: z.array(z.any()),
+			files: z.array(z.instanceof(File)),
 		}),
 		handler: async (input, context) => {
 			const user = context.locals.user;

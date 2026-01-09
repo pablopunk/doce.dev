@@ -22,7 +22,7 @@ import {
 
 export const projects = {
 	create: defineAction({
-		accept: "form",
+		accept: "json",
 		input: z.object({
 			prompt: z.string().min(1, "Please describe your website"),
 			model: z.string().optional(),

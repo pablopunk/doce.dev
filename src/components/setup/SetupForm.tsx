@@ -1,14 +1,11 @@
+import { actions } from "astro:actions";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface SetupFormProps {
-	onSuccess?: (userId: string) => void;
-}
-
-export function SetupForm({ onSuccess }: SetupFormProps) {
+export function SetupForm() {
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,30 +18,19 @@ export function SetupForm({ onSuccess }: SetupFormProps) {
 		setLoading(true);
 
 		try {
-			const response = await fetch("/api/setup", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					username,
-					password,
-					confirmPassword,
-				}),
+			const result = await actions.setup.createAdmin({
+				username,
+				password,
+				confirmPassword,
 			});
 
-			const data = await response.json();
-
-			if (!response.ok) {
-				setError(data.error || "Failed to create admin user");
+			if (result.error) {
+				setError(result.error.message);
 				setLoading(false);
 				return;
 			}
 
 			toast.success("Admin account created successfully!");
-			if (onSuccess && data.userId) {
-				onSuccess(data.userId);
-			}
 
 			// Redirect to home after successful setup
 			setTimeout(() => {
