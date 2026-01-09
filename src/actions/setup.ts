@@ -77,10 +77,16 @@ export const setup = {
 
 				return { success: true };
 			} catch (error) {
-				if (error instanceof ActionError) {
+				// Check if error is already an ActionError by checking for code and message properties
+				if (
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					"message" in error
+				) {
 					throw error;
 				}
-				// Unexpected error during admin creation
+				// Unexpected error - wrap in ActionError
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to create admin user",

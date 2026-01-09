@@ -217,19 +217,33 @@ export const assets = {
 
 				try {
 					await fs.access(newPath);
+					// File exists, throw error
 					throw new ActionError({
 						code: "BAD_REQUEST",
 						message: "File with this name already exists",
 					});
 				} catch (err) {
-					if (err instanceof ActionError) throw err;
+					// If it's our ActionError, rethrow it; otherwise file doesn't exist so continue
+					if (
+						err &&
+						typeof err === "object" &&
+						"code" in err &&
+						"message" in err
+					) {
+						// This is an ActionError we threw
+						throw err;
+					}
+					// fs.access threw because file doesn't exist - that's ok, continue
 				}
 
 				await fs.rename(oldPath, newPath);
 
 				return { success: true };
 			} catch (error) {
-				if (error instanceof ActionError) throw error;
+				// Re-throw ActionError as-is, wrap unexpected errors
+				if (error && typeof error === "object" && "code" in error) {
+					throw error;
+				}
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to rename asset",
@@ -293,7 +307,10 @@ export const assets = {
 
 				return { success: true };
 			} catch (error) {
-				if (error instanceof ActionError) throw error;
+				// Re-throw ActionError as-is, wrap unexpected errors
+				if (error && typeof error === "object" && "code" in error) {
+					throw error;
+				}
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to delete asset",

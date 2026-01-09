@@ -1,7 +1,7 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { eq } from "drizzle-orm";
-import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { verifyPassword } from "@/server/auth/password";
 import { createSession, invalidateSession } from "@/server/auth/sessions";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
@@ -63,10 +63,16 @@ export const auth = {
 
 				return { success: true };
 			} catch (error) {
-				if (error instanceof ActionError) {
+				// Check if error is already an ActionError by checking for code and message properties
+				if (
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					"message" in error
+				) {
 					throw error;
 				}
-				// Unexpected error during login
+				// Unexpected error - wrap in ActionError
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Login failed",
