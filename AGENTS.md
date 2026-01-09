@@ -15,7 +15,8 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * All code modifications/additions should adhere to clean code principles defined below
 * Always use `pnpm` for everything, never `npm` nor `yarn` nor `bun`
 * When debugging problems, be proactive (with read-only actions please), i.e. you can always get more info running DB queries yourself, checking docker logs from the CLI, running the server yourself in the background piping the logs to a file... Be creative, without making destructive operations just for debugging.
-* For CRUD operations, prefer React hooks or programmatic fetch calls over HTML forms and feedback via Sonner component. Exception: simple auth forms (login/setup) may use HTML forms.
+* For CRUD operations, prefer React hooks or programmatic fetch calls (stil, astro actions) over HTML forms.
+* Avoid success/error/info callouts in components, always use `sonner` component for feedback after actions.
 * Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
 
 ## Clean code

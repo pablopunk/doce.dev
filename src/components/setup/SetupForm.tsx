@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,6 @@ export function SetupForm({ onSuccess }: SetupFormProps) {
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
-	const [success, setSuccess] = useState(false);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -41,7 +41,7 @@ export function SetupForm({ onSuccess }: SetupFormProps) {
 				return;
 			}
 
-			setSuccess(true);
+			toast.success("Admin account created successfully!");
 			if (onSuccess && data.userId) {
 				onSuccess(data.userId);
 			}
@@ -49,20 +49,12 @@ export function SetupForm({ onSuccess }: SetupFormProps) {
 			// Redirect to home after successful setup
 			setTimeout(() => {
 				window.location.href = "/";
-			}, 1000);
+			}, 1500);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "An error occurred");
 			setLoading(false);
 		}
 	};
-
-	if (success) {
-		return (
-			<div className="rounded-md bg-green-900/20 p-3 text-sm text-green-700 dark:text-green-400">
-				✓ Admin account created successfully! Redirecting...
-			</div>
-		);
-	}
 
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
