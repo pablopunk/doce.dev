@@ -36,13 +36,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// Check if setup is needed (no users exist)
 	let needsSetup = false;
 	try {
-		const result = await db.select().from(users).limit(1);
-		needsSetup = result.length === 0;
-		console.log(
-			`[Middleware] CWD: ${process.cwd()}, users found: ${result.length}, needsSetup: ${needsSetup}`,
-		);
+		const existingUsers = await db.select().from(users).limit(1);
+		needsSetup = existingUsers.length === 0;
+		if (needsSetup) {
+			console.log("[Middleware] No users found. Redirecting to setup.");
+		}
 	} catch (error) {
 		console.error("[Middleware] Database check failed:", error);
+		// If query fails, it might be because the table doesn't exist (needs setup)
 		needsSetup = true;
 	}
 
