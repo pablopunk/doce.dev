@@ -28,9 +28,6 @@ FROM node:20-alpine
 # Install dumb-init for proper PID 1 handling and docker for preview environments
 RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git
 
-# Add node user to docker group to allow access to docker socket
-RUN addgroup node docker
-
 # Install pnpm for running migrations
 RUN npm install -g pnpm@10.20.0
 
