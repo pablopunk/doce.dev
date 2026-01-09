@@ -1,10 +1,11 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	getProjectByIdIncludeDeleted,
-	getProjectModel,
+	loadOpencodeConfig,
 	markInitialPromptSent,
 	parseModelString,
 	updateUserPromptMessageId,
@@ -96,25 +97,15 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		// Get the current model for this project (returns provider-prefixed string)
-		const modelString = await getProjectModel(project.id);
+		// Load model from opencode.json config
+		const projectPath = path.join(process.cwd(), project.pathOnDisk);
+		const config = await loadOpencodeConfig(projectPath);
+		const modelString = config?.model || FALLBACK_MODEL;
 
 		// Parse the provider-prefixed model string
 		const modelInfo = parseModelString(modelString);
 		if (!modelInfo) {
 			throw new Error(`Invalid model string: ${modelString}`);
-		}
-
-		// For OpenCode provider, strip the vendor prefix from the model ID
-		// OpenCode models are stored as "vendor/model" for display, but the SDK expects just "model"
-		// e.g., "anthropic/claude-haiku-4-5" should be sent as "claude-haiku-4-5"
-		let sdkModelID = modelInfo.modelID;
-		if (modelInfo.providerID === "opencode") {
-			// Remove vendor prefix if present (e.g., "anthropic/claude-haiku-4-5" -> "claude-haiku-4-5")
-			const modelParts = modelInfo.modelID.split("/");
-			if (modelParts.length > 1) {
-				sdkModelID = modelParts.slice(1).join("/");
-			}
 		}
 
 		// Create SDK client for this project
@@ -126,7 +117,7 @@ export async function handleOpencodeSendUserPrompt(
 				sessionID: sessionId,
 				model: {
 					providerID: modelInfo.providerID,
-					modelID: sdkModelID,
+					modelID: modelInfo.modelID,
 				},
 				parts,
 			});
