@@ -32,8 +32,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const existingUsers = await db.select().from(users).limit(1);
 	const needsSetup = existingUsers.length === 0;
 
-	// If needs setup and not on setup page, redirect
-	if (needsSetup && pathname !== "/setup") {
+	// If needs setup and not on setup page or setup API, redirect
+	if (needsSetup && pathname !== "/setup" && pathname !== "/api/setup") {
 		return context.redirect("/setup");
 	}
 
