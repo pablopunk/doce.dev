@@ -18,6 +18,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * For CRUD operations, prefer React hooks or programmatic fetch calls (stil, astro actions) over HTML forms.
 * Avoid success/error/info callouts in components, always use `sonner` component for feedback after actions.
 * Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
+* When posting comments on Pull Requests, always check if a previous comment with a specific marker (e.g., `<!-- doce-review-status -->` or `<!-- doce-preview-status -->`) exists and update it instead of creating a new one. Use the provided `scripts/upsert-pr-comment.sh` for this purpose to avoid comment duplication.
 
 ## Clean code
 

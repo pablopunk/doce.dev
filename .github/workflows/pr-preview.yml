@@ -162,30 +162,27 @@ jobs:
 
       - name: Comment preview URL
         if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-            const port = ${{ steps.deploy.outputs.port }};
-            const previewUrl = `http://doce.pangolin-frog.ts.net:${port}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🚀 **Preview deployed!**\n\n[Open preview environment](${previewUrl})\n\n**Note:** Accessible via Tailscale network\n\nℹ️ This preview will be automatically cleaned up when the PR is closed.`
-            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          PORT=${{ steps.deploy.outputs.port }}
+          PREVIEW_URL="http://doce.pangolin-frog.ts.net:$PORT"
+          MARKER="<!-- doce-preview-status -->"
+          BODY="🚀 **Preview deployed!**\n\n[Open preview environment]($PREVIEW_URL)\n\n**Note:** Accessible via Tailscale network\n\nℹ️ This preview will be automatically cleaned up when the PR is closed."
+          
+          ./scripts/upsert-pr-comment.sh "$MARKER" "$BODY" "$PR_NUM"
 
       - name: Comment on failure
         if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `❌ **Preview deployment failed.**\n\nCheck the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`
-            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          MARKER="<!-- doce-preview-status -->"
+          BODY="❌ **Preview deployment failed.**\n\nCheck the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          
+          ./scripts/upsert-pr-comment.sh "$MARKER" "$BODY" "$PR_NUM"
 
   teardown:
     name: Cleanup PR Preview
