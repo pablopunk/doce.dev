@@ -157,7 +157,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			const sendKeepAlive = () => {
 				if (isClosed) return;
 				try {
-					controller.enqueue(encoder.encode(`:keep-alive\n\n`));
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
 				} catch {
 					// Stream closed
 				}

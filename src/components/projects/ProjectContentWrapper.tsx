@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { actions } from "astro:actions";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
@@ -16,12 +17,6 @@ interface ProjectContentWrapperProps {
 		vendor: string;
 		supportsImages?: boolean;
 	}>;
-}
-
-interface PresenceResponse {
-	status: string;
-	previewReady: boolean;
-	opencodeReady: boolean;
 }
 
 export function ProjectContentWrapper({
@@ -49,17 +44,12 @@ export function ProjectContentWrapper({
 	useEffect(() => {
 		const checkContainerStatus = async () => {
 			try {
-				const response = await fetch(`/api/projects/${projectId}/presence`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						viewerId: `check_${Date.now()}`,
-					}),
+				const { data, error } = await actions.projects.presence({
+					projectId,
+					viewerId: `check_${Date.now()}`,
 				});
 
-				if (!response.ok) return;
-
-				const data = (await response.json()) as PresenceResponse;
+				if (error) return;
 
 				// If both preview and opencode are ready, hide startup display
 				if (
@@ -126,7 +116,7 @@ export function ProjectContentWrapper({
 						<ErrorBoundary componentName="PreviewPanel">
 							<PreviewPanel
 								projectId={projectId}
-								projectSlug={projectSlug}
+								projectSlug={projectSlug || ""}
 								fileToOpen={fileToOpen}
 								onFileOpened={() => setFileToOpen(null)}
 								userMessageCount={userMessageCount}

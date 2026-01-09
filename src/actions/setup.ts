@@ -36,7 +36,7 @@ async function doCreateAdmin(
 	let passwordHash: string;
 	try {
 		passwordHash = await hashPassword(input.password);
-	} catch (error) {
+	} catch (_error) {
 		// Password hashing failed (crypto error, invalid password, etc.)
 		throw new ActionError({
 			code: "INTERNAL_SERVER_ERROR",

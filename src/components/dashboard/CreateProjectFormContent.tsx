@@ -27,8 +27,8 @@ interface CreateProjectFormContentProps {
 	error: string;
 	imageError: string | null;
 	currentModelSupportsImages: boolean;
-	textareaRef: React.RefObject<HTMLTextAreaElement>;
-	fileInputRef: React.RefObject<HTMLInputElement>;
+	textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+	fileInputRef: React.RefObject<HTMLInputElement | null>;
 	onPromptChange: (value: string) => void;
 	onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 	onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
@@ -69,6 +69,7 @@ export function CreateProjectFormContent({
 	return (
 		<div className="w-full relative">
 			<div className="flex flex-col gap-4">
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: This is a drop zone container */}
 				<div
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
 						isDragging ? "border-primary bg-primary/5" : "border-input"

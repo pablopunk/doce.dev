@@ -28,9 +28,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 	const encoder = new TextEncoder();
 	let isClosed = false;
+	const KEEP_ALIVE_INTERVAL_MS = 15_000;
 
 	const stream = new ReadableStream({
 		async start(controller) {
+			const sendKeepAlive = () => {
+				if (isClosed) return;
+				try {
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
+				} catch {
+					// Stream closed
+				}
+			};
+
+			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+
 			try {
 				// Send initial data
 				const data = {
@@ -90,6 +102,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				request.signal?.addEventListener("abort", () => {
 					isClosed = true;
 					clearInterval(pollInterval);
+					clearInterval(keepAliveTimer);
 					controller.close();
 				});
 			} catch (err) {

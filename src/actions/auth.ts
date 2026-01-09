@@ -37,7 +37,7 @@ export const auth = {
 				let isValid = false;
 				try {
 					isValid = await verifyPassword(input.password, user.passwordHash);
-				} catch (error) {
+				} catch (_error) {
 					// Password verification failed (crypto error, invalid hash format, etc.)
 					throw new ActionError({
 						code: "UNAUTHORIZED",

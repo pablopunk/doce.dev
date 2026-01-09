@@ -43,7 +43,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
 						const isLastPart = idx === message.parts.length - 1;
 						const isStreaming = message.isStreaming && isLastPart;
 						const streamingCursor = isStreaming ? (
-							<span className="inline-block w-2 h-4 ml-0.5 bg-foreground animate-pulse" />
+							<span
+								key="streaming-cursor"
+								className="inline-block w-2 h-4 ml-0.5 bg-foreground animate-pulse"
+							/>
 						) : null;
 
 						if (part.type === "text") {

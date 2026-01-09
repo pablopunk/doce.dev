@@ -11,7 +11,7 @@ interface CreateProjectFormProps {
 		vendor: string;
 		supportsImages?: boolean;
 	}[];
-	defaultModel?: string;
+	defaultModel?: string | undefined;
 }
 
 export function CreateProjectForm({
@@ -46,7 +46,7 @@ export function CreateProjectForm({
 
 	useEffect(() => {
 		adjustTextareaHeight();
-	}, []);
+	}, [adjustTextareaHeight]);
 
 	if (!hasModels) {
 		return (

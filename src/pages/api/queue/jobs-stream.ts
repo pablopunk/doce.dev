@@ -6,11 +6,11 @@ import {
 	isQueuePaused,
 	listJobs,
 } from "@/server/queue/queue.model";
+import { type QueueJobType } from "@/server/queue/types";
 
 const PAGE_SIZE = 25;
 
-// Type assertion helper: validates type param matches allowed types before returning
-function validateJobType(typeParam: string): QueueJob["type"] | undefined {
+function validateJobType(typeParam: string): QueueJobType | undefined {
 	const allowedTypes = [
 		"project.create",
 		"project.delete",
@@ -21,14 +21,17 @@ function validateJobType(typeParam: string): QueueJob["type"] | undefined {
 		"docker.stop",
 		"opencode.sessionCreate",
 		"opencode.sendInitialPrompt",
-		"opencode.waitIdle",
+		"opencode.sendUserPrompt",
+		"production.build",
+		"production.start",
+		"production.waitReady",
+		"production.stop",
 	] as const;
-	return allowedTypes.includes(typeParam as (typeof allowedTypes)[number])
-		? (typeParam as QueueJob["type"])
+	return allowedTypes.includes(typeParam as any)
+		? (typeParam as QueueJobType)
 		: undefined;
 }
 
-// Type assertion helper: validates state param matches allowed states before returning
 function validateJobState(stateParam: string): QueueJob["state"] | undefined {
 	const allowedStates = [
 		"queued",
@@ -37,7 +40,7 @@ function validateJobState(stateParam: string): QueueJob["state"] | undefined {
 		"failed",
 		"cancelled",
 	] as const;
-	return allowedStates.includes(stateParam as (typeof allowedStates)[number])
+	return allowedStates.includes(stateParam as any)
 		? (stateParam as QueueJob["state"])
 		: undefined;
 }
@@ -48,7 +51,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
 		return new Response("Unauthorized", { status: 401 });
 	}
 
-	// Parse query parameters for filtering and pagination
 	const url = new URL(request.url);
 	const stateParam = url.searchParams.get("state") ?? "";
 	const typeParam = url.searchParams.get("type") ?? "";
@@ -59,11 +61,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const page = Math.max(1, parseInt(pageParam, 10) || 1);
 	const offset = (page - 1) * PAGE_SIZE;
 
-	// Validate parameters using helper functions
 	const state = validateJobState(stateParam);
 	const type = validateJobType(typeParam);
 
-	// SSE response with headers
 	const headers = new Headers({
 		"Content-Type": "text/event-stream",
 		"Cache-Control": "no-cache",
@@ -73,28 +73,32 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const encoder = new TextEncoder();
 	let isClosed = false;
 	let pollInterval: NodeJS.Timeout | null = null;
+	const KEEP_ALIVE_INTERVAL_MS = 15_000;
 
 	const stream = new ReadableStream({
 		async start(controller) {
+			const sendKeepAlive = () => {
+				if (isClosed) return;
+				try {
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
+				} catch {
+					// Stream closed
+				}
+			};
+
+			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+
 			try {
-				// Send initial data
-				const jobs = await listJobs({
-					state,
-					type,
-					projectId: projectIdParam || undefined,
-					q: qParam || undefined,
-					limit: PAGE_SIZE,
-					offset,
-				});
-				const totalCount = await countJobs({
-					state,
-					type,
-					projectId: projectIdParam || undefined,
-					q: qParam || undefined,
-				});
+				const filters: any = { limit: PAGE_SIZE, offset };
+				if (state) filters.state = state;
+				if (type) filters.type = type;
+				if (projectIdParam) filters.projectId = projectIdParam;
+				if (qParam) filters.q = qParam;
+
+				const jobs = await listJobs(filters);
+				const totalCount = await countJobs(filters);
 				const paused = await isQueuePaused();
 				const concurrency = await getConcurrency();
-
 				const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
 				const data = {
@@ -102,12 +106,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					jobs,
 					paused,
 					concurrency,
-					pagination: {
-						page,
-						pageSize: PAGE_SIZE,
-						totalCount,
-						totalPages,
-					},
+					pagination: { page, pageSize: PAGE_SIZE, totalCount, totalPages },
 					timestamp: new Date().toISOString(),
 				};
 
@@ -116,14 +115,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
 						encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
 					);
 				} catch (err) {
-					// Controller closed unexpectedly during initial send
-					if (err instanceof TypeError && err.message.includes("closed")) {
+					if (err instanceof TypeError && err.message.includes("closed"))
 						return;
-					}
 					throw err;
 				}
 
-				// Poll for updates every 2 seconds
 				pollInterval = setInterval(async () => {
 					if (isClosed) {
 						if (pollInterval) {
@@ -134,23 +130,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					}
 
 					try {
-						const updatedJobs = await listJobs({
-							state,
-							type,
-							projectId: projectIdParam || undefined,
-							q: qParam || undefined,
-							limit: PAGE_SIZE,
-							offset,
-						});
-						const updatedTotalCount = await countJobs({
-							state,
-							type,
-							projectId: projectIdParam || undefined,
-							q: qParam || undefined,
-						});
+						const updatedJobs = await listJobs(filters);
+						const updatedTotalCount = await countJobs(filters);
 						const updatedPaused = await isQueuePaused();
 						const updatedConcurrency = await getConcurrency();
-
 						const updatedTotalPages = Math.ceil(updatedTotalCount / PAGE_SIZE);
 
 						const updateData = {
@@ -173,29 +156,23 @@ export const GET: APIRoute = async ({ request, locals }) => {
 									encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`),
 								);
 							} catch (err) {
-								// Controller already closed - expected on disconnect
-								if (
-									err instanceof TypeError &&
-									err.message.includes("closed")
-								) {
+								if (err instanceof TypeError && err.message.includes("closed"))
 									return;
-								}
 								throw err;
 							}
 						}
 					} catch (err) {
 						console.error("Error polling queue jobs:", err);
 					}
-				}, 2000); // Poll every 2 seconds
+				}, 2000);
 
-				// Handle client disconnect
 				request.signal?.addEventListener("abort", () => {
 					isClosed = true;
-					// Clear interval BEFORE closing controller to prevent race condition
 					if (pollInterval) {
 						clearInterval(pollInterval);
 						pollInterval = null;
 					}
+					clearInterval(keepAliveTimer);
 					controller.close();
 				});
 			} catch (err) {

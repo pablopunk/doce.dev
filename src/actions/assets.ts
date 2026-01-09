@@ -49,7 +49,7 @@ export const assets = {
 
 				const assets = await buildAssetsList(publicPath);
 				return { assets };
-			} catch (error) {
+			} catch (_error) {
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to list assets",
@@ -141,7 +141,7 @@ export const assets = {
 					assets: uploadedAssets,
 					errors: errors.length > 0 ? errors : undefined,
 				};
-			} catch (error) {
+			} catch (_error) {
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to upload assets",

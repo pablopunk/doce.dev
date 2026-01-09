@@ -12,7 +12,7 @@ if (!existsSync(dbDir)) {
 	mkdirSync(dbDir, { recursive: true });
 }
 
-const sqlite = new Database(DB_PATH);
+const sqlite = new Database(DB_PATH, { verbose: console.log });
 
 // Enable WAL mode for better concurrent performance
 sqlite.pragma("journal_mode = WAL");

@@ -1,5 +1,6 @@
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { actions } from "astro:actions";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { FilesTab } from "@/components/files/FilesTab";
 import { DeployButton } from "@/components/preview/DeployButton";
@@ -130,17 +131,16 @@ export function PreviewPanel({
 			if (!viewerIdRef.current) return null;
 
 			try {
-				const response = await fetch(`/api/projects/${projectId}/presence`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ viewerId: viewerIdRef.current }),
+				const { data, error } = await actions.projects.presence({
+					projectId,
+					viewerId: viewerIdRef.current,
 				});
 
-				if (!response.ok) {
-					throw new Error(`HTTP ${response.status}`);
+				if (error) {
+					throw new Error(error.message);
 				}
 
-				return await response.json();
+				return data as unknown as PresenceResponse;
 			} catch (error) {
 				console.error("Heartbeat failed:", error);
 				return null;
@@ -249,9 +249,11 @@ export function PreviewPanel({
 	const pollProductionStatus =
 		useCallback(async (): Promise<ProductionStatus | null> => {
 			try {
-				const response = await fetch(`/api/projects/${projectId}/production`);
-				if (response.ok) {
-					const status = (await response.json()) as ProductionStatus;
+				const { data, error } = await actions.projects.getProductionStatus({
+					projectId,
+				});
+				if (!error) {
+					const status = data as unknown as ProductionStatus;
 					setProductionStatus(status);
 					return status;
 				}
@@ -263,14 +265,12 @@ export function PreviewPanel({
 
 	const pollProductionHistory = useCallback(async () => {
 		try {
-			const response = await fetch(
-				`/api/projects/${projectId}/production-history`,
-			);
-			if (response.ok) {
-				const data = (await response.json()) as {
-					versions: ProductionVersion[];
-				};
-				setProductionVersions(data.versions);
+			const { data, error } = await actions.projects.getProductionHistory({
+				projectId,
+			});
+			if (!error) {
+				const history = data as unknown as { versions: ProductionVersion[] };
+				setProductionVersions(history.versions);
 			}
 		} catch (error) {
 			console.error("Failed to fetch production history:", error);
@@ -344,13 +344,9 @@ export function PreviewPanel({
 
 	const handleDeploy = async () => {
 		try {
-			const response = await fetch(`/api/projects/${projectId}/deploy`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			});
-			if (!response.ok) {
-				const data = await response.json();
-				console.error("Deploy failed:", data.message);
+			const { error } = await actions.projects.deploy({ projectId });
+			if (error) {
+				console.error("Deploy failed:", error.message);
 			}
 			// Polling will pick up the state change
 			await pollProductionStatus();
@@ -361,16 +357,9 @@ export function PreviewPanel({
 
 	const handleStop = async () => {
 		try {
-			const response = await fetch(
-				`/api/projects/${projectId}/stop-production`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-				},
-			);
-			if (!response.ok) {
-				const data = await response.json();
-				console.error("Stop production failed:", data.message);
+			const { error } = await actions.projects.stopProduction({ projectId });
+			if (error) {
+				console.error("Stop production failed:", error.message);
 			}
 			// Polling will pick up the state change
 			await pollProductionStatus();
@@ -381,18 +370,13 @@ export function PreviewPanel({
 
 	const handleRollback = async (hash: string) => {
 		try {
-			const response = await fetch(
-				`/api/projects/${projectId}/rollback-production`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ toHash: hash }),
-				},
-			);
-			if (!response.ok) {
-				const data = await response.json();
-				console.error("Rollback failed:", data.error);
-				throw new Error(data.error ?? "Rollback failed");
+			const { error } = await actions.projects.rollback({
+				projectId,
+				toHash: hash,
+			});
+			if (error) {
+				console.error("Rollback failed:", error.message);
+				throw new Error(error.message);
 			}
 			// Polling will pick up the state change
 			await pollProductionStatus();

@@ -12,31 +12,35 @@ export const GET: APIRoute = async ({ params, locals }) => {
 		return new Response("Project ID is required", { status: 400 });
 	}
 
-	// Check authentication
 	const user = locals.user;
 	if (!user) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 
-	// Check ownership
 	const isOwner = await isProjectOwnedByUser(projectId, user.id);
 	if (!isOwner) {
 		return new Response("Forbidden", { status: 403 });
 	}
 
-	// Create SSE stream
 	const encoder = new TextEncoder();
 	let lastProjectStatus = "";
+	const KEEP_ALIVE_INTERVAL_MS = 15_000;
 
 	const stream = new ReadableStream({
 		async start(controller) {
+			const sendKeepAlive = () => {
+				try {
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
+				} catch {}
+			};
+
+			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+
 			try {
-				// Send initial status
 				const project = await getProjectById(projectId);
 				if (project) {
 					const status = getProductionStatus(project);
 					lastProjectStatus = status.status || "stopped";
-
 					const event = `event: production.status\ndata: ${JSON.stringify({
 						status: status.status,
 						url: status.url,
@@ -44,16 +48,15 @@ export const GET: APIRoute = async ({ params, locals }) => {
 						error: status.error,
 						startedAt: status.startedAt?.toISOString() || null,
 					})}\n\n`;
-
 					controller.enqueue(encoder.encode(event));
 				}
 
-				// Poll for updates every 2 seconds
 				const pollInterval = setInterval(async () => {
 					try {
 						const updatedProject = await getProjectById(projectId);
 						if (!updatedProject) {
 							clearInterval(pollInterval);
+							clearInterval(keepAliveTimer);
 							controller.close();
 							return;
 						}
@@ -61,7 +64,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
 						const status = getProductionStatus(updatedProject);
 						const newStatus = status.status || "stopped";
 
-						// Only send if status changed
 						if (newStatus !== lastProjectStatus) {
 							lastProjectStatus = newStatus;
 							const event = `event: production.status\ndata: ${JSON.stringify({
@@ -71,24 +73,26 @@ export const GET: APIRoute = async ({ params, locals }) => {
 								error: status.error,
 								startedAt: status.startedAt?.toISOString() || null,
 							})}\n\n`;
-
 							controller.enqueue(encoder.encode(event));
 						}
-					} catch (error) {
-						console.error("Error polling production status:", error);
+					} catch {
+						// Error in polling
 					}
 				}, 2000);
 
-				// Clean up interval when client disconnects
-				// This is handled by the browser closing the connection
+				// 5 minute timeout for safety
 				setTimeout(
 					() => {
 						clearInterval(pollInterval);
+						clearInterval(keepAliveTimer);
+						try {
+							controller.close();
+						} catch {}
 					},
 					5 * 60 * 1000,
-				); // 5 minute timeout
+				);
 			} catch (error) {
-				console.error("Error in production stream:", error);
+				clearInterval(keepAliveTimer);
 				controller.close();
 			}
 		},
