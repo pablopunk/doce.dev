@@ -30,12 +30,49 @@ interface ChatPanelProps {
 		| undefined;
 }
 
+/**
+ * Normalize model ID from OpenCode messages by matching against available models.
+ * OpenCode SDK strips vendor prefixes when sending models, but our UI needs them.
+ * E.g., "claude-haiku-4-5" -> "anthropic/claude-haiku-4-5"
+ */
+function normalizeMessageModel(
+	model: { providerID: string; modelID: string },
+	availableModels: ReadonlyArray<{ id: string; provider: string }>,
+): { providerID: string; modelID: string } {
+	// If already has vendor prefix (contains /), return as-is
+	if (model.modelID.includes("/")) {
+		return model;
+	}
+
+	// Only normalize for opencode provider
+	if (model.providerID !== "opencode") {
+		return model;
+	}
+
+	// Try to find matching model in available models by checking if any model ID ends with our modelID
+	// E.g., "claude-haiku-4-5" should match "anthropic/claude-haiku-4-5"
+	const matchingModel = availableModels.find(
+		(m) =>
+			m.provider === "opencode" &&
+			(m.id === model.modelID || m.id.endsWith(`/${model.modelID}`)),
+	);
+
+	if (matchingModel) {
+		return {
+			providerID: model.providerID,
+			modelID: matchingModel.id,
+		};
+	}
+
+	// Fallback: return as-is if no match found
+	return model;
+}
+
 interface PresenceData {
 	opencodeReady: boolean;
 	initialPromptSent: boolean;
 	userPromptMessageId: string | null;
 	prompt: string;
-	model: string | null;
 	bootstrapSessionId: string | null;
 }
 
@@ -121,6 +158,42 @@ export function ChatPanel({
 		}
 	}, [shouldAutoScroll]);
 
+	// Load model from OpenCode config on mount (before messages load)
+	const configLoadedRef = useRef(false);
+	useEffect(() => {
+		if (!opencodeReady || configLoadedRef.current) return;
+
+		const loadConfig = async () => {
+			try {
+				configLoadedRef.current = true;
+				const res = await fetch(`/api/projects/${projectId}/opencode/config`);
+				if (!res.ok) {
+					return;
+				}
+
+				const config = await res.json();
+
+				// Extract model from config (format: "provider/model" or "provider/vendor/model")
+				if (config.model) {
+					const parts = config.model.split("/");
+					if (parts.length >= 2) {
+						const model = {
+							providerID: parts[0] as string,
+							modelID: parts.slice(1).join("/"),
+						};
+
+						// Set model from config
+						setCurrentModel(model);
+					}
+				}
+			} catch (error) {
+				// Silently fail - will fall back to first available model
+			}
+		};
+
+		loadConfig();
+	}, [projectId, opencodeReady, setCurrentModel]);
+
 	// Load existing session history when opencode is ready
 	useEffect(() => {
 		if (
@@ -173,6 +246,24 @@ export function ChatPanel({
 				const messages = Array.isArray(messagesData)
 					? messagesData
 					: messagesData.messages || [];
+
+				// Extract model from last user message (like OpenCode does)
+				// Find the last user message that has a model
+				const lastUserMessageWithModel = messages
+					.filter((m: any) => {
+						const info = m.info || {};
+						return info.role === "user" && info.model;
+					})
+					.pop();
+
+				// If messages have a model, override the config model
+				if (lastUserMessageWithModel?.info?.model) {
+					const normalizedModel = normalizeMessageModel(
+						lastUserMessageWithModel.info.model,
+						models,
+					);
+					setCurrentModel(normalizedModel);
+				}
 
 				// Convert messages to chat items
 				const historyItems: ChatItem[] = [];
@@ -259,6 +350,8 @@ export function ChatPanel({
 		scrollToBottom,
 		userPromptMessageId,
 		presenceLoaded,
+		setCurrentModel,
+		models,
 	]);
 
 	// Poll for opencode readiness and handle initial prompt
@@ -281,7 +374,6 @@ export function ChatPanel({
 						setInitialPromptSent(data.initialPromptSent);
 						setUserPromptMessageId(data.userPromptMessageId);
 						setProjectPrompt(data.prompt);
-						setCurrentModel(data.model);
 						if (data.bootstrapSessionId) {
 							setSessionId(data.bootstrapSessionId);
 						}
@@ -308,7 +400,6 @@ export function ChatPanel({
 		setInitialPromptSent,
 		setUserPromptMessageId,
 		setProjectPrompt,
-		setCurrentModel,
 		setSessionId,
 		setPresenceLoaded,
 	]);
@@ -488,21 +579,8 @@ export function ChatPanel({
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						parts: apiParts,
-						...(currentModel && {
-							model: (() => {
-								const parts = currentModel.split("/");
-								if (parts.length >= 2) {
-									return {
-										providerID: parts[0],
-										modelID: parts.slice(1).join("/"),
-									};
-								}
-								return {
-									providerID: "openrouter",
-									modelID: currentModel,
-								};
-							})(),
-						}),
+						// Always pass model explicitly (OpenCode handles fallbacks)
+						...(currentModel && { model: currentModel }),
 					}),
 				},
 			);
@@ -517,8 +595,14 @@ export function ChatPanel({
 		}
 	};
 
-	const handleModelChange = async (newModelId: string) => {
-		const newModelConfig = models.find((m) => m.id === newModelId);
+	const handleModelChange = async (compositeKey: string) => {
+		// Parse composite key format: "provider:modelId"
+		const [providerId, ...modelIdParts] = compositeKey.split(":");
+		const modelId = modelIdParts.join(":"); // Handle modelIDs that might contain ':'
+
+		const newModelConfig = models.find(
+			(m) => m.id === modelId && m.provider === providerId,
+		);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
 
 		if (pendingImages.length > 0 && !newModelSupportsImages) {
@@ -529,17 +613,26 @@ export function ChatPanel({
 			});
 		}
 
-		const fullModelId = newModelConfig
-			? `${newModelConfig.provider}/${newModelConfig.id}`
-			: newModelId;
+		// Create model object in OpenCode's format
+		const newModel = newModelConfig
+			? {
+					providerID: newModelConfig.provider,
+					modelID: newModelConfig.id,
+				}
+			: null;
 
 		const previousModel = currentModel;
-		setCurrentModel(fullModelId);
+		setCurrentModel(newModel);
 
 		try {
+			// Store in opencode.json for persistence (using string format)
+			const modelString = newModel
+				? `${newModel.providerID}/${newModel.modelID}`
+				: null;
+
 			const result = await actions.projects.updateModel({
 				projectId,
-				model: fullModelId,
+				model: modelString || "",
 			});
 
 			if (!result.data?.success) {
@@ -637,11 +730,17 @@ export function ChatPanel({
 			</div>
 
 			{(() => {
-				const modelIdOnly = currentModel
-					? currentModel.split("/").slice(1).join("/")
+				// Build composite key: "provider:modelId" for the UI
+				const compositeModelKey = currentModel
+					? `${currentModel.providerID}:${currentModel.modelID}`
 					: null;
 				const modelSupport =
-					models.find((m) => m.id === modelIdOnly)?.supportsImages ?? true;
+					models.find(
+						(m) =>
+							currentModel &&
+							m.id === currentModel.modelID &&
+							m.provider === currentModel.providerID,
+					)?.supportsImages ?? true;
 				return (
 					<ChatInput
 						onSend={handleSend}
@@ -653,7 +752,7 @@ export function ChatPanel({
 									? "Processing..."
 									: "Type a message..."
 						}
-						model={modelIdOnly}
+						model={compositeModelKey}
 						models={models}
 						onModelChange={handleModelChange}
 						images={pendingImages}

@@ -173,10 +173,12 @@ export function CreateProjectForm({
 			const formData = new FormData();
 			formData.append("prompt", prompt.trim());
 			if (selectedModel) {
-				// Combine provider and model ID for storage
-				// selectedModel is the model.id (without provider prefix)
-				// We need to find the full model object to get the provider
-				const modelWithProvider = models.find((m) => m.id === selectedModel);
+				// selectedModel is now a composite key format: "provider:modelId"
+				const [providerId, ...modelIdParts] = selectedModel.split(":");
+				const modelId = modelIdParts.join(":");
+				const modelWithProvider = models.find(
+					(m) => m.id === modelId && m.provider === providerId,
+				);
 				if (modelWithProvider) {
 					const fullModelId = `${modelWithProvider.provider}/${modelWithProvider.id}`;
 					console.log("Sending model to create action:", fullModelId);
@@ -260,10 +262,14 @@ export function CreateProjectForm({
 		// Timeout after ~20 seconds - project should definitely exist by now
 	};
 
-	const handleModelChange = async (newModelId: string) => {
-		// newModelId is now without provider prefix (e.g., "google/gemini-3-flash")
-		// We'll combine with provider when sending to backend
-		const newModelConfig = models.find((m) => m.id === newModelId);
+	const handleModelChange = async (compositeKey: string) => {
+		// Parse composite key format: "provider:modelId"
+		const [providerId, ...modelIdParts] = compositeKey.split(":");
+		const modelId = modelIdParts.join(":"); // Handle modelIDs that might contain ':'
+
+		const newModelConfig = models.find(
+			(m) => m.id === modelId && m.provider === providerId,
+		);
 		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
 
 		// Clear pending images if switching to a model that doesn't support them
@@ -275,13 +281,13 @@ export function CreateProjectForm({
 			});
 		}
 
-		setSelectedModel(newModelId);
+		// Store composite key in state
+		setSelectedModel(compositeKey);
 
 		// Save as default model in DB
 		try {
-			const formData = new FormData();
-			formData.append("defaultModel", newModelId);
-			await actions.settings.save(formData);
+			// Send composite key format to backend
+			await actions.settings.save({ defaultModel: compositeKey });
 		} catch (error) {
 			console.error("Failed to save default model:", error);
 			// Silently fail - don't disrupt user experience
@@ -289,8 +295,16 @@ export function CreateProjectForm({
 	};
 
 	// Check if the current model supports images
-	const currentModelSupportsImages =
-		models.find((m) => m.id === selectedModel)?.supportsImages ?? true;
+	const currentModelSupportsImages = (() => {
+		if (!selectedModel) return true;
+		// Parse composite key if present
+		const [providerId, ...modelIdParts] = selectedModel.split(":");
+		const modelId = modelIdParts.join(":");
+		return (
+			models.find((m) => m.id === modelId && m.provider === providerId)
+				?.supportsImages ?? true
+		);
+	})();
 
 	// Check if any models are available
 	const hasModels = models.length > 0;

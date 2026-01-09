@@ -76,8 +76,6 @@ export const projects = sqliteTable("projects", {
 	userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
 		.notNull()
 		.default(false),
-	// Model selection - tracks which model is currently being used for this project
-	currentModel: text("current_model"),
 	// Production deployment fields
 	productionPort: integer("production_port"),
 	productionUrl: text("production_url"),

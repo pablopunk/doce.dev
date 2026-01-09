@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
-import { FALLBACK_MODEL } from "@/server/config/models";
 import { db } from "@/server/db/client";
 import { type NewProject, type Project, projects } from "@/server/db/schema";
 import { logger } from "@/server/logger";
@@ -60,30 +59,6 @@ export function parseModelString(
 	} catch {
 		return null;
 	}
-}
-
-/**
- * Store the initial model configuration for a project.
- */
-export async function storeProjectModel(
-	projectId: string,
-	model: string, // e.g., "openrouter/google/gemini-3-flash"
-): Promise<void> {
-	await db
-		.update(projects)
-		.set({ currentModel: model })
-		.where(eq(projects.id, projectId));
-}
-
-/**
- * Get the current model for a project.
- */
-export async function getProjectModel(projectId: string): Promise<string> {
-	const project = await db.query.projects.findFirst({
-		where: eq(projects.id, projectId),
-	});
-
-	return project?.currentModel ?? FALLBACK_MODEL;
 }
 
 /**
@@ -155,16 +130,15 @@ export async function updateProjectStatus(
 
 /**
  * Update project model.
- * Stores the full provider-prefixed model string.
+ * Updates opencode.json so OpenCode uses the selected model.
  */
 export async function updateProjectModel(
 	id: string,
 	model: string | null, // e.g., "openrouter/google/gemini-3-flash"
 ): Promise<void> {
-	await db
-		.update(projects)
-		.set({ currentModel: model })
-		.where(eq(projects.id, id));
+	if (model) {
+		await updateOpencodeJsonModel(id, model);
+	}
 }
 
 /**

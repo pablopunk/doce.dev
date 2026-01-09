@@ -76,6 +76,15 @@ function getImageSupportIcon(supportsImages?: boolean) {
 	return null;
 }
 
+/**
+ * Generate a unique composite key for a model that includes both provider and model ID.
+ * This ensures that the same model from different providers is treated as separate options.
+ * E.g., "opencode:openai/gpt-5.2" vs "openrouter:openai/gpt-5.2"
+ */
+function getModelKey(provider: string, id: string): string {
+	return `${provider}:${id}`;
+}
+
 export function ModelSelector({
 	models,
 	selectedModelId,
@@ -102,15 +111,17 @@ export function ModelSelector({
 	}, []);
 
 	// Find selected model or fallback to first available model
+	// selectedModelId is now a composite key: "provider:modelId"
 	const selectedModel =
-		models.find((m) => m.id === selectedModelId) || models[0];
+		models.find((m) => getModelKey(m.provider, m.id) === selectedModelId) ||
+		models[0];
 
 	// Auto-select first model if current selection is invalid
 	useEffect(() => {
 		if (!selectedModel && models.length > 0) {
-			onModelChange(models[0]!.id);
+			onModelChange(getModelKey(models[0]!.provider, models[0]!.id));
 		}
-	}, [selectedModelId, models, selectedModel, onModelChange]);
+	}, [models, selectedModel, onModelChange]);
 
 	const vendorLogo = selectedModel
 		? VENDOR_LOGOS[selectedModel.vendor.toLowerCase()]
@@ -168,13 +179,14 @@ export function ModelSelector({
 									const isAvailable = model.available !== false;
 									const modelVendorLogo =
 										VENDOR_LOGOS[model.vendor.toLowerCase()];
+									const modelKey = getModelKey(model.provider, model.id);
 									const item = (
 										<CommandItem
-											key={model.id}
+											key={modelKey}
 											value={`${model.id} ${model.name} ${provider} ${model.vendor}`}
 											disabled={!isAvailable}
 											onSelect={() => {
-												onModelChange(model.id);
+												onModelChange(modelKey);
 												setOpen(false);
 											}}
 											className={`flex items-center gap-2 ${
@@ -195,7 +207,7 @@ export function ModelSelector({
 											<Check
 												className={cn(
 													"ml-auto size-4 shrink-0",
-													selectedModelId === model.id
+													selectedModelId === modelKey
 														? "opacity-100"
 														: "opacity-0",
 												)}
@@ -205,7 +217,7 @@ export function ModelSelector({
 
 									if (!isAvailable && model.unavailableReason) {
 										return (
-											<Tooltip key={model.id}>
+											<Tooltip key={modelKey}>
 												<TooltipContent side="right">
 													{model.unavailableReason}
 												</TooltipContent>

@@ -6,7 +6,6 @@ import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
 	parseModelString,
-	storeProjectModel,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
@@ -104,16 +103,6 @@ export async function handleOpencodeSessionCreate(
 
 		// Store the session ID in the project
 		await updateBootstrapSessionId(project.id, sessionId);
-
-		// Store the initial model configuration
-		await storeProjectModel(project.id, config?.model || FALLBACK_MODEL);
-		logger.debug(
-			{
-				projectId: project.id,
-				model: config?.model || FALLBACK_MODEL,
-			},
-			"Stored initial model configuration",
-		);
 
 		await ctx.throwIfCancelRequested();
 
