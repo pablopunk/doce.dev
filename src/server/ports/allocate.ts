@@ -1,4 +1,7 @@
 import * as net from "node:net";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import * as schema from "@/server/db/schema";
 import { logger } from "@/server/logger";
 
 // Port pools for different purposes
@@ -7,10 +10,87 @@ const BASE_PORT_MAX = 3999;
 const VERSION_PORT_MIN = 5000; // For version-specific ports (internal)
 const VERSION_PORT_MAX = 5999;
 
-// Track allocated ports
-const allocatedBasePorts = new Set<number>();
-const allocatedVersionPorts = new Set<number>();
-const allocatedDevPorts = new Set<number>();
+/**
+ * Check if a port is currently allocated in the database
+ */
+async function isPortAllocated(port: number): Promise<boolean> {
+	const result = await db
+		.select({ id: schema.ports.id })
+		.from(schema.ports)
+		.where(eq(schema.ports.port, port))
+		.limit(1);
+	return result.length > 0;
+}
+
+/**
+ * Check if a port of a specific type is allocated for a project
+ */
+async function isPortAllocatedForProject(
+	port: number,
+	portType: "base" | "version" | "dev",
+	projectId?: string,
+): Promise<boolean> {
+	const conditions = [
+		eq(schema.ports.port, port),
+		eq(schema.ports.portType, portType),
+	];
+
+	if (projectId) {
+		conditions.push(eq(schema.ports.projectId, projectId));
+	}
+
+	const result = await db
+		.select({ id: schema.ports.id })
+		.from(schema.ports)
+		.where(and(...conditions))
+		.limit(1);
+	return result.length > 0;
+}
+
+/**
+ * Register a port in the database
+ */
+async function registerPort(
+	port: number,
+	portType: "base" | "version" | "dev",
+	projectId?: string,
+	hash?: string,
+): Promise<void> {
+	const now = new Date();
+	await db.insert(schema.ports).values({
+		port,
+		portType,
+		projectId,
+		hash,
+		createdAt: now,
+		updatedAt: now,
+	});
+	logger.debug({ port, portType, projectId }, "Registered port in database");
+}
+
+/**
+ * Unregister a port from the database
+ */
+async function unregisterPort(port: number): Promise<void> {
+	await db.delete(schema.ports).where(eq(schema.ports.port, port));
+	logger.debug({ port }, "Unregistered port from database");
+}
+
+/**
+ * Load all allocated ports from the database into memory sets
+ * This is called on server startup to initialize the in-memory cache
+ */
+export async function initializePortTracking(): Promise<void> {
+	logger.info("Initializing port tracking from database");
+	const allPorts = await db
+		.select({
+			port: schema.ports.port,
+			portType: schema.ports.portType,
+		})
+		.from(schema.ports);
+
+	logger.info({ count: allPorts.length }, "Loaded port tracking from database");
+}
 
 /**
  * Find an available port by attempting to bind to a random port.
@@ -95,6 +175,17 @@ export async function allocateProjectBasePort(
 	const offset = Math.abs(hash) % (BASE_PORT_MAX - BASE_PORT_MIN + 1);
 	const basePort = BASE_PORT_MIN + offset;
 
+	// Check if port is already allocated for this project
+	const alreadyAllocated = await isPortAllocatedForProject(
+		basePort,
+		"base",
+		projectId,
+	);
+	if (alreadyAllocated) {
+		logger.info({ projectId, basePort }, "Using existing allocated base port");
+		return basePort;
+	}
+
 	// Check if available, if not, find an alternative
 	const available = await isPortAvailable(basePort);
 	if (!available) {
@@ -104,10 +195,11 @@ export async function allocateProjectBasePort(
 		);
 		// Find next available port in the range
 		for (let port = basePort + 1; port <= BASE_PORT_MAX; port++) {
-			if (!allocatedBasePorts.has(port)) {
+			const isDbAllocated = await isPortAllocated(port);
+			if (!isDbAllocated) {
 				const isAvail = await isPortAvailable(port);
 				if (isAvail) {
-					allocatedBasePorts.add(port);
+					await registerPort(port, "base", projectId);
 					logger.info({ projectId, basePort: port }, "Allocated base port");
 					return port;
 				}
@@ -118,7 +210,7 @@ export async function allocateProjectBasePort(
 		);
 	}
 
-	allocatedBasePorts.add(basePort);
+	await registerPort(basePort, "base", projectId);
 	logger.info({ projectId, basePort }, "Allocated base port");
 	return basePort;
 }
@@ -158,31 +250,30 @@ export function deriveVersionPort(projectId: string, hash: string): number {
  * Register a version port as allocated.
  * Should be called when a version is created to prevent future conflicts.
  */
-export function registerVersionPort(
-	_projectId: string,
-	_hash: string,
+export async function registerVersionPort(
+	projectId: string,
+	hash: string,
 	versionPort: number,
-): void {
-	allocatedVersionPorts.add(versionPort);
-	logger.debug({ versionPort }, "Registered version port");
+): Promise<void> {
+	await registerPort(versionPort, "version", projectId, hash);
 }
 
 /**
  * Register a base port as allocated.
  * Should be called when a project is created.
  */
-export function registerBasePort(basePort: number): void {
-	allocatedBasePorts.add(basePort);
-	logger.debug({ basePort }, "Registered base port");
+export async function registerBasePort(basePort: number): Promise<void> {
+	await registerPort(basePort, "base");
 }
 
 /**
  * Unregister a port from the allocated set.
  * Call when port is no longer in use.
  */
-export function unregisterVersionPort(versionPort: number): void {
-	allocatedVersionPorts.delete(versionPort);
-	logger.debug({ versionPort }, "Unregistered version port");
+export async function unregisterVersionPort(
+	versionPort: number,
+): Promise<void> {
+	await unregisterPort(versionPort);
 }
 
 /**
@@ -195,8 +286,8 @@ export async function allocateProjectPorts(): Promise<{
 	const devPort = await allocatePort();
 	const opencodePort = await allocatePort();
 
-	allocatedDevPorts.add(devPort);
-	allocatedDevPorts.add(opencodePort);
+	await registerPort(devPort, "dev");
+	await registerPort(opencodePort, "dev");
 
 	logger.info({ devPort, opencodePort }, "Allocated project ports");
 

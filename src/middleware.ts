@@ -6,12 +6,16 @@ import {
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
+import { initializePortTracking } from "@/server/ports/allocate";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 ensureQueueWorkerStarted();
 ensureGlobalPnpmVolume();
 cleanupExpiredSessions().catch((error) => {
 	console.error("Failed to cleanup expired sessions:", error);
+});
+initializePortTracking().catch((error) => {
+	console.error("Failed to initialize port tracking:", error);
 });
 
 const SESSION_COOKIE_NAME = "doce_session";

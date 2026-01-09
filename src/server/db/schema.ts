@@ -139,6 +139,19 @@ export const queueSettings = sqliteTable("queue_settings", {
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
+// Ports table - tracks allocated ports to prevent conflicts
+export const ports = sqliteTable("ports", {
+	id: integer("id").primaryKey(),
+	port: integer("port").notNull().unique(),
+	portType: text("port_type", {
+		enum: ["base", "version", "dev"],
+	}).notNull(),
+	projectId: text("project_id"),
+	hash: text("hash"),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -152,3 +165,5 @@ export type QueueJob = typeof queueJobs.$inferSelect;
 export type NewQueueJob = typeof queueJobs.$inferInsert;
 export type QueueSettings = typeof queueSettings.$inferSelect;
 export type NewQueueSettings = typeof queueSettings.$inferInsert;
+export type Port = typeof ports.$inferSelect;
+export type NewPort = typeof ports.$inferInsert;
