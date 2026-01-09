@@ -1,0 +1,15 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	"agent": {
+		"plan": {
+			"model": "openrouter/google/gemini-3-flash-preview",
+			"options": {},
+			"permission": {}
+		},
+		"build": {
+			"model": "openrouter/google/gemini-3-flash-preview",
+			"options": {},
+			"permission": {}
+		}
+	}
+}

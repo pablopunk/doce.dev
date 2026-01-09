@@ -123,13 +123,16 @@ jobs:
             }
             echo "✅ Database migrations completed!"
            
-           # Step 7: Run container with direct port access
-          echo "▶️  Starting container on port $PORT..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "docker run -d \
-              --name doce-pr-$PR_NUM \
-              -p $PORT:4321 \
-              -e PORT=4321 \
+            # Step 7: Run container with direct port access
+           echo "▶️  Starting container on port $PORT..."
+           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock) && \
+              docker run -d \
+               --name doce-pr-$PR_NUM \
+               -p $PORT:4321 \
+               --group-add \$DOCKER_GID \
+               -e PORT=4321 \
+
               -e HOST=0.0.0.0 \
               -e DB_FILE_NAME=/app/data/db.sqlite \
               -v $PR_DIR/data:/app/data \
