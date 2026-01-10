@@ -132,8 +132,7 @@ jobs:
                -p $PORT:4321 \
                --group-add \$DOCKER_GID \
                -e PORT=4321 \
-
-              -e HOST=0.0.0.0 \
+               -e HOST=0.0.0.0 \
               -e DB_FILE_NAME=/app/data/db.sqlite \
               -v $PR_DIR/data:/app/data \
               -v /var/run/docker.sock:/var/run/docker.sock \
