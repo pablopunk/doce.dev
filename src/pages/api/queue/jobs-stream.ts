@@ -180,6 +180,14 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				controller.error(err);
 			}
 		},
+
+		cancel() {
+			isClosed = true;
+			if (pollInterval) {
+				clearInterval(pollInterval);
+				pollInterval = null;
+			}
+		},
 	});
 
 	return new Response(stream, { headers });

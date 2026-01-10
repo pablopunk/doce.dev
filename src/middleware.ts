@@ -8,11 +8,36 @@ import { users } from "@/server/db/schema";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
+// Initialize once per process lifecycle
 ensureQueueWorkerStarted();
 ensureGlobalPnpmVolume();
 cleanupExpiredSessions().catch((error) => {
 	console.error("Failed to cleanup expired sessions:", error);
 });
+
+const SETUP_CHECK_INTERVAL_MS = 1_000;
+let setupCheckCache: { needsSetup: boolean; timestamp: number } | null = null;
+
+async function getSetupNeeded(): Promise<boolean> {
+	const now = Date.now();
+	if (
+		setupCheckCache &&
+		now - setupCheckCache.timestamp < SETUP_CHECK_INTERVAL_MS
+	) {
+		return setupCheckCache.needsSetup;
+	}
+
+	try {
+		const existingUsers = await db.select().from(users).limit(1);
+		const needsSetup = existingUsers.length === 0;
+		setupCheckCache = { needsSetup, timestamp: now };
+		return needsSetup;
+	} catch (error) {
+		console.error("[Middleware] Database check failed:", error);
+		// If query fails, it might be because the table doesn't exist (needs setup)
+		return true;
+	}
+}
 
 const SESSION_COOKIE_NAME = "doce_session";
 
@@ -34,17 +59,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const pathname = rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
 
 	// Check if setup is needed (no users exist)
-	let needsSetup = false;
-	try {
-		const existingUsers = await db.select().from(users).limit(1);
-		needsSetup = existingUsers.length === 0;
-		if (needsSetup) {
-			console.log("[Middleware] No users found. Redirecting to setup.");
-		}
-	} catch (error) {
-		console.error("[Middleware] Database check failed:", error);
-		// If query fails, it might be because the table doesn't exist (needs setup)
-		needsSetup = true;
+	const needsSetup = await getSetupNeeded();
+	if (needsSetup) {
+		console.log("[Middleware] No users found. Redirecting to setup.");
 	}
 
 	// Routes that should always be accessible

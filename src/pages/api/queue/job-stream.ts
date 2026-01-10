@@ -110,6 +110,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				controller.error(err);
 			}
 		},
+
+		cancel() {
+			isClosed = true;
+		},
 	});
 
 	return new Response(stream, { headers });

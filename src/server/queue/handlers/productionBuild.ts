@@ -1,6 +1,6 @@
-import { execSync } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { spawnCommand } from "@/server/utils/execAsync";
 import { hashDistFolder } from "@/server/productions/hash";
 import { updateProductionStatus } from "@/server/productions/productions.model";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
@@ -37,16 +37,15 @@ export async function handleProductionBuild(
 
 		logger.info({ projectId: project.id }, "Starting production build");
 
-		// Run pnpm run build in the project directory
+		// Run pnpm run build in the project directory asynchronously
 		// This creates the dist/ folder that will be used by the production container
-		try {
-			execSync("pnpm run build", {
-				cwd: project.pathOnDisk,
-				stdio: "pipe",
-				timeout: 5 * 60 * 1000, // 5 minute timeout
-			});
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error);
+		const result = await spawnCommand("pnpm", ["run", "build"], {
+			cwd: project.pathOnDisk,
+			timeout: 5 * 60 * 1000, // 5 minute timeout
+		});
+
+		if (!result.success) {
+			const errorMsg = result.stderr || result.stdout || "Build failed";
 			logger.error(
 				{ projectId: project.id, error: errorMsg.slice(0, 500) },
 				"Production build failed",

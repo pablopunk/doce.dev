@@ -1,6 +1,7 @@
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { runCommand } from "@/server/utils/execAsync";
 import {
 	appendDockerLog,
 	stopStreamingContainerLogs,
@@ -13,28 +14,31 @@ let composeCommand: string[] | null = null;
 
 /**
  * Detect whether to use `docker compose` or `docker-compose`.
+ * Uses async detection to avoid blocking the event loop.
  */
-export function detectComposeCommand(): string[] {
+export async function detectComposeCommand(): Promise<string[]> {
 	if (composeCommand) {
 		return composeCommand;
 	}
 
-	try {
-		execSync("docker compose version", { stdio: "ignore" });
+	// Try `docker compose version` first
+	let result = await runCommand("docker compose version", { timeout: 5000 });
+	if (result.success) {
 		composeCommand = ["docker", "compose"];
 		logger.info("Using 'docker compose' command");
 		return composeCommand;
-	} catch {
-		try {
-			execSync("docker-compose version", { stdio: "ignore" });
-			composeCommand = ["docker-compose"];
-			logger.info("Using 'docker-compose' command");
-			return composeCommand;
-		} catch {
-			logger.error("Neither 'docker compose' nor 'docker-compose' found");
-			throw new Error("Docker Compose not found. Please install Docker.");
-		}
 	}
+
+	// Fall back to `docker-compose version`
+	result = await runCommand("docker-compose version", { timeout: 5000 });
+	if (result.success) {
+		composeCommand = ["docker-compose"];
+		logger.info("Using 'docker-compose' command");
+		return composeCommand;
+	}
+
+	logger.error("Neither 'docker compose' nor 'docker-compose' found");
+	throw new Error("Docker Compose not found. Please install Docker.");
 }
 
 /**
@@ -97,7 +101,7 @@ async function runComposeCommand(
 	profile?: string,
 	filePath?: string,
 ): Promise<ComposeResult> {
-	const compose = detectComposeCommand();
+	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgs(projectId);
 
 	// Build args with optional profile and file flags (both must come BEFORE the subcommand)
@@ -172,7 +176,7 @@ async function runComposeCommandProduction(
 	filePath?: string,
 	hash?: string,
 ): Promise<ComposeResult> {
-	const compose = detectComposeCommand();
+	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgsProduction(projectId, hash);
 
 	// Build args with file flags (must come BEFORE the subcommand)
@@ -485,8 +489,17 @@ export async function ensureGlobalPnpmVolume(): Promise<void> {
 
 	try {
 		// Try to create the volume - Docker silently ignores if it already exists
-		execSync(`docker volume create ${volumeName}`, { stdio: "ignore" });
-		logger.debug({ volumeName }, "Global pnpm volume ensured");
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ volumeName }, "Global pnpm volume ensured");
+		} else {
+			logger.warn(
+				{ error: result.stderr, volumeName },
+				"Failed to ensure global pnpm volume",
+			);
+		}
 	} catch (err) {
 		// Log but don't throw - if Docker is unavailable, it will fail later anyway
 		logger.warn(

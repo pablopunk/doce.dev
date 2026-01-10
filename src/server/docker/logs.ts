@@ -1,8 +1,9 @@
 import type { ChildProcess } from "node:child_process";
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { runCommand } from "@/server/utils/execAsync";
 
 const LOG_FILE_NAME = "docker.log";
 
@@ -118,18 +119,13 @@ export async function captureContainerLogs(
 		const projectName = `doce_${projectId}`;
 		const cmd = `docker compose --project-name ${projectName} logs --no-log-prefix preview`;
 
-		try {
-			const output = execSync(cmd, {
-				cwd: projectPath,
-				encoding: "utf-8",
-				stdio: ["ignore", "pipe", "pipe"],
-			});
+		const result = await runCommand(cmd, {
+			cwd: projectPath,
+			timeout: 30_000,
+		});
 
-			if (output && output.trim()) {
-				await appendAppLog(logsDir, output, false);
-			}
-		} catch (error) {
-			// Container may not be running yet, ignore
+		if (result.success && result.stdout && result.stdout.trim()) {
+			await appendAppLog(logsDir, result.stdout, false);
 		}
 	} catch (err) {
 		logger.debug({ error: err, projectId }, "Failed to capture container logs");
