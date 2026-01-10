@@ -74,6 +74,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	let isClosed = false;
 	let pollInterval: NodeJS.Timeout | null = null;
 	const KEEP_ALIVE_INTERVAL_MS = 15_000;
+	let closeStream: (() => void) | null = null;
 
 	const stream = new ReadableStream({
 		async start(controller) {
@@ -87,6 +88,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			};
 
 			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+			closeStream = () => {
+				if (isClosed) return;
+				isClosed = true;
+				if (pollInterval) {
+					clearInterval(pollInterval);
+					pollInterval = null;
+				}
+				clearInterval(keepAliveTimer);
+				try {
+					controller.close();
+				} catch {
+					// Already closed
+				}
+			};
 
 			try {
 				const filters: any = { limit: PAGE_SIZE, offset };
@@ -166,15 +181,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					}
 				}, 2000);
 
-				request.signal?.addEventListener("abort", () => {
-					isClosed = true;
-					if (pollInterval) {
-						clearInterval(pollInterval);
-						pollInterval = null;
-					}
-					clearInterval(keepAliveTimer);
-					controller.close();
-				});
+				request.signal?.addEventListener("abort", () => closeStream?.());
 			} catch (err) {
 				console.error("Error in queue jobs stream:", err);
 				controller.error(err);
@@ -182,11 +189,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 		},
 
 		cancel() {
-			isClosed = true;
-			if (pollInterval) {
-				clearInterval(pollInterval);
-				pollInterval = null;
-			}
+			closeStream?.();
 		},
 	});
 

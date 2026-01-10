@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { getProjectPath } from "@/server/projects/paths";
 
 interface OpencodeConfig {
 	model?: string;
@@ -56,7 +57,7 @@ export async function updateOpencodeJsonModel(
 	projectId: string,
 	newModel: string,
 ): Promise<void> {
-	const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+	const projectPath = getProjectPath(projectId);
 	const opencodeJsonPath = path.join(projectPath, "opencode.json");
 
 	try {

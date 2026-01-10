@@ -1,33 +1,18 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import {
-	getProjectPath,
-	getProjectRelativePath,
-	getProjectsPath,
-	getTemplatePath,
-} from "./paths";
+import { getProjectPath, getProjectsPath, getTemplatePath } from "./paths";
 
 export interface SetupProjectFilesystemResult {
 	projectPath: string;
-	relativePath: string;
 }
 
-/**
- * Set up the filesystem for a new project.
- * This includes:
- * - Creating project directory
- * - Copying template files
- * - Writing .env file with ports
- * - Creating logs directory
- */
 export async function setupProjectFilesystem(
 	projectId: string,
 	devPort: number,
 	opencodePort: number,
 ): Promise<SetupProjectFilesystemResult> {
 	const projectPath = getProjectPath(projectId);
-	const relativePath = getProjectRelativePath(projectId);
 
 	// Ensure projects directory exists
 	await fs.mkdir(getProjectsPath(), { recursive: true });
@@ -43,7 +28,7 @@ export async function setupProjectFilesystem(
 	// Create logs directory
 	await fs.mkdir(path.join(projectPath, "logs"), { recursive: true });
 
-	return { projectPath, relativePath };
+	return { projectPath };
 }
 
 /**

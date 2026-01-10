@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
@@ -62,11 +63,8 @@ export async function handleOpencodeSendUserPrompt(
 		await ctx.throwIfCancelRequested();
 
 		// Read images from temp file if it exists
-		const imagesPath = path.join(
-			process.cwd(),
-			project.pathOnDisk,
-			".doce-images.json",
-		);
+		const normalizedProjectPath = normalizeProjectPath(project.pathOnDisk);
+		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 		let images: ImageAttachment[] = [];
 		try {
 			const imagesContent = await fs.readFile(imagesPath, "utf-8");
@@ -98,7 +96,8 @@ export async function handleOpencodeSendUserPrompt(
 		}
 
 		// Load model from opencode.json config
-		const projectPath = path.join(process.cwd(), project.pathOnDisk);
+		const projectPath = normalizedProjectPath;
+
 		const config = await loadOpencodeConfig(projectPath);
 		const modelString = config?.model || FALLBACK_MODEL;
 

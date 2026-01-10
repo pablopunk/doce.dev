@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+
 import { getJobById } from "@/server/queue/queue.model";
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -29,6 +30,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const encoder = new TextEncoder();
 	let isClosed = false;
 	const KEEP_ALIVE_INTERVAL_MS = 15_000;
+	let pollInterval: NodeJS.Timeout | null = null;
+	let closeStream: (() => void) | null = null;
 
 	const stream = new ReadableStream({
 		async start(controller) {
@@ -42,6 +45,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			};
 
 			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+			closeStream = () => {
+				if (isClosed) return;
+				isClosed = true;
+				if (pollInterval) {
+					clearInterval(pollInterval);
+					pollInterval = null;
+				}
+				clearInterval(keepAliveTimer);
+				try {
+					controller.close();
+				} catch {
+					// Already closed
+				}
+			};
 
 			try {
 				// Send initial data
@@ -56,24 +73,25 @@ export const GET: APIRoute = async ({ request, locals }) => {
 						encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
 					);
 				} catch (err) {
-					// Controller closed unexpectedly during initial send
 					if (err instanceof TypeError && err.message.includes("closed")) {
 						return;
 					}
 					throw err;
 				}
 
-				// Poll for updates every 1 second
-				const pollInterval = setInterval(async () => {
+				pollInterval = setInterval(async () => {
 					if (isClosed) {
-						clearInterval(pollInterval);
+						if (pollInterval) {
+							clearInterval(pollInterval);
+							pollInterval = null;
+						}
 						return;
 					}
 
 					try {
 						const updatedJob = await getJobById(jobId);
 						if (!updatedJob) {
-							return; // Job deleted
+							return;
 						}
 
 						const updateData = {
@@ -87,7 +105,6 @@ export const GET: APIRoute = async ({ request, locals }) => {
 								encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`),
 							);
 						} catch (err) {
-							// Controller already closed - expected on disconnect
 							if (err instanceof TypeError && err.message.includes("closed")) {
 								return;
 							}
@@ -96,15 +113,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					} catch (err) {
 						console.error("Error polling queue job:", err);
 					}
-				}, 1000); // Poll every 1 second for more responsive detail view
+				}, 1000);
 
-				// Handle client disconnect
-				request.signal?.addEventListener("abort", () => {
-					isClosed = true;
-					clearInterval(pollInterval);
-					clearInterval(keepAliveTimer);
-					controller.close();
-				});
+				request.signal?.addEventListener("abort", () => closeStream?.());
 			} catch (err) {
 				console.error("Error in job stream:", err);
 				controller.error(err);
@@ -112,7 +123,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 		},
 
 		cancel() {
-			isClosed = true;
+			closeStream?.();
 		},
 	});
 

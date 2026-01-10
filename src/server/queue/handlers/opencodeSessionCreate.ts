@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
@@ -8,6 +7,7 @@ import {
 	parseModelString,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -47,7 +47,7 @@ export async function handleOpencodeSessionCreate(
 		await ctx.throwIfCancelRequested();
 
 		// Load model configuration from opencode.json
-		const projectPath = path.join(process.cwd(), project.pathOnDisk);
+		const projectPath = normalizeProjectPath(project.pathOnDisk);
 		const config = await loadOpencodeConfig(projectPath);
 		let modelInfo = {
 			providerID: "openrouter",

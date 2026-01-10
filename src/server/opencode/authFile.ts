@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { getOpencodePath } from "@/server/projects/paths";
+import { getDataPath, getOpencodePath } from "@/server/projects/paths";
 
 export interface ProviderConfig {
 	id: string;
@@ -10,7 +10,7 @@ export interface ProviderConfig {
 }
 
 export async function ensureAuthDirectory(): Promise<void> {
-	const opencodeDir = path.join(process.cwd(), "data", "opencode");
+	const opencodeDir = path.join(getDataPath(), "opencode");
 	await fs.mkdir(opencodeDir, { recursive: true });
 	logger.debug({ opencodeDir }, "Ensured auth directory exists");
 }

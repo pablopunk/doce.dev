@@ -6,6 +6,7 @@ import {
 	hardDeleteProject,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 
@@ -66,7 +67,8 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 
 	// Step 3: Delete project files from disk (best-effort)
 	try {
-		await fs.rm(project.pathOnDisk, { recursive: true, force: true });
+		const projectDir = normalizeProjectPath(project.pathOnDisk);
+		await fs.rm(projectDir, { recursive: true, force: true });
 		logger.debug({ projectId: project.id }, "Deleted project directory");
 	} catch (error) {
 		// Non-critical: file system issues don't block database deletion

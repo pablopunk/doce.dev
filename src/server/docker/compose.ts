@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import { runCommand } from "@/server/utils/execAsync";
 import {
 	appendDockerLog,
@@ -250,7 +251,8 @@ export async function composeUp(
 	projectPath: string,
 	preserveProduction: boolean = true,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
 
 	// Don't use --remove-orphans when production might be running with a separate compose file
 	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
@@ -263,7 +265,11 @@ export async function composeUp(
 		`docker compose ${args.join(" ")} (project=${getProjectName(projectId)})`,
 	);
 
-	const result = await runComposeCommand(projectId, projectPath, args);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		args,
+	);
 
 	// Log output with stream markers
 	if (result.stdout) {
@@ -278,7 +284,7 @@ export async function composeUp(
 	if (result.success) {
 		// Wait a bit for containers to start outputting logs
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, projectPath);
+		streamContainerLogs(projectId, normalizedProjectPath);
 	}
 
 	return result;
@@ -343,13 +349,14 @@ export async function composeDown(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(logsDir, "docker compose down --remove-orphans");
 
 	// Stop streaming container logs before stopping containers
 	stopStreamingContainerLogs(projectId);
 
-	const result = await runComposeCommand(projectId, projectPath, [
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"down",
 		"--remove-orphans",
 	]);
@@ -412,13 +419,14 @@ export async function composeDownWithVolumes(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(
 		logsDir,
 		"docker compose down --remove-orphans --volumes",
 	);
 
-	const result = await runComposeCommand(projectId, projectPath, [
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"down",
 		"--remove-orphans",
 		"--volumes",
@@ -434,7 +442,12 @@ export async function composePs(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	return runComposeCommand(projectId, projectPath, ["ps", "--format", "json"]);
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	return runComposeCommand(projectId, normalizedProjectPath, [
+		"ps",
+		"--format",
+		"json",
+	]);
 }
 
 export interface ContainerStatus {

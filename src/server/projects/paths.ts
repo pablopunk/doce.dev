@@ -6,15 +6,20 @@ const PROJECTS_DIR = "projects";
 const PRODUCTIONS_DIR = "productions";
 const TEMPLATE_DIR = "templates/astro-starter";
 
+const DEFAULT_DATA_PATH = path.join(process.cwd(), DATA_DIR);
+const DATA_ROOT = process.env.DOCE_DATA_DIR
+	? path.resolve(process.env.DOCE_DATA_DIR)
+	: DEFAULT_DATA_PATH;
+
 /**
  * Get the absolute path to the data directory.
  */
 export function getOpencodePath(): string {
-	return path.join(process.cwd(), "data", "opencode", "auth.json");
+	return path.join(getDataPath(), "opencode", "auth.json");
 }
 
 export function getDataPath(): string {
-	return path.join(process.cwd(), "data");
+	return DATA_ROOT;
 }
 
 /**
@@ -86,4 +91,16 @@ export function getProductionRelativePath(
 ): string {
 	const basePath = `${DATA_DIR}/${PRODUCTIONS_DIR}/${projectId}`;
 	return hash ? `${basePath}/${hash}` : basePath;
+}
+
+export function normalizeProjectPath(projectPathOnDisk: string): string {
+	if (path.isAbsolute(projectPathOnDisk)) {
+		return projectPathOnDisk;
+	}
+
+	const trimmed = projectPathOnDisk.startsWith(`${DATA_DIR}/`)
+		? projectPathOnDisk.slice(DATA_DIR.length + 1)
+		: projectPathOnDisk;
+
+	return path.join(getDataPath(), trimmed);
 }
