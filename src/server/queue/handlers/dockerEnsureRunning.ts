@@ -44,8 +44,8 @@ export async function handleDockerEnsureRunning(
 		await ctx.throwIfCancelRequested();
 
 		const [previewReady, opencodeReady] = await Promise.all([
-			checkPreviewReady(project.devPort),
-			checkOpencodeReady(project.opencodePort),
+			checkPreviewReady(project.id),
+			checkOpencodeReady(project.id),
 		]);
 
 		if (previewReady && opencodeReady) {
@@ -54,8 +54,8 @@ export async function handleDockerEnsureRunning(
 			// After successful restart, check if we need to create a new session
 			// Sessions are ephemeral and don't persist across container restarts
 			try {
-				// Check if any sessions exist
-				const sessionUrl = `http://127.0.0.1:${project.opencodePort}/session`;
+				// Check if any sessions exist via container hostname on the shared network
+				const sessionUrl = `http://doce_${project.id}-opencode-1:3000/session`;
 				const sessionsRes = await fetch(sessionUrl);
 
 				if (sessionsRes.ok) {

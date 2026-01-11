@@ -32,7 +32,7 @@ export interface HealthCheckOptions {
  * @returns true if server is healthy, false otherwise
  */
 export async function checkHealthEndpoint(
-	port: number,
+	hostOrPort: string | number,
 	options: HealthCheckOptions = {},
 ): Promise<boolean> {
 	const {
@@ -45,7 +45,13 @@ export async function checkHealthEndpoint(
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-		const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+		// Support both hostname (string) and port (number)
+		const url =
+			typeof hostOrPort === "string"
+				? `http://${hostOrPort}${path}`
+				: `http://127.0.0.1:${hostOrPort}${path}`;
+
+		const response = await fetch(url, {
 			signal: controller.signal,
 		});
 
@@ -61,9 +67,10 @@ export async function checkHealthEndpoint(
 /**
  * Check if a generic HTTP server is ready (responds to GET /).
  * Used for preview servers and production deployments.
+ * Supports both port (number) and hostname (string) for localhost and container names.
  */
 export async function checkHttpServerReady(
-	port: number,
+	portOrHost: number | string,
 	timeoutMs?: number,
 ): Promise<boolean> {
 	const options: HealthCheckOptions = {
@@ -76,14 +83,15 @@ export async function checkHttpServerReady(
 		options.timeoutMs = timeoutMs;
 	}
 
-	return checkHealthEndpoint(port, options);
+	return checkHealthEndpoint(portOrHost, options);
 }
 
 /**
  * Check if an OpenCode server is ready (responds to GET /doc with 200).
+ * Supports both port (number) and hostname (string) for localhost and container names.
  */
 export async function checkOpencodeServerReady(
-	port: number,
+	portOrHost: number | string,
 	timeoutMs?: number,
 ): Promise<boolean> {
 	const options: HealthCheckOptions = {
@@ -96,7 +104,7 @@ export async function checkOpencodeServerReady(
 		options.timeoutMs = timeoutMs;
 	}
 
-	return checkHealthEndpoint(port, options);
+	return checkHealthEndpoint(portOrHost, options);
 }
 
 /**
