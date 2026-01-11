@@ -126,9 +126,11 @@ jobs:
             # Step 7: Run container with direct port access
            echo "▶️  Starting container on port $PORT..."
            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock) && \
-               docker run -d \
-                --name doce-pr-$PR_NUM \
+               "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock) && \
+                docker run -d \
+                 --user root \
+                 --name doce-pr-$PR_NUM \
+
                 -p $PORT:4321 \
                 --group-add \$DOCKER_GID \
                 -e PORT=4321 \
