@@ -1,7 +1,9 @@
 /**
  * Generic health check endpoint utility.
- * Tests if a server is responding to HTTP requests.
+ * Tests if a server is responding to HTTP requests or via Docker API.
  */
+
+import { runCommand } from "@/server/utils/execAsync";
 
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
@@ -95,4 +97,44 @@ export async function checkOpencodeServerReady(
 	}
 
 	return checkHealthEndpoint(port, options);
+}
+
+/**
+ * Check if a Docker container is running and healthy.
+ * Useful for containers that can't be reached via HTTP from the app container.
+ */
+export async function checkDockerContainerReady(
+	containerName: string,
+): Promise<boolean> {
+	try {
+		// Check if container exists and is running
+		const result = await runCommand(
+			`docker inspect --format='{{.State.Running}}' ${containerName}`,
+		);
+
+		if (!result.success) {
+			return false;
+		}
+
+		const isRunning = result.stdout.trim() === "true";
+		if (!isRunning) {
+			return false;
+		}
+
+		// Also check health status if available
+		const healthResult = await runCommand(
+			`docker inspect --format='{{.State.Health.Status}}' ${containerName}`,
+		);
+
+		// If health check is configured, require healthy status
+		if (healthResult.success && healthResult.stdout.trim()) {
+			const healthStatus = healthResult.stdout.trim();
+			return healthStatus === "healthy" || healthStatus === "none";
+		}
+
+		// No health check configured, just running is enough
+		return true;
+	} catch {
+		return false;
+	}
 }

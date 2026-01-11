@@ -68,8 +68,8 @@ export async function handleDockerWaitReady(
 		);
 
 		const [previewReady, opencodeReady] = await Promise.all([
-			checkPreviewReady(project.devPort),
-			checkOpencodeReady(project.opencodePort),
+			checkPreviewReady(project.devPort, project.id),
+			checkOpencodeReady(project.opencodePort, project.id),
 		]);
 
 		logger.info(
