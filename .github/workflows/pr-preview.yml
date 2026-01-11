@@ -66,7 +66,7 @@ jobs:
            # Step 1: Clean up stale previews
            echo "📦 Cleaning up stale previews..."
            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down -v 2>/dev/null || true) || true; done"
+             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
 
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
@@ -188,7 +188,7 @@ jobs:
 
           # Stop compose stack and remove volumes
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $PR_DIR && docker-compose down -v 2>/dev/null || true"
+            "cd $PR_DIR && docker-compose down 2>/dev/null || true"
 
           # Release port
           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/release-port.sh $PR_NUM"
