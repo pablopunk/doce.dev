@@ -1,4 +1,13 @@
+import { randomBytes } from "node:crypto";
+import { eq, and, gt } from "drizzle-orm";
 import { logger } from "@/server/logger";
+import { db } from "@/server/db/client";
+import {
+	presence,
+	presenceViewers,
+	type NewPresence,
+	type NewPresenceViewer,
+} from "@/server/db/schema";
 import {
 	checkOpencodeReady,
 	checkPreviewReady,
@@ -18,17 +27,7 @@ import { listJobs } from "@/server/queue/queue.model";
 const PRESENCE_HEARTBEAT_MS = 15_000;
 const REAPER_INTERVAL_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop containers if no heartbeat received
-
-// Internal only - not exported
-interface ProjectPresence {
-	projectId: string;
-	viewers: Map<string, number>; // viewerId -> lastSeenAt
-	lastHeartbeatAt?: number; // When we last received a heartbeat (for keep-alive timeout)
-	stopAt?: number; // Scheduled stop time
-	startedAt?: number; // When we started the starting process
-	isStarting: boolean;
-}
+const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000;
 
 export interface PresenceResponse {
 	projectId: string;
@@ -39,96 +38,145 @@ export interface PresenceResponse {
 	opencodeReady: boolean;
 	message: string | null;
 	nextPollMs: number;
-	// Initial prompt fields (legacy)
 	initialPromptSent: boolean;
 	initialPromptCompleted: boolean;
-	// Prompt tracking (session.init no longer per-project)
 	userPromptCompleted: boolean;
 	userPromptMessageId: string | null;
 	prompt: string;
 	model: string | null;
-	// Project slug
 	slug: string;
-	// Session ID for chat
 	bootstrapSessionId: string | null;
-	// Setup error (if a queue job failed during setup)
 	setupError: string | null;
 }
 
-// In-memory presence state
-const presenceMap = new Map<string, ProjectPresence>();
-
-// Per-project mutex using queue-based locking to prevent race conditions
-interface LockRequest {
-	resolve: () => void;
-}
-const projectLockQueues = new Map<string, LockRequest[]>();
-const projectLockHolders = new Map<string, number>(); // version counter per project
-
-/**
- * Acquire a lock for a project. Returns a release function.
- * Uses a queue-based approach to ensure strictly sequential access.
- */
-async function acquireLock(projectId: string): Promise<() => void> {
-	let resolveLock: (() => void) | undefined;
-	const lockPromise = new Promise<void>((resolve) => {
-		resolveLock = resolve;
-	});
-
-	const queue = projectLockQueues.get(projectId) ?? [];
-	projectLockQueues.set(projectId, queue);
-
-	// Add ourselves to the queue
-	queue.push({ resolve: resolveLock! });
-
-	// If we're first in queue, acquire immediately
-	if (queue.length === 1) {
-		resolveLock!();
-	} else {
-		// Otherwise, wait for our turn
-		await lockPromise;
-	}
-
-	// Track that we hold the lock
-	const lockVersion = (projectLockHolders.get(projectId) ?? 0) + 1;
-	projectLockHolders.set(projectId, lockVersion);
-
-	// Return release function
-	return () => {
-		// Remove ourselves from queue
-		queue.shift();
-
-		// Wake up next waiter if any
-		if (queue.length > 0) {
-			queue[0]!.resolve();
-		} else {
-			// Clean up empty queue
-			projectLockQueues.delete(projectId);
-		}
-	};
-}
-
-/**
- * Get or create presence record for a project.
- */
-function getPresence(projectId: string): ProjectPresence {
-	let presence = presenceMap.get(projectId);
-	if (!presence) {
-		presence = {
+async function getPresenceRecord(projectId: string) {
+	const record = await db
+		.select()
+		.from(presence)
+		.where(eq(presence.projectId, projectId))
+		.get();
+	if (!record) {
+		const newRecord: NewPresence = {
 			projectId,
-			viewers: new Map(),
 			isStarting: false,
+			updatedAt: new Date(),
 		};
-		presenceMap.set(projectId, presence);
+		await db.insert(presence).values(newRecord);
+		return {
+			...newRecord,
+			lastHeartbeatAt: null,
+			stopAt: null,
+			startedAt: null,
+		};
 	}
-	return presence;
+	return record;
 }
 
-/**
- * Calculate next poll interval based on how long we've been starting.
- */
-function calculateNextPollMs(startedAt: number): number {
-	const elapsed = Date.now() - startedAt;
+async function updatePresenceRecord(
+	projectId: string,
+	updates: {
+		lastHeartbeatAt?: Date | null;
+		stopAt?: Date | null;
+		startedAt?: Date | null;
+		isStarting?: boolean;
+	},
+) {
+	await db
+		.update(presence)
+		.set({
+			...updates,
+			updatedAt: new Date(),
+		})
+		.where(eq(presence.projectId, projectId));
+}
+
+async function getViewerCount(projectId: string) {
+	const viewers = await db
+		.select()
+		.from(presenceViewers)
+		.where(eq(presenceViewers.projectId, projectId));
+	return viewers.length;
+}
+
+async function upsertViewer(projectId: string, viewerId: string) {
+	const existing = await db
+		.select()
+		.from(presenceViewers)
+		.where(
+			and(
+				eq(presenceViewers.projectId, projectId),
+				eq(presenceViewers.viewerId, viewerId),
+			),
+		)
+		.get();
+
+	if (existing) {
+		await db
+			.update(presenceViewers)
+			.set({ lastSeenAt: new Date() })
+			.where(eq(presenceViewers.id, existing.id));
+	} else {
+		const newViewer: NewPresenceViewer = {
+			id: randomBytes(16).toString("hex"),
+			projectId,
+			viewerId,
+			lastSeenAt: new Date(),
+			createdAt: new Date(),
+		};
+		await db.insert(presenceViewers).values(newViewer);
+	}
+}
+
+async function pruneStaleViewers(projectId: string) {
+	const staleThreshold = new Date(Date.now() - 2 * PRESENCE_HEARTBEAT_MS);
+	const staleViewers = await db
+		.select()
+		.from(presenceViewers)
+		.where(
+			and(
+				eq(presenceViewers.projectId, projectId),
+				gt(presenceViewers.lastSeenAt, staleThreshold),
+			),
+		);
+
+	for (const viewer of staleViewers) {
+		if (viewer.lastSeenAt < staleThreshold) {
+			await db.delete(presenceViewers).where(eq(presenceViewers.id, viewer.id));
+			logger.debug(
+				{ projectId, viewerId: viewer.viewerId },
+				"Pruned stale viewer",
+			);
+		}
+	}
+}
+
+async function acquireLock(projectId: string): Promise<() => void> {
+	const lockKey = `presence_lock:${projectId}`;
+	const lockValue = randomBytes(16).toString("hex");
+	const startTime = Date.now();
+
+	while (Date.now() - startTime < 10000) {
+		try {
+			await db.insert(presenceViewers).values({
+				id: lockKey,
+				projectId,
+				viewerId: `__lock_${lockValue}`,
+				lastSeenAt: new Date(),
+				createdAt: new Date(),
+			});
+			return async () => {
+				await db.delete(presenceViewers).where(eq(presenceViewers.id, lockKey));
+			};
+		} catch {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+	}
+
+	throw new Error(`Failed to acquire lock for project ${projectId}`);
+}
+
+function calculateNextPollMs(startedAt: Date): number {
+	const elapsed = Date.now() - startedAt.getTime();
 	const pollCount = Math.floor(elapsed / 500);
 
 	if (pollCount < 3) return 500;
@@ -136,9 +184,6 @@ function calculateNextPollMs(startedAt: number): number {
 	return 2000;
 }
 
-/**
- * Check for any failed queue jobs related to this project's setup
- */
 async function getSetupError(projectId: string): Promise<string | null> {
 	try {
 		const failedJobs = await listJobs({
@@ -158,10 +203,6 @@ async function getSetupError(projectId: string): Promise<string | null> {
 	}
 }
 
-/**
- * Handle a presence heartbeat from a viewer.
- * This is the main entry point for the presence system.
- */
 export async function handlePresenceHeartbeat(
 	projectId: string,
 	viewerId: string,
@@ -174,16 +215,15 @@ export async function handlePresenceHeartbeat(
 			throw new Error("Project not found");
 		}
 
-		const presence = getPresence(projectId);
+		const presenceRecord = await getPresenceRecord(projectId);
 
-		// Check for setup errors from failed queue jobs
 		const setupError = await getSetupError(projectId);
 
 		if (project.status === "deleting") {
 			return {
 				projectId,
 				status: "deleting",
-				viewerCount: 0,
+				viewerCount: await getViewerCount(projectId),
 				previewUrl: `http://127.0.0.1:${project.devPort}`,
 				previewReady: false,
 				opencodeReady: false,
@@ -201,53 +241,46 @@ export async function handlePresenceHeartbeat(
 			};
 		}
 
-		// Update viewer presence
-		presence.viewers.set(viewerId, Date.now());
+		await upsertViewer(projectId, viewerId);
 
-		// Cancel any scheduled stop
-		delete presence.stopAt;
+		await updatePresenceRecord(projectId, {
+			stopAt: null,
+			lastHeartbeatAt: new Date(),
+		});
 
-		// Update last heartbeat time to reset the keep-alive timer
-		presence.lastHeartbeatAt = Date.now();
-
-		// Check current health and periodically capture container logs
 		const [previewReady, opencodeReady] = await Promise.all([
 			checkPreviewReady(project.devPort),
 			checkOpencodeReady(project.opencodePort),
 		]);
 
-		// Reconcile status based on health checks
 		let status = project.status;
 		let message: string | null = null;
 		let nextPollMs = PRESENCE_HEARTBEAT_MS;
 
 		if (previewReady && opencodeReady) {
-			// Both services are up
 			if (status !== "running") {
 				await updateProjectStatus(projectId, "running");
 				status = "running";
 			}
-			presence.isStarting = false;
+			await updatePresenceRecord(projectId, { isStarting: false });
 			message = null;
-		} else if (presence.isStarting) {
-			// We're in the process of starting
+		} else if (presenceRecord.isStarting) {
 			status = "starting";
 
-			if (!presence.startedAt) {
-				presence.startedAt = Date.now();
+			if (!presenceRecord.startedAt) {
+				await updatePresenceRecord(projectId, { startedAt: new Date() });
 			}
 
-			const elapsed = Date.now() - presence.startedAt;
+			const startedAt = presenceRecord.startedAt || new Date();
+			const elapsed = Date.now() - startedAt.getTime();
 
 			if (elapsed > START_MAX_WAIT_MS) {
-				// Timeout - mark as error
 				await updateProjectStatus(projectId, "error");
 				status = "error";
-				presence.isStarting = false;
+				await updatePresenceRecord(projectId, { isStarting: false });
 				message = "Failed to start containers. Open terminal for details.";
 				nextPollMs = 2000;
 			} else {
-				// Still starting
 				if (!previewReady && !opencodeReady) {
 					message = "Starting containers...";
 				} else if (!previewReady) {
@@ -255,16 +288,17 @@ export async function handlePresenceHeartbeat(
 				} else {
 					message = "Waiting for opencode...";
 				}
-				nextPollMs = calculateNextPollMs(presence.startedAt);
+				nextPollMs = calculateNextPollMs(startedAt);
 			}
 		} else if (
 			status === "created" ||
 			status === "stopped" ||
 			status === "error"
 		) {
-			// Need to start the containers
-			presence.isStarting = true;
-			presence.startedAt = Date.now();
+			await updatePresenceRecord(projectId, {
+				isStarting: true,
+				startedAt: new Date(),
+			});
 
 			try {
 				await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
@@ -279,13 +313,13 @@ export async function handlePresenceHeartbeat(
 				logger.error({ error, projectId }, "Failed to enqueue container start");
 			}
 		} else if (status === "running" && !previewReady && !opencodeReady) {
-			// Containers crashed or were stopped externally
 			await updateProjectStatus(projectId, "stopped");
 			status = "stopped";
 
-			// Trigger restart
-			presence.isStarting = true;
-			presence.startedAt = Date.now();
+			await updatePresenceRecord(projectId, {
+				isStarting: true,
+				startedAt: new Date(),
+			});
 
 			try {
 				await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
@@ -307,7 +341,7 @@ export async function handlePresenceHeartbeat(
 		return {
 			projectId,
 			status,
-			viewerCount: presence.viewers.size,
+			viewerCount: await getViewerCount(projectId),
 			previewUrl: `http://127.0.0.1:${project.devPort}`,
 			previewReady,
 			opencodeReady,
@@ -324,45 +358,35 @@ export async function handlePresenceHeartbeat(
 			setupError,
 		};
 	} finally {
-		release();
+		await release();
 	}
 }
 
-/**
- * Reaper function that runs periodically to clean up idle projects.
- */
 async function runReaper(): Promise<void> {
-	const now = Date.now();
+	const presenceRecords = await db.select().from(presence);
 
-	for (const [projectId, presence] of presenceMap) {
-		// Skip if operations in progress
-		if (presence.isStarting) {
+	for (const record of presenceRecords) {
+		const { projectId, isStarting, lastHeartbeatAt } = record;
+
+		if (isStarting) {
 			continue;
 		}
 
-		// Prune stale viewers (haven't heartbeated in 2x interval)
-		const staleThreshold = now - 2 * PRESENCE_HEARTBEAT_MS;
-		for (const [viewerId, lastSeen] of presence.viewers) {
-			if (lastSeen < staleThreshold) {
-				presence.viewers.delete(viewerId);
-				logger.debug({ projectId, viewerId }, "Pruned stale viewer");
-			}
-		}
+		await pruneStaleViewers(projectId);
 
-		// Handle keep-alive timeout for running containers
 		const project = await getProjectById(projectId);
 		if (project?.status === "running") {
-			if (presence.lastHeartbeatAt !== undefined) {
-				const timeSinceLastHeartbeat = now - presence.lastHeartbeatAt;
+			if (lastHeartbeatAt) {
+				const timeSinceLastHeartbeat = Date.now() - lastHeartbeatAt.getTime();
+				const viewerCount = await getViewerCount(projectId);
 
-				// Stop if no heartbeat received for keep-alive timeout AND no active viewers
 				if (
 					timeSinceLastHeartbeat >= CONTAINER_KEEP_ALIVE_TIMEOUT_MS &&
-					presence.viewers.size === 0
+					viewerCount === 0
 				) {
 					try {
 						await enqueueDockerStop({ projectId, reason: "idle" });
-						delete presence.lastHeartbeatAt;
+						await updatePresenceRecord(projectId, { lastHeartbeatAt: null });
 						logger.info(
 							{ projectId, timeSinceLastHeartbeat },
 							"Container stopped due to keep-alive timeout",
@@ -376,24 +400,18 @@ async function runReaper(): Promise<void> {
 				}
 			}
 		}
-
-		// Note: Container auto-stops if no heartbeat received for 60 seconds
-		// Heartbeats come from active viewers in PreviewPanel, ChatPanel, etc.
 	}
 }
 
-// Start the reaper
 let reaperInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startReaper(): void {
 	if (reaperInterval) return;
 
-	// Execute reaper immediately on start
 	runReaper().catch((err) => {
 		logger.error({ error: err }, "Initial reaper execution failed");
 	});
 
-	// Then set interval - wrap in error handler since runReaper is async
 	reaperInterval = setInterval(() => {
 		runReaper().catch((err) => {
 			logger.error({ error: err }, "Reaper execution failed");
@@ -411,5 +429,4 @@ export function stopReaper(): void {
 	}
 }
 
-// Auto-start reaper on module load
 startReaper();

@@ -10,12 +10,12 @@ SET current_model = CASE
     ELSE current_model  -- Keep existing current_model if model is null
 END
 WHERE current_model IS NULL AND model IS NOT NULL;
-
+--> statement-breakpoint
 -- Fix any existing data that might be missing provider prefixes
 UPDATE projects
 SET current_model = 'openrouter/' || current_model
 WHERE current_model IS NOT NULL
   AND current_model NOT LIKE '%/%';
-
+--> statement-breakpoint
 -- Drop the old 'model' column
 ALTER TABLE projects DROP COLUMN model;

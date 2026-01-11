@@ -3,7 +3,7 @@
 
 -- Add new column
 ALTER TABLE projects ADD COLUMN current_model TEXT;
-
+--> statement-breakpoint
 -- Migrate existing data (if any)
 -- Assumes existing format is: provider="openrouter", model="google/gemini-3-flash"
 UPDATE projects
@@ -15,7 +15,8 @@ SET current_model = CASE
     ELSE NULL
 END
 WHERE current_model IS NULL AND current_model_id IS NOT NULL;
-
+--> statement-breakpoint
 -- Drop old columns
 ALTER TABLE projects DROP COLUMN current_model_provider_id;
+--> statement-breakpoint
 ALTER TABLE projects DROP COLUMN current_model_id;
