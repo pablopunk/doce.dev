@@ -149,7 +149,18 @@ export function PreviewPanel({
 
 	const handlePresenceResponse = useCallback(
 		(data: PresenceResponse) => {
-			setPreviewUrl(data.previewUrl);
+			// Construct preview URL from current window location origin + port from backend response
+			// This ensures the preview works in both local and remote deployments
+			if (typeof window !== "undefined" && data.previewUrl) {
+				// Extract port from the backend's previewUrl (e.g., "http://127.0.0.1:42949" -> "42949")
+				const match = data.previewUrl.match(/:(\d+)$/);
+				const port = match ? match[1] : "4321";
+				const frontendPreviewUrl = `${window.location.origin.replace(/:\d+$/, "")}:${port}`;
+				setPreviewUrl(frontendPreviewUrl);
+			} else {
+				setPreviewUrl(data.previewUrl);
+			}
+
 			setMessage(data.message);
 			onStatusChange?.(data);
 
