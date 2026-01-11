@@ -66,7 +66,7 @@ jobs:
            # Step 1: Clean up stale previews
            echo "📦 Cleaning up stale previews..."
            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-             "cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down -v 2>/dev/null || true) || true; done"
+             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down -v 2>/dev/null || true) || true; done"
 
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
