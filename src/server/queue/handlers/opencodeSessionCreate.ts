@@ -44,6 +44,11 @@ export async function handleOpencodeSessionCreate(
 	}
 
 	try {
+		logger.info(
+			{ projectId: project.id },
+			"opencode.sessionCreate handler started",
+		);
+
 		await ctx.throwIfCancelRequested();
 
 		// Load model configuration from opencode.json
@@ -59,7 +64,7 @@ export async function handleOpencodeSessionCreate(
 			const parsed = parseModelString(modelStr);
 			if (parsed) {
 				modelInfo = parsed;
-				logger.debug(
+				logger.info(
 					{ projectId: project.id, model: modelStr },
 					"Loaded model from opencode.json",
 				);
@@ -68,12 +73,26 @@ export async function handleOpencodeSessionCreate(
 
 		// Create opencode client (v2 SDK)
 		// Pass projectId to connect via container hostname within the Docker network
+		logger.info(
+			{ projectId: project.id },
+			"Creating OpenCode client for container communication",
+		);
 		const client = createOpencodeClient(project.id);
 
 		// Create a new session
 		let sessionId: string;
 		try {
+			logger.info({ projectId: project.id }, "Calling client.session.create()");
 			const sessionResponse = await client.session.create();
+
+			logger.info(
+				{
+					projectId: project.id,
+					responseOk: sessionResponse.response?.ok,
+					hasData: !!sessionResponse.data,
+				},
+				"Received session creation response",
+			);
 
 			// Type-safe extraction of session ID
 			if (!sessionResponse.data || typeof sessionResponse.data !== "object") {
@@ -91,6 +110,7 @@ export async function handleOpencodeSessionCreate(
 				{
 					projectId: project.id,
 					error: error instanceof Error ? error.message : String(error),
+					errorStack: error instanceof Error ? error.stack : undefined,
 				},
 				"Failed to create OpenCode session",
 			);
@@ -99,18 +119,33 @@ export async function handleOpencodeSessionCreate(
 
 		logger.info(
 			{ projectId: project.id, sessionId, model: modelInfo },
-			"Created opencode session",
+			"Created opencode session successfully",
 		);
 
 		// Store the session ID in the project
 		await updateBootstrapSessionId(project.id, sessionId);
+		logger.info(
+			{ projectId: project.id, sessionId },
+			"Updated bootstrap session ID in database",
+		);
 
 		await ctx.throwIfCancelRequested();
 
 		// Enqueue next step: send user prompt
 		await enqueueOpencodeSendUserPrompt({ projectId: project.id });
-		logger.debug({ projectId: project.id }, "Enqueued opencode.sendUserPrompt");
+		logger.info(
+			{ projectId: project.id },
+			"Enqueued opencode.sendUserPrompt job",
+		);
 	} catch (error) {
+		logger.error(
+			{
+				projectId: project.id,
+				error: error instanceof Error ? error.message : String(error),
+				errorStack: error instanceof Error ? error.stack : undefined,
+			},
+			"opencode.sessionCreate handler failed",
+		);
 		throw error;
 	}
 }

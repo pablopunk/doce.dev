@@ -55,10 +55,20 @@ export async function handleOpencodeSendUserPrompt(
 	}
 
 	try {
+		logger.info(
+			{ projectId: project.id },
+			"opencode.sendUserPrompt handler started",
+		);
+
 		const sessionId = project.bootstrapSessionId;
 		if (!sessionId) {
 			throw new Error("No bootstrap session ID found - session not created?");
 		}
+
+		logger.info(
+			{ projectId: project.id, sessionId },
+			"Bootstrap session ID found, proceeding with prompt send",
+		);
 
 		await ctx.throwIfCancelRequested();
 
@@ -301,12 +311,24 @@ export async function handleOpencodeSendUserPrompt(
 
 		// Mark initial prompt as sent (legacy flag for backward compatibility)
 		await markInitialPromptSent(project.id);
-
-		logger.debug(
+		logger.info(
 			{ projectId: project.id },
-			"User prompt sent, completion will be detected by event handler",
+			"Marked initial prompt as sent in database",
+		);
+
+		logger.info(
+			{ projectId: project.id },
+			"opencode.sendUserPrompt handler completed successfully",
 		);
 	} catch (error) {
+		logger.error(
+			{
+				projectId: project.id,
+				error: error instanceof Error ? error.message : String(error),
+				errorStack: error instanceof Error ? error.stack : undefined,
+			},
+			"opencode.sendUserPrompt handler failed",
+		);
 		throw error;
 	}
 }
