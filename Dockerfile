@@ -44,11 +44,8 @@ COPY drizzle.config.ts ./
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
 
-# Change ownership to node user (node user exists in node:20-alpine)
-RUN chown -R node:node /app
-
-# Switch to non-root user
-USER node
+# Run as root for Docker socket access in preview environments
+# (container runs as root for Docker daemon access)
 
 # Expose port
 EXPOSE 4321
