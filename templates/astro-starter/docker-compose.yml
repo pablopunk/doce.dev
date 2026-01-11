@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.preview
     volumes:
-      - ${PROJECT_ID}_data:/app
+      - project_files:/app
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
       - "${DEV_PORT:-4321}:4321"
@@ -15,14 +15,15 @@ services:
       context: .
       dockerfile: Dockerfile.opencode
     volumes:
-      - ${PROJECT_ID}_data:/app
+      - project_files:/app
       - opencode-data:/root/.local/share/opencode
       - ../../opencode/auth.json:/root/.local/share/opencode/auth.json
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
 
 volumes:
-  ${PROJECT_ID}_data:
+  project_files:
+    name: ${PROJECT_DATA_VOLUME_NAME}
   pnpm-store:
     external: true
     name: doce-global-pnpm-store

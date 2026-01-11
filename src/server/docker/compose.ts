@@ -262,6 +262,9 @@ export async function composeUp(
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
 	const logsDir = path.join(normalizedProjectPath, "logs");
 
+	// Ensure the project data volume exists before starting containers
+	await ensureProjectDataVolume(projectId);
+
 	// Don't use --remove-orphans when production might be running with a separate compose file
 	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
 	const args = preserveProduction
@@ -526,6 +529,38 @@ export async function ensureGlobalPnpmVolume(): Promise<void> {
 		logger.warn(
 			{ error: err, volumeName },
 			"Failed to ensure global pnpm volume",
+		);
+	}
+}
+
+/**
+ * Ensure a project-specific data volume exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ * @param projectId The project ID
+ */
+export async function ensureProjectDataVolume(
+	projectId: string,
+): Promise<void> {
+	const volumeName = `doce_${projectId}_data`;
+
+	try {
+		// Try to create the volume - Docker silently ignores if it already exists
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ projectId, volumeName }, "Project data volume ensured");
+		} else {
+			logger.warn(
+				{ error: result.stderr, projectId, volumeName },
+				"Failed to ensure project data volume",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn(
+			{ error: err, projectId, volumeName },
+			"Failed to ensure project data volume",
 		);
 	}
 }
