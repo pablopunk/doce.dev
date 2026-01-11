@@ -129,9 +129,9 @@ jobs:
                "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock) && \
                 docker run -d \
                  --user root \
-                 --name doce-pr-$PR_NUM \
-
+               --name doce-pr-$PR_NUM \
                 -p $PORT:4321 \
+
                 --group-add \$DOCKER_GID \
                 -e PORT=4321 \
                 -e HOST=0.0.0.0 \
