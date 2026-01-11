@@ -96,10 +96,10 @@ jobs:
                docker tag ghcr.io/${{ github.repository_owner }}/doce.dev:latest doce-pr-$PR_NUM:latest"
           fi
 
-          # Step 6: Generate compose file from template
-          echo "📝 Generating docker-compose.yml..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $REPO_DIR && PR_NUM=$PR_NUM PORT=$PORT envsubst < docker-compose.preview.yml > $PR_DIR/docker-compose.yml"
+           # Step 6: Generate compose file from template
+           echo "📝 Generating docker-compose.yml..."
+           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "cd $REPO_DIR && DOCE_DATA_DIR=/app/data PR_NUM=$PR_NUM PORT=$PORT envsubst < docker-compose.preview.yml > $PR_DIR/docker-compose.yml"
 
           # Step 7: Start preview environment with docker-compose
           echo "▶️  Starting preview environment on port $PORT..."
