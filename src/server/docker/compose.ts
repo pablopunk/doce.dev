@@ -125,6 +125,10 @@ async function runComposeCommand(
 	return new Promise((resolve) => {
 		const proc = spawn(command, fullArgs, {
 			cwd: projectPath,
+			env: {
+				...process.env,
+				PROJECT_ID: projectId,
+			},
 		});
 
 		let stdout = "";
@@ -197,6 +201,10 @@ async function runComposeCommandProduction(
 	return new Promise((resolve) => {
 		const proc = spawn(command, fullArgs, {
 			cwd: productionPath,
+			env: {
+				...process.env,
+				PROJECT_ID: projectId,
+			},
 		});
 
 		let stdout = "";
