@@ -134,7 +134,6 @@ async function runComposeCommand(
 				...process.env,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
-				DOCE_DATA_DIR: process.env.DOCE_DATA_DIR || "/app/data",
 			},
 		});
 
@@ -217,7 +216,6 @@ async function runComposeCommandProduction(
 				...process.env,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
-				DOCE_DATA_DIR: process.env.DOCE_DATA_DIR || "/app/data",
 			},
 		});
 
