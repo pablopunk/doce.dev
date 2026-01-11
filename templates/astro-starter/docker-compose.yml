@@ -19,11 +19,7 @@ services:
       dockerfile: Dockerfile.opencode
     volumes:
       - project_files:/app
-      - opencode-data:/root/.local/share/opencode
-      # Mount the entire opencode directory to ensure auth.json is accessible
-      # Uses absolute path from DOCE_DATA_DIR env var (set by app) or falls back to /app/data
-      # This works for both local dev (where data/ is mounted to /app/data) and PR previews
-      - ${DOCE_DATA_DIR:-/app/data}/opencode:/root/.local/share/opencode
+      - project_files:/root/.local/share/opencode
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
     networks:
@@ -36,8 +32,6 @@ volumes:
   pnpm-store:
     external: true
     name: doce-global-pnpm-store
-  opencode-bin:
-  opencode-data:
 
 networks:
   default:
