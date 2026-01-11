@@ -113,8 +113,8 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 		});
 	}
 
-	// Build upstream URL
-	const upstreamUrl = `http://127.0.0.1:${project.opencodePort}/${proxyPath}`;
+	// Build upstream URL using container hostname for inter-container communication
+	const upstreamUrl = `http://doce_${projectId}-opencode-1:3000/${proxyPath}`;
 
 	// Prepare request
 	const method = request.method;

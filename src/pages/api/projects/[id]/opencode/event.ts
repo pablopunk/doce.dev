@@ -44,8 +44,8 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		return new Response("Not found", { status: 404 });
 	}
 
-	// Connect to upstream opencode SSE
-	const upstreamUrl = `http://127.0.0.1:${project.opencodePort}/event`;
+	// Connect to upstream opencode SSE using container hostname for inter-container communication
+	const upstreamUrl = `http://doce_${projectId}-opencode-1:3000/event`;
 
 	let upstreamResponse: Response;
 	try {

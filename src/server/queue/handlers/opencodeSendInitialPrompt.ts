@@ -49,7 +49,8 @@ export async function handleOpencodeSendInitialPrompt(
 		await ctx.throwIfCancelRequested();
 
 		// Send the initial prompt via HTTP (prompt_async)
-		const url = `http://127.0.0.1:${project.opencodePort}/session/${sessionId}/prompt_async`;
+		// Use container hostname for inter-container communication
+		const url = `http://doce_${project.id}-opencode-1:3000/session/${sessionId}/prompt_async`;
 
 		const response = await fetch(url, {
 			method: "POST",
