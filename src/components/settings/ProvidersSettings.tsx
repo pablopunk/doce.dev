@@ -195,18 +195,23 @@ export function ProvidersSettings() {
 							</PopoverContent>
 						</Popover>
 					</div>
-					<div>
-						<label htmlFor="api-key" className="block text-sm font-medium mb-2">
-							API Key
-						</label>
-						<Input
-							id="api-key"
-							type="password"
-							value={apiKey}
-							onChange={(e) => setApiKey(e.target.value)}
-							placeholder="sk-..."
-						/>
-					</div>
+					{selectedProvider && (
+						<div>
+							<label
+								htmlFor="api-key"
+								className="block text-sm font-medium mb-2"
+							>
+								API Key
+							</label>
+							<Input
+								id="api-key"
+								type="password"
+								value={apiKey}
+								onChange={(e) => setApiKey(e.target.value)}
+								placeholder="sk-..."
+							/>
+						</div>
+					)}
 					<Button
 						onClick={handleConnect}
 						disabled={isConnecting || !selectedProvider || !apiKey.trim()}

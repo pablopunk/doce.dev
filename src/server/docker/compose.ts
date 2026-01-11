@@ -123,11 +123,17 @@ async function runComposeCommand(
 	);
 
 	return new Promise((resolve) => {
+		// Determine the shared network name for this deployment
+		// In container environments, DOCE_NETWORK is set by docker-compose
+		// In local development, use a default network name
+		const docceNetwork = process.env.DOCE_NETWORK || "doce-shared";
+
 		const proc = spawn(command, fullArgs, {
 			cwd: projectPath,
 			env: {
 				...process.env,
 				PROJECT_ID: projectId,
+				DOCE_NETWORK: docceNetwork,
 			},
 		});
 
@@ -199,11 +205,17 @@ async function runComposeCommandProduction(
 	);
 
 	return new Promise((resolve) => {
+		// Determine the shared network name for this deployment
+		// In container environments, DOCE_NETWORK is set by docker-compose
+		// In local development, use a default network name
+		const docceNetwork = process.env.DOCE_NETWORK || "doce-shared";
+
 		const proc = spawn(command, fullArgs, {
 			cwd: productionPath,
 			env: {
 				...process.env,
 				PROJECT_ID: projectId,
+				DOCE_NETWORK: docceNetwork,
 			},
 		});
 

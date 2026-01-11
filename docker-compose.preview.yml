@@ -7,11 +7,13 @@ services:
     environment:
       PORT: 4321
       HOST: 0.0.0.0
+      DOCE_NETWORK: doce-preview-${PR_NUM}
     volumes:
       - pr_${PR_NUM}_data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - preview
+      - doce-shared
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4321/"]
@@ -26,3 +28,6 @@ volumes:
 networks:
   preview:
     driver: bridge
+  doce-shared:
+    driver: bridge
+    name: doce-preview-${PR_NUM}

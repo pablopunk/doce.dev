@@ -67,7 +67,8 @@ export async function handleOpencodeSessionCreate(
 		}
 
 		// Create opencode client (v2 SDK)
-		const client = createOpencodeClient(project.opencodePort);
+		// Pass projectId to connect via container hostname within the Docker network
+		const client = createOpencodeClient(project.id);
 
 		// Create a new session
 		let sessionId: string;

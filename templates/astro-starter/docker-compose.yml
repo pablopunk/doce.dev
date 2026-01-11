@@ -10,6 +10,9 @@ services:
       - "${DEV_PORT:-4321}:4321"
     environment:
       - HOST=0.0.0.0
+    networks:
+      - default
+      - doce-shared
   opencode:
     build:
       context: .
@@ -20,6 +23,9 @@ services:
       - ../../opencode/auth.json:/root/.local/share/opencode/auth.json
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
+    networks:
+      - default
+      - doce-shared
 
 volumes:
   project_files:
@@ -29,3 +35,9 @@ volumes:
     name: doce-global-pnpm-store
   opencode-bin:
   opencode-data:
+
+networks:
+  default:
+  doce-shared:
+    external: true
+    name: ${DOCE_NETWORK:-doce-shared}

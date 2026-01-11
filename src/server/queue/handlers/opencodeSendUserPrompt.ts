@@ -108,7 +108,8 @@ export async function handleOpencodeSendUserPrompt(
 		}
 
 		// Create SDK client for this project
-		const client = createOpencodeClient(project.opencodePort);
+		// Pass projectId to connect via container hostname within the Docker network
+		const client = createOpencodeClient(project.id);
 
 		// Send the user's prompt via SDK with model specified
 		try {
