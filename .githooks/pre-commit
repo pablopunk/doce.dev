@@ -1,0 +1,20 @@
+#!/bin/bash
+# Pre-commit hook to auto-generate Drizzle migrations if schema changed
+
+# Check if schema.ts changed
+if git diff --cached --name-only | grep -q "src/server/db/schema.ts"; then
+	echo "📦 Schema changed - generating migration..."
+	
+	# Generate migration (idempotent - no-op if no changes)
+	pnpm drizzle:generate > /dev/null 2>&1
+	
+	# Add any new migration files to commit
+	git add drizzle/ 2>/dev/null || true
+	
+	# Check if migration was generated
+	if git diff --cached --name-only | grep -q "drizzle/.*/migration.sql"; then
+		echo "✅ Migration generated and added to commit"
+	else
+		echo "ℹ️  No new migration (schema already in sync with migrations)"
+	fi
+fi

@@ -2,12 +2,12 @@
 	"$schema": "https://opencode.ai/config.json",
 	"agent": {
 		"plan": {
-			"model": "openrouter/google/gemini-3-flash-preview",
+			"model": "opencode/glm-4.7-free",
 			"options": {},
 			"permission": {}
 		},
 		"build": {
-			"model": "openrouter/google/gemini-3-flash-preview",
+			"model": "opencode/glm-4.7-free",
 			"options": {},
 			"permission": {}
 		}

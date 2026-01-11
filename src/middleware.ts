@@ -7,6 +7,10 @@ import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
+import { ensureDatabaseReady } from "@/server/db/ensure-db";
+
+// Run migrations before other initialization
+await ensureDatabaseReady();
 
 // Initialize once per process lifecycle
 ensureQueueWorkerStarted();

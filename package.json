@@ -3,7 +3,8 @@
 	"version": "1.0.0",
 	"type": "module",
 	"scripts": {
-		"bootstrap": "mkdir -p data && pnpm install && pnpm drizzle:push",
+		"bootstrap": "mkdir -p data && pnpm install && pnpm drizzle:migrate",
+		"postinstall": "git config core.hooksPath .githooks",
 		"dev": "astro dev",
 		"build": "astro build",
 		"preview": "astro preview",
@@ -13,8 +14,8 @@
 		"icons:generate": "node scripts/generate-icons.js",
 		"format": "pnpm exec biome check --write src/",
 		"drizzle:push": "drizzle-kit push",
-		"drizzle:migration:create": "drizzle-kit generate",
-		"drizzle:migration:migrate": "drizzle-kit migrate",
+		"drizzle:generate": "drizzle-kit generate",
+		"drizzle:migrate": "drizzle-kit migrate",
 		"drizzle:studio": "drizzle-kit studio"
 	},
 	"packageManager": "pnpm@10.20.0",
