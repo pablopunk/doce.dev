@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"bootstrap": "mkdir -p data && pnpm install && pnpm drizzle:migrate",
-		"postinstall": "git config core.hooksPath .githooks",
+		"postinstall": "command -v git >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
 		"dev": "astro dev",
 		"build": "astro build",
 		"preview": "astro preview",
