@@ -129,19 +129,18 @@ jobs:
                "DOCKER_GID=\$(stat -c '%g' /var/run/docker.sock) && \
                 docker run -d \
                  --user root \
-               --name doce-pr-$PR_NUM \
-                -p $PORT:4321 \
-
-                --group-add \$DOCKER_GID \
-                -e PORT=4321 \
-                -e HOST=0.0.0.0 \
-                -e DOCE_DATA_DIR=$PR_DIR/data \
-               -e DB_FILE_NAME=$PR_DIR/data/db.sqlite \
-               -v $PR_DIR/data:$PR_DIR/data \
-               -v $PR_DIR/data:/app/data \
-               -v /var/run/docker.sock:/var/run/docker.sock \
-               --restart unless-stopped \
-               doce-pr-$PR_NUM:latest"
+                 --name doce-pr-$PR_NUM \
+                 -p $PORT:4321 \
+                 --group-add \$DOCKER_GID \
+                 -e PORT=4321 \
+                 -e HOST=0.0.0.0 \
+                 -e DOCE_DATA_DIR=$PR_DIR/data \
+                 -e DB_FILE_NAME=$PR_DIR/data/db.sqlite \
+                 -v $PR_DIR/data:$PR_DIR/data \
+                 -v $PR_DIR/data:/app/data \
+                 -v /var/run/docker.sock:/var/run/docker.sock \
+                 --restart unless-stopped \
+                 doce-pr-$PR_NUM:latest"
 
 
           # Step 8: Wait for container to be healthy
