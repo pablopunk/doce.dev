@@ -1,6 +1,14 @@
 # doce.dev - Self-Hosted AI Website Builder
 
-> Delicious Open Code Environments
+```
+(D)elicious (O)pen       (C)ode       (E)nvironments
+(D)eploy    (O)n         (C)ontainers (E)asily
+(D)ocker    (O)ver       (C)omputers  (E)verywhere
+(D)eploy    (O)nce       (C)rash      (E)verywhere
+(D)on't     (O)ver       (C)omplicate (E)nvironments
+
+D            O            C            E
+```
 
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
