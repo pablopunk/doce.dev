@@ -26,10 +26,10 @@ jobs:
         id: dockerfile-check
         run: |
           if git diff origin/main...HEAD -- Dockerfile | grep -q .; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "Dockerfile has changes, will rebuild image"
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Dockerfile unchanged, will reuse main branch image"
           fi
 
@@ -40,13 +40,17 @@ jobs:
 
       - name: Extract PR number
         id: pr
-        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+        run: echo "number=${{ github.event.number }}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup SSH key
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
           ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy preview
@@ -56,30 +60,29 @@ jobs:
           PR_NUM=${{ steps.pr.outputs.number }}
           VM_HOST="doce.pangolin-frog.ts.net"
           SSH_USER="root"
-          SSH_KEY="$HOME/.ssh/deploy_key"
           PR_DIR="/root/previews/pr-$PR_NUM"
           REPO_DIR="$PR_DIR/repo"
           SCRIPTS_DIR="/root/previews/scripts"
 
           echo "🚀 Deploying PR #$PR_NUM to $VM_HOST"
 
-           # Step 1: Clean up stale previews
-           echo "📦 Cleaning up stale previews..."
-           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
+          # Step 1: Clean up stale previews
+          echo "📦 Cleaning up stale previews..."
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
 
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR $REPO_DIR"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "mkdir -p \"$PR_DIR\" \"$REPO_DIR\""
 
           # Step 3: Copy PR code to VM via tar
           echo "📋 Copying PR code..."
           tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
-            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "cd $REPO_DIR && tar xzf -"
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$REPO_DIR\" && tar xzf -"
 
           # Step 4: Allocate port
           echo "🔌 Allocating port..."
-          PORT=$(ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
+          PORT=$(ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
           echo "Allocated port: $PORT"
 
           # Step 5: Prepare Docker image
@@ -87,36 +90,36 @@ jobs:
 
           if [ "$DOCKERFILE_CHANGED" = "true" ]; then
             echo "🔨 Building Docker image (Dockerfile changed)..."
-            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-              "cd $REPO_DIR && docker build -t doce-pr-$PR_NUM:latest ."
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+              "cd \"$REPO_DIR\" && docker build -t doce-pr-$PR_NUM:latest ."
           else
             echo "📥 Pulling pre-built image from registry (Dockerfile unchanged)..."
-            ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
               "docker pull ghcr.io/${{ github.repository_owner }}/doce.dev:latest && \
                docker tag ghcr.io/${{ github.repository_owner }}/doce.dev:latest doce-pr-$PR_NUM:latest"
           fi
 
-           # Step 6: Generate compose file from template
-           echo "📝 Generating docker-compose.yml..."
-           ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-             "cd $REPO_DIR && PR_NUM=$PR_NUM PORT=$PORT envsubst < docker-compose.preview.yml > $PR_DIR/docker-compose.yml"
+          # Step 6: Generate compose file from template
+          echo "📝 Generating docker-compose.yml..."
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$REPO_DIR\" && PR_NUM=$PR_NUM PORT=$PORT envsubst < docker-compose.preview.yml > \"$PR_DIR/docker-compose.yml\""
 
           # Step 7: Start preview environment with docker-compose
           echo "▶️  Starting preview environment on port $PORT..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $PR_DIR && docker-compose up -d"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$PR_DIR\" && docker-compose up -d"
 
           # Step 8: Wait for app to be healthy
           echo "⏳ Waiting for app to start..."
           for i in {1..60}; do
-            if ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            if ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
               "curl -f http://localhost:$PORT/ 2>/dev/null" >/dev/null 2>&1; then
               echo "✅ App is healthy!"
               break
             fi
             if [ $i -eq 60 ]; then
               echo "❌ App failed to start after 60 seconds"
-              ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "cd $PR_DIR && docker-compose logs app" || true
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$PR_DIR\" && docker-compose logs app" || true
               exit 1
             fi
             echo "Waiting for app... ($i/60)"
@@ -124,7 +127,7 @@ jobs:
           done
 
           echo "✅ PR preview deployed successfully!"
-          echo "port=$PORT" >> $GITHUB_OUTPUT
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL
         if: success()
@@ -165,13 +168,17 @@ jobs:
 
       - name: Extract PR number
         id: pr
-        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+        run: echo "number=${{ github.event.number }}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup SSH key
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
           ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Stop preview
@@ -180,27 +187,22 @@ jobs:
           PR_NUM=${{ steps.pr.outputs.number }}
           VM_HOST="doce.pangolin-frog.ts.net"
           SSH_USER="root"
-          SSH_KEY="$HOME/.ssh/deploy_key"
           SCRIPTS_DIR="/root/previews/scripts"
           PR_DIR="/root/previews/pr-$PR_NUM"
 
           echo "🧹 Cleaning up PR #$PR_NUM preview"
 
-          # Stop compose stack and remove volumes
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $PR_DIR && docker-compose down 2>/dev/null || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$PR_DIR\" && docker-compose down 2>/dev/null || true"
 
-          # Release port
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/release-port.sh $PR_NUM"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/release-port.sh $PR_NUM"
 
-          # Remove Docker image
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest || true"
 
-          # Clean up old Docker images
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
             "docker image prune -a --force" || true
 
-          # Clean up directory
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "rm -rf $PR_DIR || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" || true"
 
           echo "✅ PR preview cleaned up!"
+
