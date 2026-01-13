@@ -58,8 +58,14 @@ export async function handleDockerEnsureRunning(
 			// After successful restart, check if we need to create a new session
 			// Sessions are ephemeral and don't persist across container restarts
 			try {
-				// Check if any sessions exist via container hostname on the shared network
-				const sessionUrl = `http://doce_${project.id}-opencode-1:3000/session`;
+				// Check if any sessions exist
+				// - In Docker: use container hostname for inter-container communication
+				// - On host (dev mode): use localhost with the project's opencode port
+				const isRunningInDocker = !!process.env.DOCE_NETWORK;
+				const baseUrl = isRunningInDocker
+					? `http://doce_${project.id}-opencode-1:3000`
+					: `http://localhost:${project.opencodePort}`;
+				const sessionUrl = `${baseUrl}/session`;
 				const sessionsRes = await fetch(sessionUrl);
 
 				if (sessionsRes.ok) {

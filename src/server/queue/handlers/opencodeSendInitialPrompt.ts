@@ -49,8 +49,13 @@ export async function handleOpencodeSendInitialPrompt(
 		await ctx.throwIfCancelRequested();
 
 		// Send the initial prompt via HTTP (prompt_async)
-		// Use container hostname for inter-container communication
-		const url = `http://doce_${project.id}-opencode-1:3000/session/${sessionId}/prompt_async`;
+		// - In Docker: use container hostname for inter-container communication
+		// - On host (dev mode): use localhost with the project's opencode port
+		const isRunningInDocker = !!process.env.DOCE_NETWORK;
+		const baseUrl = isRunningInDocker
+			? `http://doce_${project.id}-opencode-1:3000`
+			: `http://localhost:${project.opencodePort}`;
+		const url = `${baseUrl}/session/${sessionId}/prompt_async`;
 
 		const response = await fetch(url, {
 			method: "POST",
