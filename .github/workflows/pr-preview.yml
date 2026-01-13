@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     name: Deploy PR Preview
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.action != 'closed'
@@ -152,7 +152,7 @@ jobs:
 
   teardown:
     name: Cleanup PR Preview
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.action == 'closed'
     permissions:
       contents: read
