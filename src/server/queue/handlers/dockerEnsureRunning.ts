@@ -1,4 +1,5 @@
 import { composeUp } from "@/server/docker/compose";
+import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import { logger } from "@/server/logger";
 import {
 	checkOpencodeReady,
@@ -49,6 +50,9 @@ export async function handleDockerEnsureRunning(
 		]);
 
 		if (previewReady && opencodeReady) {
+			// Push auth.json to OpenCode container
+			await pushAuthToContainer(project.id);
+
 			await updateProjectStatus(project.id, "running");
 
 			// After successful restart, check if we need to create a new session

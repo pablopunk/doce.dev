@@ -1,3 +1,4 @@
+import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import { logger } from "@/server/logger";
 import {
 	checkOpencodeReady,
@@ -82,6 +83,9 @@ export async function handleDockerWaitReady(
 		);
 
 		if (previewReady && opencodeReady) {
+			// Push auth.json to OpenCode container
+			await pushAuthToContainer(project.id);
+
 			await updateProjectStatus(project.id, "running");
 			logger.info(
 				{ projectId: project.id, elapsed, attempts: ctx.job.attempts },

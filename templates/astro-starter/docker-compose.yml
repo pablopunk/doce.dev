@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile.opencode
     volumes:
       - project_files:/app
-      - doce-global-opencode-auth:/root/.local/share/opencode
+      - opencode_storage:/root/.local/share/opencode
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
     networks:
@@ -30,9 +30,8 @@ services:
 volumes:
   project_files:
     name: ${PROJECT_DATA_VOLUME_NAME}
-  doce-global-opencode-auth:
-    external: true
-    name: doce-global-opencode-auth
+  opencode_storage:
+    name: doce_${PROJECT_ID}_opencode_storage
   pnpm-store:
     external: true
     name: doce-global-pnpm-store

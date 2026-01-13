@@ -10,7 +10,6 @@ services:
       DOCE_NETWORK: doce-preview-${PR_NUM}
     volumes:
       - pr_${PR_NUM}_data:/app/data
-      - doce-global-opencode-auth:/app/data/opencode
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - preview
@@ -25,9 +24,6 @@ services:
 
 volumes:
   pr_${PR_NUM}_data:
-  doce-global-opencode-auth:
-    external: true
-    name: doce-global-opencode-auth
 
 networks:
   preview:

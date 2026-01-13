@@ -114,6 +114,7 @@ DEV_PORT=${devPort}
 OPENCODE_PORT=${opencodePort}
 PRODUCTION_PORT=5000
 PROJECT_DATA_VOLUME_NAME=${volumeName}
+PROJECT_ID=${projectId}
 `;
 
 	await fs.writeFile(path.join(projectPath, ".env"), envContent);
