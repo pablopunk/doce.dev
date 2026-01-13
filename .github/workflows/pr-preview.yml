@@ -75,12 +75,18 @@ jobs:
           echo "📁 Creating PR directory..."
           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR \"$REPO_DIR\""
 
-          # Step 2.5: Remove old containers to force container recreation
-          echo "🧹 Stopping old containers to pick up new template..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $PR_DIR && docker-compose down 2>/dev/null || true"
+           # Step 2.5: Remove old containers to force container recreation
+           echo "🧹 Stopping old containers to pick up new template..."
+           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "cd $PR_DIR && docker-compose down 2>/dev/null || true"
 
-          # Step 3: Copy PR code to VM via tar
+           # Step 2.75: Ensure global volumes exist
+           echo "📦 Ensuring global volumes exist..."
+           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "docker volume create doce-global-opencode-auth 2>/dev/null || true && \
+              docker volume create doce-global-pnpm-store 2>/dev/null || true"
+
+           # Step 3: Copy PR code to VM via tar
           echo "📋 Copying PR code..."
           tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
             ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$REPO_DIR\" && tar xzf -"

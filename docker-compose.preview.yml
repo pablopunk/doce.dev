@@ -26,6 +26,8 @@ services:
 volumes:
   pr_${PR_NUM}_data:
   doce-global-opencode-auth:
+    external: true
+    name: doce-global-opencode-auth
 
 networks:
   preview:
