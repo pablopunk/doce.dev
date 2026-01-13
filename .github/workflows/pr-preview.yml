@@ -77,7 +77,7 @@ jobs:
 
           # Step 2.5: Remove old containers to force container recreation
           echo "🧹 Stopping old containers to pick up new template..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+          ssh $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "cd $PR_DIR && docker-compose down 2>/dev/null || true"
 
           # Step 3: Copy PR code to VM via tar
