@@ -111,9 +111,8 @@ export function ProvidersSettings() {
 					<CardHeader>
 						<CardTitle>Providers</CardTitle>
 						<CardDescription>
-							Manage AI provider credentials. Credentials are stored in
-							data/opencode/auth.json and mounted into each project's OpenCode
-							container.
+							Manage AI provider credentials. Credentials are stored in a global
+							volume and shared with all project OpenCode containers.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -131,9 +130,8 @@ export function ProvidersSettings() {
 			<CardHeader>
 				<CardTitle>Providers</CardTitle>
 				<CardDescription>
-					Manage AI provider credentials. Credentials are stored in
-					data/opencode/auth.json and mounted into each project's OpenCode
-					container.
+					Manage AI provider credentials. Credentials are stored in a global
+					volume and shared with all project OpenCode containers.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-6">

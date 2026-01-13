@@ -545,6 +545,29 @@ export async function ensureGlobalPnpmVolume(): Promise<void> {
 	}
 }
 
+export async function ensureGlobalAuthVolume(): Promise<void> {
+	const volumeName = "doce-global-opencode-auth";
+
+	try {
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ volumeName }, "Global auth volume ensured");
+		} else {
+			logger.warn(
+				{ error: result.stderr, volumeName },
+				"Failed to ensure global auth volume",
+			);
+		}
+	} catch (err) {
+		logger.warn(
+			{ error: err, volumeName },
+			"Failed to ensure global auth volume",
+		);
+	}
+}
+
 /**
  * Ensure a project-specific data volume exists.
  * Idempotent - safe to call multiple times, no errors if already exists.
