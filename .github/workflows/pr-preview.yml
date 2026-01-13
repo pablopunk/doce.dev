@@ -73,11 +73,11 @@ jobs:
 
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
-          ssh -i $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR \"$REPO_DIR\""
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR \"$REPO_DIR\""
 
           # Step 2.5: Remove old containers to force container recreation
           echo "🧹 Stopping old containers to pick up new template..."
-          ssh $SSH_KEY -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
             "cd $PR_DIR && docker-compose down 2>/dev/null || true"
 
           # Step 3: Copy PR code to VM via tar
