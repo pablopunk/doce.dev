@@ -5,7 +5,6 @@ services:
       dockerfile: Dockerfile.preview
     volumes:
       - project_files:/app
-      - doce-global-opencode-auth:/root/.local/share/opencode
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
       - "${DEV_PORT:-4321}:4321"
