@@ -8,7 +8,6 @@ services:
       PORT: 4321
       HOST: 0.0.0.0
       DOCE_NETWORK: doce-preview-${PR_NUM}
-      DOCE_DATA_DIR: /root/.local/share/opencode
     volumes:
       - pr_${PR_NUM}_data:/app/data
       - doce-global-opencode-auth:/app/data/opencode
