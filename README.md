@@ -7,7 +7,7 @@
 (D)eploy    (O)nce       (C)rash      (E)verywhere
 (D)on't     (O)ver       (C)omplicate (E)nvironments
 
-D            O            C            E
+ D           O            C            E
 ```
 
 <p align="center">
