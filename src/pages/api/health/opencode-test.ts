@@ -46,7 +46,7 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 1: Create client
 		try {
 			logger.info({ projectId }, "Test 1: Creating OpenCode client");
-			getOpencodeClient(projectId);
+			getOpencodeClient(projectId, project.opencodePort);
 			(results.tests as Record<string, unknown>)["client_creation"] = {
 				status: "success",
 			};
@@ -64,7 +64,7 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 2: Health check
 		try {
 			logger.info({ projectId }, "Test 2: Checking OpenCode health");
-			const client = getOpencodeClient(projectId);
+			const client = getOpencodeClient(projectId, project.opencodePort);
 			const health = await client.global.health();
 			(results.tests as Record<string, unknown>)["health_check"] = {
 				status: health.response?.ok ? "success" : "failed",
@@ -80,7 +80,7 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 3: Create session
 		try {
 			logger.info({ projectId }, "Test 3: Creating session");
-			const client = getOpencodeClient(projectId);
+			const client = getOpencodeClient(projectId, project.opencodePort);
 			const session = await client.session.create();
 			const sessionId = (session.data as Record<string, unknown>)?.id;
 			(results.tests as Record<string, unknown>)["session_creation"] = {

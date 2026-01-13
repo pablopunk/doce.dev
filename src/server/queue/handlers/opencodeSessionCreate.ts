@@ -1,13 +1,13 @@
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
 	parseModelString,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
-import { normalizeProjectPath } from "@/server/projects/paths";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -72,12 +72,12 @@ export async function handleOpencodeSessionCreate(
 		}
 
 		// Create opencode client (v2 SDK)
-		// Pass projectId to connect via container hostname within the Docker network
+		// Pass projectId and opencodePort to connect via container hostname (Docker) or localhost (dev)
 		logger.info(
-			{ projectId: project.id },
+			{ projectId: project.id, opencodePort: project.opencodePort },
 			"Creating OpenCode client for container communication",
 		);
-		const client = createOpencodeClient(project.id);
+		const client = createOpencodeClient(project.id, project.opencodePort);
 
 		// Create a new session
 		let sessionId: string;
