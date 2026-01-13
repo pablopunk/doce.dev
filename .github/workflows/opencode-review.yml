@@ -19,14 +19,15 @@ jobs:
       pull-requests: write
       id-token: write
       issues: read
+
     steps:
       - name: Get PR number
         id: pr-number
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout repository
@@ -42,6 +43,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOME: /home/runner   # This is necessary for the self-hosted runner
         with:
           model: opencode/glm-4.7-free
           prompt: |
@@ -70,3 +72,4 @@ jobs:
             ```
 
             Only create comments for actual violations. If the code follows all guidelines, use the script `./scripts/upsert-pr-comment.sh` to post "lgtm". Use the marker "<!-- doce-review-status -->" and the PR number "${{ steps.pr-number.outputs.number }}". If you have a summary to provide, include it in the same comment update using the script. DO NOT post multiple "lgtm" comments.
+
