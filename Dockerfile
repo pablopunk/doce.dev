@@ -1,6 +1,6 @@
 # Multi-stage build for production deployment
 # Builder stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install pnpm
 RUN npm install -g pnpm@10.20.0
@@ -23,7 +23,7 @@ COPY . .
 RUN pnpm build
 
 # Runtime stage
-FROM node:20-alpine
+FROM node:22-alpine
 
 # Install dumb-init for proper PID 1 handling and docker for preview environments
 RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git
