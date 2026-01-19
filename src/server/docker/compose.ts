@@ -517,6 +517,36 @@ export function parseComposePs(output: string): ContainerStatus[] {
 }
 
 /**
+ * Ensure the shared network exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ */
+export async function ensureDoceSharedNetwork(): Promise<void> {
+	const networkName = process.env.DOCE_NETWORK || "doce-shared";
+
+	try {
+		// Try to create the network - Docker silently ignores if it already exists
+		const result = await runCommand(`docker network create ${networkName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ networkName }, "Shared network ensured");
+		} else {
+			// Ignore error if it already exists
+			if (result.stderr.includes("already exists")) {
+				return;
+			}
+			logger.warn(
+				{ error: result.stderr, networkName },
+				"Failed to ensure shared network",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn({ error: err, networkName }, "Failed to ensure shared network");
+	}
+}
+
+/**
  * Ensure the global pnpm cache volume exists.
  * Idempotent - safe to call multiple times, no errors if already exists.
  */

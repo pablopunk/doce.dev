@@ -6,7 +6,10 @@ import {
 import { db } from "@/server/db/client";
 import { ensureDatabaseReady } from "@/server/db/ensure-db";
 import { users } from "@/server/db/schema";
-import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
+import {
+	ensureDoceSharedNetwork,
+	ensureGlobalPnpmVolume,
+} from "@/server/docker/compose";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 // Run migrations before other initialization
@@ -14,6 +17,7 @@ await ensureDatabaseReady();
 
 // Initialize once per process lifecycle
 ensureQueueWorkerStarted();
+ensureDoceSharedNetwork();
 ensureGlobalPnpmVolume();
 cleanupExpiredSessions().catch((error) => {
 	console.error("Failed to cleanup expired sessions:", error);
