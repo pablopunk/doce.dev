@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const Gemini = (props: SVGProps<SVGSVGElement>) => (
+	// biome-ignore lint/a11y/noSvgWithoutTitle: Decorative SVG icon
 	<svg {...props} viewBox="0 0 296 298" fill="none">
 		<mask
 			id="a"

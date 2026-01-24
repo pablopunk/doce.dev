@@ -12,7 +12,7 @@ const SESSION_COOKIE_NAME = "doce_session";
 
 async function doCreateAdmin(
 	input: { username: string; password: string; confirmPassword: string },
-	context: any,
+	context: Record<string, unknown>,
 ) {
 	// Check if admin already exists
 	const existingUsers = await db.select().from(users).limit(1);

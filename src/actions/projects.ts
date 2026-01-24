@@ -555,7 +555,7 @@ export const projects = {
 				}
 			}
 
-			const setupJobs: Record<string, any> = {};
+			const setupJobs: Record<string, unknown> = {};
 			let hasError = false;
 			let errorMessage: string | undefined;
 			let promptSentAt: number | undefined;

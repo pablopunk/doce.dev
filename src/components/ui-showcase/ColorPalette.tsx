@@ -135,8 +135,8 @@ export function ColorPalette() {
 			<section>
 				<h2 className="text-lg font-bold mb-3">Border Radius</h2>
 				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
-					{radiusTokens.map((radius, idx) => (
-						<div key={idx} className="space-y-1">
+					{radiusTokens.map((radius) => (
+						<div key={radius.variable} className="space-y-1">
 							<div
 								className="w-full h-12 bg-primary border border-border"
 								style={{ borderRadius: radius.variable }}

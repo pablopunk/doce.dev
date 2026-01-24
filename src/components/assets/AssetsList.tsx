@@ -61,6 +61,7 @@ export function AssetsList({
 	};
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: Container for assets with drag-drop functionality
 		<div
 			className="p-4 h-full overflow-y-auto relative"
 			onDragOver={handleDragOver}

@@ -135,6 +135,7 @@ export function TerminalDock({
 		>
 			{/* Header */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				aria-expanded={isOpen}
 				aria-label={`Toggle ${title} terminal`}
@@ -180,14 +181,14 @@ export function TerminalDock({
 					{lines.length === 0 ? (
 						<div className="text-gray-500">Waiting for logs...</div>
 					) : (
-						lines.map((line, i) => {
+						lines.map((line) => {
 							const isError = line.streamType === "err";
 							const colorClass = isError
 								? "text-status-error"
 								: "text-status-success";
 							return (
 								<div
-									key={i}
+									key={`${line.text}-${line.streamType}`}
 									className={cn("whitespace-pre-wrap break-all", colorClass)}
 								>
 									{line.text}

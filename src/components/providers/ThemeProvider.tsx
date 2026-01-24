@@ -1,7 +1,13 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useState,
+} from "react";
 
 type Theme = "light" | "dark";
 
@@ -27,6 +33,15 @@ interface ThemeProviderProps {
 const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 	const [theme, setTheme] = useState<Theme>("light");
 	const [mounted, setMounted] = useState(false);
+
+	const applyTheme = useCallback((newTheme: Theme) => {
+		const htmlElement = document.documentElement;
+		if (newTheme === "dark") {
+			htmlElement.classList.add("dark");
+		} else {
+			htmlElement.classList.remove("dark");
+		}
+	}, []);
 
 	// Initialize theme on mount
 	useEffect(() => {
@@ -64,15 +79,6 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 		window.addEventListener("storage", handleStorageChange);
 		return () => window.removeEventListener("storage", handleStorageChange);
 	}, [mounted, applyTheme]);
-
-	const applyTheme = (newTheme: Theme) => {
-		const htmlElement = document.documentElement;
-		if (newTheme === "dark") {
-			htmlElement.classList.add("dark");
-		} else {
-			htmlElement.classList.remove("dark");
-		}
-	};
 
 	const toggleTheme = () => {
 		const newTheme = theme === "light" ? "dark" : "light";

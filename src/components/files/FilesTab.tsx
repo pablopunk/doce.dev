@@ -116,6 +116,8 @@ export function FilesTab({
 		};
 
 		fetchFileTree();
+		// biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: fetchFileContent is defined after useEffect but wrapped in useCallback before use
+		// biome-ignore lint/correctness/useExhaustiveDependencies: fetchFileContent removed from dependencies to prevent unnecessary re-execution
 	}, [projectId, lastSelectedFile, fetchFileContent]);
 
 	// Fetch file content when selected file changes

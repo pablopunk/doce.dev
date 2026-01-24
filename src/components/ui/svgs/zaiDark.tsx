@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const ZaiDark = (props: SVGProps<SVGSVGElement>) => (
+	// biome-ignore lint/a11y/noSvgWithoutTitle: Decorative SVG icon
 	<svg {...props} viewBox="1.17 1.17 27.66 27.65" fill="none">
 		<path
 			fill="#2D2D2D"

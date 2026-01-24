@@ -55,6 +55,7 @@ export function FileTree({
 		return (
 			<div key={node.path}>
 				<button
+					type="button"
 					onClick={() => {
 						if (isDirectory) {
 							toggleExpanded(node.path);

@@ -134,6 +134,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						</a>
 						{canCancel && (
 							<button
+								type="button"
 								onClick={() => handleAction("cancel")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -142,6 +143,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canRunNow && (
 							<button
+								type="button"
 								onClick={() => handleAction("runNow")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -150,6 +152,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canRetry && (
 							<button
+								type="button"
 								onClick={() => handleAction("retry")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -158,6 +161,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canForceUnlock && (
 							<button
+								type="button"
 								onClick={() => handleAction("forceUnlock")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>

@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const OpenaiDark = (props: SVGProps<SVGSVGElement>) => (
+	// biome-ignore lint/a11y/noSvgWithoutTitle: Decorative SVG icon
 	<svg {...props} preserveAspectRatio="xMidYMid" viewBox="0 0 256 260">
 		<path
 			fill="#fff"

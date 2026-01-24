@@ -36,7 +36,10 @@ import { cn } from "@/lib/utils";
 
 const VENDOR_LOGOS: Record<
 	string,
-	{ light: React.ComponentType<any>; dark: React.ComponentType<any> }
+	{
+		light: React.ComponentType<Record<string, unknown>>;
+		dark: React.ComponentType<Record<string, unknown>>;
+	}
 > = {
 	openai: { light: Openai, dark: OpenaiDark },
 	anthropic: { light: AnthropicBlack, dark: AnthropicWhite },

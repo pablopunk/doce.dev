@@ -105,9 +105,9 @@ export function TerminalDocks({
 	};
 
 	const renderLogLines = (lines: LogLine[], keyPrefix: string) =>
-		lines.map((line, i) => (
+		lines.map((line) => (
 			<div
-				key={`${keyPrefix}-${i}`}
+				key={`${keyPrefix}-${line.text}`}
 				className="whitespace-pre-wrap break-all text-foreground"
 			>
 				{line.text}
@@ -123,6 +123,7 @@ export function TerminalDocks({
 		>
 			{/* Header */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				aria-expanded={isOpen}
 				aria-label="Toggle terminal"

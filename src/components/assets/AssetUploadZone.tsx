@@ -57,6 +57,7 @@ export function AssetUploadZone({
 
 	return (
 		<div className="flex flex-col gap-4">
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drop zone for file upload */}
 			<div
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}

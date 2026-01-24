@@ -4,6 +4,7 @@ import {
 	type DragEvent,
 	type FormEvent,
 	type KeyboardEvent,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -89,7 +90,7 @@ export function ChatInput({
 		}
 	};
 
-	const adjustTextareaHeight = () => {
+	const adjustTextareaHeight = useCallback(() => {
 		const textarea = textareaRef.current;
 		if (!textarea) return;
 
@@ -97,7 +98,7 @@ export function ChatInput({
 		const scrollHeight = textarea.scrollHeight;
 		const maxHeight = 200;
 		textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
-	};
+	}, []);
 
 	useEffect(() => {
 		adjustTextareaHeight();
@@ -258,6 +259,7 @@ export function ChatInput({
 	return (
 		<div className="w-full p-4">
 			<div className="flex flex-col gap-4">
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: Chat input container with drag-drop for images */}
 				<div
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
 						isDragging && supportsImages

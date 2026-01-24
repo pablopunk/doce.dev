@@ -26,12 +26,6 @@ import { QueuePlayerControl } from "./QueuePlayerControl";
 interface QueueTableLiveProps {
 	initialJobs: QueueJob[];
 	initialPage?: number;
-	initialPagination?: {
-		page: number;
-		pageSize: number;
-		totalCount: number;
-		totalPages: number;
-	};
 	initialPaused: boolean;
 	initialConcurrency?: number;
 	filters?: {
@@ -45,26 +39,18 @@ interface QueueTableLiveProps {
 export function QueueTableLive({
 	initialJobs,
 	initialPage = 1,
-	initialPagination,
 	initialPaused,
 	initialConcurrency = 2,
 	filters = {},
 }: QueueTableLiveProps) {
-	const {
-		jobs,
-		paused,
-		concurrency,
-		pagination,
-		hasNewJobs,
-		setHasNewJobs,
-		setPagination,
-	} = useQueueStream(
-		initialPage,
-		initialJobs,
-		initialPaused,
-		initialConcurrency,
-		filters,
-	);
+	const { jobs, paused, concurrency, pagination, hasNewJobs, setPagination } =
+		useQueueStream(
+			initialPage,
+			initialJobs,
+			initialPaused,
+			initialConcurrency,
+			filters,
+		);
 
 	const {
 		isLoading,
@@ -76,7 +62,7 @@ export function QueueTableLive({
 		handleToggleQueue,
 		handleStopAll,
 		handleConfirmStopAll,
-		handleActionClick,
+
 		handleBulkDelete,
 		handleConfirmAction,
 		handleAction,

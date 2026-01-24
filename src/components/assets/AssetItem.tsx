@@ -134,6 +134,7 @@ export function AssetItem({
 
 	return (
 		<>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Interactive element for asset selection */}
 			<div
 				className="flex flex-col gap-2 rounded-lg border bg-card p-3 hover:bg-muted/50 transition-colors"
 				onMouseEnter={() => setIsHovering(true)}
