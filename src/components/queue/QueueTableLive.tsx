@@ -45,7 +45,7 @@ interface QueueTableLiveProps {
 export function QueueTableLive({
 	initialJobs,
 	initialPage = 1,
-	initialPagination,
+	initialPagination: _initialPagination,
 	initialPaused,
 	initialConcurrency = 2,
 	filters = {},
@@ -56,7 +56,7 @@ export function QueueTableLive({
 		concurrency,
 		pagination,
 		hasNewJobs,
-		setHasNewJobs,
+		setHasNewJobs: _setHasNewJobs,
 		setPagination,
 	} = useQueueStream(
 		initialPage,
@@ -76,7 +76,7 @@ export function QueueTableLive({
 		handleToggleQueue,
 		handleStopAll,
 		handleConfirmStopAll,
-		handleActionClick,
+		handleActionClick: _handleActionClick,
 		handleBulkDelete,
 		handleConfirmAction,
 		handleAction,
