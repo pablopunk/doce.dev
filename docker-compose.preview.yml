@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  app:
+    image: doce-pr-${PR_NUM}:latest
+    ports:
+      - "${PORT}:4321"
+    environment:
+      PORT: 4321
+      HOST: 0.0.0.0
+      DOCE_NETWORK: doce-preview-${PR_NUM}
+    volumes:
+      - pr_${PR_NUM}_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - preview
+      - doce-shared
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4321/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  pr_${PR_NUM}_data:
+
+networks:
+  preview:
+    driver: bridge
+  doce-shared:
+    driver: bridge
+    name: doce-preview-${PR_NUM}

@@ -4,27 +4,39 @@ services:
       context: .
       dockerfile: Dockerfile.preview
     volumes:
-      - .:/app
-      - /app/node_modules
+      - project_files:/app
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
       - "${DEV_PORT:-4321}:4321"
     environment:
       - HOST=0.0.0.0
+    networks:
+      - default
+      - doce-shared
   opencode:
     build:
       context: .
       dockerfile: Dockerfile.opencode
     volumes:
-      - .:/app
-      - opencode-data:/root/.local/share/opencode
-      - ../../opencode/auth.json:/root/.local/share/opencode/auth.json
+      - project_files:/app
+      - opencode_storage:/root/.local/share/opencode
     ports:
       - "${OPENCODE_PORT:-3000}:3000"
+    networks:
+      - default
+      - doce-shared
 
 volumes:
+  project_files:
+    name: ${PROJECT_DATA_VOLUME_NAME}
+  opencode_storage:
+    name: doce_${PROJECT_ID}_opencode_storage
   pnpm-store:
     external: true
     name: doce-global-pnpm-store
-  opencode-bin:
-  opencode-data:
+
+networks:
+  default:
+  doce-shared:
+    external: true
+    name: ${DOCE_NETWORK:-doce-shared}

@@ -11,6 +11,7 @@ export default defineConfig({
 	server: {
 		host: true,
 		port: 4321,
+		allowedHosts: true,
 	},
 	integrations: [react()],
 	vite: {

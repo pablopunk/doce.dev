@@ -1,6 +1,8 @@
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { normalizeProjectPath } from "@/server/projects/paths";
+import { runCommand } from "@/server/utils/execAsync";
 import {
 	appendDockerLog,
 	stopStreamingContainerLogs,
@@ -13,28 +15,31 @@ let composeCommand: string[] | null = null;
 
 /**
  * Detect whether to use `docker compose` or `docker-compose`.
+ * Uses async detection to avoid blocking the event loop.
  */
-export function detectComposeCommand(): string[] {
+export async function detectComposeCommand(): Promise<string[]> {
 	if (composeCommand) {
 		return composeCommand;
 	}
 
-	try {
-		execSync("docker compose version", { stdio: "ignore" });
+	// Try `docker compose version` first
+	let result = await runCommand("docker compose version", { timeout: 5000 });
+	if (result.success) {
 		composeCommand = ["docker", "compose"];
 		logger.info("Using 'docker compose' command");
 		return composeCommand;
-	} catch {
-		try {
-			execSync("docker-compose version", { stdio: "ignore" });
-			composeCommand = ["docker-compose"];
-			logger.info("Using 'docker-compose' command");
-			return composeCommand;
-		} catch {
-			logger.error("Neither 'docker compose' nor 'docker-compose' found");
-			throw new Error("Docker Compose not found. Please install Docker.");
-		}
 	}
+
+	// Fall back to `docker-compose version`
+	result = await runCommand("docker-compose version", { timeout: 5000 });
+	if (result.success) {
+		composeCommand = ["docker-compose"];
+		logger.info("Using 'docker-compose' command");
+		return composeCommand;
+	}
+
+	logger.error("Neither 'docker compose' nor 'docker-compose' found");
+	throw new Error("Docker Compose not found. Please install Docker.");
 }
 
 /**
@@ -97,7 +102,7 @@ async function runComposeCommand(
 	profile?: string,
 	filePath?: string,
 ): Promise<ComposeResult> {
-	const compose = detectComposeCommand();
+	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgs(projectId);
 
 	// Build args with optional profile and file flags (both must come BEFORE the subcommand)
@@ -118,8 +123,18 @@ async function runComposeCommand(
 	);
 
 	return new Promise((resolve) => {
+		// Determine the shared network name for this deployment
+		// In container environments, DOCE_NETWORK is set by docker-compose
+		// In local development, use a default network name
+		const docceNetwork = process.env.DOCE_NETWORK || "doce-shared";
+
 		const proc = spawn(command, fullArgs, {
 			cwd: projectPath,
+			env: {
+				...process.env,
+				PROJECT_ID: projectId,
+				DOCE_NETWORK: docceNetwork,
+			},
 		});
 
 		let stdout = "";
@@ -172,7 +187,7 @@ async function runComposeCommandProduction(
 	filePath?: string,
 	hash?: string,
 ): Promise<ComposeResult> {
-	const compose = detectComposeCommand();
+	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgsProduction(projectId, hash);
 
 	// Build args with file flags (must come BEFORE the subcommand)
@@ -190,8 +205,18 @@ async function runComposeCommandProduction(
 	);
 
 	return new Promise((resolve) => {
+		// Determine the shared network name for this deployment
+		// In container environments, DOCE_NETWORK is set by docker-compose
+		// In local development, use a default network name
+		const docceNetwork = process.env.DOCE_NETWORK || "doce-shared";
+
 		const proc = spawn(command, fullArgs, {
 			cwd: productionPath,
+			env: {
+				...process.env,
+				PROJECT_ID: projectId,
+				DOCE_NETWORK: docceNetwork,
+			},
 		});
 
 		let stdout = "";
@@ -246,7 +271,11 @@ export async function composeUp(
 	projectPath: string,
 	preserveProduction: boolean = true,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
+
+	// Ensure the project data volume exists before starting containers
+	await ensureProjectDataVolume(projectId);
 
 	// Don't use --remove-orphans when production might be running with a separate compose file
 	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
@@ -259,7 +288,11 @@ export async function composeUp(
 		`docker compose ${args.join(" ")} (project=${getProjectName(projectId)})`,
 	);
 
-	const result = await runComposeCommand(projectId, projectPath, args);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		args,
+	);
 
 	// Log output with stream markers
 	if (result.stdout) {
@@ -274,7 +307,7 @@ export async function composeUp(
 	if (result.success) {
 		// Wait a bit for containers to start outputting logs
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, projectPath);
+		streamContainerLogs(projectId, normalizedProjectPath);
 	}
 
 	return result;
@@ -339,13 +372,14 @@ export async function composeDown(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(logsDir, "docker compose down --remove-orphans");
 
 	// Stop streaming container logs before stopping containers
 	stopStreamingContainerLogs(projectId);
 
-	const result = await runComposeCommand(projectId, projectPath, [
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"down",
 		"--remove-orphans",
 	]);
@@ -408,13 +442,14 @@ export async function composeDownWithVolumes(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	const logsDir = path.join(projectPath, "logs");
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(
 		logsDir,
 		"docker compose down --remove-orphans --volumes",
 	);
 
-	const result = await runComposeCommand(projectId, projectPath, [
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"down",
 		"--remove-orphans",
 		"--volumes",
@@ -430,7 +465,12 @@ export async function composePs(
 	projectId: string,
 	projectPath: string,
 ): Promise<ComposeResult> {
-	return runComposeCommand(projectId, projectPath, ["ps", "--format", "json"]);
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	return runComposeCommand(projectId, normalizedProjectPath, [
+		"ps",
+		"--format",
+		"json",
+	]);
 }
 
 export interface ContainerStatus {
@@ -477,6 +517,36 @@ export function parseComposePs(output: string): ContainerStatus[] {
 }
 
 /**
+ * Ensure the shared network exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ */
+export async function ensureDoceSharedNetwork(): Promise<void> {
+	const networkName = process.env.DOCE_NETWORK || "doce-shared";
+
+	try {
+		// Try to create the network - Docker silently ignores if it already exists
+		const result = await runCommand(`docker network create ${networkName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ networkName }, "Shared network ensured");
+		} else {
+			// Ignore error if it already exists
+			if (result.stderr.includes("already exists")) {
+				return;
+			}
+			logger.warn(
+				{ error: result.stderr, networkName },
+				"Failed to ensure shared network",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn({ error: err, networkName }, "Failed to ensure shared network");
+	}
+}
+
+/**
  * Ensure the global pnpm cache volume exists.
  * Idempotent - safe to call multiple times, no errors if already exists.
  */
@@ -485,13 +555,54 @@ export async function ensureGlobalPnpmVolume(): Promise<void> {
 
 	try {
 		// Try to create the volume - Docker silently ignores if it already exists
-		execSync(`docker volume create ${volumeName}`, { stdio: "ignore" });
-		logger.debug({ volumeName }, "Global pnpm volume ensured");
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ volumeName }, "Global pnpm volume ensured");
+		} else {
+			logger.warn(
+				{ error: result.stderr, volumeName },
+				"Failed to ensure global pnpm volume",
+			);
+		}
 	} catch (err) {
 		// Log but don't throw - if Docker is unavailable, it will fail later anyway
 		logger.warn(
 			{ error: err, volumeName },
 			"Failed to ensure global pnpm volume",
+		);
+	}
+}
+
+/**
+ * Ensure a project-specific data volume exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ * @param projectId The project ID
+ */
+export async function ensureProjectDataVolume(
+	projectId: string,
+): Promise<void> {
+	const volumeName = `doce_${projectId}_data`;
+
+	try {
+		// Try to create the volume - Docker silently ignores if it already exists
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug({ projectId, volumeName }, "Project data volume ensured");
+		} else {
+			logger.warn(
+				{ error: result.stderr, projectId, volumeName },
+				"Failed to ensure project data volume",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn(
+			{ error: err, projectId, volumeName },
+			"Failed to ensure project data volume",
 		);
 	}
 }

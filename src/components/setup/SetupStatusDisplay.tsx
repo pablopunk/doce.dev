@@ -1,3 +1,4 @@
+import { actions } from "astro:actions";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,17 +11,6 @@ interface CurrentEvent {
 	type: "message";
 	text: string;
 	isStreaming?: boolean;
-}
-
-interface QueueStatusResponse {
-	projectId: string;
-	currentStep: number;
-	setupJobs: Record<string, unknown>;
-	hasError: boolean;
-	errorMessage: string | undefined;
-	isSetupComplete: boolean;
-	promptSentAt: number | undefined;
-	jobTimeoutWarning: string | undefined;
 }
 
 const TOTAL_STEPS = 4;
@@ -189,14 +179,14 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 
 		const poll = async () => {
 			try {
-				const response = await fetch(`/api/projects/${projectId}/queue-status`);
+				const { data, error } = await actions.projects.getQueueStatus({
+					projectId,
+				});
 
-				if (!response.ok) {
+				if (error) {
 					setSetupError("Failed to check setup status");
 					return;
 				}
-
-				const data = (await response.json()) as QueueStatusResponse;
 
 				// Update current step based on queue jobs
 				setCurrentStep(data.currentStep);

@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { getProjectPath } from "@/server/projects/paths";
 import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
@@ -130,12 +131,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 		// Serve file content
 		try {
 			// Validate path doesn't escape src/
-			const projectPath = path.join(
-				process.cwd(),
-				"data",
-				"projects",
-				projectId,
-			);
+			const projectPath = getProjectPath(projectId);
 			const srcPath = path.join(projectPath, "src");
 			// filePath is relative to src/, so join with srcPath
 			const fullPath = path.join(srcPath, filePath);
@@ -184,7 +180,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 
 	// Serve file tree
 	try {
-		const projectPath = path.join(process.cwd(), "data", "projects", projectId);
+		const projectPath = getProjectPath(projectId);
 		const srcPath = path.join(projectPath, "src");
 
 		// Check if src directory exists

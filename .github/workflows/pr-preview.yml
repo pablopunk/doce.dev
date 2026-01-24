@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     name: Deploy PR Preview
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.action != 'closed'
@@ -20,6 +20,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Check if Dockerfile changed
+        id: dockerfile-check
+        run: |
+          if git diff origin/main...HEAD -- Dockerfile | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Dockerfile has changes, will rebuild image"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Dockerfile unchanged, will reuse main branch image"
+          fi
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
@@ -28,9 +40,21 @@ jobs:
 
       - name: Extract PR number
         id: pr
-        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+        run: echo "number=${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy preview
+        id: deploy
         run: |
           set -e
           PR_NUM=${{ steps.pr.outputs.number }}
@@ -39,96 +63,109 @@ jobs:
           PR_DIR="/root/previews/pr-$PR_NUM"
           REPO_DIR="$PR_DIR/repo"
           SCRIPTS_DIR="/root/previews/scripts"
-          
+
           echo "🚀 Deploying PR #$PR_NUM to $VM_HOST"
-          
-          # Step 1: Clean up stale previews and containers
+
+          # Step 1: Clean up stale previews
           echo "📦 Cleaning up stale previews..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "for dir in /root/previews/pr-*; do [ -d \"\$dir\" ] && docker rm -f \$(basename \$dir) 2>/dev/null || true; done"
-          
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
+
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR/data $REPO_DIR"
-          
-          # Step 3: Copy PR code to VM via tar (faster than git clone for Actions)
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "mkdir -p $PR_DIR \"$REPO_DIR\""
+
+           # Step 2.5: Remove old containers to force container recreation
+           echo "🧹 Stopping old containers to pick up new template..."
+           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "cd $PR_DIR && docker-compose down 2>/dev/null || true"
+
+           # Step 2.75: Ensure global pnpm volume exists
+           echo "📦 Ensuring global pnpm volume exists..."
+           ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+             "docker volume create doce-global-pnpm-store 2>/dev/null || true"
+
+           # Step 3: Copy PR code to VM via tar
           echo "📋 Copying PR code..."
           tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
-            ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "cd $REPO_DIR && tar xzf -"
-          
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$REPO_DIR\" && tar xzf -"
+
           # Step 4: Allocate port
           echo "🔌 Allocating port..."
-          PORT=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
+          PORT=$(ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/allocate-port.sh $PR_NUM")
           echo "Allocated port: $PORT"
-          
-          # Step 5: Build Docker image
-          echo "🔨 Building Docker image..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "cd $REPO_DIR && docker build -t doce-pr-$PR_NUM:latest ."
-          
-          # Step 6: Run container with direct port access
-          echo "▶️  Starting container on port $PORT..."
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
-            "docker run -d \
-              --name doce-pr-$PR_NUM \
-              -p $PORT:4321 \
-              -e PORT=4321 \
-              -e HOST=0.0.0.0 \
-              -e DB_FILE_NAME=/app/data/db.sqlite \
-              -v $PR_DIR/data:/app/data \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              --restart unless-stopped \
-              doce-pr-$PR_NUM:latest"
-          
-          # Step 7: Wait for container to be healthy
+
+          # Step 5: Prepare Docker image
+          DOCKERFILE_CHANGED="${{ steps.dockerfile-check.outputs.changed }}"
+
+          if [ "$DOCKERFILE_CHANGED" = "true" ]; then
+            echo "🔨 Building Docker image (Dockerfile changed)..."
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+              "cd \"$REPO_DIR\" && docker build -t doce-pr-$PR_NUM:latest ."
+          else
+            echo "📥 Pulling pre-built image from registry (Dockerfile unchanged)..."
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+              "docker pull ghcr.io/${{ github.repository_owner }}/doce.dev:latest && \
+               docker tag ghcr.io/${{ github.repository_owner }}/doce.dev:latest doce-pr-$PR_NUM:latest"
+          fi
+
+          # Step 6: Generate compose file from template
+          echo "📝 Generating docker-compose.yml..."
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$REPO_DIR\" && PR_NUM=$PR_NUM PORT=$PORT envsubst < docker-compose.preview.yml > \"$PR_DIR/docker-compose.yml\""
+
+          # Step 7: Start preview environment with docker-compose
+          echo "▶️  Starting preview environment on port $PORT..."
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$PR_DIR\" && docker-compose up -d"
+
+          # Step 8: Wait for app to be healthy
           echo "⏳ Waiting for app to start..."
           for i in {1..60}; do
-            if ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
+            if ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
               "curl -f http://localhost:$PORT/ 2>/dev/null" >/dev/null 2>&1; then
               echo "✅ App is healthy!"
               break
             fi
             if [ $i -eq 60 ]; then
               echo "❌ App failed to start after 60 seconds"
-              ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker logs doce-pr-$PR_NUM" || true
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$PR_DIR\" && docker-compose logs app" || true
               exit 1
             fi
             echo "Waiting for app... ($i/60)"
             sleep 1
           done
-          
+
           echo "✅ PR preview deployed successfully!"
+          echo "port=$PORT" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL
         if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-            const port = 48000 + prNumber;
-            const previewUrl = `http://doce.pangolin-frog.ts.net:${port}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🚀 **Preview deployed!**\n\n[Open preview environment](${previewUrl})\n\n**Note:** Accessible via Tailscale network\n\nℹ️ This preview will be automatically cleaned up when the PR is closed.`
-            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          PORT=${{ steps.deploy.outputs.port }}
+          PREVIEW_URL="http://doce.pangolin-frog.ts.net:$PORT"
+          MARKER="<!-- doce-preview-status -->"
+          BODY="🚀 **Preview deployed!**<br><br>[Open preview environment]($PREVIEW_URL)<br><br>**Note:** Accessible via Tailscale network<br><br>ℹ️ This preview will be automatically cleaned up when the PR is closed."
+
+          ./scripts/upsert-pr-comment.sh "$MARKER" "$BODY" "$PR_NUM"
 
       - name: Comment on failure
         if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `❌ **Preview deployment failed.**\n\nCheck the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`
-            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=${{ steps.pr.outputs.number }}
+          MARKER="<!-- doce-preview-status -->"
+          BODY="❌ **Preview deployment failed.**<br><br>Check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+
+          ./scripts/upsert-pr-comment.sh "$MARKER" "$BODY" "$PR_NUM"
 
   teardown:
     name: Cleanup PR Preview
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.action == 'closed'
     permissions:
       contents: read
@@ -141,7 +178,18 @@ jobs:
 
       - name: Extract PR number
         id: pr
-        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+        run: echo "number=${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Stop preview
         run: |
@@ -151,19 +199,20 @@ jobs:
           SSH_USER="root"
           SCRIPTS_DIR="/root/previews/scripts"
           PR_DIR="/root/previews/pr-$PR_NUM"
-          
+
           echo "🧹 Cleaning up PR #$PR_NUM preview"
-          
-          # Release port
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "$SCRIPTS_DIR/release-port.sh $PR_NUM"
-          
-          # Stop and remove container
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rm -f doce-pr-$PR_NUM || true"
-          
-          # Remove Docker image
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "docker rmi -f doce-pr-$PR_NUM:latest || true"
-          
-          # Clean up directory
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST "rm -rf $PR_DIR || true"
-          
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "cd \"$PR_DIR\" && docker-compose down 2>/dev/null || true"
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/release-port.sh $PR_NUM"
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest || true"
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker image prune -a --force" || true
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" || true"
+
           echo "✅ PR preview cleaned up!"
+

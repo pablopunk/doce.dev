@@ -1,3 +1,4 @@
+import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import { logger } from "@/server/logger";
 import {
 	checkOpencodeReady,
@@ -61,22 +62,18 @@ export async function handleDockerWaitReady(
 		logger.debug(
 			{
 				projectId: project.id,
-				devPort: project.devPort,
-				opencodePort: project.opencodePort,
 			},
 			"Checking if services are ready",
 		);
 
 		const [previewReady, opencodeReady] = await Promise.all([
-			checkPreviewReady(project.devPort),
-			checkOpencodeReady(project.opencodePort),
+			checkPreviewReady(project.id),
+			checkOpencodeReady(project.id),
 		]);
 
 		logger.info(
 			{
 				projectId: project.id,
-				devPort: project.devPort,
-				opencodePort: project.opencodePort,
 				previewReady,
 				opencodeReady,
 				elapsed,
@@ -86,6 +83,9 @@ export async function handleDockerWaitReady(
 		);
 
 		if (previewReady && opencodeReady) {
+			// Push auth.json to OpenCode container
+			await pushAuthToContainer(project.id);
+
 			await updateProjectStatus(project.id, "running");
 			logger.info(
 				{ projectId: project.id, elapsed, attempts: ctx.job.attempts },

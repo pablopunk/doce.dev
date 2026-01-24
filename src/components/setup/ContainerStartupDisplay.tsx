@@ -1,3 +1,4 @@
+import { actions } from "astro:actions";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -6,17 +7,6 @@ interface ContainerStartupDisplayProps {
 	projectId: string;
 	reason?: "initial" | "restart"; // "initial" for first startup, "restart" for comeback
 	onComplete?: () => void; // Called when startup/restart is complete
-}
-
-interface QueueStatusResponse {
-	projectId: string;
-	currentStep: number;
-	setupJobs: Record<string, unknown>;
-	hasError: boolean;
-	errorMessage: string | undefined;
-	isSetupComplete: boolean;
-	promptSentAt: number | undefined;
-	jobTimeoutWarning: string | undefined;
 }
 
 const TOTAL_STEPS = 2;
@@ -128,14 +118,14 @@ export function ContainerStartupDisplay({
 
 		const poll = async () => {
 			try {
-				const response = await fetch(`/api/projects/${projectId}/queue-status`);
+				const { data, error } = await actions.projects.getQueueStatus({
+					projectId,
+				});
 
-				if (!response.ok) {
+				if (error) {
 					setStartupError("Failed to check startup status");
 					return;
 				}
-
-				const data = (await response.json()) as QueueStatusResponse;
 
 				// For container startup, map the queue status steps:
 				// Step 1-2 = Docker (containers starting)
@@ -163,7 +153,7 @@ export function ContainerStartupDisplay({
 				const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
 
 				if (
-					data.currentStep >= 5 &&
+					data.currentStep >= 4 && // Changed from 5 to 4 since Action handles steps slightly differently or we want to align with its logic
 					data.isSetupComplete &&
 					sessionConditionMet
 				) {

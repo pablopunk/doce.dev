@@ -7,6 +7,14 @@ declare global {
 	var __DOCE_QUEUE_WORKER__: QueueWorkerHandle | undefined;
 }
 
+/**
+ * Start the queue worker.
+ * With async refactoring (eliminating execSync), the queue polling loop
+ * no longer blocks the main event loop during job execution.
+ *
+ * Note: The queue runs on the main thread but uses async/await for all
+ * blocking operations, allowing the server to remain responsive.
+ */
 export function ensureQueueWorkerStarted(): void {
 	if (globalThis.__DOCE_QUEUE_WORKER__) {
 		return;

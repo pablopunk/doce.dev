@@ -1,4 +1,5 @@
 import { composeUp } from "@/server/docker/compose";
+import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import { logger } from "@/server/logger";
 import {
 	checkOpencodeReady,
@@ -44,18 +45,27 @@ export async function handleDockerEnsureRunning(
 		await ctx.throwIfCancelRequested();
 
 		const [previewReady, opencodeReady] = await Promise.all([
-			checkPreviewReady(project.devPort),
-			checkOpencodeReady(project.opencodePort),
+			checkPreviewReady(project.id),
+			checkOpencodeReady(project.id),
 		]);
 
 		if (previewReady && opencodeReady) {
+			// Push auth.json to OpenCode container
+			await pushAuthToContainer(project.id);
+
 			await updateProjectStatus(project.id, "running");
 
 			// After successful restart, check if we need to create a new session
 			// Sessions are ephemeral and don't persist across container restarts
 			try {
 				// Check if any sessions exist
-				const sessionUrl = `http://127.0.0.1:${project.opencodePort}/session`;
+				// - In Docker: use container hostname for inter-container communication
+				// - On host (dev mode): use localhost with the project's opencode port
+				const isRunningInDocker = !!process.env.DOCE_NETWORK;
+				const baseUrl = isRunningInDocker
+					? `http://doce_${project.id}-opencode-1:3000`
+					: `http://localhost:${project.opencodePort}`;
+				const sessionUrl = `${baseUrl}/session`;
 				const sessionsRes = await fetch(sessionUrl);
 
 				if (sessionsRes.ok) {

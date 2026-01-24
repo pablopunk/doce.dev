@@ -19,14 +19,15 @@ jobs:
       pull-requests: write
       id-token: write
       issues: read
+
     steps:
       - name: Get PR number
         id: pr-number
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout repository
@@ -42,6 +43,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # HOME: /home/runner   # This is necessary for the self-hosted runner
         with:
           model: opencode/glm-4.7-free
           prompt: |
@@ -60,13 +62,14 @@ jobs:
             Generally, write a comment instead of writing suggested change if you can help it.
 
             Command MUST be like this.
-            \`\`\`
+            ```
             gh api \
               --method POST \
-              -H \"Accept: application/vnd.github+json\" \
-              -H \"X-GitHub-Api-Version: 2022-11-28\" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
               /repos/${{ github.repository }}/pulls/${{ steps.pr-number.outputs.number }}/comments \
-              -f 'body=[summary of issue]' -f 'commit_id=${{ steps.pr-details.outputs.sha }}' -f 'path=[path-to-file]' -F \"line=[line]\" -f 'side=RIGHT'
-            \`\`\`
+              -f 'body=[summary of issue]' -f 'commit_id=${{ steps.pr-details.outputs.sha }}' -f 'path=[path-to-file]' -F "line=[line]" -f 'side=RIGHT'
+            ```
 
-            Only create comments for actual violations. If the code follows all guidelines, comment on the issue using gh cli: 'lgtm' AND NOTHING ELSE!!!!."
+            Only create comments for actual violations. If the code follows all guidelines, use the script `./scripts/upsert-pr-comment.sh` to post "lgtm". Use the marker "<!-- doce-review-status -->" and the PR number "${{ steps.pr-number.outputs.number }}". If you have a summary to provide, include it in the same comment update using the script. DO NOT post multiple "lgtm" comments.
+

@@ -1,7 +1,9 @@
 /**
  * Generic health check endpoint utility.
- * Tests if a server is responding to HTTP requests.
+ * Tests if a server is responding to HTTP requests or via Docker API.
  */
+
+import { runCommand } from "@/server/utils/execAsync";
 
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
@@ -30,7 +32,7 @@ export interface HealthCheckOptions {
  * @returns true if server is healthy, false otherwise
  */
 export async function checkHealthEndpoint(
-	port: number,
+	hostOrPort: string | number,
 	options: HealthCheckOptions = {},
 ): Promise<boolean> {
 	const {
@@ -43,7 +45,13 @@ export async function checkHealthEndpoint(
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-		const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+		// Support both hostname (string) and port (number)
+		const url =
+			typeof hostOrPort === "string"
+				? `http://${hostOrPort}${path}`
+				: `http://127.0.0.1:${hostOrPort}${path}`;
+
+		const response = await fetch(url, {
 			signal: controller.signal,
 		});
 
@@ -59,9 +67,10 @@ export async function checkHealthEndpoint(
 /**
  * Check if a generic HTTP server is ready (responds to GET /).
  * Used for preview servers and production deployments.
+ * Supports both port (number) and hostname (string) for localhost and container names.
  */
 export async function checkHttpServerReady(
-	port: number,
+	portOrHost: number | string,
 	timeoutMs?: number,
 ): Promise<boolean> {
 	const options: HealthCheckOptions = {
@@ -74,14 +83,15 @@ export async function checkHttpServerReady(
 		options.timeoutMs = timeoutMs;
 	}
 
-	return checkHealthEndpoint(port, options);
+	return checkHealthEndpoint(portOrHost, options);
 }
 
 /**
  * Check if an OpenCode server is ready (responds to GET /doc with 200).
+ * Supports both port (number) and hostname (string) for localhost and container names.
  */
 export async function checkOpencodeServerReady(
-	port: number,
+	portOrHost: number | string,
 	timeoutMs?: number,
 ): Promise<boolean> {
 	const options: HealthCheckOptions = {
@@ -94,5 +104,45 @@ export async function checkOpencodeServerReady(
 		options.timeoutMs = timeoutMs;
 	}
 
-	return checkHealthEndpoint(port, options);
+	return checkHealthEndpoint(portOrHost, options);
+}
+
+/**
+ * Check if a Docker container is running and healthy.
+ * Useful for containers that can't be reached via HTTP from the app container.
+ */
+export async function checkDockerContainerReady(
+	containerName: string,
+): Promise<boolean> {
+	try {
+		// Check if container exists and is running
+		const result = await runCommand(
+			`docker inspect --format='{{.State.Running}}' ${containerName}`,
+		);
+
+		if (!result.success) {
+			return false;
+		}
+
+		const isRunning = result.stdout.trim() === "true";
+		if (!isRunning) {
+			return false;
+		}
+
+		// Also check health status if available
+		const healthResult = await runCommand(
+			`docker inspect --format='{{.State.Health.Status}}' ${containerName}`,
+		);
+
+		// If health check is configured, require healthy status
+		if (healthResult.success && healthResult.stdout.trim()) {
+			const healthStatus = healthResult.stdout.trim();
+			return healthStatus === "healthy" || healthStatus === "none";
+		}
+
+		// No health check configured, just running is enough
+		return true;
+	} catch {
+		return false;
+	}
 }

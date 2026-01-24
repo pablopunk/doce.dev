@@ -59,7 +59,7 @@ for (const model of availableModels as ModelWithVendor[]) {
 
 const curatedModels = await Promise.all(
 	Array.from(curatedModelsMap.values())
-		.flatMap((models) => models)
+		.flatMap((models) => models) // Keep all versions from all providers
 		.map(async (model) => ({
 			id: model.id,
 			name: model.name,

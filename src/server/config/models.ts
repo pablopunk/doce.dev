@@ -1,28 +1,33 @@
 /**
  * Global model configuration for all providers.
  * These models are whitelisted and appear in the UI across all providers.
- * Format: "vendor/model-id" (provider prefix is added by ModelSelector)
+ *
+ * Model IDs are stored in the canonical format from models.dev:
+ * - OpenCode provider: "model-id" (no vendor prefix, e.g., "claude-haiku-4-5")
+ * - OpenRouter/Other: "vendor/model-id" (with vendor prefix, e.g., "openai/gpt-5.2")
+ *
+ * The UI will show the same model from whichever provider(s) are configured.
+ * Provider is determined by which provider has that model in models.dev.
  */
 
 export const CURATED_MODELS = [
+	"gpt-5.2",
 	"openai/gpt-5.2",
-	"openai/gpt-4.1-mini",
-	"anthropic/claude-haiku-4-5",
+	"claude-haiku-4-5",
 	"anthropic/claude-haiku-4.5",
-	"google/gemini-3-flash",
+	"gemini-3-flash",
 ] as const;
 
 /**
  * Default model for new users (set in user settings)
  */
 export const DEFAULT_MODEL: (typeof CURATED_MODELS)[number] =
-	"anthropic/claude-haiku-4-5";
+	"claude-haiku-4-5";
 
 /**
  * Fast/cheap model for auto-naming and other quick operations
  */
-export const FAST_MODEL: (typeof CURATED_MODELS)[number] =
-	"google/gemini-3-flash";
+export const FAST_MODEL: (typeof CURATED_MODELS)[number] = "gemini-3-flash";
 
 /**
  * Fallback model when no other model is available.

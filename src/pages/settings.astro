@@ -1,8 +1,7 @@
 ---
-import { actions } from "astro:actions";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -17,9 +16,6 @@ const user = Astro.locals.user;
 if (!user) {
 	return Astro.redirect("/login");
 }
-
-const result = Astro.getActionResult(actions.settings.get);
-const userSettings = result?.data?.settings ?? null;
 
 const projects = await getProjectsByUserId(user.id);
 const projectCount = projects.length;
@@ -47,11 +43,7 @@ const projectCount = projects.length;
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<form method="POST" action={actions.auth.logout}>
-						<Button type="submit" variant="outline">
-							Logout
-						</Button>
-					</form>
+					<LogoutButton client:load />
 				</CardContent>
 			</Card>
 

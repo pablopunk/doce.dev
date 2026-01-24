@@ -45,7 +45,13 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 	}
 
 	// Connect to upstream opencode SSE
-	const upstreamUrl = `http://127.0.0.1:${project.opencodePort}/event`;
+	// - In Docker: use container hostname for inter-container communication
+	// - On host (dev mode): use localhost with the project's opencode port
+	const isRunningInDocker = !!process.env.DOCE_NETWORK;
+	const baseUrl = isRunningInDocker
+		? `http://doce_${projectId}-opencode-1:3000`
+		: `http://localhost:${project.opencodePort}`;
+	const upstreamUrl = `${baseUrl}/event`;
 
 	let upstreamResponse: Response;
 	try {
@@ -157,7 +163,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			const sendKeepAlive = () => {
 				if (isClosed) return;
 				try {
-					controller.enqueue(encoder.encode(`:keep-alive\n\n`));
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
 				} catch {
 					// Stream closed
 				}

@@ -1,6 +1,5 @@
 ---
-import { actions } from "astro:actions";
-import { Button } from "@/components/ui/button";
+import { LoginForm } from "@/components/auth/LoginForm";
 import {
 	Card,
 	CardContent,
@@ -8,15 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import AppLayout from "@/layouts/AppLayout.astro";
-
-const result = Astro.getActionResult(actions.auth.login);
-
-if (result?.data?.success) {
-	return Astro.redirect("/");
-}
 ---
 
 <AppLayout title="Login">
@@ -29,40 +20,7 @@ if (result?.data?.success) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form method="POST" action={actions.auth.login} class="space-y-4">
-          {result?.error && (
-            <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {result.error.message}
-            </div>
-          )}
-
-          <div class="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              placeholder="Username"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div class="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Password"
-              required
-            />
-          </div>
-
-          <Button type="submit" className="w-full">
-            Login
-          </Button>
-        </form>
+        <LoginForm client:load />
       </CardContent>
     </Card>
   </main>

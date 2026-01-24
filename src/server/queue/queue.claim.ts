@@ -39,24 +39,26 @@ export async function claimNextJob(
 	}
 
 	const nowMs = Date.now();
+	const nowSeconds = Math.floor(nowMs / 1000);
 	const leaseExpiresMs = nowMs + options.leaseMs;
+	const leaseExpiresSeconds = Math.floor(leaseExpiresMs / 1000);
 
 	const stmt = sqlite
 		.prepare(
 			`UPDATE queue_jobs
         SET state='running',
-            locked_at=@now,
-            lock_expires_at=@leaseExpires,
+            locked_at=@nowSeconds,
+            lock_expires_at=@leaseExpiresSeconds,
             locked_by=@workerId,
-            updated_at=@now,
+            updated_at=@nowSeconds,
             attempts=attempts+1
         WHERE id = (
           SELECT id
           FROM queue_jobs
           WHERE state='queued'
-            AND run_at <= @now
+            AND run_at <= @nowSeconds
             AND attempts < max_attempts
-            AND (lock_expires_at IS NULL OR lock_expires_at < @now)
+            AND (lock_expires_at IS NULL OR lock_expires_at < @nowSeconds)
             AND (
               project_id IS NULL
               OR NOT EXISTS (
@@ -92,8 +94,8 @@ export async function claimNextJob(
         ;`,
 		)
 		.get({
-			now: nowMs,
-			leaseExpires: leaseExpiresMs,
+			nowSeconds,
+			leaseExpiresSeconds,
 			workerId: options.workerId,
 		}) as
 		| (Omit<
@@ -122,15 +124,17 @@ export async function claimNextJob(
 
 	return {
 		...stmt,
-		runAt: new Date(stmt.runAt),
-		lockedAt: stmt.lockedAt ? new Date(stmt.lockedAt) : null,
-		lockExpiresAt: stmt.lockExpiresAt ? new Date(stmt.lockExpiresAt) : null,
-		cancelRequestedAt: stmt.cancelRequestedAt
-			? new Date(stmt.cancelRequestedAt)
+		runAt: new Date(stmt.runAt * 1000),
+		lockedAt: stmt.lockedAt ? new Date(stmt.lockedAt * 1000) : null,
+		lockExpiresAt: stmt.lockExpiresAt
+			? new Date(stmt.lockExpiresAt * 1000)
 			: null,
-		cancelledAt: stmt.cancelledAt ? new Date(stmt.cancelledAt) : null,
-		createdAt: new Date(stmt.createdAt),
-		updatedAt: new Date(stmt.updatedAt),
+		cancelRequestedAt: stmt.cancelRequestedAt
+			? new Date(stmt.cancelRequestedAt * 1000)
+			: null,
+		cancelledAt: stmt.cancelledAt ? new Date(stmt.cancelledAt * 1000) : null,
+		createdAt: new Date(stmt.createdAt * 1000),
+		updatedAt: new Date(stmt.updatedAt * 1000),
 	};
 }
 

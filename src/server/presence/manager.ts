@@ -46,7 +46,6 @@ export interface PresenceResponse {
 	userPromptCompleted: boolean;
 	userPromptMessageId: string | null;
 	prompt: string;
-	model: string | null;
 	// Project slug
 	slug: string;
 	// Session ID for chat
@@ -194,7 +193,6 @@ export async function handlePresenceHeartbeat(
 				userPromptCompleted: project.userPromptCompleted,
 				userPromptMessageId: project.userPromptMessageId,
 				prompt: project.prompt,
-				model: project.currentModel,
 				slug: project.slug,
 				bootstrapSessionId: project.bootstrapSessionId,
 				setupError,
@@ -212,8 +210,8 @@ export async function handlePresenceHeartbeat(
 
 		// Check current health and periodically capture container logs
 		const [previewReady, opencodeReady] = await Promise.all([
-			checkPreviewReady(project.devPort),
-			checkOpencodeReady(project.opencodePort),
+			checkPreviewReady(project.id),
+			checkOpencodeReady(project.id),
 		]);
 
 		// Reconcile status based on health checks
@@ -318,7 +316,6 @@ export async function handlePresenceHeartbeat(
 			userPromptCompleted: project.userPromptCompleted,
 			userPromptMessageId: project.userPromptMessageId,
 			prompt: project.prompt,
-			model: project.currentModel,
 			slug: project.slug,
 			bootstrapSessionId: project.bootstrapSessionId,
 			setupError,

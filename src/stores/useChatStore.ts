@@ -36,8 +36,8 @@ interface ChatStore {
 	userPromptMessageId: string | null;
 	projectPrompt: string | null;
 
-	// State: Model selection
-	currentModel: string | null;
+	// State: Model selection (using OpenCode's format)
+	currentModel: { providerID: string; modelID: string } | null;
 
 	// State: Loading flags
 	historyLoaded: boolean;
@@ -57,7 +57,9 @@ interface ChatStore {
 	setProjectPrompt: (prompt: string | null) => void;
 
 	// Actions: Model
-	setCurrentModel: (model: string | null) => void;
+	setCurrentModel: (
+		model: { providerID: string; modelID: string } | null,
+	) => void;
 
 	// Actions: Loading flags
 	setHistoryLoaded: (loaded: boolean) => void;
@@ -91,7 +93,7 @@ const initialState = {
 	initialPromptSent: true, // Assume sent until we know otherwise
 	userPromptMessageId: null as string | null,
 	projectPrompt: null as string | null,
-	currentModel: null as string | null,
+	currentModel: null as { providerID: string; modelID: string } | null,
 	historyLoaded: false,
 	presenceLoaded: false,
 	isStreaming: false,

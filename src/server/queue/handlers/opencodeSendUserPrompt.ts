@@ -1,10 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
-	getProjectModel,
+	loadOpencodeConfig,
 	markInitialPromptSent,
 	parseModelString,
 	updateUserPromptMessageId,
@@ -53,19 +55,26 @@ export async function handleOpencodeSendUserPrompt(
 	}
 
 	try {
+		logger.info(
+			{ projectId: project.id },
+			"opencode.sendUserPrompt handler started",
+		);
+
 		const sessionId = project.bootstrapSessionId;
 		if (!sessionId) {
 			throw new Error("No bootstrap session ID found - session not created?");
 		}
 
+		logger.info(
+			{ projectId: project.id, sessionId },
+			"Bootstrap session ID found, proceeding with prompt send",
+		);
+
 		await ctx.throwIfCancelRequested();
 
 		// Read images from temp file if it exists
-		const imagesPath = path.join(
-			process.cwd(),
-			project.pathOnDisk,
-			".doce-images.json",
-		);
+		const normalizedProjectPath = normalizeProjectPath(project.pathOnDisk);
+		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 		let images: ImageAttachment[] = [];
 		try {
 			const imagesContent = await fs.readFile(imagesPath, "utf-8");
@@ -96,8 +105,11 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		// Get the current model for this project (returns provider-prefixed string)
-		const modelString = await getProjectModel(project.id);
+		// Load model from opencode.json config
+		const projectPath = normalizedProjectPath;
+
+		const config = await loadOpencodeConfig(projectPath);
+		const modelString = config?.model || FALLBACK_MODEL;
 
 		// Parse the provider-prefixed model string
 		const modelInfo = parseModelString(modelString);
@@ -105,20 +117,9 @@ export async function handleOpencodeSendUserPrompt(
 			throw new Error(`Invalid model string: ${modelString}`);
 		}
 
-		// For OpenCode provider, strip the vendor prefix from the model ID
-		// OpenCode models are stored as "vendor/model" for display, but the SDK expects just "model"
-		// e.g., "anthropic/claude-haiku-4-5" should be sent as "claude-haiku-4-5"
-		let sdkModelID = modelInfo.modelID;
-		if (modelInfo.providerID === "opencode") {
-			// Remove vendor prefix if present (e.g., "anthropic/claude-haiku-4-5" -> "claude-haiku-4-5")
-			const modelParts = modelInfo.modelID.split("/");
-			if (modelParts.length > 1) {
-				sdkModelID = modelParts.slice(1).join("/");
-			}
-		}
-
 		// Create SDK client for this project
-		const client = createOpencodeClient(project.opencodePort);
+		// Pass projectId and opencodePort to connect via container hostname (Docker) or localhost (dev)
+		const client = createOpencodeClient(project.id, project.opencodePort);
 
 		// Send the user's prompt via SDK with model specified
 		try {
@@ -126,7 +127,7 @@ export async function handleOpencodeSendUserPrompt(
 				sessionID: sessionId,
 				model: {
 					providerID: modelInfo.providerID,
-					modelID: sdkModelID,
+					modelID: modelInfo.modelID,
 				},
 				parts,
 			});
@@ -310,12 +311,24 @@ export async function handleOpencodeSendUserPrompt(
 
 		// Mark initial prompt as sent (legacy flag for backward compatibility)
 		await markInitialPromptSent(project.id);
-
-		logger.debug(
+		logger.info(
 			{ projectId: project.id },
-			"User prompt sent, completion will be detected by event handler",
+			"Marked initial prompt as sent in database",
+		);
+
+		logger.info(
+			{ projectId: project.id },
+			"opencode.sendUserPrompt handler completed successfully",
 		);
 	} catch (error) {
+		logger.error(
+			{
+				projectId: project.id,
+				error: error instanceof Error ? error.message : String(error),
+				errorStack: error instanceof Error ? error.stack : undefined,
+			},
+			"opencode.sendUserPrompt handler failed",
+		);
 		throw error;
 	}
 }

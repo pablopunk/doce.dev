@@ -21,6 +21,7 @@ import {
 	failJob,
 	getJobCancelRequestedAt,
 	heartbeatLease,
+	recoverExpiredJobs,
 	rescheduleJob,
 	scheduleRetry,
 	toErrorMessage,
@@ -108,6 +109,12 @@ export function startQueueWorker(
 		);
 
 		while (!abort.signal.aborted) {
+			try {
+				await recoverExpiredJobs();
+			} catch (error) {
+				logger.error({ error }, "Failed to recover expired queue jobs");
+			}
+
 			while (!abort.signal.aborted && inFlight.size < options.concurrency) {
 				const job = await claimNextJob({ workerId, leaseMs: options.leaseMs });
 				if (!job) break;

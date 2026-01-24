@@ -18,6 +18,7 @@ import {
 	getProductionCurrentSymlink,
 	getProductionPath,
 	getTemplatePath,
+	normalizeProjectPath,
 } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { enqueueProductionWaitReady } from "../enqueue";
@@ -47,7 +48,7 @@ async function setupProductionDirectory(
 	const logsDir = path.join(productionPath, "logs");
 	await fs.mkdir(logsDir, { recursive: true });
 
-	const projectPath = project.pathOnDisk;
+	const projectPath = normalizeProjectPath(project.pathOnDisk);
 	const templatePath = getTemplatePath();
 
 	// Copy src/ folder (required for building in production)

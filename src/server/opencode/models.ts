@@ -9,15 +9,23 @@ export interface ModelCapabilities {
 }
 
 /**
- * Map opencode model IDs to normalized vendor/model format
- * opencode uses simple model names, we need to infer vendor from the model name
+ * Normalize model IDs from models.dev for each provider.
+ * Returns the model ID as-is (matching models.dev format) and infers vendor for display.
+ *
+ * Key insight: OpenCode SDK expects model IDs without vendor prefix, while OpenRouter
+ * expects model IDs with vendor prefix. This function just returns the canonical format
+ * from models.dev and infers the vendor name for UI grouping.
+ *
+ * Examples:
+ * - OpenCode "claude-haiku-4-5" → { id: "claude-haiku-4-5", vendor: "anthropic" }
+ * - OpenRouter "openai/gpt-5.2" → { id: "openai/gpt-5.2", vendor: "openai" }
  */
 function normalizeModelId(
 	modelId: string,
 	providerId: string,
 ): { id: string; vendor: string } {
 	// For openrouter, models are already in vendor/model format
-	// Don't add provider prefix - it's redundant (provider is tracked separately)
+	// Return as-is and extract vendor from the ID
 	if (providerId === "openrouter") {
 		// Extract vendor from the model ID (first part before /)
 		const parts = modelId.split("/");
@@ -25,31 +33,30 @@ function normalizeModelId(
 		return { id: modelId, vendor };
 	}
 
-	// If already in vendor/model format, return as-is (for non-openrouter providers)
+	// If already in vendor/model format, return as-is (for other providers with vendor prefix)
 	if (modelId.includes("/")) {
 		const parts = modelId.split("/");
 		const vendor = parts[0]!;
 		return { id: modelId, vendor };
 	}
 
-	// For opencode provider, DON'T add vendor prefix - OpenCode SDK expects just the model name
-	// The vendor prefix is only for display purposes in the UI
-	// The SDK's normalizeModelId (in opencodeSendUserPrompt) will strip it anyway
+	// For opencode provider, models don't have vendor prefix in their ID
+	// Infer vendor from model name for display/grouping purposes only
 	if (providerId === "opencode") {
 		if (modelId.startsWith("gpt-") || modelId.startsWith("gpt_")) {
-			return { id: `openai/${modelId}`, vendor: "openai" };
+			return { id: modelId, vendor: "openai" };
 		}
 		if (modelId.startsWith("claude-")) {
-			return { id: `anthropic/${modelId}`, vendor: "anthropic" };
+			return { id: modelId, vendor: "anthropic" };
 		}
 		if (modelId.startsWith("gemini-")) {
-			return { id: `google/${modelId}`, vendor: "google" };
+			return { id: modelId, vendor: "google" };
 		}
 		if (modelId.startsWith("grok-")) {
-			return { id: `xai/${modelId}`, vendor: "xai" };
+			return { id: modelId, vendor: "xai" };
 		}
 		if (modelId.includes("kimi") || modelId.startsWith("kimi-")) {
-			return { id: `moonshot/${modelId}`, vendor: "moonshot" };
+			return { id: modelId, vendor: "moonshot" };
 		}
 		// Default: use the model ID as vendor if no match
 		return { id: modelId, vendor: modelId };

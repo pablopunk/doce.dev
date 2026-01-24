@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { queueJobs } from "@/server/db/schema";
 
@@ -138,4 +138,21 @@ export async function forceUnlock(jobId: string): Promise<void> {
 			updatedAt: now,
 		})
 		.where(eq(queueJobs.id, jobId));
+}
+
+export async function recoverExpiredJobs(): Promise<void> {
+	const now = new Date();
+
+	await db
+		.update(queueJobs)
+		.set({
+			state: "queued",
+			lockedAt: null,
+			lockExpiresAt: null,
+			lockedBy: null,
+			updatedAt: now,
+		})
+		.where(
+			and(eq(queueJobs.state, "running"), lt(queueJobs.lockExpiresAt, now)),
+		);
 }

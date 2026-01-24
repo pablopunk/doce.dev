@@ -5,38 +5,57 @@ import {
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
 
-export const GET: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ params, locals, request }) => {
 	const projectId = params.id;
 
 	if (!projectId) {
 		return new Response("Project ID is required", { status: 400 });
 	}
 
-	// Check authentication
 	const user = locals.user;
 	if (!user) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 
-	// Check ownership
 	const isOwner = await isProjectOwnedByUser(projectId, user.id);
 	if (!isOwner) {
 		return new Response("Forbidden", { status: 403 });
 	}
 
-	// Create SSE stream
 	const encoder = new TextEncoder();
 	let lastProjectStatus = "";
+	let isClosed = false;
+	const KEEP_ALIVE_INTERVAL_MS = 15_000;
 
 	const stream = new ReadableStream({
 		async start(controller) {
+			let pollInterval: NodeJS.Timeout | null = null;
+			let timeoutHandle: NodeJS.Timeout | null = null;
+
+			const cleanup = () => {
+				isClosed = true;
+				if (pollInterval) clearInterval(pollInterval);
+				if (timeoutHandle) clearTimeout(timeoutHandle);
+				if (keepAliveTimer) clearInterval(keepAliveTimer);
+			};
+
+			const sendKeepAlive = () => {
+				if (isClosed) return;
+				try {
+					controller.enqueue(encoder.encode(": keep-alive\n\n"));
+				} catch {
+					// Stream closed
+					isClosed = true;
+				}
+			};
+
+			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+
 			try {
-				// Send initial status
 				const project = await getProjectById(projectId);
 				if (project) {
 					const status = getProductionStatus(project);
 					lastProjectStatus = status.status || "stopped";
-
 					const event = `event: production.status\ndata: ${JSON.stringify({
 						status: status.status,
 						url: status.url,
@@ -44,16 +63,19 @@ export const GET: APIRoute = async ({ params, locals }) => {
 						error: status.error,
 						startedAt: status.startedAt?.toISOString() || null,
 					})}\n\n`;
-
 					controller.enqueue(encoder.encode(event));
 				}
 
-				// Poll for updates every 2 seconds
-				const pollInterval = setInterval(async () => {
+				pollInterval = setInterval(async () => {
+					if (isClosed) {
+						if (pollInterval) clearInterval(pollInterval);
+						return;
+					}
+
 					try {
 						const updatedProject = await getProjectById(projectId);
 						if (!updatedProject) {
-							clearInterval(pollInterval);
+							cleanup();
 							controller.close();
 							return;
 						}
@@ -61,8 +83,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
 						const status = getProductionStatus(updatedProject);
 						const newStatus = status.status || "stopped";
 
-						// Only send if status changed
-						if (newStatus !== lastProjectStatus) {
+						if (!isClosed && newStatus !== lastProjectStatus) {
 							lastProjectStatus = newStatus;
 							const event = `event: production.status\ndata: ${JSON.stringify({
 								status: status.status,
@@ -71,26 +92,41 @@ export const GET: APIRoute = async ({ params, locals }) => {
 								error: status.error,
 								startedAt: status.startedAt?.toISOString() || null,
 							})}\n\n`;
-
-							controller.enqueue(encoder.encode(event));
+							try {
+								controller.enqueue(encoder.encode(event));
+							} catch {
+								isClosed = true;
+							}
 						}
-					} catch (error) {
-						console.error("Error polling production status:", error);
+					} catch {
+						// Error in polling
 					}
 				}, 2000);
 
-				// Clean up interval when client disconnects
-				// This is handled by the browser closing the connection
-				setTimeout(
+				// 5 minute timeout for safety
+				timeoutHandle = setTimeout(
 					() => {
-						clearInterval(pollInterval);
+						cleanup();
+						try {
+							controller.close();
+						} catch {}
 					},
 					5 * 60 * 1000,
-				); // 5 minute timeout
+				);
+
+				// Handle client disconnect
+				request.signal?.addEventListener("abort", () => {
+					cleanup();
+					controller.close();
+				});
 			} catch (error) {
-				console.error("Error in production stream:", error);
+				cleanup();
 				controller.close();
 			}
+		},
+
+		cancel() {
+			isClosed = true;
 		},
 	});
 
