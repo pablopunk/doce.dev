@@ -43,11 +43,15 @@ export async function runCommand(
 	} catch (error) {
 		if (error instanceof Error) {
 			// execAsync throws with stdout/stderr on non-zero exit
-			const execError = error as any;
+			const execError = error as Error & {
+				stdout?: string;
+				stderr?: string;
+				code?: number;
+			};
 			return {
 				success: false,
 				stdout: execError.stdout || "",
-				stderr: execError.stderr || error.message,
+				stderr: execError.stderr || error.message || "Unknown error",
 				exitCode: execError.code || 1,
 			};
 		}

@@ -29,55 +29,50 @@ export async function handleProductionBuild(
 		);
 		return;
 	}
+	await updateProductionStatus(project.id, "building");
 
-	try {
-		await updateProductionStatus(project.id, "building");
+	await ctx.throwIfCancelRequested();
 
-		await ctx.throwIfCancelRequested();
+	logger.info({ projectId: project.id }, "Starting production build");
 
-		logger.info({ projectId: project.id }, "Starting production build");
+	// Run pnpm run build in the project directory asynchronously
+	// This creates the dist/ folder that will be used by the production container
+	const result = await spawnCommand("pnpm", ["run", "build"], {
+		cwd: project.pathOnDisk,
+		timeout: 5 * 60 * 1000, // 5 minute timeout
+	});
 
-		// Run pnpm run build in the project directory asynchronously
-		// This creates the dist/ folder that will be used by the production container
-		const result = await spawnCommand("pnpm", ["run", "build"], {
-			cwd: project.pathOnDisk,
-			timeout: 5 * 60 * 1000, // 5 minute timeout
-		});
-
-		if (!result.success) {
-			const errorMsg = result.stderr || result.stdout || "Build failed";
-			logger.error(
-				{ projectId: project.id, error: errorMsg.slice(0, 500) },
-				"Production build failed",
-			);
-			await updateProductionStatus(project.id, "failed", {
-				productionError: errorMsg.slice(0, 500),
-			});
-			throw new Error(`Build failed: ${errorMsg.slice(0, 200)}`);
-		}
-
-		logger.info({ projectId: project.id }, "Production build succeeded");
-
-		// Calculate hash of dist folder for atomic versioned deployment
-		const distPath = path.join(project.pathOnDisk, "dist");
-		const productionHash = await hashDistFolder(distPath);
-		logger.debug(
-			{ projectId: project.id, productionHash },
-			"Calculated production hash",
+	if (!result.success) {
+		const errorMsg = result.stderr || result.stdout || "Build failed";
+		logger.error(
+			{ projectId: project.id, error: errorMsg.slice(0, 500) },
+			"Production build failed",
 		);
-
-		// Enqueue next step: start production container with hash
-		// Port will be allocated by the production.start handler
-		await enqueueProductionStart({
-			projectId: project.id,
-			productionHash,
+		await updateProductionStatus(project.id, "failed", {
+			productionError: errorMsg.slice(0, 500),
 		});
-
-		logger.debug(
-			{ projectId: project.id, productionHash },
-			"Enqueued production.start",
-		);
-	} catch (error) {
-		throw error;
+		throw new Error(`Build failed: ${errorMsg.slice(0, 200)}`);
 	}
+
+	logger.info({ projectId: project.id }, "Production build succeeded");
+
+	// Calculate hash of dist folder for atomic versioned deployment
+	const distPath = path.join(project.pathOnDisk, "dist");
+	const productionHash = await hashDistFolder(distPath);
+	logger.debug(
+		{ projectId: project.id, productionHash },
+		"Calculated production hash",
+	);
+
+	// Enqueue next step: start production container with hash
+	// Port will be allocated by the production.start handler
+	await enqueueProductionStart({
+		projectId: project.id,
+		productionHash,
+	});
+
+	logger.debug(
+		{ projectId: project.id, productionHash },
+		"Enqueued production.start",
+	);
 }

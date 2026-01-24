@@ -38,7 +38,11 @@ export async function generateTextWithFallback(
 ): Promise<string> {
 	try {
 		const provider = await getOpenRouterProvider();
-		const generateOptions: any = {
+		const generateOptions: {
+			model: string;
+			prompt: string;
+			abortSignal?: AbortSignal;
+		} = {
 			model: provider(model),
 			prompt,
 		};

@@ -39,52 +39,47 @@ export async function handleOpencodeSendInitialPrompt(
 		);
 		return;
 	}
-
-	try {
-		const sessionId = project.bootstrapSessionId;
-		if (!sessionId) {
-			throw new Error("No bootstrap session ID found - session not created?");
-		}
-
-		await ctx.throwIfCancelRequested();
-
-		// Send the initial prompt via HTTP (prompt_async)
-		// - In Docker: use container hostname for inter-container communication
-		// - On host (dev mode): use localhost with the project's opencode port
-		const isRunningInDocker = !!process.env.DOCE_NETWORK;
-		const baseUrl = isRunningInDocker
-			? `http://doce_${project.id}-opencode-1:3000`
-			: `http://localhost:${project.opencodePort}`;
-		const url = `${baseUrl}/session/${sessionId}/prompt_async`;
-
-		const response = await fetch(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				parts: [{ type: "text", text: project.prompt }],
-			}),
-		});
-
-		// prompt_async returns 204 No Content on success
-		if (!response.ok && response.status !== 204) {
-			const text = await response.text().catch(() => "");
-			throw new Error(
-				`Failed to send initial prompt: ${response.status} ${text.slice(0, 200)}`,
-			);
-		}
-
-		logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
-
-		// Mark initial prompt as sent
-		await markInitialPromptSent(project.id);
-
-		await ctx.throwIfCancelRequested();
-
-		logger.debug(
-			{ projectId: project.id },
-			"Initial prompt sent, completion will be detected by presence system",
-		);
-	} catch (error) {
-		throw error;
+	const sessionId = project.bootstrapSessionId;
+	if (!sessionId) {
+		throw new Error("No bootstrap session ID found - session not created?");
 	}
+
+	await ctx.throwIfCancelRequested();
+
+	// Send the initial prompt via HTTP (prompt_async)
+	// - In Docker: use container hostname for inter-container communication
+	// - On host (dev mode): use localhost with the project's opencode port
+	const isRunningInDocker = !!process.env.DOCE_NETWORK;
+	const baseUrl = isRunningInDocker
+		? `http://doce_${project.id}-opencode-1:3000`
+		: `http://localhost:${project.opencodePort}`;
+	const url = `${baseUrl}/session/${sessionId}/prompt_async`;
+
+	const response = await fetch(url, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			parts: [{ type: "text", text: project.prompt }],
+		}),
+	});
+
+	// prompt_async returns 204 No Content on success
+	if (!response.ok && response.status !== 204) {
+		const text = await response.text().catch(() => "");
+		throw new Error(
+			`Failed to send initial prompt: ${response.status} ${text.slice(0, 200)}`,
+		);
+	}
+
+	logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
+
+	// Mark initial prompt as sent
+	await markInitialPromptSent(project.id);
+
+	await ctx.throwIfCancelRequested();
+
+	logger.debug(
+		{ projectId: project.id },
+		"Initial prompt sent, completion will be detected by presence system",
+	);
 }

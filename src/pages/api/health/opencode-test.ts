@@ -47,11 +47,11 @@ export const GET: APIRoute = async ({ url }) => {
 		try {
 			logger.info({ projectId }, "Test 1: Creating OpenCode client");
 			getOpencodeClient(projectId, project.opencodePort);
-			(results.tests as Record<string, unknown>)["client_creation"] = {
+			(results.tests as Record<string, unknown>).client_creation = {
 				status: "success",
 			};
 		} catch (error) {
-			(results.tests as Record<string, unknown>)["client_creation"] = {
+			(results.tests as Record<string, unknown>).client_creation = {
 				status: "failed",
 				error: error instanceof Error ? error.message : String(error),
 			};
@@ -66,12 +66,12 @@ export const GET: APIRoute = async ({ url }) => {
 			logger.info({ projectId }, "Test 2: Checking OpenCode health");
 			const client = getOpencodeClient(projectId, project.opencodePort);
 			const health = await client.global.health();
-			(results.tests as Record<string, unknown>)["health_check"] = {
+			(results.tests as Record<string, unknown>).health_check = {
 				status: health.response?.ok ? "success" : "failed",
 				responseOk: health.response?.ok,
 			};
 		} catch (error) {
-			(results.tests as Record<string, unknown>)["health_check"] = {
+			(results.tests as Record<string, unknown>).health_check = {
 				status: "failed",
 				error: error instanceof Error ? error.message : String(error),
 			};
@@ -83,7 +83,7 @@ export const GET: APIRoute = async ({ url }) => {
 			const client = getOpencodeClient(projectId, project.opencodePort);
 			const session = await client.session.create();
 			const sessionId = (session.data as Record<string, unknown>)?.id;
-			(results.tests as Record<string, unknown>)["session_creation"] = {
+			(results.tests as Record<string, unknown>).session_creation = {
 				status: sessionId ? "success" : "failed",
 				sessionId,
 				hasData: !!session.data,
@@ -99,7 +99,7 @@ export const GET: APIRoute = async ({ url }) => {
 					const messages = await client.session.messages({
 						sessionID: sessionId as string,
 					});
-					(results.tests as Record<string, unknown>)["fetch_messages"] = {
+					(results.tests as Record<string, unknown>).fetch_messages = {
 						status: "success",
 						hasData: !!messages.data,
 						messageCount: Array.isArray(messages.data)
@@ -107,14 +107,14 @@ export const GET: APIRoute = async ({ url }) => {
 							: 0,
 					};
 				} catch (error) {
-					(results.tests as Record<string, unknown>)["fetch_messages"] = {
+					(results.tests as Record<string, unknown>).fetch_messages = {
 						status: "failed",
 						error: error instanceof Error ? error.message : String(error),
 					};
 				}
 			}
 		} catch (error) {
-			(results.tests as Record<string, unknown>)["session_creation"] = {
+			(results.tests as Record<string, unknown>).session_creation = {
 				status: "failed",
 				error: error instanceof Error ? error.message : String(error),
 			};

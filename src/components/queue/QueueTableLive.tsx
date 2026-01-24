@@ -96,7 +96,6 @@ export function QueueTableLive({
 				return <Loader className="w-3 h-3 animate-spin" />;
 			case "cancelled":
 				return <AlertCircle className="w-3 h-3" />;
-			case "queued":
 			default:
 				return <Clock className="w-3 h-3" />;
 		}

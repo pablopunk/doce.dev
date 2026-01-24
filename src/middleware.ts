@@ -111,7 +111,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			} else {
 				context.cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
 			}
-		} catch (error) {
+		} catch (_error) {
 			context.cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
 		}
 	}

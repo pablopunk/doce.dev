@@ -116,7 +116,7 @@ export function FilesTab({
 		};
 
 		fetchFileTree();
-	}, [projectId, lastSelectedFile]);
+	}, [projectId, lastSelectedFile, fetchFileContent]);
 
 	// Fetch file content when selected file changes
 	const fetchFileContent = async (path: string) => {

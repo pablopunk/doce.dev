@@ -185,7 +185,10 @@ export function useChatPanel({
 					: messagesData.messages || [];
 
 				const lastUserMessageWithModel = messages
-					.filter((m: any) => m.info?.role === "user" && m.info?.model)
+					.filter(
+						(m: { info?: { role?: string; model?: string } }) =>
+							m.info?.role === "user" && m.info?.model,
+					)
 					.pop();
 
 				if (lastUserMessageWithModel?.info?.model) {
@@ -194,7 +197,12 @@ export function useChatPanel({
 					);
 				}
 
-				const historyItems: any[] = [];
+				const historyItems: Array<{
+					role: "user" | "assistant";
+					content?: string;
+					toolUseId?: string;
+					toolName?: string;
+				}> = [];
 				let foundUserPrompt = false;
 
 				for (const msg of messages) {
@@ -336,7 +344,7 @@ export function useChatPanel({
 			`/api/projects/${projectId}/opencode/event`,
 		);
 		eventSourceRef.current = eventSource;
-		const handler = (e: any) => {
+		const handler = (e: Event) => {
 			try {
 				handleChatEvent(JSON.parse(e.data));
 			} catch {}
@@ -394,9 +402,9 @@ export function useChatPanel({
 					method: "POST",
 				});
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { id: string };
 					currentSessionId = data.id;
-					setSessionId(currentSessionId!);
+					setSessionId(currentSessionId);
 				}
 			}
 			if (!currentSessionId) return;

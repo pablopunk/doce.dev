@@ -71,7 +71,7 @@ async function setupProductionDirectory(
 	try {
 		await fs.cp(publicSource, publicDest, { recursive: true });
 		logger.debug({ projectId: project.id }, "Copied public/ folder");
-	} catch (error) {
+	} catch (_error) {
 		// public/ folder might not exist, that's okay
 		logger.debug(
 			{ projectId: project.id },

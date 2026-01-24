@@ -96,12 +96,12 @@ export function ChatInput({
 		textarea.style.height = "auto";
 		const scrollHeight = textarea.scrollHeight;
 		const maxHeight = 200;
-		textarea.style.height = Math.min(scrollHeight, maxHeight) + "px";
+		textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
 	};
 
 	useEffect(() => {
 		adjustTextareaHeight();
-	}, [message]);
+	}, [adjustTextareaHeight]);
 
 	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {

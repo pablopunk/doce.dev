@@ -78,22 +78,38 @@ export function useQueueActions() {
 			let body: Record<string, string> = {};
 
 			switch (pendingAction.action) {
-				case "cancel":
+				case "cancel": {
 					path = "/_actions/queue.cancel";
-					body = { jobId: pendingAction.jobId! };
+					if (!pendingAction.jobId) {
+						throw new Error("Job ID is required for cancel action");
+					}
+					body = { jobId: pendingAction.jobId };
 					break;
-				case "forceUnlock":
+				}
+				case "forceUnlock": {
 					path = "/_actions/queue.forceUnlock";
-					body = { jobId: pendingAction.jobId! };
+					if (!pendingAction.jobId) {
+						throw new Error("Job ID is required for forceUnlock action");
+					}
+					body = { jobId: pendingAction.jobId };
 					break;
-				case "delete":
+				}
+				case "delete": {
+					if (!pendingAction.jobId) {
+						throw new Error("Job ID is required for delete action");
+					}
 					path = "/_actions/queue.deleteJob";
-					body = { jobId: pendingAction.jobId! };
+					body = { jobId: pendingAction.jobId };
 					break;
-				case "deleteByState":
+				}
+				case "deleteByState": {
+					if (!pendingAction.state) {
+						throw new Error("State is required for deleteByState action");
+					}
 					path = "/_actions/queue.deleteByState";
-					body = { state: pendingAction.state! };
+					body = { state: pendingAction.state };
 					break;
+				}
 				default:
 					throw new Error("Invalid action");
 			}

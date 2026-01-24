@@ -1,6 +1,6 @@
-import path from "path";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sourceDir = path.join(__dirname, "../public");

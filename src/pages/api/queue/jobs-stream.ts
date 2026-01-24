@@ -27,7 +27,9 @@ function validateJobType(typeParam: string): QueueJobType | undefined {
 		"production.waitReady",
 		"production.stop",
 	] as const;
-	return allowedTypes.includes(typeParam as any)
+	return allowedTypes.includes(
+		typeParam as unknown as (typeof allowedTypes)[number],
+	)
 		? (typeParam as QueueJobType)
 		: undefined;
 }
@@ -40,7 +42,9 @@ function validateJobState(stateParam: string): QueueJob["state"] | undefined {
 		"failed",
 		"cancelled",
 	] as const;
-	return allowedStates.includes(stateParam as any)
+	return allowedStates.includes(
+		stateParam as unknown as (typeof allowedStates)[number],
+	)
 		? (stateParam as QueueJob["state"])
 		: undefined;
 }
@@ -104,7 +108,14 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			};
 
 			try {
-				const filters: any = { limit: PAGE_SIZE, offset };
+				const filters: {
+					limit: number;
+					offset: number;
+					state?: QueueJob["state"];
+					type?: QueueJobType;
+					projectId?: string;
+					q?: string;
+				} = { limit: PAGE_SIZE, offset };
 				if (state) filters.state = state;
 				if (type) filters.type = type;
 				if (projectIdParam) filters.projectId = projectIdParam;

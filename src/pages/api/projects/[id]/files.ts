@@ -165,7 +165,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 					headers: { "Content-Type": "application/json" },
 				},
 			);
-		} catch (error) {
+		} catch (_error) {
 			return new Response(
 				JSON.stringify({
 					error: "Failed to read file",
@@ -204,7 +204,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		});
-	} catch (error) {
+	} catch (_error) {
 		return new Response(
 			JSON.stringify({
 				error: "Failed to read files",

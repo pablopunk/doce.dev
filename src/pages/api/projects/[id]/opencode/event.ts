@@ -173,7 +173,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
 
 			// Read from upstream
-			const reader = upstreamResponse.body!.getReader();
+			const reader = upstreamResponse.body?.getReader();
 
 			try {
 				while (!isClosed) {

@@ -29,30 +29,25 @@ export async function handleDockerComposeUp(
 		);
 		return;
 	}
+	await updateProjectStatus(project.id, "starting");
 
-	try {
-		await updateProjectStatus(project.id, "starting");
+	await ctx.throwIfCancelRequested();
 
-		await ctx.throwIfCancelRequested();
-
-		const result = await composeUp(project.id, project.pathOnDisk);
-		if (!result.success) {
-			const errorMsg = `compose up failed: ${result.stderr.slice(0, 500)}`;
-			await updateProjectStatus(project.id, "error");
-			throw new Error(errorMsg);
-		}
-
-		logger.info({ projectId: project.id }, "Docker compose up succeeded");
-
-		// Enqueue next step: wait for services to be ready
-		await enqueueDockerWaitReady({
-			projectId: project.id,
-			startedAt: Date.now(),
-			rescheduleCount: 0,
-		});
-
-		logger.debug({ projectId: project.id }, "Enqueued docker.waitReady");
-	} catch (error) {
-		throw error;
+	const result = await composeUp(project.id, project.pathOnDisk);
+	if (!result.success) {
+		const errorMsg = `compose up failed: ${result.stderr.slice(0, 500)}`;
+		await updateProjectStatus(project.id, "error");
+		throw new Error(errorMsg);
 	}
+
+	logger.info({ projectId: project.id }, "Docker compose up succeeded");
+
+	// Enqueue next step: wait for services to be ready
+	await enqueueDockerWaitReady({
+		projectId: project.id,
+		startedAt: Date.now(),
+		rescheduleCount: 0,
+	});
+
+	logger.debug({ projectId: project.id }, "Enqueued docker.waitReady");
 }

@@ -81,7 +81,11 @@ export function getOpencodeClient(
 		);
 	}
 
-	return clientCache.get(cacheKey)!;
+	const client = clientCache.get(cacheKey);
+	if (!client) {
+		throw new Error(`Client for key ${cacheKey} not found in cache`);
+	}
+	return client;
 }
 
 /**

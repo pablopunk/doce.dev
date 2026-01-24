@@ -49,7 +49,7 @@ export function useResizablePanel({
 		if (saved) {
 			try {
 				const parsed = parseFloat(saved);
-				if (!isNaN(parsed) && parsed >= minSize && parsed <= maxSize) {
+				if (!Number.isNaN(parsed) && parsed >= minSize && parsed <= maxSize) {
 					setLeftPercent(parsed);
 				}
 			} catch {

@@ -43,7 +43,7 @@ export function useCreateProject({
 		textarea.style.height = "auto";
 		const scrollHeight = textarea.scrollHeight;
 		const maxHeight = 200;
-		textarea.style.height = Math.min(scrollHeight, maxHeight) + "px";
+		textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
 	};
 
 	// Process files and add as image attachments
@@ -261,7 +261,7 @@ export function useCreateProject({
 		try {
 			// Send composite key format to backend
 			await actions.settings.save({ defaultModel: compositeKey });
-		} catch (error) {
+		} catch (_error) {
 			// Silently fail - don't disrupt user experience
 		}
 	};

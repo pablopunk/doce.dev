@@ -48,7 +48,9 @@ try {
 
 	// Filter to only include curated models and add vision support
 	const filteredModels = availableModels.filter((model) =>
-		CURATED_MODELS.includes(model.id as any),
+		CURATED_MODELS.includes(
+			model.id as unknown as (typeof CURATED_MODELS)[number],
+		),
 	);
 
 	curatedModels = await Promise.all(

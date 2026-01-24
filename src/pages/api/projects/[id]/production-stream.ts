@@ -119,7 +119,7 @@ export const GET: APIRoute = async ({ params, locals, request }) => {
 					cleanup();
 					controller.close();
 				});
-			} catch (error) {
+			} catch (_error) {
 				cleanup();
 				controller.close();
 			}

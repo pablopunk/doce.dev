@@ -163,8 +163,10 @@ export function createChatStore() {
 							if (textPartIdx !== -1 && deltaText) {
 								// Append delta to existing text part
 								const updatedParts = [...msg.parts];
-								const textPart = updatedParts[textPartIdx] as any;
-								textPart.text = textPart.text + deltaText;
+								const part = updatedParts[textPartIdx];
+								if (part && part.type === "text") {
+									part.text = part.text + deltaText;
+								}
 								return {
 									items: state.items.map((item) =>
 										item.id === messageId
@@ -244,8 +246,10 @@ export function createChatStore() {
 							if (textPart && textPart.type === "text") {
 								// Append to existing text part
 								const updatedParts = [...msg.parts];
-								(updatedParts[updatedParts.length - 1] as any).text =
-									textPart.text + deltaText;
+								const lastPart = updatedParts[updatedParts.length - 1];
+								if (lastPart && lastPart.type === "text") {
+									lastPart.text = textPart.text + deltaText;
+								}
 								return {
 									items: state.items.map((item) =>
 										item.id === messageId
@@ -409,5 +413,5 @@ export function useChatStore(projectId: string) {
 	if (!storeInstances.has(projectId)) {
 		storeInstances.set(projectId, createChatStore());
 	}
-	return storeInstances.get(projectId)!();
+	return storeInstances.get(projectId)?.();
 }

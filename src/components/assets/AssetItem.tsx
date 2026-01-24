@@ -74,7 +74,7 @@ export function AssetItem({
 			setIsSaving(true);
 			await onRename(asset.name, fullNewName);
 			setIsRenaming(false);
-		} catch (error) {
+		} catch (_error) {
 			// Error will be shown by parent component
 		} finally {
 			setIsSaving(false);
@@ -104,7 +104,7 @@ export function AssetItem({
 			setIsDeleting(true);
 			await onDelete(asset.path);
 			setShowDeleteDialog(false);
-		} catch (error) {
+		} catch (_error) {
 			// Error will be shown by parent component
 		} finally {
 			setIsDeleting(false);
@@ -196,7 +196,6 @@ export function AssetItem({
 								onChange={(e) => setNewName(e.target.value)}
 								onKeyDown={handleRenameKeyDown}
 								className="flex-1 min-w-0 text-xs px-2 py-1 rounded border bg-background text-foreground"
-								autoFocus
 								disabled={isSaving}
 								placeholder="Name..."
 							/>

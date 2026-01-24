@@ -36,7 +36,10 @@ function normalizeModelId(
 	// If already in vendor/model format, return as-is (for other providers with vendor prefix)
 	if (modelId.includes("/")) {
 		const parts = modelId.split("/");
-		const vendor = parts[0]!;
+		const vendor = parts[0];
+		if (!vendor) {
+			throw new Error(`Invalid model ID format: ${modelId}`);
+		}
 		return { id: modelId, vendor };
 	}
 
@@ -139,7 +142,7 @@ export async function getAutonameModel(
 	}
 
 	// Return the ID of the first (cheapest) model
-	return available[0]!.id;
+	return available[0]?.id;
 }
 
 /**

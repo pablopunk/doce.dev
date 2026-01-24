@@ -113,12 +113,12 @@ export function TerminalDock({
 			eventSource.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, isOpen, scrollToBottom, logType, lines.length]);
+	}, [projectId, isOpen, scrollToBottom, logType, lines.length, nextOffset]);
 
 	// Scroll when lines change
 	useEffect(() => {
 		scrollToBottom();
-	}, [lines, scrollToBottom]);
+	}, [scrollToBottom]);
 
 	const handleClear = () => {
 		setLines([]);

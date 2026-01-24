@@ -315,7 +315,7 @@ export const projects = {
 			if (input.model) {
 				try {
 					await updateOpencodeJsonModel(input.projectId, input.model);
-				} catch (error) {
+				} catch (_error) {
 					console.warn(
 						"Updated model in database but failed to update opencode.json.",
 					);

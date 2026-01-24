@@ -7,9 +7,13 @@ import { runCommand } from "@/server/utils/execAsync";
 
 const LOG_FILE_NAME = "docker.log";
 
+interface ChildProcessWithCleanup extends ChildProcess {
+	_cleanup?: () => void;
+}
+
 // Map to track running container log streaming processes
 // Key: projectId, Value: ChildProcess
-const streamingProcesses = new Map<string, ChildProcess>();
+const streamingProcesses = new Map<string, ChildProcessWithCleanup>();
 
 /**
  * Ensure the logs directory exists.
@@ -75,7 +79,7 @@ export async function appendDockerLog(
 		const lines = text.split("\n").filter((l) => l.trim());
 		const markedText = lines.map((line) => `[docker] ${line}`).join("\n");
 		if (markedText) {
-			await fs.appendFile(getLogFilePath(logsDir), markedText + "\n");
+			await fs.appendFile(getLogFilePath(logsDir), `${markedText}\n`);
 		}
 	} catch (err) {
 		logger.warn({ error: err, logsDir }, "Failed to append docker log");
@@ -96,7 +100,7 @@ export async function appendAppLog(
 		const lines = text.split("\n").filter((l) => l.trim());
 		const markedText = lines.map((line) => `[app] ${line}`).join("\n");
 		if (markedText) {
-			await fs.appendFile(getLogFilePath(logsDir), markedText + "\n");
+			await fs.appendFile(getLogFilePath(logsDir), `${markedText}\n`);
 		}
 	} catch (err) {
 		logger.warn({ error: err, logsDir }, "Failed to append app log");
@@ -250,8 +254,9 @@ export function streamContainerLogs(
 		proc.on("error", onError);
 
 		// Store cleanup functions for manual cleanup (in stopStreamingContainerLogs)
-		// ChildProcess type doesn't expose _cleanup property; using any to add custom cleanup tracker
-		(proc as any)._cleanup = () => {
+		// ChildProcess type doesn't expose _cleanup property; using interface to add custom cleanup tracker
+		const procWithCleanup = proc as ChildProcessWithCleanup;
+		procWithCleanup._cleanup = () => {
 			cleanupStdout();
 			cleanupStderr();
 		};
@@ -273,8 +278,9 @@ export function stopStreamingContainerLogs(projectId: string): void {
 	if (proc) {
 		try {
 			// Call cleanup functions to remove event listeners
-			// ChildProcess doesn't expose _cleanup; using any to access custom property set in startStreamingContainerLogs
-			const cleanup = (proc as any)._cleanup;
+			// ChildProcess doesn't expose _cleanup; using interface to access custom property set in startStreamingContainerLogs
+			const procWithCleanup = proc as ChildProcessWithCleanup;
+			const cleanup = procWithCleanup._cleanup;
 			if (cleanup && typeof cleanup === "function") {
 				cleanup();
 			}
@@ -458,5 +464,5 @@ function truncateLine(line: string): string {
 	if (line.length <= 200) {
 		return line;
 	}
-	return line.slice(0, 197) + "...";
+	return `${line.slice(0, 197)}...`;
 }

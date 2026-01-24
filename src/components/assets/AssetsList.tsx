@@ -54,7 +54,7 @@ export function AssetsList({
 		if (e.dataTransfer.files.length > 0) {
 			try {
 				await onUpload(e.dataTransfer.files);
-			} catch (err) {
+			} catch (_err) {
 				// Error handled by parent component
 			}
 		}

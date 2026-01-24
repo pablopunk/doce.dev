@@ -78,11 +78,14 @@ async function acquireLock(projectId: string): Promise<() => void> {
 	projectLockQueues.set(projectId, queue);
 
 	// Add ourselves to the queue
-	queue.push({ resolve: resolveLock! });
+	if (!resolveLock) {
+		throw new Error("Failed to initialize lock resolver");
+	}
+	queue.push({ resolve: resolveLock as () => void });
 
 	// If we're first in queue, acquire immediately
 	if (queue.length === 1) {
-		resolveLock!();
+		resolveLock?.();
 	} else {
 		// Otherwise, wait for our turn
 		await lockPromise;
@@ -99,7 +102,7 @@ async function acquireLock(projectId: string): Promise<() => void> {
 
 		// Wake up next waiter if any
 		if (queue.length > 0) {
-			queue[0]!.resolve();
+			queue[0]?.resolve();
 		} else {
 			// Clean up empty queue
 			projectLockQueues.delete(projectId);
@@ -147,12 +150,15 @@ async function getSetupError(projectId: string): Promise<string | null> {
 		});
 
 		if (failedJobs.length > 0) {
-			const failedJob = failedJobs[0]!;
+			const failedJob = failedJobs[0];
+			if (!failedJob) {
+				return "Setup job failed without error details";
+			}
 			return failedJob.lastError || "Setup job failed without error details";
 		}
 
 		return null;
-	} catch (error) {
+	} catch (_error) {
 		return null;
 	}
 }

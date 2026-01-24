@@ -119,7 +119,7 @@ export function ModelSelector({
 	// Auto-select first model if current selection is invalid
 	useEffect(() => {
 		if (!selectedModel && models.length > 0) {
-			onModelChange(getModelKey(models[0]!.provider, models[0]!.id));
+			onModelChange(getModelKey(models[0]?.provider, models[0]?.id));
 		}
 	}, [models, selectedModel, onModelChange]);
 

@@ -49,17 +49,21 @@ type ModelWithVendor = {
 const curatedModelsMap: Map<string, ModelWithVendor[]> = new Map();
 
 for (const model of availableModels as ModelWithVendor[]) {
-	if (CURATED_MODELS.includes(model.id as any)) {
+	if (
+		CURATED_MODELS.includes(
+			model.id as unknown as (typeof CURATED_MODELS)[number],
+		)
+	) {
 		if (!curatedModelsMap.has(model.id)) {
 			curatedModelsMap.set(model.id, []);
 		}
-		curatedModelsMap.get(model.id)!.push(model);
+		curatedModelsMap.get(model.id)?.push(model);
 	}
 }
 
 const curatedModels = await Promise.all(
 	Array.from(curatedModelsMap.values())
-		.flatMap((models) => models) // Keep all versions from all providers
+		.flat() // Keep all versions from all providers
 		.map(async (model) => ({
 			id: model.id,
 			name: model.name,

@@ -84,8 +84,8 @@ export async function getActiveProductionJob(
 		.where(
 			and(
 				eq(queueJobs.projectId, projectId),
-				// PRODUCTION_JOB_TYPES is const-asserted tuple; Drizzle's inArray needs any to accept it
-				inArray(queueJobs.type, PRODUCTION_JOB_TYPES as any),
+				// PRODUCTION_JOB_TYPES is const-asserted tuple; Drizzle's inArray needs proper typing
+				inArray(queueJobs.type, [...PRODUCTION_JOB_TYPES]),
 				inArray(queueJobs.state, ["queued", "running"]),
 			),
 		)

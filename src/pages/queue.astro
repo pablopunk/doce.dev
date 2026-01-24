@@ -54,19 +54,19 @@ const concurrency = await getConcurrency();
 
 const jobs = await listJobs({
 	state: state ?? undefined,
-	type: type as any,
+	type,
 	projectId: projectIdParam || undefined,
 	q: qParam || undefined,
 	limit: pageSize,
 	offset,
-} as any);
+});
 
 const totalCount = await countJobs({
 	state: state ?? undefined,
-	type: type as any,
+	type,
 	projectId: projectIdParam || undefined,
 	q: qParam || undefined,
-} as any);
+});
 
 const totalPages = Math.ceil(totalCount / pageSize);
 

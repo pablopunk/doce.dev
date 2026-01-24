@@ -1,7 +1,7 @@
 import { db } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
 import { logger } from "@/server/logger";
-import { type QueueJobType, queueJobTypeSchema } from "./types";
+import type { QueueJobType } from "./types";
 
 export * from "./queue.claim";
 export * from "./queue.crud";
