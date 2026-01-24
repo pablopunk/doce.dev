@@ -6,7 +6,7 @@ import {
 	isQueuePaused,
 	listJobs,
 } from "@/server/queue/queue.model";
-import { type QueueJobType } from "@/server/queue/types";
+import type { QueueJobType } from "@/server/queue/types";
 
 const PAGE_SIZE = 25;
 

@@ -1,9 +1,9 @@
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { spawnCommand } from "@/server/utils/execAsync";
 import { hashDistFolder } from "@/server/productions/hash";
 import { updateProductionStatus } from "@/server/productions/productions.model";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { spawnCommand } from "@/server/utils/execAsync";
 import { enqueueProductionStart } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";

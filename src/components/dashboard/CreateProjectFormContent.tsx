@@ -1,6 +1,6 @@
 import { Loader2, Paperclip, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ImagePreview } from "@/components/chat/ImagePreview";
+import { Button } from "@/components/ui/button";
 import {
 	MAX_IMAGES_PER_MESSAGE,
 	VALID_IMAGE_MIME_TYPES,
@@ -15,7 +15,7 @@ interface Model {
 	supportsImages?: boolean;
 }
 
-import { type ImagePart } from "@/types/message";
+import type { ImagePart } from "@/types/message";
 
 interface CreateProjectFormContentProps {
 	prompt: string;

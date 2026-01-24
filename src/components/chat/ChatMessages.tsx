@@ -1,8 +1,8 @@
-import { type ChatItem } from "@/stores/useChatStore";
-import { type Message } from "@/types/message";
+import type { ChatItem } from "@/stores/useChatStore";
+import type { Message } from "@/types/message";
 import { ChatMessage } from "./ChatMessage";
-import { ToolCallGroup } from "./ToolCallGroup";
 import type { ToolCall } from "./ToolCallDisplay";
+import { ToolCallGroup } from "./ToolCallGroup";
 
 interface ChatMessagesProps {
 	items: ChatItem[];

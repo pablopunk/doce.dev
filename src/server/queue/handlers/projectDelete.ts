@@ -1,12 +1,12 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
+import { normalizeProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	hardDeleteProject,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import { normalizeProjectPath } from "@/server/projects/paths";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 

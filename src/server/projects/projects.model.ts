@@ -1,5 +1,5 @@
-export * from "./projects.db";
 export * from "./projects.config";
+export * from "./projects.db";
 
 import { updateOpencodeJsonModel } from "./projects.config";
 

@@ -1,7 +1,7 @@
 import {
+	checkDockerContainerReady,
 	checkHttpServerReady,
 	checkOpencodeServerReady,
-	checkDockerContainerReady,
 } from "@/server/health/checkHealthEndpoint";
 
 /**

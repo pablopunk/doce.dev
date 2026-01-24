@@ -1,6 +1,6 @@
+import { actions } from "astro:actions";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { actions } from "astro:actions";
 import { Button } from "@/components/ui/button";
 
 interface ContainerStartupDisplayProps {

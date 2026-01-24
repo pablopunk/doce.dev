@@ -1,6 +1,6 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { db } from "./client";
 import { ensureQueueSettingsRow } from "@/server/queue/queue.settings";
+import { db } from "./client";
 
 let migrationsRan = false;
 
