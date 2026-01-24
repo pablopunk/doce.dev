@@ -13,7 +13,7 @@ jobs:
       (github.event.issue.pull_request &&
        startsWith(github.event.comment.body, '/review') &&
        contains(fromJson('["OWNER","MEMBER"]'), github.event.comment.author_association))
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       pull-requests: write
