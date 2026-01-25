@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
@@ -28,25 +28,25 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 	const [theme, setTheme] = useState<Theme>("light");
 	const [mounted, setMounted] = useState(false);
 
-	const applyTheme = useCallback((newTheme: Theme) => {
+	// Function declaration is hoisted to the top of the component scope
+	function applyTheme(newTheme: Theme) {
+		if (typeof document === "undefined") return;
 		const htmlElement = document.documentElement;
 		if (newTheme === "dark") {
 			htmlElement.classList.add("dark");
 		} else {
 			htmlElement.classList.remove("dark");
 		}
-	}, []);
+	}
 
 	// Initialize theme on mount
 	useEffect(() => {
-		// Check localStorage first
 		const savedTheme = localStorage.getItem("doce-theme") as Theme | null;
 
 		if (savedTheme) {
 			setTheme(savedTheme);
 			applyTheme(savedTheme);
 		} else {
-			// Check system preference
 			const prefersDark = window.matchMedia(
 				"(prefers-color-scheme: dark)",
 			).matches;
@@ -56,7 +56,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 		}
 
 		setMounted(true);
-	}, [applyTheme]);
+	}, []);
 
 	// Listen to storage changes (cross-tab sync)
 	useEffect(() => {
@@ -72,7 +72,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
 		window.addEventListener("storage", handleStorageChange);
 		return () => window.removeEventListener("storage", handleStorageChange);
-	}, [mounted, applyTheme]);
+	}, [mounted]);
 
 	const toggleTheme = () => {
 		const newTheme = theme === "light" ? "dark" : "light";
