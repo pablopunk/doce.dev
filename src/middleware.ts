@@ -12,13 +12,20 @@ import {
 } from "@/server/docker/compose";
 import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
-// Run migrations before other initialization
-await ensureDatabaseReady();
+let startupInitialized = false;
+async function ensureInitialized() {
+	if (startupInitialized) return;
+	try {
+		await ensureDatabaseReady();
+		ensureQueueWorkerStarted();
+		ensureDoceSharedNetwork();
+		ensureGlobalPnpmVolume();
+		startupInitialized = true;
+	} catch (error) {
+		console.error("[Middleware] Initial startup failed:", error);
+	}
+}
 
-// Initialize once per process lifecycle
-ensureQueueWorkerStarted();
-ensureDoceSharedNetwork();
-ensureGlobalPnpmVolume();
 cleanupExpiredSessions().catch((error) => {
 	console.error("Failed to cleanup expired sessions:", error);
 });
@@ -27,6 +34,9 @@ const SETUP_CHECK_INTERVAL_MS = 1_000;
 let setupCheckCache: { needsSetup: boolean; timestamp: number } | null = null;
 
 async function getSetupNeeded(): Promise<boolean> {
+	// Await initialization here instead of at the top level
+	await ensureInitialized();
+	
 	const now = Date.now();
 	if (
 		setupCheckCache &&

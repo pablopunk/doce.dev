@@ -11,7 +11,11 @@ export async function ensureDatabaseReady() {
 
 	try {
 		await migrate(db, { migrationsFolder: "./drizzle" });
-		await ensureQueueSettingsRow();
+		try {
+			await ensureQueueSettingsRow();
+		} catch (e) {
+			console.error("[DB] Failed to ensure queue settings row:", e);
+		}
 		migrationsRan = true;
 	} catch (error) {
 		console.error("[DB] Initialization failed:", error);
