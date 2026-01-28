@@ -1,7 +1,7 @@
 import { logger } from "@/server/logger";
-import { removeProjectNginxConfig } from "@/server/productions/nginx";
 import { updateProductionStatus } from "@/server/productions/productions.model";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { spawnCommand } from "@/server/utils/execAsync";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 
@@ -38,21 +38,43 @@ export async function handleProductionStop(
 			return;
 		}
 
-		// Remove project from nginx routing
-		// This makes the public-facing URL inaccessible
-		// Containers continue running so they can be rolled back if needed
-		await removeProjectNginxConfig(project.id);
+		const containerName = `doce-prod-${project.id}`;
+
+		// Stop the container
+		logger.info(
+			{ projectId: project.id, containerName },
+			"Stopping production container",
+		);
+
+		const stopResult = await spawnCommand("docker", ["stop", containerName]);
+
+		if (!stopResult.success) {
+			logger.warn(
+				{ projectId: project.id, stderr: stopResult.stderr.slice(0, 200) },
+				"Failed to stop production container",
+			);
+		}
+
+		// Remove the container
+		const removeResult = await spawnCommand("docker", ["rm", containerName]);
+
+		if (!removeResult.success) {
+			logger.warn(
+				{ projectId: project.id, stderr: removeResult.stderr.slice(0, 200) },
+				"Failed to remove production container",
+			);
+		}
 
 		logger.info(
 			{
 				projectId: project.id,
 				currentHash: currentHash.slice(0, 8),
 			},
-			"Production server removed from nginx (containers kept alive for rollback)",
+			"Production container stopped",
 		);
 
 		// Update production status to stopped
-		// Note: We don't clear the hash, port, or URL - this allows rollback
+		// Keep hash, port, and URL for rollback
 		await updateProductionStatus(project.id, "stopped");
 	} catch (error) {
 		logger.error(

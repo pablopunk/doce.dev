@@ -388,10 +388,7 @@ export const projects = {
 			const { getProductionVersions } = await import(
 				"@/server/productions/cleanup"
 			);
-			const { deriveVersionPort } = await import("@/server/ports/allocate");
-			const { updateProjectNginxRouting } = await import(
-				"@/server/productions/nginx"
-			);
+			const { getProductionPath } = await import("@/server/projects/paths");
 			const { updateProductionStatus } = await import(
 				"@/server/productions/productions.model"
 			);
@@ -413,23 +410,76 @@ export const projects = {
 				});
 			}
 
-			const basePort = project.productionPort;
-			if (!basePort) {
+			const productionPort = project.productionPort;
+			if (!productionPort) {
 				throw new ActionError({
 					code: "BAD_REQUEST",
 					message: "Project not initialized for production",
 				});
 			}
 
-			const targetVersionPort = deriveVersionPort(
-				input.projectId,
-				input.toHash,
+			// Build Docker image for rollback version
+			const productionPath = getProductionPath(project.id, input.toHash);
+			const imageName = `doce-prod-${project.id}-${input.toHash}`;
+
+			const { spawnCommand } = await import("@/server/utils/execAsync");
+			const buildResult = await spawnCommand(
+				"docker",
+				["build", "-t", imageName, "-f", "Dockerfile.prod", "."],
+				{ cwd: productionPath },
 			);
-			await updateProjectNginxRouting(
-				input.projectId,
-				input.toHash,
-				targetVersionPort,
+
+			if (!buildResult.success) {
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Docker build failed: ${buildResult.stderr.slice(0, 200)}`,
+				});
+			}
+
+			// Stop and remove old container
+			const containerName = `doce-prod-${project.id}`;
+			const stopResult = await spawnCommand("docker", ["stop", containerName]);
+			const removeResult = await spawnCommand("docker", ["rm", containerName]);
+
+			if (!stopResult.success || !removeResult.success) {
+				// Container might not exist, continue
+			}
+
+			// Start new container
+			const runResult = await spawnCommand("docker", [
+				"run",
+				"-d",
+				"--name",
+				containerName,
+				"-p",
+				`${productionPort}:3000`,
+				"--restart",
+				"unless-stopped",
+				imageName,
+			]);
+
+			if (!runResult.success) {
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Docker run failed: ${runResult.stderr.slice(0, 200)}`,
+				});
+			}
+
+			// Update symlink
+			const { getProductionCurrentSymlink } = await import(
+				"@/server/projects/paths"
 			);
+			const symlinkPath = getProductionCurrentSymlink(project.id);
+			const tempSymlink = `${symlinkPath}.tmp-${Date.now()}`;
+
+			const fs = await import("node:fs/promises");
+			try {
+				await fs.unlink(tempSymlink).catch(() => {});
+				await fs.symlink(input.toHash, tempSymlink);
+				await fs.rename(tempSymlink, symlinkPath);
+			} catch {
+				// Symlink update failed, but container is running
+			}
 
 			await updateProductionStatus(input.projectId, "running", {
 				productionHash: input.toHash,
@@ -689,13 +739,13 @@ export const projects = {
 
 			const status = getProductionStatus(project);
 			const activeJob = await getActiveProductionJob(input.projectId);
-			const basePort = project.productionPort;
-			const url = basePort ? `http://localhost:${basePort}` : null;
+			const productionPort = project.productionPort;
+			const url = productionPort ? `http://localhost:${productionPort}` : null;
 
 			return {
 				status: status.status,
 				url,
-				basePort,
+				productionPort,
 				port: status.port,
 				error: status.error,
 				startedAt: status.startedAt?.toISOString() || null,
@@ -741,27 +791,23 @@ export const projects = {
 			const { getProductionVersions } = await import(
 				"@/server/productions/cleanup"
 			);
-			const { deriveVersionPort } = await import("@/server/ports/allocate");
 
 			const versions = await getProductionVersions(input.projectId);
-			const basePort = project.productionPort;
+			const productionPort = project.productionPort;
 
 			return {
-				basePort,
-				baseUrl: basePort ? `http://localhost:${basePort}` : null,
+				productionPort,
+				baseUrl: productionPort ? `http://localhost:${productionPort}` : null,
 				versions: versions.map((v) => {
-					const versionPort = deriveVersionPort(input.projectId, v.hash);
 					return {
 						hash: v.hash,
 						isActive: v.isActive,
 						createdAt: v.mtimeIso,
 						url:
-							v.isActive && basePort
-								? `http://localhost:${basePort}`
+							v.isActive && productionPort
+								? `http://localhost:${productionPort}`
 								: undefined,
-						basePort,
-						versionPort,
-						previewUrl: `http://localhost:${versionPort}`,
+						productionPort,
 					};
 				}),
 			};

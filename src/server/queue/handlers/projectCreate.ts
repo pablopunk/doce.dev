@@ -27,7 +27,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		await ensureAuthDirectory();
 
-		const { projectPath } = await setupProjectFilesystem(
+		const { projectPath, productionPort } = await setupProjectFilesystem(
 			projectId,
 			devPort,
 			opencodePort,
@@ -65,9 +65,9 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			prompt,
 			devPort,
 			opencodePort,
+			productionPort,
 			status: "created",
 			pathOnDisk: projectPath,
-			currentModel: model || null,
 		});
 
 		logger.info({ projectId, name, slug }, "Created project in database");
