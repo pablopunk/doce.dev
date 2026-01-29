@@ -43,7 +43,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # HOME: /home/runner   # This is necessary for the self-hosted runner
+          HOME: /home/runner   # This is necessary for the self-hosted runner
         with:
           model: opencode/glm-4.7-free
           prompt: |
