@@ -85,10 +85,10 @@ jobs:
            ssh -o StrictHostKeyChecking=no $SSH_USER@$VM_HOST \
              "docker volume create doce-global-pnpm-store 2>/dev/null || true"
 
-           # Step 3: Copy PR code to VM via tar
-          echo "📋 Copying PR code..."
-          tar czf - . --exclude=node_modules --exclude=.git --exclude=dist --exclude=data | \
-            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$REPO_DIR\" && tar xzf -"
+            # Step 3: Copy PR code to VM via tar
+           echo "📋 Copying PR code..."
+           tar czf - --exclude=node_modules --exclude=.git --exclude=dist --exclude=data . | \
+             ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "cd \"$REPO_DIR\" && tar xzf -"
 
           # Step 4: Allocate port
           echo "🔌 Allocating port..."
