@@ -40,9 +40,14 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/templates ./templates
 COPY package.json ./
 COPY drizzle.config.ts ./
+COPY scripts/start-preview.sh ./scripts/
+COPY scripts/bootstrap.sh ./scripts/
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
+
+# Make scripts executable
+RUN chmod +x /app/scripts/start-preview.sh /app/scripts/bootstrap.sh
 
 # Run as root for Docker socket access in preview environments
 # (container runs as root for Docker daemon access)
