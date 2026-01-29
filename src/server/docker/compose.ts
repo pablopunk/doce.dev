@@ -109,7 +109,8 @@ async function runComposeCommand(
 	const fullArgs = [...compose.slice(1), ...baseArgs];
 
 	// Add env file from parent directory (project root) since we run from preview/
-	const envFilePath = path.join(projectPath, "..", ".env");
+	// Use resolve to get absolute path (docker compose needs absolute path for --env-file)
+	const envFilePath = path.resolve(path.join(projectPath, "..", ".env"));
 	fullArgs.push("--env-file", envFilePath);
 
 	if (filePath) {
