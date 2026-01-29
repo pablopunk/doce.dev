@@ -16,6 +16,11 @@ export const CURATED_MODELS = [
 	"claude-haiku-4-5",
 	"anthropic/claude-haiku-4.5",
 	"gemini-3-flash",
+	"google/gemini-3-flash",
+	"gemini-3-flash-preview",
+	"google/gemini-3-flash-preview",
+	"moonshotai/kimi-k2.5",
+	"kimi-k2.5",
 ] as const;
 
 /**

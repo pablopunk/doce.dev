@@ -25,6 +25,7 @@ import {
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
+import { Kimi } from "@/components/ui/svgs/kimi";
 import { Minimax } from "@/components/ui/svgs/minimax";
 import { MinimaxDark } from "@/components/ui/svgs/minimaxDark";
 import { Openai } from "@/components/ui/svgs/openai";
@@ -43,6 +44,8 @@ const VENDOR_LOGOS: Record<
 	google: { light: Gemini, dark: Gemini },
 	"z.ai": { light: ZaiLight, dark: ZaiDark },
 	minimax: { light: Minimax, dark: MinimaxDark },
+	kimi: { light: Kimi, dark: Kimi },
+	moonshotai: { light: Kimi, dark: Kimi },
 };
 
 interface ModelSelectorProps {
