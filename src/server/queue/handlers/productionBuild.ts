@@ -40,12 +40,11 @@ export async function handleProductionBuild(
 
 	logger.info({ projectId: project.id }, "Starting production build");
 
-	// Run pnpm run build in the preview/src/ directory
+	// Run pnpm run build in the preview directory (where package.json and node_modules are)
 	const previewPath = getProjectPreviewPath(project.id);
-	const srcPath = path.join(previewPath, "src");
 
 	const result = await spawnCommand("pnpm", ["run", "build"], {
-		cwd: srcPath,
+		cwd: previewPath,
 		timeout: 5 * 60 * 1000, // 5 minute timeout
 	});
 
