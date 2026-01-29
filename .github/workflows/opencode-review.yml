@@ -45,7 +45,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOME: /tmp/github-home-${{steps.pr-number.outputs.number}}   # This is necessary for the self-hosted runner
         with:
-          model: opencode/glm-4.7
+          model: opencode/kimi-k2.5
           prompt: |
             <pr-number>
             ${{ steps.pr-number.outputs.number }}
