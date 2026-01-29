@@ -1,7 +1,11 @@
 import * as path from "node:path";
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { readLogFromOffset, readLogTail } from "@/server/docker/logs";
+import {
+	ensureLogStreaming,
+	readLogFromOffset,
+	readLogTail,
+} from "@/server/docker/logs";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -38,6 +42,13 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 	if (!project) {
 		return new Response("Not found", { status: 404 });
 	}
+
+	// Ensure log streaming is active if containers are running
+	// This handles the case where the server was restarted and lost the streaming process
+	void ensureLogStreaming(projectId, project.pathOnDisk).catch((error) => {
+		// Non-critical error - log but don't fail the request
+		console.error("Failed to ensure log streaming:", error);
+	});
 
 	// Get offset from query params
 	const offsetParam = url.searchParams.get("offset");
