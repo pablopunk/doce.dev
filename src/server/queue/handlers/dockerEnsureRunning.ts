@@ -5,6 +5,7 @@ import {
 	checkOpencodeReady,
 	checkPreviewReady,
 } from "@/server/projects/health";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
@@ -33,7 +34,8 @@ export async function handleDockerEnsureRunning(
 
 	await ctx.throwIfCancelRequested();
 
-	const result = await composeUp(project.id, project.pathOnDisk);
+	const previewPath = getProjectPreviewPath(project.id);
+	const result = await composeUp(project.id, previewPath);
 	if (!result.success) {
 		await updateProjectStatus(project.id, "error");
 		throw new Error(`compose up failed: ${result.stderr.slice(0, 500)}`);

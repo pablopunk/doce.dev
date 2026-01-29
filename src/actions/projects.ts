@@ -466,12 +466,12 @@ export const projects = {
 			}
 
 			// Update symlink
-			const { getProductionPath, getProductionCurrentSymlink } = await import(
+			const { getProductionCurrentSymlink } = await import(
 				"@/server/projects/paths"
 			);
 			const symlinkPath = getProductionCurrentSymlink(project.id);
 			const hashPath = getProductionPath(project.id, input.toHash);
-		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 			const fs = await import("node:fs/promises");
 			try {

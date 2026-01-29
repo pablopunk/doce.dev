@@ -1,5 +1,6 @@
 import { composeUp } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
@@ -33,7 +34,8 @@ export async function handleDockerComposeUp(
 
 	await ctx.throwIfCancelRequested();
 
-	const result = await composeUp(project.id, project.pathOnDisk);
+	const previewPath = getProjectPreviewPath(project.id);
+	const result = await composeUp(project.id, previewPath);
 	if (!result.success) {
 		const errorMsg = `compose up failed: ${result.stderr.slice(0, 500)}`;
 		await updateProjectStatus(project.id, "error");

@@ -1,7 +1,10 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { normalizeProjectPath } from "@/server/projects/paths";
+import {
+	getProjectPreviewPath,
+	normalizeProjectPath,
+} from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	hardDeleteProject,
@@ -55,7 +58,8 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 	// Step 2: Stop and remove Docker containers (best-effort)
 	try {
 		// Stop dev containers (preview + opencode)
-		await composeDownWithVolumes(project.id, project.pathOnDisk);
+		const previewPath = getProjectPreviewPath(project.id);
+		await composeDownWithVolumes(project.id, previewPath);
 		logger.debug(
 			{ projectId: project.id },
 			"Dev containers stopped (preview + opencode)",
