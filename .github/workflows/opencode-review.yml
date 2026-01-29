@@ -30,6 +30,12 @@ jobs:
             echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Generate random HOME directory
+        id: random-home
+        run: |
+          RANDOM_SUFFIX=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 12 | head -n 1)
+          echo "home=/tmp/github-home-${{steps.pr-number.outputs.number}}-${RANDOM_SUFFIX}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -43,7 +49,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOME: /tmp/github-home-${{steps.pr-number.outputs.number}}   # This is necessary for the self-hosted runner
+          HOME: ${{steps.random-home.outputs.home}}   # This is necessary for the self-hosted runner
         with:
           model: opencode/kimi-k2.5
           prompt: |
