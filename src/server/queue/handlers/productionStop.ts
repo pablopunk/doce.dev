@@ -73,6 +73,24 @@ export async function handleProductionStop(
 			"Production container stopped",
 		);
 
+		// Clean up Docker image (best-effort, don't throw on failure)
+		const imageName = `doce-prod-${project.id}-${currentHash}`;
+		try {
+			const rmiResult = await spawnCommand("docker", ["rmi", imageName]);
+			if (rmiResult.success) {
+				logger.debug(
+					{ projectId: project.id, imageName },
+					"Removed Docker image",
+				);
+			}
+		} catch (error) {
+			// Image might not exist or be in use, that's okay
+			logger.debug(
+				{ projectId: project.id, imageName, error },
+				"Failed to remove Docker image (might not exist)",
+			);
+		}
+
 		// Update production status to stopped
 		// Keep hash, port, and URL for rollback
 		await updateProductionStatus(project.id, "stopped");

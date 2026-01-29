@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs/promises";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { hashDistFolder } from "@/server/productions/hash";
@@ -76,26 +76,8 @@ export async function handleProductionBuild(
 	const productionPath = getProjectProductionPath(project.id, productionHash);
 	await fs.mkdir(productionPath, { recursive: true });
 
-	// Copy required files to production version
-	await fs.copyFile(
-		path.join(previewPath, "package.json"),
-		path.join(productionPath, "package.json"),
-	);
-	await fs.copyFile(
-		path.join(previewPath, "pnpm-lock.yaml"),
-		path.join(productionPath, "pnpm-lock.yaml"),
-	);
-	await fs.cp(distPath, path.join(productionPath, "dist"), {
-		recursive: true,
-	});
-
-	// Create docker-compose.yml for this version
-	await createProductionComposeFile(
-		productionPath,
-		project.productionPort,
-		productionHash,
-		project.id,
-	);
+	// Copy all required files for production build
+	await copyRequiredFiles(previewPath, productionPath, project.id);
 
 	logger.debug(
 		{ projectId: project.id, productionHash, productionPath },
@@ -115,36 +97,53 @@ export async function handleProductionBuild(
 }
 
 /**
- * Create docker-compose.yml for production deployment.
+ * Copy all required files from preview to production directory.
  */
-async function createProductionComposeFile(
+async function copyRequiredFiles(
+	previewPath: string,
 	productionPath: string,
-	productionPort: number,
-	hash: string,
 	projectId: string,
 ): Promise<void> {
-	const composeContent = `services:
-  production:
-    build:
-      context: .
-    container_name: doce-prod-${projectId}-${hash.slice(0, 12)}
-    ports:
-      - ${productionPort}:3000
-    environment:
-      - NODE_ENV=production
-      - HOST=0.0.0.0
-      - PORT=3000
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-`;
-
-	await fs.writeFile(
-		path.join(productionPath, "docker-compose.yml"),
-		composeContent,
+	// Core files
+	await fs.copyFile(
+		path.join(previewPath, "package.json"),
+		path.join(productionPath, "package.json"),
 	);
+	await fs.copyFile(
+		path.join(previewPath, "pnpm-lock.yaml"),
+		path.join(productionPath, "pnpm-lock.yaml"),
+	);
+
+	// Docker build files (required by Dockerfile.prod)
+	await fs.copyFile(
+		path.join(previewPath, "Dockerfile.prod"),
+		path.join(productionPath, "Dockerfile.prod"),
+	);
+
+	// Config files (required by Dockerfile.prod for build stage)
+	await fs.copyFile(
+		path.join(previewPath, "astro.config.mjs"),
+		path.join(productionPath, "astro.config.mjs"),
+	);
+	await fs.copyFile(
+		path.join(previewPath, "tsconfig.json"),
+		path.join(productionPath, "tsconfig.json"),
+	);
+
+	// Source code (required by Dockerfile.prod for build stage)
+	await fs.cp(path.join(previewPath, "src"), path.join(productionPath, "src"), {
+		recursive: true,
+	});
+
+	// Public folder (optional - might contain assets)
+	try {
+		await fs.cp(
+			path.join(previewPath, "public"),
+			path.join(productionPath, "public"),
+			{ recursive: true },
+		);
+	} catch (error) {
+		// public folder might not exist, that's okay
+		logger.debug({ projectId }, "public folder not found (optional)");
+	}
 }

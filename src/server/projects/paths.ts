@@ -98,7 +98,7 @@ export function getProductionPath(projectId: string, hash?: string): string {
  * @returns Absolute path to current symlink
  */
 export function getProductionCurrentSymlink(projectId: string): string {
-	return path.join(getProductionsPath(), projectId, "current");
+	return path.join(getProjectProductionPath(projectId), "current");
 }
 
 /**

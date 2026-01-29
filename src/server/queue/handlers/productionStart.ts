@@ -134,17 +134,20 @@ export async function handleProductionStart(
 		const symlinkPath = getProductionCurrentSymlink(project.id);
 		await fs.mkdir(path.dirname(symlinkPath), { recursive: true });
 
-		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}`;
+		// Use full path to hash directory as symlink target
+		const hashPath = getProductionPath(project.id, payload.productionHash);
+		// Add random component to avoid collision if two builds complete at same millisecond
+		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 		try {
 			await fs.unlink(tempSymlink).catch(() => {});
-			await fs.symlink(payload.productionHash, tempSymlink);
+			await fs.symlink(hashPath, tempSymlink);
 			await fs.rename(tempSymlink, symlinkPath);
 
 			logger.debug(
 				{
 					projectId: project.id,
 					symlinkPath,
-					target: payload.productionHash,
+					target: hashPath,
 				},
 				"Updated production current symlink",
 			);
