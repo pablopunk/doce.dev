@@ -107,6 +107,11 @@ async function runComposeCommand(
 
 	// Build args with optional profile and file flags (both must come BEFORE the subcommand)
 	const fullArgs = [...compose.slice(1), ...baseArgs];
+
+	// Add env file from parent directory (project root) since we run from preview/
+	const envFilePath = path.join(projectPath, "..", ".env");
+	fullArgs.push("--env-file", envFilePath);
+
 	if (filePath) {
 		fullArgs.push("-f", filePath);
 	}
