@@ -13,22 +13,21 @@ import {
 	enqueueDockerStop,
 } from "@/server/queue/enqueue";
 import { listJobs } from "@/server/queue/queue.model";
+import {
+	deleteProjectPresence,
+	deleteStaleViewers,
+	getAllProjectsPresence,
+	getProjectPresence,
+	type ProjectPresenceData,
+	upsertProjectPresence,
+	upsertViewer,
+} from "./presence.model";
 
 // Constants from PLAN.md section 9.7.2
-const PRESENCE_HEARTBEAT_MS = 15_000;
-const REAPER_INTERVAL_MS = 30_000;
-const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop containers if no heartbeat received
-
-// Internal only - not exported
-interface ProjectPresence {
-	projectId: string;
-	viewers: Map<string, number>; // viewerId -> lastSeenAt
-	lastHeartbeatAt?: number; // When we last received a heartbeat (for keep-alive timeout)
-	stopAt?: number; // Scheduled stop time
-	startedAt?: number; // When we started the starting process
-	isStarting: boolean;
-}
+const PRESENCE_HEARTBEAT_MS = 15000;
+const REAPER_INTERVAL_MS = 30000;
+const START_MAX_WAIT_MS = 30000;
+const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60000; // 60 seconds - auto-stop containers if no heartbeat received
 
 export interface PresenceResponse {
 	projectId: string;
@@ -42,7 +41,7 @@ export interface PresenceResponse {
 	// Initial prompt fields (legacy)
 	initialPromptSent: boolean;
 	initialPromptCompleted: boolean;
-	// Prompt tracking (session.init no longer per-project)
+	// Prompt tracking (session.init is no longer per-project)
 	userPromptCompleted: boolean;
 	userPromptMessageId: string | null;
 	prompt: string;
@@ -53,9 +52,6 @@ export interface PresenceResponse {
 	// Setup error (if a queue job failed during setup)
 	setupError: string | null;
 }
-
-// In-memory presence state
-const presenceMap = new Map<string, ProjectPresence>();
 
 // Per-project mutex using queue-based locking to prevent race conditions
 interface LockRequest {
@@ -113,15 +109,19 @@ async function acquireLock(projectId: string): Promise<() => void> {
 /**
  * Get or create presence record for a project.
  */
-function getPresence(projectId: string): ProjectPresence {
-	let presence = presenceMap.get(projectId);
+async function getOrCreatePresence(
+	projectId: string,
+): Promise<ProjectPresenceData> {
+	let presence = await getProjectPresence(projectId);
 	if (!presence) {
 		presence = {
 			projectId,
 			viewers: new Map(),
 			isStarting: false,
 		};
-		presenceMap.set(projectId, presence);
+		await upsertProjectPresence(projectId, {
+			isStarting: false,
+		});
 	}
 	return presence;
 }
@@ -179,7 +179,7 @@ export async function handlePresenceHeartbeat(
 			throw new Error("Project not found");
 		}
 
-		const presence = getPresence(projectId);
+		const presence = await getOrCreatePresence(projectId);
 
 		// Check for setup errors from failed queue jobs
 		const setupError = await getSetupError(projectId);
@@ -207,12 +207,18 @@ export async function handlePresenceHeartbeat(
 
 		// Update viewer presence
 		presence.viewers.set(viewerId, Date.now());
+		await upsertViewer(projectId, viewerId, Date.now());
 
 		// Cancel any scheduled stop
 		delete presence.stopAt;
+		await upsertProjectPresence(projectId, { stopAt: undefined });
 
 		// Update last heartbeat time to reset the keep-alive timer
-		presence.lastHeartbeatAt = Date.now();
+		const now = Date.now();
+		presence.lastHeartbeatAt = now;
+		await upsertProjectPresence(projectId, {
+			lastHeartbeatAt: now,
+		});
 
 		// Check current health and periodically capture container logs
 		const [previewReady, opencodeReady] = await Promise.all([
@@ -233,12 +239,18 @@ export async function handlePresenceHeartbeat(
 			}
 			presence.isStarting = false;
 			message = null;
+			await upsertProjectPresence(projectId, {
+				isStarting: false,
+			});
 		} else if (presence.isStarting) {
 			// We're in the process of starting
 			status = "starting";
 
 			if (!presence.startedAt) {
 				presence.startedAt = Date.now();
+				await upsertProjectPresence(projectId, {
+					startedAt: presence.startedAt,
+				});
 			}
 
 			const elapsed = Date.now() - presence.startedAt;
@@ -250,6 +262,9 @@ export async function handlePresenceHeartbeat(
 				presence.isStarting = false;
 				message = "Failed to start containers. Open terminal for details.";
 				nextPollMs = 2000;
+				await upsertProjectPresence(projectId, {
+					isStarting: false,
+				});
 			} else {
 				// Still starting
 				if (!previewReady && !opencodeReady) {
@@ -275,6 +290,10 @@ export async function handlePresenceHeartbeat(
 				status = "starting";
 				message = "Starting containers...";
 				nextPollMs = 500;
+				await upsertProjectPresence(projectId, {
+					isStarting: true,
+					startedAt: presence.startedAt,
+				});
 			} catch (error) {
 				await updateProjectStatus(projectId, "error");
 				status = "error";
@@ -296,6 +315,10 @@ export async function handlePresenceHeartbeat(
 				status = "starting";
 				message = "Restarting containers...";
 				nextPollMs = 500;
+				await upsertProjectPresence(projectId, {
+					isStarting: true,
+					startedAt: presence.startedAt,
+				});
 			} catch (error) {
 				await updateProjectStatus(projectId, "error");
 				status = "error";
@@ -336,6 +359,7 @@ export async function handlePresenceHeartbeat(
  */
 async function runReaper(): Promise<void> {
 	const now = Date.now();
+	const presenceMap = await getAllProjectsPresence();
 
 	for (const [projectId, presence] of presenceMap) {
 		// Skip if operations in progress
@@ -352,6 +376,9 @@ async function runReaper(): Promise<void> {
 			}
 		}
 
+		// Delete stale viewers from database
+		await deleteStaleViewers(projectId);
+
 		// Handle keep-alive timeout for running containers
 		const project = await getProjectById(projectId);
 		if (project?.status === "running") {
@@ -365,7 +392,9 @@ async function runReaper(): Promise<void> {
 				) {
 					try {
 						await enqueueDockerStop({ projectId, reason: "idle" });
-						delete presence.lastHeartbeatAt;
+						await upsertProjectPresence(projectId, {
+							lastHeartbeatAt: undefined,
+						});
 						logger.info(
 							{ projectId, timeSinceLastHeartbeat },
 							"Container stopped due to keep-alive timeout",
