@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { ensureQueueSettingsRow } from "@/server/queue/queue.settings";
 import { db } from "./client";
+import { logger } from "@/server/logger";
 
 let migrationsRan = false;
 
@@ -14,11 +15,11 @@ export async function ensureDatabaseReady() {
 		try {
 			await ensureQueueSettingsRow();
 		} catch (e) {
-			console.error("[DB] Failed to ensure queue settings row:", e);
+			logger.error({ e }, "[DB] Failed to ensure queue settings row");
 		}
 		migrationsRan = true;
 	} catch (error) {
-		console.error("[DB] Initialization failed:", error);
+		logger.error({ error }, "[DB] Initialization failed");
 		throw error;
 	}
 }

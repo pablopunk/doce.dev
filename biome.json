@@ -51,6 +51,16 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["src/server/**/*", "src/actions/**/*", "src/middleware.ts", "src/pages/api/**/*"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "error"
+					}
+				}
+			}
 		}
 	]
 }
