@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -27,23 +27,47 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_PERMISSION: |
+            {
+              "bash": {
+                "*": "deny",
+                "gh issue*": "allow",
+                "gh pr*": "allow",
+                "git add*": "allow",
+                "git commit*": "allow",
+                "git push*": "allow",
+                "git checkout*": "allow",
+                "git branch*": "allow",
+                "git status*": "allow",
+                "git log*": "allow",
+                "pnpm*": "allow",
+                "npm*": "allow",
+                "bun*": "allow"
+              },
+              "edit": "allow",
+              "write": "allow"
+            }
         with:
           model: opencode/kimi-k2.5
           prompt: |
-            You are an autonomous developer agent. Your task is to:
-            1. List all open GitHub issues in this repository using `gh` command
-            2. For each issue, fetch its full description and details using `gh issue view` to understand requirements and context
-            3. Analyze each issue for complexity, scope, and feasibility to complete in a timely manner
-            4. Select ONE issue that you can confidently tackle - prioritize issues with clear requirements and minimal unknowns
-            5. Implement the solution for the selected issue
-            6. Commit your changes using `git add . && git commit -m "your message"`
-            7. Push the branch with `git push -u origin branch-name`
-            8. Create a pull request using `gh pr create` that references the issue in both the title and body
+            **STEP 1: List & Select**
+            List open issues: `gh issue list --state open --json number,title,body`
+            Select ONE issue with clear requirements and minimal unknowns. If none suitable, output "No suitable issues found" and exit.
 
-            Important rules:
-            - If no issues are suitable, exit gracefully with message "No suitable issues found"
-            - Make meaningful, focused changes that directly address the issue
-            - Ensure code compiles/runs without errors before committing
-            - ALWAYS commit your changes BEFORE pushing or creating a PR
-            - The PR title should be descriptive and include the issue number
-            - Use the `gh` CLI for all GitHub operations
+            **STEP 2: Create Branch**
+            `git checkout -b fix/issue-{NUMBER}`
+
+            **STEP 3: Implement**
+            Read @AGENTS.md for project rules. Make focused changes addressing the issue. Ensure code compiles/runs without errors.
+
+            **STEP 4: Commit & Push**
+            `git add . && git commit -m "fix: description (#{NUMBER})"`
+            `git push -u origin fix/issue-{NUMBER}`
+
+            **STEP 5: Create PR**
+            `gh pr create --title "fix: description (#{NUMBER})" --body "Fixes #{NUMBER}"`
+
+            **RULES:**
+            - ONE issue per run only
+            - ALWAYS commit BEFORE pushing
+            - Use `gh` CLI for all GitHub operations

@@ -19,7 +19,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Fetch recent history
+        run: git fetch --shallow-since="${{ env.LOOKBACK_HOURS }} hours ago"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -46,15 +49,41 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_PERMISSION: |
+            {
+              "bash": {
+                "*": "deny",
+                "gh issue*": "allow",
+                "gh pr*": "allow",
+                "git add*": "allow",
+                "git commit*": "allow",
+                "git push*": "allow",
+                "git checkout*": "allow",
+                "git branch*": "allow",
+                "git status*": "allow",
+                "git log*": "allow",
+                "pnpm*": "allow",
+                "npm*": "allow",
+                "bun*": "allow"
+              },
+              "edit": "allow",
+              "write": "allow"
+            }
         with:
           model: opencode/kimi-k2.5
           prompt: |
-            Read and understand @AGENTS.md to learn the project's rules and conventions.
-            Then analyze this codebase for any improvements that adhere to those rules.
+            **STEP 1: Analyze**
+            Read @AGENTS.md for project rules. Analyze commits from the last ${{ env.LOOKBACK_HOURS }} hours for style violations, bugs, or refactoring opportunities.
 
-            **IMPORTANT**: Bundle all improvements into a SINGLE pull request. Do not create separate PRs for different domains.
+            **STEP 2: Check Existing**
+            Verify no existing issue or PR already addresses these. If yes, exit silently.
 
-            If you find improvements that align with AGENTS.md and you're confident, create one comprehensive PR with all the changes.
-            If you're not confident or it requires opinionated input, create an issue instead.
-            If no improvements are found, exit silently without creating a PR or issue.
-            If there's an existing issue or PR tackling that same concern, do not do anything.
+            **STEP 3: Create Deliverable**
+            Bundle ALL improvements into a SINGLE PR:
+            - IF confident: `git checkout -b refactor/supervisor-[date]`, implement, commit, push, `gh pr create`
+            - IF needs discussion: Create issue with analysis
+            - IF no improvements found: Exit silently
+
+            **RULES:**
+            - ONE PR with bundled changes only
+            - Check for duplicates first

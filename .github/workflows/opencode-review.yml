@@ -50,32 +50,41 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOME: ${{steps.random-home.outputs.home}}   # This is necessary for the self-hosted runner
+          OPENCODE_PERMISSION: |
+            {
+              "bash": {
+                "*": "deny",
+                "gh*": "allow",
+                "gh pr review*": "deny"
+              }
+            }
         with:
           model: opencode/kimi-k2.5
           prompt: |
-            <pr-number>
-            ${{ steps.pr-number.outputs.number }}
-            </pr-number>
+            **PR #${{ steps.pr-number.outputs.number }}**
 
-            <pr-description>
-            ${{ github.event.pull_request.body }}
-            </pr-description>
+            **STEP 1: Fetch Changes**
+            Get PR diff and changed files using gh CLI.
 
-            Please check all the code changes in this pull request against the style guide on @AGENTS.md, also look for any bugs if they exist. Diffs are important but make sure you read the entire file to get proper context. Make it clear the suggestions are merely suggestions and the human can decide what to do.
+            **STEP 2: Review**
+            Read changed files (not just diff) for context. Check against @AGENTS.md for:
+            - Style guide violations
+            - Potential bugs
+            - Missing error handling
 
-            Use the gh cli to create comments on the files for the violations. Try to leave the comment on the exact line number. If you have a suggested fix include it in a suggestion code block.
-            If you are writing suggested fixes, BE SURE THAT the change you are recommending is actually valid typescript, often I have seen missing closing "}" or other syntax errors.
-            Generally, write a comment instead of writing suggested change if you can help it.
-
-            Command MUST be like this.
+            **STEP 3: Post Comments**
+            For each issue, create PR line comment:
             ```
-            gh api \
-              --method POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              /repos/${{ github.repository }}/pulls/${{ steps.pr-number.outputs.number }}/comments \
-              -f 'body=[summary of issue]' -f 'commit_id=${{ steps.pr-details.outputs.sha }}' -f 'path=[path-to-file]' -F "line=[line]" -f 'side=RIGHT'
+            gh api --method POST -H "Accept: application/vnd.github+json" /repos/${{ github.repository }}/pulls/${{ steps.pr-number.outputs.number }}/comments -f 'body=[desc]' -f 'commit_id=[sha]' -f 'path=[file]' -F "line=[n]" -f 'side=RIGHT'
             ```
 
-            Only create comments for actual violations. If the code follows all guidelines, use the script `./scripts/upsert-pr-comment.sh` to post "lgtm". Use the marker "<!-- doce-review-status -->" and the PR number "${{ steps.pr-number.outputs.number }}". If you have a summary to provide, include it in the same comment update using the script. DO NOT post multiple "lgtm" comments.
+            **STEP 4: Summary**
+            IF issues found: Provide review summary
+            IF no issues: `./scripts/upsert-pr-comment.sh "<!-- doce-review-status -->" "✅ LGTM" "${{ steps.pr-number.outputs.number }}"`
+
+            **RULES:**
+            - Only comment on actual violations
+            - Verify suggested fixes are syntactically valid
+            - Prefer comments over code suggestions when uncertain
+            - Never post multiple LGTM comments
 
