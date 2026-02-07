@@ -25,6 +25,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Use abstractions for everything that's not in the domain of the file you're working on.
 * Functions should have one purpose only, and have as few lines as possible. When performing complex operations, or just several actions, break them into smaller functions. Again, nest as much as you want.
 * Function code should declare what it's doing, instead of how it's doing it, i.e. a function that calls 10 smaller functions in a row is more readable than a function that does 10 things with simple logic.
+* Related to the previous point, avoid unncessary comments before each function. Before creating a comment, think if it could be a function name. i.e. `if-block-else-block // handle case XXX` could just be `handleCaseXXX()`
 * Files should have one clear purpose, defined by the name of the file.
 * Avoid complex UI components, always break them into smaller components, in nested folders if needed.
 * Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
