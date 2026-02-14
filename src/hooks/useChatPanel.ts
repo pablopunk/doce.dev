@@ -439,7 +439,7 @@ export function useChatPanel({
 				setPendingImageError(null);
 			}
 		} catch (error) {
-			console.error("Failed to send message:", error);
+			console.error({ error }, "Failed to send message");
 		}
 	};
 

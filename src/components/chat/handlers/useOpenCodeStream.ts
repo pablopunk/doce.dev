@@ -50,7 +50,7 @@ export function useOpenCodeStream(
 				}
 			}
 		} catch (error) {
-			console.error("Failed to poll for session:", error);
+			console.error({ error }, "Failed to poll for session");
 		}
 	}, [projectId, onEvent]);
 
@@ -85,7 +85,7 @@ export function useOpenCodeStream(
 				const data = JSON.parse(event.data) as StreamedEvent;
 				onEvent(data);
 			} catch (error) {
-				console.error("Failed to parse opencode event:", error);
+				console.error({ error }, "Failed to parse opencode event");
 			}
 		};
 

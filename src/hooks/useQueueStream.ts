@@ -72,12 +72,12 @@ export function useQueueStream(
 
 				setPagination(data.pagination);
 			} catch (err) {
-				console.error("Failed to parse queue update:", err);
+				console.error({ err }, "Failed to parse queue update");
 			}
 		});
 
 		eventSource.addEventListener("error", (err) => {
-			console.error("Queue stream error:", err);
+			console.error({ err }, "Queue stream error");
 			eventSource.close();
 		});
 

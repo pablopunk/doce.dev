@@ -1,6 +1,7 @@
 import { ActionError, defineAction } from "astro:actions";
 import { randomBytes } from "node:crypto";
 import { z } from "astro/zod";
+import { logger } from "@/server/logger";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
 
 import {
@@ -68,7 +69,7 @@ export const projects = {
 					images,
 				});
 			} catch (err) {
-				console.error("Failed to enqueue project creation:", err);
+				logger.error({ err, projectId }, "Failed to enqueue project creation");
 				throw new ActionError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to start project creation",
@@ -316,8 +317,8 @@ export const projects = {
 				try {
 					await updateOpencodeJsonModel(input.projectId, input.model);
 				} catch (_error) {
-					console.warn(
-						"Updated model in database but failed to update opencode.json.",
+					logger.warn(
+						"Updated model in database but failed to update opencode.json",
 					);
 				}
 			}
