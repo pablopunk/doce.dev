@@ -47,7 +47,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: opencode/glm-4.7-free
+          model: opencode/minimax-m2.5
           prompt: |
             Read and understand @AGENTS.md to learn the project's rules and conventions.
             Then analyze this codebase for any improvements that adhere to those rules.

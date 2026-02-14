@@ -45,7 +45,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # HOME: /home/runner   # This is necessary for the self-hosted runner
         with:
-          model: opencode/glm-4.7-free
+          model: opencode/minimax-m2.5
           prompt: |
             <pr-number>
             ${{ steps.pr-number.outputs.number }}
