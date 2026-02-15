@@ -66,8 +66,42 @@ jobs:
 
           echo "🚀 Deploying PR #$PR_NUM to $VM_HOST"
 
-          # Step 1: Clean up stale previews
-          echo "📦 Cleaning up stale previews..."
+          # Step 1: Clean up stale previews for closed PRs
+          echo "🧹 Cleaning up stale previews..."
+          
+          # Get list of open PR numbers from GitHub
+          OPEN_PRS=$(gh pr list --state open --json number --jq '.[].number')
+          
+          # Get list of existing PR directories on server
+          EXISTING_DIRS=$(ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "ls -d /root/previews/pr-* 2>/dev/null | xargs -n1 basename 2>/dev/null || true")
+          
+          # For each existing directory, check if the PR is still open
+          for dir in $EXISTING_DIRS; do
+            DIR_PR_NUM=$(echo "$dir" | sed 's/pr-//')
+            IS_OPEN=false
+            for open_pr in $OPEN_PRS; do
+              if [ "$DIR_PR_NUM" = "$open_pr" ]; then
+                IS_OPEN=true
+                break
+              fi
+            done
+            
+            if [ "$IS_OPEN" = "false" ]; then
+              echo "🗑️  Cleaning up stale preview for PR #$DIR_PR_NUM (PR is closed)"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "cd /root/previews/$dir && docker-compose down 2>/dev/null || true"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "$SCRIPTS_DIR/release-port.sh $DIR_PR_NUM 2>/dev/null || true"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "docker rmi -f doce-pr-$DIR_PR_NUM:latest 2>/dev/null || true"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "rm -rf /root/previews/$dir"
+            fi
+          done
+          
+          # Also clean up any leftover containers from previous runs of this PR
+          echo "📦 Cleaning up stale containers for PR #$PR_NUM..."
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
 
@@ -204,17 +238,18 @@ jobs:
 
           echo "🧹 Cleaning up PR #$PR_NUM preview"
 
+          # Stop containers (ignore if directory doesn't exist)
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
-            "cd \"$PR_DIR\" && docker-compose down 2>/dev/null || true"
+            "[ -d \"$PR_DIR\" ] && cd \"$PR_DIR\" && docker-compose down 2>/dev/null || true"
 
-          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/release-port.sh $PR_NUM"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "$SCRIPTS_DIR/release-port.sh $PR_NUM 2>/dev/null || true"
 
-          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest 2>/dev/null || true"
 
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
-            "docker image prune -a --force" || true
+            "docker image prune -a --force 2>/dev/null || true"
 
-          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" 2>/dev/null || true"
 
           echo "✅ PR preview cleaned up!"
 
