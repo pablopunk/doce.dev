@@ -100,8 +100,10 @@ jobs:
 
           if [ "$DOCKERFILE_CHANGED" = "true" ]; then
             echo "🔨 Building Docker image (Dockerfile changed)..."
+            echo "⏱️ Build started at $(date)"
             ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
-              "cd \"$REPO_DIR\" && docker build -t doce-pr-$PR_NUM:latest ."
+              "cd \"$REPO_DIR\" && DOCKER_BUILDKIT=1 docker build -t doce-pr-$PR_NUM:latest ."
+            echo "⏱️ Build completed at $(date)"
           else
             echo "📥 Pulling pre-built image from registry (Dockerfile unchanged)..."
             ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
