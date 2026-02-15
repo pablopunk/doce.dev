@@ -13,7 +13,7 @@ run_bootstrap() {
 	
 	# Try to run bootstrap normally
 	echo "📦 Running bootstrap..."
-	if pnpm bootstrap 2>/dev/null; then
+	if pnpm bootstrap; then
 		echo "✅ Bootstrap completed successfully!"
 		return 0
 	fi
