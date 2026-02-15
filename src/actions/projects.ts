@@ -154,6 +154,13 @@ export const projects = {
 				await updateProjectStatus(input.projectId, "deleting");
 			} catch {}
 
+			try {
+				const { cancelActiveProductionJobs } = await import(
+					"@/server/productions/productions.model"
+				);
+				await cancelActiveProductionJobs(input.projectId);
+			} catch {}
+
 			const job = await enqueueProjectDelete({
 				projectId: input.projectId,
 				requestedByUserId: user.id,
@@ -229,6 +236,16 @@ export const projects = {
 				});
 			}
 
+			const { hasActiveDeployment } = await import(
+				"@/server/productions/productions.model"
+			);
+			if (await hasActiveDeployment(input.projectId)) {
+				throw new ActionError({
+					code: "CONFLICT",
+					message: "A deployment is already in progress",
+				});
+			}
+
 			const job = await enqueueProductionBuild({
 				projectId: input.projectId,
 			});
@@ -265,6 +282,11 @@ export const projects = {
 					message: "Project not found",
 				});
 			}
+
+			const { cancelActiveProductionJobs } = await import(
+				"@/server/productions/productions.model"
+			);
+			await cancelActiveProductionJobs(input.projectId);
 
 			const job = await enqueueProductionStop(input.projectId);
 

@@ -21,6 +21,9 @@ export const CURATED_MODELS = [
 	"google/gemini-3-flash-preview",
 	"moonshotai/kimi-k2.5",
 	"kimi-k2.5",
+	"glm-5",
+	"z-ai/glm-5",
+	"minimax/minimax-m2.5",
 ] as const;
 
 /**

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 
@@ -77,7 +78,9 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 				throw new Error("Failed to perform action");
 			}
 		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to perform action");
+			toast.error(
+				err instanceof Error ? err.message : "Failed to perform action",
+			);
 		} finally {
 			setIsLoading(false);
 			setPendingAction(null);
@@ -97,7 +100,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 					throw new Error("Failed to run job");
 				}
 			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to run job");
+				toast.error(err instanceof Error ? err.message : "Failed to run job");
 			}
 		} else if (action === "retry") {
 			try {
@@ -111,7 +114,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 					throw new Error("Failed to retry job");
 				}
 			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to retry job");
+				toast.error(err instanceof Error ? err.message : "Failed to retry job");
 			}
 		} else if (action === "cancel" || action === "forceUnlock") {
 			handleActionClick(action);

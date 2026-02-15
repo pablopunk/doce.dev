@@ -50,6 +50,10 @@ export function getProjectPreviewPath(projectId: string): string {
 	return path.join(getProjectPath(projectId), "preview");
 }
 
+export function getProjectPreviewOpencodePath(projectId: string): string {
+	return path.join(getProjectPreviewPath(projectId), "opencode.json");
+}
+
 /**
  * Get the absolute path to the production directory for a project.
  */

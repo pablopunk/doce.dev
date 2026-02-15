@@ -1,12 +1,6 @@
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import {
-	getProductionCurrentSymlink,
-	getProductionPath,
-} from "@/server/projects/paths";
+import { getProductionPath } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { enqueueProductionWaitReady } from "../enqueue";
@@ -101,6 +95,10 @@ export async function handleProductionStart(
 			containerName,
 			"-p",
 			`${productionPort}:3000`,
+			"-e",
+			"PORT=3000",
+			"-e",
+			"HOST=0.0.0.0",
 			"--restart",
 			"unless-stopped",
 			imageName,
@@ -130,45 +128,16 @@ export async function handleProductionStart(
 			},
 			"Production container started",
 		);
-		// Update the "current" symlink to point to this version
-		const symlinkPath = getProductionCurrentSymlink(project.id);
-		await fs.mkdir(path.dirname(symlinkPath), { recursive: true });
 
-		// Use full path to hash directory as symlink target
-		const hashPath = getProductionPath(project.id, payload.productionHash);
-		// Add random component to avoid collision if two builds complete at same millisecond
-		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-		try {
-			await fs.unlink(tempSymlink).catch(() => {});
-			await fs.symlink(hashPath, tempSymlink);
-			await fs.rename(tempSymlink, symlinkPath);
-
-			logger.debug(
-				{
-					projectId: project.id,
-					symlinkPath,
-					target: hashPath,
-				},
-				"Updated production current symlink",
-			);
-		} catch (error) {
-			logger.error(
-				{ projectId: project.id, error },
-				"Failed to update production symlink",
-			);
-			throw error;
-		}
-
-		// Update production status
 		await updateProductionStatus(project.id, "building", {
 			productionStartedAt: new Date(),
 			productionHash: payload.productionHash,
 		});
 
-		// Enqueue waitReady with production port
 		await enqueueProductionWaitReady({
 			projectId: project.id,
 			productionPort,
+			productionHash: payload.productionHash,
 			startedAt: Date.now(),
 			rescheduleCount: 0,
 		});
@@ -181,14 +150,6 @@ export async function handleProductionStart(
 			},
 			"Enqueued production.waitReady",
 		);
-
-		// Clean up old production versions (keep last 2)
-		cleanupOldProductionVersions(project.id, 2).catch((error) => {
-			logger.warn(
-				{ projectId: project.id, error },
-				"Failed to cleanup old production versions",
-			);
-		});
 	} catch (error) {
 		logger.error(
 			{ projectId: project.id, error },

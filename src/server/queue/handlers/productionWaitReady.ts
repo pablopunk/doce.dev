@@ -1,9 +1,18 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { checkHttpServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
-import { updateProductionStatus } from "@/server/productions/productions.model";
+import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
+import {
+	getPreviousReleaseHash,
+	updateProductionStatus,
+} from "@/server/productions/productions.model";
+import {
+	getProductionCurrentSymlink,
+	getProductionPath,
+} from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import type { QueueJobContext } from "../queue.worker";
-import { RescheduleError } from "../queue.worker";
 import { parsePayload } from "../types";
 
 const WAIT_TIMEOUT_MS = 300_000; // 5 minutes max wait
@@ -32,109 +41,125 @@ export async function handleProductionWaitReady(
 		return;
 	}
 
-	try {
-		logger.info(
-			{ projectId: project.id, jobId: ctx.job.id, attempts: ctx.job.attempts },
-			"production.waitReady handler started",
+	logger.info(
+		{ projectId: project.id, jobId: ctx.job.id, attempts: ctx.job.attempts },
+		"production.waitReady handler started",
+	);
+
+	await ctx.throwIfCancelRequested();
+
+	const elapsed = Date.now() - payload.startedAt;
+
+	if (elapsed > WAIT_TIMEOUT_MS) {
+		const errorMsg = `Timed out waiting for production server to be ready (${Math.round(elapsed / 1000)}s of ${WAIT_TIMEOUT_MS / 1000}s allowed)`;
+		logger.error(
+			{ projectId: project.id, elapsed, maxWait: WAIT_TIMEOUT_MS },
+			errorMsg,
 		);
 
-		await ctx.throwIfCancelRequested();
-
-		// Check if we've timed out
-		const elapsed = Date.now() - payload.startedAt;
-		if (elapsed > WAIT_TIMEOUT_MS) {
-			const errorMsg = `Timed out waiting for production server to be ready (${elapsed}ms of ${WAIT_TIMEOUT_MS}ms allowed)`;
-			logger.error(
-				{ projectId: project.id, elapsed, maxWait: WAIT_TIMEOUT_MS },
-				errorMsg,
-			);
-			await updateProductionStatus(project.id, "failed", {
-				productionError: errorMsg,
-			});
-			throw new Error(errorMsg);
-		}
-
-		// Check if production server is ready
-		logger.debug(
-			{
-				projectId: project.id,
-				productionPort: payload.productionPort,
-			},
-			"Checking if production server is ready",
-		);
-
-		const productionReady = await checkHttpServerReady(
-			payload.productionPort,
-			HEALTH_CHECK_TIMEOUT_MS,
-		);
-
-		logger.info(
-			{
-				projectId: project.id,
-				productionPort: payload.productionPort,
-				productionReady,
-				elapsed,
-				attempts: ctx.job.attempts,
-			},
-			"Health check complete",
-		);
-
-		if (productionReady) {
-			// Set the production URL
-			const productionUrl = `http://localhost:${payload.productionPort}`;
-			await updateProductionStatus(project.id, "running", {
-				productionUrl,
-			});
-
-			logger.info(
-				{
-					projectId: project.id,
-					productionUrl,
-					elapsed,
-					attempts: ctx.job.attempts,
-				},
-				"Production server is ready",
-			);
-
-			return;
-		}
-
-		// Check if we've exceeded max reschedule attempts
-		if (ctx.job.attempts >= 300) {
-			const errorMsg = `Production server failed to become ready after ${ctx.job.attempts} polling attempts (${elapsed}ms elapsed)`;
-			logger.error(
-				{
-					projectId: project.id,
-					attempts: ctx.job.attempts,
-					elapsed,
-					productionReady,
-				},
-				errorMsg,
-			);
-			await updateProductionStatus(project.id, "failed", {
-				productionError: errorMsg,
-			});
-			throw new Error(errorMsg);
-		}
-
-		// Not ready yet - reschedule
-		logger.info(
-			{
-				projectId: project.id,
-				elapsed,
-				attempts: ctx.job.attempts,
-				productionReady,
-				nextRetryIn: POLL_DELAY_MS,
-			},
-			"Production server not ready, rescheduling",
-		);
-
-		ctx.reschedule(POLL_DELAY_MS);
-	} catch (error) {
-		// Don't catch reschedule errors - those should propagate
-		if (error instanceof RescheduleError) {
-			throw error;
-		}
-		throw error;
+		await rollbackOrFail(project.id, payload.productionHash, errorMsg);
+		return; // Terminal — job completes, no retry
 	}
+
+	const productionReady = await checkHttpServerReady(
+		payload.productionPort,
+		HEALTH_CHECK_TIMEOUT_MS,
+	);
+
+	logger.info(
+		{
+			projectId: project.id,
+			productionPort: payload.productionPort,
+			productionReady,
+			elapsed,
+			attempts: ctx.job.attempts,
+		},
+		"Health check complete",
+	);
+
+	if (productionReady) {
+		await promoteRelease(project.id, payload.productionHash);
+
+		const productionUrl = `http://localhost:${payload.productionPort}`;
+		await updateProductionStatus(project.id, "running", {
+			productionUrl,
+		});
+
+		cleanupOldProductionVersions(project.id, 2).catch((error) => {
+			logger.warn(
+				{ projectId: project.id, error },
+				"Failed to cleanup old production versions",
+			);
+		});
+
+		logger.info(
+			{
+				projectId: project.id,
+				productionUrl,
+				elapsed,
+				attempts: ctx.job.attempts,
+			},
+			"Production server is ready and promoted",
+		);
+
+		return;
+	}
+
+	logger.debug(
+		{
+			projectId: project.id,
+			elapsed,
+			attempts: ctx.job.attempts,
+			nextRetryIn: POLL_DELAY_MS,
+		},
+		"Production server not ready, rescheduling",
+	);
+
+	ctx.reschedule(POLL_DELAY_MS);
+}
+
+async function rollbackOrFail(
+	projectId: string,
+	failedHash: string,
+	errorMsg: string,
+): Promise<void> {
+	const previousHash = await getPreviousReleaseHash(projectId, failedHash);
+
+	if (!previousHash) {
+		await updateProductionStatus(projectId, "failed", {
+			productionError: errorMsg,
+		});
+		return;
+	}
+
+	await promoteRelease(projectId, previousHash);
+	await updateProductionStatus(projectId, "running", {
+		productionHash: previousHash,
+		productionError: `Rolled back to ${previousHash} after: ${errorMsg}`,
+	});
+
+	logger.info(
+		{ projectId, failedHash, previousHash },
+		"Rolled back to previous release after timeout",
+	);
+}
+
+async function promoteRelease(
+	projectId: string,
+	productionHash: string,
+): Promise<void> {
+	const symlinkPath = getProductionCurrentSymlink(projectId);
+	await fs.mkdir(path.dirname(symlinkPath), { recursive: true });
+
+	const hashPath = getProductionPath(projectId, productionHash);
+	const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+	await fs.unlink(tempSymlink).catch(() => {});
+	await fs.symlink(hashPath, tempSymlink);
+	await fs.rename(tempSymlink, symlinkPath);
+
+	logger.info(
+		{ projectId, symlinkPath, target: hashPath },
+		"Promoted release: current symlink updated",
+	);
 }

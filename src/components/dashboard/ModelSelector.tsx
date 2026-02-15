@@ -43,9 +43,11 @@ const VENDOR_LOGOS: Record<
 	anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
 	google: { light: Gemini, dark: Gemini },
 	"z.ai": { light: ZaiLight, dark: ZaiDark },
+	"z-ai": { light: ZaiLight, dark: ZaiDark },
 	minimax: { light: Minimax, dark: MinimaxDark },
 	kimi: { light: Kimi, dark: Kimi },
 	moonshotai: { light: Kimi, dark: Kimi },
+	moonshot: { light: Kimi, dark: Kimi },
 };
 
 interface ModelSelectorProps {
@@ -192,29 +194,33 @@ export function ModelSelector({
 												onModelChange(modelKey);
 												setOpen(false);
 											}}
-											className={`flex items-center gap-2 ${
+											className={`flex items-center justify-between gap-2 w-full ${
 												!isAvailable ? "opacity-50" : ""
 											}`}
 										>
-											{modelVendorLogo && (
-												<div className="w-4 h-4 shrink-0">
-													{renderLogo(modelVendorLogo)}
-												</div>
-											)}
-											<span className="flex-1 truncate">{model.name}</span>
-											{getTierIcon(model.tier)}
-											{getImageSupportIcon(model.supportsImages)}
-											{!isAvailable && (
-												<Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-											)}
-											<Check
-												className={cn(
-													"ml-auto size-4 shrink-0",
-													selectedModelId === modelKey
-														? "opacity-100"
-														: "opacity-0",
+											<div className="flex items-center gap-2 min-w-0">
+												{modelVendorLogo && (
+													<div className="w-4 h-4 shrink-0">
+														{renderLogo(modelVendorLogo)}
+													</div>
 												)}
-											/>
+												<span className="truncate">{model.name}</span>
+											</div>
+											<div className="flex items-center gap-2 shrink-0">
+												{getTierIcon(model.tier)}
+												{getImageSupportIcon(model.supportsImages)}
+												{!isAvailable && (
+													<Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+												)}
+												<Check
+													className={cn(
+														"size-4 shrink-0",
+														selectedModelId === modelKey
+															? "opacity-100"
+															: "opacity-0",
+													)}
+												/>
+											</div>
 										</CommandItem>
 									);
 

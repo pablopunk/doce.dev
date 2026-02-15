@@ -56,7 +56,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 		}
 
 		setMounted(true);
-	}, []);
+	}, [applyTheme]);
 
 	// Listen to storage changes (cross-tab sync)
 	useEffect(() => {
@@ -72,7 +72,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
 		window.addEventListener("storage", handleStorageChange);
 		return () => window.removeEventListener("storage", handleStorageChange);
-	}, [mounted]);
+	}, [mounted, applyTheme]);
 
 	const toggleTheme = () => {
 		const newTheme = theme === "light" ? "dark" : "light";

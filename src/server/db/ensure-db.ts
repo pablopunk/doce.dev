@@ -4,18 +4,44 @@ import { db } from "./client";
 
 let migrationsRan = false;
 
+function isBenignAlreadyExistsError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	const message = error.message.toLowerCase();
+	const cause =
+		error && typeof error === "object" && "cause" in error
+			? String((error as { cause?: unknown }).cause).toLowerCase()
+			: "";
+
+	const combined = `${message} ${cause}`;
+	return (
+		combined.includes("table") &&
+		combined.includes("already exists") &&
+		combined.includes("projects")
+	);
+}
+
 export async function ensureDatabaseReady() {
 	if (migrationsRan) {
 		return;
 	}
 
 	try {
-		await migrate(db, { migrationsFolder: "./drizzle" });
 		try {
-			await ensureQueueSettingsRow();
-		} catch (e) {
-			console.error("[DB] Failed to ensure queue settings row:", e);
+			await migrate(db, { migrationsFolder: "./drizzle" });
+		} catch (error) {
+			if (!isBenignAlreadyExistsError(error)) {
+				throw error;
+			}
+
+			console.warn(
+				"[DB] Migration metadata appears out of sync; continuing because schema already exists",
+			);
 		}
+
+		await ensureQueueSettingsRow();
 		migrationsRan = true;
 	} catch (error) {
 		console.error("[DB] Initialization failed:", error);

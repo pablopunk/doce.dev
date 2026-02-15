@@ -60,31 +60,6 @@ export async function setupProjectFilesystem(
 /**
  * Update opencode.json with the selected model.
  */
-export async function updateOpencodeModel(
-	projectPath: string,
-	model: string,
-): Promise<void> {
-	const opencodeJsonPath = path.join(projectPath, "opencode.json");
-
-	try {
-		// Read existing config
-		const content = await fs.readFile(opencodeJsonPath, "utf-8");
-		const config = JSON.parse(content);
-
-		// Update the model field
-		config.model = model;
-
-		// Write back to file
-		await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
-	} catch (error) {
-		logger.warn(
-			{ projectPath, model, error: String(error) },
-			"Failed to update opencode.json with model",
-		);
-		// Don't throw - this is not a critical failure
-	}
-}
-
 /**
  * Copy the template directory to a new project directory.
  */

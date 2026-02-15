@@ -105,10 +105,7 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		// Load model from opencode.json config
-		const projectPath = normalizedProjectPath;
-
-		const config = await loadOpencodeConfig(projectPath);
+		const config = await loadOpencodeConfig(project.id);
 		const modelString = config?.model || FALLBACK_MODEL;
 
 		// Parse the provider-prefixed model string

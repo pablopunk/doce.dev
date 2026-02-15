@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
@@ -12,6 +13,35 @@ import {
 
 // Cache the detected compose command
 let composeCommand: string[] | null = null;
+
+async function loadProjectEnvFile(
+	envFilePath: string,
+): Promise<Record<string, string>> {
+	try {
+		const content = await fs.readFile(envFilePath, "utf-8");
+		const env: Record<string, string> = {};
+
+		for (const rawLine of content.split("\n")) {
+			const line = rawLine.trim();
+			if (!line || line.startsWith("#")) {
+				continue;
+			}
+
+			const separator = line.indexOf("=");
+			if (separator <= 0) {
+				continue;
+			}
+
+			const key = line.slice(0, separator).trim();
+			const value = line.slice(separator + 1).trim();
+			env[key] = value;
+		}
+
+		return env;
+	} catch {
+		return {};
+	}
+}
 
 /**
  * Detect whether to use `docker compose` or `docker-compose`.
@@ -122,6 +152,7 @@ async function runComposeCommand(
 	fullArgs.push(...args);
 
 	const command = compose[0] ?? "docker";
+	const projectEnv = await loadProjectEnvFile(envFilePath);
 
 	logger.debug(
 		{ command, args: fullArgs, cwd: projectPath },
@@ -138,6 +169,7 @@ async function runComposeCommand(
 			cwd: projectPath,
 			env: {
 				...process.env,
+				...projectEnv,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
 			},
