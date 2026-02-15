@@ -124,7 +124,10 @@ export function ModelSelector({
 	// Auto-select first model if current selection is invalid
 	useEffect(() => {
 		if (!selectedModel && models.length > 0) {
-			onModelChange(getModelKey(models[0]?.provider, models[0]?.id));
+			const firstModel = models[0];
+			if (firstModel) {
+				onModelChange(getModelKey(firstModel.provider, firstModel.id));
+			}
 		}
 	}, [models, selectedModel, onModelChange]);
 
@@ -138,7 +141,7 @@ export function ModelSelector({
 		return <Logo className="w-full h-full" />;
 	};
 
-	const grouped = Array.from(
+	const grouped: Array<[string, Array<(typeof models)[number]>]> = Array.from(
 		models.reduce((acc, model) => {
 			const provider = model.provider;
 			if (!acc.has(provider)) {
@@ -150,7 +153,18 @@ export function ModelSelector({
 			}
 			return acc;
 		}, new Map<string, Array<(typeof models)[number]>>()),
-	).sort((a, b) => a[0].localeCompare(b[0]));
+	)
+		.sort((a, b) => a[0].localeCompare(b[0]))
+		.map(([provider, providerModels]) => {
+			const sortedModels = [...providerModels].sort((a, b) =>
+				a.name.localeCompare(b.name, undefined, {
+					numeric: true,
+					sensitivity: "base",
+				}),
+			);
+
+			return [provider, sortedModels];
+		});
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>

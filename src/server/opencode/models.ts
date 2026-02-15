@@ -61,6 +61,9 @@ function normalizeModelId(
 		if (modelId.includes("kimi") || modelId.startsWith("kimi-")) {
 			return { id: modelId, vendor: "moonshot" };
 		}
+		if (modelId.startsWith("glm-") || modelId.startsWith("glm_")) {
+			return { id: modelId, vendor: "z-ai" };
+		}
 		// Default: use the model ID as vendor if no match
 		return { id: modelId, vendor: modelId };
 	}
@@ -142,7 +145,7 @@ export async function getAutonameModel(
 	}
 
 	// Return the ID of the first (cheapest) model
-	return available[0]?.id;
+	return available[0]?.id ?? null;
 }
 
 /**
