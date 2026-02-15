@@ -31,3 +31,4 @@ jobs:
           OPENCODE_PERMISSION: '{"bash": "deny"}'
         with:
           model: opencode/kimi-k2.5
+          model: opencode/minimax-m2.5
