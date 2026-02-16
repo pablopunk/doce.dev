@@ -5,6 +5,7 @@ import { AssetsTab } from "@/components/assets/AssetsTab";
 import { FilesTab } from "@/components/files/FilesTab";
 import { DeployButton } from "@/components/preview/DeployButton";
 import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
+import { ProjectDiagnosticBanner } from "@/components/projects/ProjectDiagnosticBanner";
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +20,11 @@ interface PresenceResponse {
 	message: string | null;
 	nextPollMs: number;
 	initialPromptCompleted?: boolean;
+	opencodeDiagnostic?: {
+		category: string | null;
+		message: string | null;
+		remediation: string[] | null;
+	} | null;
 }
 
 interface ProductionStatus {
@@ -87,6 +93,10 @@ export function PreviewPanel({
 	const [productionVersions, setProductionVersions] = useState<
 		ProductionVersion[]
 	>([]);
+	const [opencodeDiagnostic, setOpencodeDiagnostic] = useState<{
+		category: string | null;
+		message: string | null;
+	} | null>(null);
 	const viewerIdRef = useRef<string | null>(null);
 	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,6 +172,7 @@ export function PreviewPanel({
 			}
 
 			setMessage(data.message);
+			setOpencodeDiagnostic(data.opencodeDiagnostic ?? null);
 			onStatusChange?.(data);
 
 			// State machine
@@ -404,6 +415,14 @@ export function PreviewPanel({
 			onValueChange={(value) => setActiveTab(value as TabType)}
 			className="flex flex-col h-full"
 		>
+			{/* OpenCode Diagnostic Banner */}
+			{opencodeDiagnostic && (
+				<ProjectDiagnosticBanner
+					category={opencodeDiagnostic.category}
+					message={opencodeDiagnostic.message}
+				/>
+			)}
+
 			{/* Header with integrated tabs */}
 			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
 				{/* Left: Tabs + Status */}
@@ -499,6 +518,14 @@ export function PreviewPanel({
 					)}
 				</div>
 			</div>
+
+			{opencodeDiagnostic && (
+				<ProjectDiagnosticBanner
+					category={opencodeDiagnostic.category}
+					message={opencodeDiagnostic.message}
+					onDismiss={() => setOpencodeDiagnostic(null)}
+				/>
+			)}
 
 			{/* Preview Tab Content */}
 			<TabsContent

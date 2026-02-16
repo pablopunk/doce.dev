@@ -64,6 +64,7 @@ export function useChatPanel({
 		isStreaming,
 		pendingImages,
 		pendingImageError,
+		latestDiagnostic,
 		setSessionId,
 		setOpenCodeReady,
 		setInitialPromptSent,
@@ -78,6 +79,7 @@ export function useChatPanel({
 		setItems,
 		addItem,
 		handleChatEvent,
+		setLatestDiagnostic,
 	} = store;
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -497,11 +499,13 @@ export function useChatPanel({
 		currentModel,
 		expandedTools,
 		scrollRef,
+		latestDiagnostic,
 		setPendingImages,
 		setPendingImageError,
 		handleSend,
 		handleModelChange,
 		toggleToolExpanded,
 		handleScroll,
+		clearDiagnostic: () => setLatestDiagnostic(null),
 	};
 }

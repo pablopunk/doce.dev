@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
+import { QueueDiagnostic } from "./QueueDiagnostic";
 
 interface JobStreamData {
 	type: "init" | "update";
@@ -277,14 +278,10 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 					</pre>
 				</div>
 
-				{job.lastError && (
-					<div className="mt-6 rounded-lg border border-destructive/40 p-4">
-						<h2 className="font-semibold mb-2 text-destructive">Last Error</h2>
-						<pre className="whitespace-pre-wrap text-xs text-destructive">
-							{job.lastError}
-						</pre>
-					</div>
-				)}
+				<QueueDiagnostic
+					error={job.lastError}
+					onRetry={() => handleAction("retry")}
+				/>
 			</main>
 
 			{pendingAction && (

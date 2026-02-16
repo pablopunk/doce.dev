@@ -13,11 +13,13 @@ import type {
 	EventFileEdited,
 	EventMessagePartUpdated,
 	EventMessageUpdated,
+	EventSessionError,
 	EventSessionStatus,
 	ReasoningPart as SDKReasoningPart,
 	TextPart as SDKTextPart,
 	ToolPart as SDKToolPart,
 } from "@opencode-ai/sdk/v2/client";
+import { createSseDiagnostic, type OpencodeDiagnostic } from "./diagnostics";
 
 // ============================================================================
 // Normalized Event Types (for frontend consumption)
@@ -30,6 +32,7 @@ export type NormalizedEventType =
 	| "chat.tool.update"
 	| "chat.reasoning.part"
 	| "chat.file.changed"
+	| "chat.diagnostic"
 	| "chat.event.unknown";
 
 export interface NormalizedEventEnvelope {
@@ -95,6 +98,10 @@ export interface FileChangedPayload {
 export interface UnknownEventPayload {
 	upstreamEventType: string;
 	upstreamData: unknown;
+}
+
+export interface DiagnosticPayload {
+	diagnostic: OpencodeDiagnostic;
 }
 
 // ============================================================================
@@ -324,6 +331,19 @@ export function normalizeEvent(
 			return null;
 		}
 
+		// Session error - transform into diagnostic event
+		case "session.error": {
+			const errorEvent = event as EventSessionError;
+			const diagnostic = createSseDiagnostic(errorEvent, projectId);
+
+			return {
+				type: "chat.diagnostic",
+				projectId,
+				time,
+				payload: { diagnostic } satisfies DiagnosticPayload,
+			};
+		}
+
 		// Session events we can ignore
 		case "session.updated":
 		case "session.created":
@@ -331,7 +351,6 @@ export function normalizeEvent(
 		case "session.idle":
 		case "session.compacted":
 		case "session.diff":
-		case "session.error":
 			return null;
 
 		// Other events we don't need to handle

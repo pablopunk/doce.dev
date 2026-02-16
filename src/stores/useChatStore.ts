@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
 import { createTextPart, type ImagePart, type Message } from "@/types/message";
 
 /**
@@ -48,6 +49,10 @@ interface ChatStore {
 	pendingImages: ImagePart[];
 	pendingImageError: string | null;
 
+	// State: Diagnostics
+	latestDiagnostic: OpencodeDiagnostic | null;
+	diagnosticHistory: OpencodeDiagnostic[];
+
 	// Actions: Session & status
 	setSessionId: (id: string | null) => void;
 	setOpenCodeReady: (ready: boolean) => void;
@@ -68,6 +73,11 @@ interface ChatStore {
 	// Actions: Images
 	setPendingImages: (images: ImagePart[]) => void;
 	setPendingImageError: (error: string | null) => void;
+
+	// Actions: Diagnostics
+	setLatestDiagnostic: (diagnostic: OpencodeDiagnostic | null) => void;
+	addDiagnostic: (diagnostic: OpencodeDiagnostic) => void;
+	clearDiagnostics: () => void;
 
 	// Actions: Message management
 	setItems: (items: ChatItem[]) => void;
@@ -99,6 +109,8 @@ const initialState = {
 	isStreaming: false,
 	pendingImages: [] as ImagePart[],
 	pendingImageError: null as string | null,
+	latestDiagnostic: null as OpencodeDiagnostic | null,
+	diagnosticHistory: [] as OpencodeDiagnostic[],
 };
 
 /**
@@ -132,6 +144,15 @@ export function createChatStore() {
 						: item,
 				),
 			})),
+
+		// Actions: Diagnostics
+		setLatestDiagnostic: (diagnostic) => set({ latestDiagnostic: diagnostic }),
+		addDiagnostic: (diagnostic) =>
+			set((state) => ({
+				diagnosticHistory: [...state.diagnosticHistory, diagnostic],
+			})),
+		clearDiagnostics: () =>
+			set({ latestDiagnostic: null, diagnosticHistory: [] }),
 
 		// Complex event handling
 		handleChatEvent: (event) => {
@@ -395,6 +416,16 @@ export function createChatStore() {
 					}
 					break;
 				}
+
+				case "chat.diagnostic": {
+					const { diagnostic } = payload as { diagnostic: OpencodeDiagnostic };
+					set((state) => ({
+						latestDiagnostic: diagnostic,
+						diagnosticHistory: [...state.diagnosticHistory, diagnostic],
+						isStreaming: false,
+					}));
+					break;
+				}
 			}
 		},
 
@@ -409,9 +440,13 @@ const storeInstances = new Map<string, ReturnType<typeof createChatStore>>();
 /**
  * Get or create a chat store for a project
  */
-export function useChatStore(projectId: string) {
+export function useChatStore(projectId: string): ChatStore {
 	if (!storeInstances.has(projectId)) {
 		storeInstances.set(projectId, createChatStore());
 	}
-	return storeInstances.get(projectId)?.();
+	const store = storeInstances.get(projectId);
+	if (!store) {
+		throw new Error(`Failed to create chat store for project ${projectId}`);
+	}
+	return store();
 }

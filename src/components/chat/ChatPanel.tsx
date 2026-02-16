@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useChatPanel } from "@/hooks/useChatPanel";
+import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 
@@ -33,12 +34,14 @@ export function ChatPanel({
 		currentModel,
 		expandedTools,
 		scrollRef,
+		latestDiagnostic,
 		setPendingImages,
 		setPendingImageError,
 		handleSend,
 		handleModelChange,
 		toggleToolExpanded,
 		handleScroll,
+		clearDiagnostic,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
 
 	return (
@@ -65,6 +68,12 @@ export function ChatPanel({
 						expandedTools={expandedTools}
 						onToggleTool={toggleToolExpanded}
 						onOpenFile={onOpenFile}
+					/>
+				)}
+				{latestDiagnostic && (
+					<ChatDiagnostic
+						diagnostic={latestDiagnostic}
+						onDismiss={clearDiagnostic}
 					/>
 				)}
 			</div>

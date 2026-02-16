@@ -52,6 +52,12 @@ export interface PresenceResponse {
 	bootstrapSessionId: string | null;
 	// Setup error (if a queue job failed during setup)
 	setupError: string | null;
+	// OpenCode diagnostic (if there's an active error)
+	opencodeDiagnostic: {
+		category: string | null;
+		message: string | null;
+		remediation: string[] | null;
+	} | null;
 }
 
 // In-memory presence state
@@ -202,6 +208,13 @@ export async function handlePresenceHeartbeat(
 				slug: project.slug,
 				bootstrapSessionId: project.bootstrapSessionId,
 				setupError,
+				opencodeDiagnostic: project.opencodeErrorCategory
+					? {
+							category: project.opencodeErrorCategory,
+							message: project.opencodeErrorMessage,
+							remediation: null,
+						}
+					: null,
 			};
 		}
 
@@ -325,6 +338,13 @@ export async function handlePresenceHeartbeat(
 			slug: project.slug,
 			bootstrapSessionId: project.bootstrapSessionId,
 			setupError,
+			opencodeDiagnostic: project.opencodeErrorCategory
+				? {
+						category: project.opencodeErrorCategory,
+						message: project.opencodeErrorMessage,
+						remediation: null,
+					}
+				: null,
 		};
 	} finally {
 		release();

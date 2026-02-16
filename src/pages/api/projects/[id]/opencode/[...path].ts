@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
 import { logger } from "@/server/logger";
+import { createProxyDiagnostic } from "@/server/opencode/diagnostics";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -177,27 +178,34 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 			headers: responseHeaders,
 		});
 	} catch (error) {
-		if (error instanceof Error && error.name === "AbortError") {
-			return new Response(JSON.stringify({ error: "Request timeout" }), {
-				status: 504,
-				headers: { "Content-Type": "application/json" },
-			});
-		}
+		const isTimeout =
+			error instanceof Error &&
+			(error.name === "AbortError" || error.message.includes("timeout"));
 
-		logger.error({ error, projectId, proxyPath }, "Proxy error");
+		const status = isTimeout ? 504 : 502;
 
-		// For session endpoints, return empty array instead of 502 error
-		// This allows the frontend to treat "server not ready" as "no sessions yet"
-		// and keep polling until the server is ready
+		const diagnostic = createProxyDiagnostic(
+			{
+				status,
+				error: error instanceof Error ? error.message : String(error),
+			},
+			projectId,
+		);
+
+		logger.error(
+			{ error, projectId, proxyPath, category: diagnostic.category, isTimeout },
+			"Proxy error",
+		);
+
 		if (proxyPath.startsWith("session")) {
-			return new Response(JSON.stringify([]), {
-				status: 200,
+			return new Response(JSON.stringify(diagnostic), {
+				status,
 				headers: { "Content-Type": "application/json" },
 			});
 		}
 
-		return new Response(JSON.stringify({ error: "Upstream error" }), {
-			status: 502,
+		return new Response(JSON.stringify(diagnostic), {
+			status,
 			headers: { "Content-Type": "application/json" },
 		});
 	}

@@ -1,0 +1,42 @@
+export {
+	type ClassificationResult,
+	classifyOpencodeError,
+	classifyProxyResponse,
+	classifySseError,
+	classifyThrownError,
+	createOpencodeDiagnostic,
+	createProxyDiagnostic,
+	createSseDiagnostic,
+	createThrownErrorDiagnostic,
+	isApiError,
+	isMessageAbortedError,
+	isMessageOutputLengthError,
+	isProviderAuthError,
+	isSessionErrorEvent,
+	isUnknownError,
+	OPENCODE_ERROR_CATEGORY_METADATA,
+	PROXY_STATUS_TO_CATEGORY,
+	SDK_ERROR_NAME_TO_CATEGORY,
+} from "./classify";
+export {
+	DEFAULT_SENSITIVE_KEYS,
+	REDACTION_PLACEHOLDER,
+	type SanitizeOptions,
+	sanitizeError,
+	sanitizeHeaders,
+	sanitizeObject,
+	sanitizeTechnicalDetails,
+} from "./sanitize";
+
+export {
+	OPENCODE_ERROR_CATEGORIES,
+	type OpencodeDiagnostic,
+	type OpencodeErrorCategory,
+	type OpencodeErrorCategoryMetadata,
+	type OpencodeErrorSource,
+	type OpencodeProxyError,
+	type OpencodeQueueError,
+	type OpencodeSdkError,
+	type OpencodeSessionErrorEvent,
+	type RemediationAction,
+} from "./types";
