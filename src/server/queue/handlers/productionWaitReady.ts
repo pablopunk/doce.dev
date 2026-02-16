@@ -1,6 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { checkHttpServerReady } from "@/server/health/checkHealthEndpoint";
+import {
+	checkDockerContainerReady,
+	checkHttpServerReady,
+} from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
 import {
@@ -61,15 +64,22 @@ export async function handleProductionWaitReady(
 		return; // Terminal — job completes, no retry
 	}
 
-	const productionReady = await checkHttpServerReady(
+	const httpReady = await checkHttpServerReady(
 		payload.productionPort,
 		HEALTH_CHECK_TIMEOUT_MS,
 	);
+
+	const containerName = `doce-prod-${project.id}`;
+	const dockerReady = await checkDockerContainerReady(containerName);
+	const productionReady = httpReady || dockerReady;
 
 	logger.info(
 		{
 			projectId: project.id,
 			productionPort: payload.productionPort,
+			httpReady,
+			dockerReady,
+			containerName,
 			productionReady,
 			elapsed,
 			attempts: ctx.job.attempts,
