@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
-import { getProjectPath, getProjectPreviewPath } from "@/server/projects/paths";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
