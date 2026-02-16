@@ -1,5 +1,5 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { FileTree } from "./FileTree";
@@ -73,6 +73,40 @@ export function FilesTab({
 			containerRef,
 		});
 
+	const fetchFileContent = useCallback(
+		async (path: string) => {
+			try {
+				setSelectedPath(path);
+				setIsLoadingContent(true);
+				setError(null);
+
+				const response = await fetch(
+					`/api/projects/${projectId}/files?path=${encodeURIComponent(path)}`,
+				);
+
+				if (!response.ok) {
+					throw new Error("Failed to fetch file content");
+				}
+
+				const data = (await response.json()) as FileContentResponse;
+
+				if (data.error) {
+					setError(data.error);
+					setFileContent("");
+				} else {
+					setFileContent(data.content);
+					onFileSelect?.(path);
+				}
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to load file");
+				setFileContent("");
+			} finally {
+				setIsLoadingContent(false);
+			}
+		},
+		[onFileSelect, projectId],
+	);
+
 	// Fetch file tree on mount
 	useEffect(() => {
 		const fetchFileTree = async () => {
@@ -117,38 +151,6 @@ export function FilesTab({
 
 		fetchFileTree();
 	}, [projectId, lastSelectedFile, fetchFileContent]);
-
-	// Fetch file content when selected file changes
-	const fetchFileContent = async (path: string) => {
-		try {
-			setSelectedPath(path);
-			setIsLoadingContent(true);
-			setError(null);
-
-			const response = await fetch(
-				`/api/projects/${projectId}/files?path=${encodeURIComponent(path)}`,
-			);
-
-			if (!response.ok) {
-				throw new Error("Failed to fetch file content");
-			}
-
-			const data = (await response.json()) as FileContentResponse;
-
-			if (data.error) {
-				setError(data.error);
-				setFileContent("");
-			} else {
-				setFileContent(data.content);
-				onFileSelect?.(path);
-			}
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load file");
-			setFileContent("");
-		} finally {
-			setIsLoadingContent(false);
-		}
-	};
 
 	if (isLoadingTree) {
 		return (

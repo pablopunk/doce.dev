@@ -2,6 +2,7 @@ import type { SVGProps } from "react";
 
 const Gemini = (props: SVGProps<SVGSVGElement>) => (
 	<svg {...props} viewBox="0 0 296 298" fill="none">
+		<title>Gemini</title>
 		<mask
 			id="a"
 			width="296"

@@ -4,6 +4,7 @@ import {
 	type DragEvent,
 	type FormEvent,
 	type KeyboardEvent,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -89,7 +90,7 @@ export function ChatInput({
 		}
 	};
 
-	const adjustTextareaHeight = () => {
+	const adjustTextareaHeight = useCallback(() => {
 		const textarea = textareaRef.current;
 		if (!textarea) return;
 
@@ -97,7 +98,7 @@ export function ChatInput({
 		const scrollHeight = textarea.scrollHeight;
 		const maxHeight = 200;
 		textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
-	};
+	}, []);
 
 	useEffect(() => {
 		adjustTextareaHeight();
@@ -168,7 +169,7 @@ export function ChatInput({
 		}
 	};
 
-	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+	const handleDragOver = (e: DragEvent<HTMLElement>) => {
 		// Don't show drag state if images aren't supported
 		if (!supportsImages) return;
 
@@ -177,13 +178,13 @@ export function ChatInput({
 		setIsDragging(true);
 	};
 
-	const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+	const handleDragLeave = (e: DragEvent<HTMLElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragging(false);
 	};
 
-	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+	const handleDrop = (e: DragEvent<HTMLElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragging(false);
@@ -258,12 +259,13 @@ export function ChatInput({
 	return (
 		<div className="w-full p-4">
 			<div className="flex flex-col gap-4">
-				<div
+				<form
 					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
 						isDragging && supportsImages
 							? "border-primary bg-primary/5"
 							: "border-input"
 					}`}
+					onSubmit={(e) => e.preventDefault()}
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
 					onDrop={handleDrop}
@@ -352,7 +354,7 @@ export function ChatInput({
 							</Button>
 						</div>
 					</div>
-				</div>
+				</form>
 			</div>
 		</div>
 	);

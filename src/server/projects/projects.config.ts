@@ -21,7 +21,7 @@ async function ensurePreviewOpencodeJson(projectId: string): Promise<void> {
 	try {
 		await fs.access(previewPath);
 		return;
-	} catch (error) {
+	} catch (_error) {
 		try {
 			await fs.mkdir(path.dirname(previewPath), { recursive: true });
 			const templatePath = path.join(getTemplatePath(), OPENCODE_FILENAME);

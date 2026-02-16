@@ -10,9 +10,26 @@ import { logger } from "@/server/logger";
 
 const SESSION_COOKIE_NAME = "doce_session";
 
+type SetupActionContext = {
+	request: Request;
+	cookies: {
+		set: (
+			name: string,
+			value: string,
+			options: {
+				path: string;
+				httpOnly: boolean;
+				sameSite: "lax" | "strict" | "none";
+				secure: boolean;
+				maxAge: number;
+			},
+		) => void;
+	};
+};
+
 async function doCreateAdmin(
 	input: { username: string; password: string; confirmPassword: string },
-	context: any,
+	context: SetupActionContext,
 ) {
 	// Check if admin already exists
 	const existingUsers = await db.select().from(users).limit(1);

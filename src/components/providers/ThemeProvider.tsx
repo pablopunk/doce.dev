@@ -1,7 +1,13 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useState,
+} from "react";
 
 type Theme = "light" | "dark";
 
@@ -29,7 +35,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 	const [mounted, setMounted] = useState(false);
 
 	// Function declaration is hoisted to the top of the component scope
-	function applyTheme(newTheme: Theme) {
+	const applyTheme = useCallback((newTheme: Theme) => {
 		if (typeof document === "undefined") return;
 		const htmlElement = document.documentElement;
 		if (newTheme === "dark") {
@@ -37,7 +43,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 		} else {
 			htmlElement.classList.remove("dark");
 		}
-	}
+	}, []);
 
 	// Initialize theme on mount
 	useEffect(() => {

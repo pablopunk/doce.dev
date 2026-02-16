@@ -481,7 +481,6 @@ export function classifyOpencodeError(
 			}
 			return "unknown";
 		}
-		case "unknown":
 		default: {
 			// Check for common patterns
 			const error = source.error;
@@ -538,7 +537,6 @@ export function createOpencodeDiagnostic(
 		case "queue":
 			originalError = source.error.originalError;
 			break;
-		case "unknown":
 		default:
 			originalError = source.error;
 	}

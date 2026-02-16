@@ -411,7 +411,16 @@ export function useChatPanel({
 			}
 			if (!currentSessionId) return;
 
-			const apiParts: any[] = [];
+			type ApiPromptPart =
+				| { type: "text"; text: string }
+				| {
+						type: "file";
+						mime: string;
+						url: string;
+						filename: string;
+				  };
+
+			const apiParts: ApiPromptPart[] = [];
 			if (content) apiParts.push({ type: "text", text: content });
 			if (images) {
 				for (const img of images) {

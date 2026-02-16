@@ -10,6 +10,7 @@ export function DockerUnavailablePage() {
 				</div>
 
 				<button
+					type="button"
 					onClick={() => window.location.reload()}
 					className="px-6 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity"
 				>

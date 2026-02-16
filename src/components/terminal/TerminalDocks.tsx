@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface LogLine {
+	id: number;
 	text: string;
 	type: "docker" | "app";
 }
@@ -23,6 +24,7 @@ export function TerminalDocks({
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const lineIdRef = useRef(0);
 
 	const scrollToBottom = useCallback(() => {
 		if (terminalRef.current) {
@@ -41,6 +43,11 @@ export function TerminalDocks({
 
 		const eventSource = new EventSource(url);
 		eventSourceRef.current = eventSource;
+
+		const createLogLine = (text: string, type: "docker" | "app"): LogLine => {
+			lineIdRef.current += 1;
+			return { id: lineIdRef.current, text, type };
+		};
 
 		eventSource.addEventListener("log.chunk", (e) => {
 			try {
@@ -62,7 +69,7 @@ export function TerminalDocks({
 								displayText = line.replace("[app] ", "");
 							}
 
-							return { text: displayText, type };
+							return createLogLine(displayText, type);
 						})
 						.filter((line: LogLine | null): line is LogLine => line !== null);
 
@@ -104,10 +111,10 @@ export function TerminalDocks({
 		setAppLines([]);
 	};
 
-	const renderLogLines = (lines: LogLine[], keyPrefix: string) =>
-		lines.map((line, i) => (
+	const renderLogLines = (lines: LogLine[]) =>
+		lines.map((line) => (
 			<div
-				key={`${keyPrefix}-${i}`}
+				key={line.id}
 				className="whitespace-pre-wrap break-all text-foreground"
 			>
 				{line.text}
@@ -123,6 +130,7 @@ export function TerminalDocks({
 		>
 			{/* Header */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				aria-expanded={isOpen}
 				aria-label="Toggle terminal"
@@ -176,9 +184,7 @@ export function TerminalDocks({
 							{dockerLines.length === 0 ? (
 								<div className="text-gray-500 mb-4">No docker logs yet...</div>
 							) : (
-								<div className="mb-4">
-									{renderLogLines(dockerLines, "docker")}
-								</div>
+								<div className="mb-4">{renderLogLines(dockerLines)}</div>
 							)}
 
 							{/* App Section */}
@@ -188,7 +194,7 @@ export function TerminalDocks({
 							{appLines.length === 0 ? (
 								<div className="text-gray-500">No app logs yet...</div>
 							) : (
-								renderLogLines(appLines, "app")
+								renderLogLines(appLines)
 							)}
 						</>
 					)}

@@ -57,7 +57,8 @@ export function AssetUploadZone({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div
+			<section
+				aria-label="Asset upload dropzone"
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
 				onDrop={handleDrop}
@@ -97,7 +98,7 @@ export function AssetUploadZone({
 					disabled={isLoading}
 					accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.mp4,.webm,.mp3,.wav,.pdf,.json,.txt,.md,.csv"
 				/>
-			</div>
+			</section>
 
 			{error && (
 				<div className="flex gap-2 rounded-md bg-status-error-light p-3 text-sm text-status-error">

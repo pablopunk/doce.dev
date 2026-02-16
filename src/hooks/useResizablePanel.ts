@@ -18,7 +18,7 @@ interface UseResizablePanelReturn {
 	leftPercent: number;
 	rightPercent: number;
 	isDragging: boolean;
-	onSeparatorMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+	onSeparatorMouseDown: (e: React.MouseEvent<HTMLElement>) => void;
 	containerRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -103,7 +103,7 @@ export function useResizablePanel({
 
 	// Handle separator mouse down (start drag)
 	const onSeparatorMouseDown = useCallback(
-		(e: React.MouseEvent<HTMLDivElement>) => {
+		(e: React.MouseEvent<HTMLElement>) => {
 			e.preventDefault();
 			setIsDragging(true);
 		},

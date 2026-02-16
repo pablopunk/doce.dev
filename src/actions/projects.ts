@@ -612,6 +612,14 @@ export const projects = {
 				limit: 100,
 			});
 
+			type SetupJob = {
+				type: string;
+				state: "pending" | (typeof jobs)[number]["state"];
+				error?: string;
+				completedAt?: number;
+				createdAt?: number;
+			};
+
 			const jobsByType = new Map<string, (typeof jobs)[0]>();
 			for (const job of jobs) {
 				if (
@@ -628,7 +636,7 @@ export const projects = {
 				}
 			}
 
-			const setupJobs: Record<string, any> = {};
+			const setupJobs: Record<string, SetupJob> = {};
 			let hasError = false;
 			let errorMessage: string | undefined;
 			let promptSentAt: number | undefined;
@@ -643,7 +651,7 @@ export const projects = {
 					setupJobs[jobType] = {
 						type: jobType,
 						state: job.state,
-						error: job.lastError || undefined,
+						...(job.lastError ? { error: job.lastError } : {}),
 						completedAt: job.updatedAt.getTime(),
 						createdAt: job.createdAt.getTime(),
 					};
