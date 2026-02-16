@@ -8,6 +8,7 @@ import {
 	Lock,
 	Zap,
 } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import { useEffect, useState } from "react";
 import {
 	Command,
@@ -33,22 +34,37 @@ import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { ZaiDark } from "@/components/ui/svgs/zaiDark";
 import { ZaiLight } from "@/components/ui/svgs/zaiLight";
 import { Tooltip, TooltipContent } from "@/components/ui/tooltip";
+import { toVendorSlug } from "@/lib/modelVendor";
 import { cn } from "@/lib/utils";
 
 const VENDOR_LOGOS: Record<
 	string,
-	{ light: React.ComponentType<any>; dark: React.ComponentType<any> }
+	{
+		light: ComponentType<SVGProps<SVGSVGElement>>;
+		dark: ComponentType<SVGProps<SVGSVGElement>>;
+	}
 > = {
 	openai: { light: Openai, dark: OpenaiDark },
 	anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
 	google: { light: Gemini, dark: Gemini },
-	"z.ai": { light: ZaiLight, dark: ZaiDark },
 	"z-ai": { light: ZaiLight, dark: ZaiDark },
 	minimax: { light: Minimax, dark: MinimaxDark },
 	kimi: { light: Kimi, dark: Kimi },
-	moonshotai: { light: Kimi, dark: Kimi },
 	moonshot: { light: Kimi, dark: Kimi },
 };
+
+function getVendorLogoVariants(
+	vendor: string,
+	provider: string,
+): {
+	light: ComponentType<SVGProps<SVGSVGElement>>;
+	dark: ComponentType<SVGProps<SVGSVGElement>>;
+} | null {
+	const vendorKey = toVendorSlug(vendor);
+	const providerKey = toVendorSlug(provider);
+
+	return VENDOR_LOGOS[vendorKey] ?? VENDOR_LOGOS[providerKey] ?? null;
+}
 
 interface ModelSelectorProps {
 	models: ReadonlyArray<{
@@ -132,7 +148,7 @@ export function ModelSelector({
 	}, [models, selectedModel, onModelChange]);
 
 	const vendorLogo = selectedModel
-		? VENDOR_LOGOS[selectedModel.vendor.toLowerCase()]
+		? getVendorLogoVariants(selectedModel.vendor, selectedModel.provider)
 		: null;
 
 	const renderLogo = (logoVariants: typeof vendorLogo) => {
@@ -196,8 +212,10 @@ export function ModelSelector({
 							<CommandGroup key={provider} heading={provider}>
 								{providerModels.map((model) => {
 									const isAvailable = model.available !== false;
-									const modelVendorLogo =
-										VENDOR_LOGOS[model.vendor.toLowerCase()];
+									const modelVendorLogo = getVendorLogoVariants(
+										model.vendor,
+										model.provider,
+									);
 									const modelKey = getModelKey(model.provider, model.id);
 									const item = (
 										<CommandItem
