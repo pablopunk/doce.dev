@@ -200,6 +200,57 @@ export const projects = {
 		},
 	}),
 
+	restart: defineAction({
+		input: z.object({
+			projectId: z.string(),
+		}),
+		handler: async (input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in to restart a project",
+				});
+			}
+
+			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+			if (!isOwner) {
+				throw new ActionError({
+					code: "FORBIDDEN",
+					message: "You don't have access to this project",
+				});
+			}
+
+			const { getProjectById } = await import(
+				"@/server/projects/projects.model"
+			);
+			const project = await getProjectById(input.projectId);
+			if (!project) {
+				throw new ActionError({
+					code: "NOT_FOUND",
+					message: "Project not found",
+				});
+			}
+
+			const { enqueueDockerEnsureRunning } = await import(
+				"@/server/queue/enqueue"
+			);
+
+			const { updateProjectStatus } = await import(
+				"@/server/projects/projects.model"
+			);
+
+			await updateProjectStatus(input.projectId, "starting");
+
+			const job = await enqueueDockerEnsureRunning({
+				projectId: input.projectId,
+				reason: "user",
+			});
+
+			return { success: true, jobId: job.id };
+		},
+	}),
+
 	deploy: defineAction({
 		input: z.object({
 			projectId: z.string(),
@@ -599,6 +650,7 @@ export const projects = {
 			const SETUP_JOBS = [
 				"project.create",
 				"docker.composeUp",
+				"docker.ensureRunning",
 				"docker.waitReady",
 				"opencode.sessionCreate",
 				"opencode.sendUserPrompt",
@@ -642,6 +694,13 @@ export const projects = {
 			let promptSentAt: number | undefined;
 			let isSetupComplete = true;
 
+			const projectCreateJob = jobsByType.get("project.create");
+			const dockerComposeUpJob = jobsByType.get("docker.composeUp");
+			const dockerEnsureRunningJob = jobsByType.get("docker.ensureRunning");
+			const dockerWaitReadyJob = jobsByType.get("docker.waitReady");
+			const sessionCreateJob = jobsByType.get("opencode.sessionCreate");
+			const sendPromptJob = jobsByType.get("opencode.sendUserPrompt");
+
 			for (const jobType of SETUP_JOBS) {
 				const job = jobsByType.get(jobType);
 				if (!job) {
@@ -656,9 +715,14 @@ export const projects = {
 						createdAt: job.createdAt.getTime(),
 					};
 					if (job.state === "failed") {
-						hasError = true;
-						errorMessage = job.lastError || `${jobType} failed`;
-						isSetupComplete = false;
+						const isRecoveredDockerJob =
+							jobType === "docker.composeUp" &&
+							dockerEnsureRunningJob?.state === "succeeded";
+						if (!isRecoveredDockerJob) {
+							hasError = true;
+							errorMessage = job.lastError || `${jobType} failed`;
+							isSetupComplete = false;
+						}
 					}
 					if (jobType === "opencode.sendUserPrompt") {
 						promptSentAt = job.updatedAt.getTime();
@@ -666,16 +730,17 @@ export const projects = {
 				}
 			}
 
-			const projectCreateJob = jobsByType.get("project.create");
-			const dockerComposeUpJob = jobsByType.get("docker.composeUp");
-			const dockerWaitReadyJob = jobsByType.get("docker.waitReady");
-			const sessionCreateJob = jobsByType.get("opencode.sessionCreate");
-			const sendPromptJob = jobsByType.get("opencode.sendUserPrompt");
+			const dockerJob =
+				dockerComposeUpJob?.state === "succeeded"
+					? dockerComposeUpJob
+					: dockerEnsureRunningJob?.state === "succeeded"
+						? dockerEnsureRunningJob
+						: dockerComposeUpJob || dockerEnsureRunningJob;
 
 			let currentStep = 0;
 			if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded" &&
 				sessionCreateJob?.state === "succeeded" &&
 				sendPromptJob?.state === "succeeded"
@@ -683,7 +748,7 @@ export const projects = {
 				currentStep = 4;
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded" &&
 				sessionCreateJob?.state === "succeeded"
 			) {
@@ -691,7 +756,7 @@ export const projects = {
 				isSetupComplete = false;
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded"
 			) {
 				currentStep = 2;

@@ -42,6 +42,7 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 	const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(
 		null,
 	);
+	const [isRestarting, setIsRestarting] = useState(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const promptSentTimeRef = useRef<number | null>(null);
 
@@ -139,6 +140,23 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 		},
 		[],
 	);
+
+	const handleRestart = async () => {
+		setIsRestarting(true);
+		setSetupError(null);
+		try {
+			const { error } = await actions.projects.restart({ projectId });
+			if (error) {
+				setSetupError(error.message || "Failed to restart project");
+			}
+		} catch (err) {
+			setSetupError(
+				err instanceof Error ? err.message : "Failed to restart project",
+			);
+		} finally {
+			setIsRestarting(false);
+		}
+	};
 
 	// Connect to opencode event stream to show progress
 	useEffect(() => {
@@ -341,10 +359,18 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 								</p>
 							</div>
 							<Button
-								onClick={() => window.location.reload()}
+								onClick={handleRestart}
 								variant="outline"
+								disabled={isRestarting}
 							>
-								Retry Setup
+								{isRestarting ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Restarting...
+									</>
+								) : (
+									"Retry Setup"
+								)}
 							</Button>
 						</div>
 					)}
