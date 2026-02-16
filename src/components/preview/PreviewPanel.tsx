@@ -157,6 +157,30 @@ export function PreviewPanel({
 			}
 		}, [projectId]);
 
+	const mapPortUrlToCurrentHost = useCallback((url: string | null) => {
+		if (!url || typeof window === "undefined") {
+			return url;
+		}
+
+		const originWithoutPort = window.location.origin.replace(/:\d+$/, "");
+
+		try {
+			const parsed = new URL(url);
+			if (!parsed.port) {
+				return url;
+			}
+
+			return `${originWithoutPort}:${parsed.port}${parsed.pathname}${parsed.search}${parsed.hash}`;
+		} catch {
+			const match = url.match(/:(\d+)(?:\/|$)/);
+			if (!match) {
+				return url;
+			}
+
+			return `${originWithoutPort}:${match[1]}`;
+		}
+	}, []);
+
 	const handlePresenceResponse = useCallback(
 		(data: PresenceResponse) => {
 			// Construct preview URL from current window location origin + port from backend response
@@ -276,14 +300,20 @@ export function PreviewPanel({
 				});
 				if (!error) {
 					const status = data as unknown as ProductionStatus;
-					setProductionStatus(status);
-					return status;
+					const frontendUrl = mapPortUrlToCurrentHost(status.url);
+					const normalizedStatus = {
+						...status,
+						url: frontendUrl,
+					};
+
+					setProductionStatus(normalizedStatus);
+					return normalizedStatus;
 				}
 			} catch (error) {
 				console.error("Failed to fetch production status:", error);
 			}
 			return null;
-		}, [projectId]);
+		}, [projectId, mapPortUrlToCurrentHost]);
 
 	const pollProductionHistory = useCallback(async () => {
 		try {
