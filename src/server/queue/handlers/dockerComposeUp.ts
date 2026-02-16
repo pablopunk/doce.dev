@@ -1,4 +1,10 @@
-import { composeUp } from "@/server/docker/compose";
+import {
+	composeUp,
+	ensureDoceSharedNetwork,
+	ensureGlobalPnpmVolume,
+	ensureOpencodeStorageVolume,
+	ensureProjectDataVolume,
+} from "@/server/docker/compose";
 import { logger } from "@/server/logger";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
@@ -33,6 +39,11 @@ export async function handleDockerComposeUp(
 	await updateProjectStatus(project.id, "starting");
 
 	await ctx.throwIfCancelRequested();
+
+	await ensureDoceSharedNetwork();
+	await ensureGlobalPnpmVolume();
+	await ensureProjectDataVolume(project.id);
+	await ensureOpencodeStorageVolume(project.id);
 
 	const previewPath = getProjectPreviewPath(project.id);
 	const result = await composeUp(project.id, previewPath);

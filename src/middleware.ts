@@ -18,8 +18,8 @@ async function ensureInitialized() {
 	try {
 		await ensureDatabaseReady();
 		ensureQueueWorkerStarted();
-		ensureDoceSharedNetwork();
-		ensureGlobalPnpmVolume();
+		await ensureDoceSharedNetwork();
+		await ensureGlobalPnpmVolume();
 		startupInitialized = true;
 	} catch (error) {
 		console.error("[Middleware] Initial startup failed:", error);

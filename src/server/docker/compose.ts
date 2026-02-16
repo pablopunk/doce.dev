@@ -644,3 +644,38 @@ export async function ensureProjectDataVolume(
 		);
 	}
 }
+
+/**
+ * Ensure a project-specific opencode storage volume exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ * @param projectId The project ID
+ */
+export async function ensureOpencodeStorageVolume(
+	projectId: string,
+): Promise<void> {
+	const volumeName = `doce_${projectId}_opencode_storage`;
+
+	try {
+		// Try to create the volume - Docker silently ignores if it already exists
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug(
+				{ projectId, volumeName },
+				"Opencode storage volume ensured",
+			);
+		} else {
+			logger.warn(
+				{ error: result.stderr, projectId, volumeName },
+				"Failed to ensure opencode storage volume",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn(
+			{ error: err, projectId, volumeName },
+			"Failed to ensure opencode storage volume",
+		);
+	}
+}
