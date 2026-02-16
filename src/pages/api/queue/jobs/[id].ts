@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
+import { canUserAccessQueueJob } from "@/server/queue/access";
 import { getJobById } from "@/server/queue/queue.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
@@ -31,6 +32,14 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 
 	const job = await getJobById(jobId);
 	if (!job) {
+		return new Response(JSON.stringify({ error: "Not found" }), {
+			status: 404,
+			headers: { "Content-Type": "application/json" },
+		});
+	}
+
+	const canAccessJob = await canUserAccessQueueJob(session.user.id, job);
+	if (!canAccessJob) {
 		return new Response(JSON.stringify({ error: "Not found" }), {
 			status: 404,
 			headers: { "Content-Type": "application/json" },

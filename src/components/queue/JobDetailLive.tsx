@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
@@ -14,6 +14,36 @@ interface JobDetailLiveProps {
 	initialJob: QueueJob;
 }
 
+interface JobLogChunkEvent {
+	jobId: string;
+	offset: number;
+	nextOffset: number;
+	text: string;
+	truncated: boolean;
+}
+
+interface ParsedJobLogLine {
+	timestamp: string;
+	level: string;
+	message: string;
+}
+
+function parseJobLogChunk(text: string): ParsedJobLogLine[] {
+	return text
+		.split("\n")
+		.filter((line) => line.trim().length > 0)
+		.map((line) => {
+			const [timestamp = "", level = "info", ...messageParts] =
+				line.split("\t");
+			const message = messageParts.join("\t").trim();
+			return {
+				timestamp,
+				level,
+				message: message || line,
+			};
+		});
+}
+
 export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 	const [job, setJob] = useState<QueueJob>(initialJob);
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -21,6 +51,10 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 		"cancel" | "forceUnlock" | null
 	>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [jobLogs, setJobLogs] = useState<ParsedJobLogLine[]>([]);
+	const [logsTruncated, setLogsTruncated] = useState(false);
+	const [logsConnected, setLogsConnected] = useState(false);
+	const logsContainerRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		const eventSource = new EventSource(
@@ -43,6 +77,81 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 
 		return () => {
 			eventSource.close();
+		};
+	}, [initialJob.id]);
+
+	useEffect(() => {
+		let eventSource: EventSource | null = null;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let isUnmounted = false;
+		let nextOffset = 0;
+
+		setJobLogs([]);
+		setLogsTruncated(false);
+
+		const connect = () => {
+			if (isUnmounted) return;
+
+			const params = new URLSearchParams({ jobId: initialJob.id });
+			if (nextOffset > 0) {
+				params.set("offset", String(nextOffset));
+			}
+
+			eventSource = new EventSource(
+				`/api/queue/job-logs-stream?${params.toString()}`,
+			);
+			eventSource.addEventListener("open", () => {
+				setLogsConnected(true);
+			});
+
+			eventSource.addEventListener("log.chunk", (event) => {
+				try {
+					const data = JSON.parse(event.data) as JobLogChunkEvent;
+					nextOffset = data.nextOffset;
+
+					if (data.truncated) {
+						setLogsTruncated(true);
+					}
+
+					if (!data.text) {
+						return;
+					}
+
+					const newLines = parseJobLogChunk(data.text);
+					setJobLogs((prev) => {
+						const merged = [...prev, ...newLines];
+						const MAX_LOG_LINES = 1_000;
+						return merged.length > MAX_LOG_LINES
+							? merged.slice(-MAX_LOG_LINES)
+							: merged;
+					});
+					requestAnimationFrame(() => {
+						if (!logsContainerRef.current) return;
+						logsContainerRef.current.scrollTop =
+							logsContainerRef.current.scrollHeight;
+					});
+				} catch {
+					toast.error("Failed to parse job log stream data");
+				}
+			});
+
+			eventSource.addEventListener("error", () => {
+				setLogsConnected(false);
+				eventSource?.close();
+				eventSource = null;
+				if (!isUnmounted) {
+					reconnectTimer = setTimeout(connect, 1_000);
+				}
+			});
+		};
+
+		connect();
+
+		return () => {
+			isUnmounted = true;
+			setLogsConnected(false);
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			eventSource?.close();
 		};
 	}, [initialJob.id]);
 
@@ -138,6 +247,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						</a>
 						{canCancel && (
 							<button
+								type="button"
 								onClick={() => handleAction("cancel")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -146,6 +256,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canRunNow && (
 							<button
+								type="button"
 								onClick={() => handleAction("runNow")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -154,6 +265,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canRetry && (
 							<button
+								type="button"
 								onClick={() => handleAction("retry")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -162,6 +274,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						)}
 						{canForceUnlock && (
 							<button
+								type="button"
 								onClick={() => handleAction("forceUnlock")}
 								className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
 							>
@@ -282,6 +395,53 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 					error={job.lastError}
 					onRetry={() => handleAction("retry")}
 				/>
+
+				<div className="mt-6 rounded-lg border p-4">
+					<div className="mb-2 flex items-center justify-between gap-3">
+						<h2 className="font-semibold">Logs</h2>
+						<div className="text-xs text-muted-foreground">
+							{logsConnected ? "Live" : "Reconnecting..."}
+						</div>
+					</div>
+					{logsTruncated && (
+						<div className="mb-2 text-xs text-muted-foreground">
+							Showing the latest log tail.
+						</div>
+					)}
+					<div
+						ref={logsContainerRef}
+						className="max-h-96 overflow-y-auto rounded-md border bg-black p-3 font-mono text-xs"
+					>
+						{jobLogs.length === 0 ? (
+							<div className="text-gray-400">No logs yet...</div>
+						) : (
+							jobLogs.map((line, index) => {
+								const level = line.level.toLowerCase();
+								const isError = level === "error" || level === "fatal";
+								const colorClass = isError
+									? "text-status-error"
+									: level === "warn"
+										? "text-yellow-300"
+										: "text-status-success";
+
+								return (
+									<div
+										key={`${line.timestamp}-${index}`}
+										className={colorClass}
+									>
+										{line.timestamp && (
+											<span className="text-gray-500">[{line.timestamp}] </span>
+										)}
+										<span className="uppercase text-gray-400">
+											{line.level}
+										</span>{" "}
+										{line.message}
+									</div>
+								);
+							})
+						)}
+					</div>
+				</div>
 			</main>
 
 			{pendingAction && (
