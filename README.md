@@ -6,19 +6,14 @@
   <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev showcase. not a real workflow, made in Remotion" width="80%" />
 </p>
 
+Doce stands for:
 
-```
-(D)elicious (O)pen       (C)ode       (E)nvironments
-(D)eploy    (O)n         (C)ontainers (E)asily
-(D)ocker    (O)ver       (C)omputers  (E)verywhere
-(D)eploy    (O)nce       (C)rash      (E)verywhere
-(D)on't     (O)ver       (C)omplicate (E)nvironments
-
- D           O            C            E
-```
-
-> [!NOTE]
-> This project is not built by the OpenCode team and is not affiliated with them in any way.
+- **D**elicious **O**pen **C**ode **E**nvironments
+- **D**eploy **O**n **C**ontainers **E**asily
+- **D**eploy **O**rchestrated **C**ontainers
+- **D**eploy **O**nce **C**rash **E**verywhere
+- **D**on't **O**ver **C**omplicate **E**nvironments
+- ...
 
 <p align="center">
 </p>
