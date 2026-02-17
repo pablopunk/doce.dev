@@ -1,9 +1,10 @@
-import { defineAction } from "astro:actions";
+import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { CURATED_MODELS } from "@/server/config/models";
 import { logger } from "@/server/logger";
+import { validateApiKey } from "@/server/opencode/apiKeyValidation";
 import {
 	listConnectedProviderIds,
 	removeProvider,
@@ -54,6 +55,20 @@ export const providers = {
 			apiKey: z.string().min(1, "API key is required"),
 		}),
 		handler: async (input) => {
+			const validationResult = await validateApiKey(
+				input.providerId,
+				input.apiKey,
+			);
+
+			if (!validationResult.valid) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message:
+						validationResult.error ||
+						"Failed to validate API key. Please check your key and try again.",
+				});
+			}
+
 			await setApiKey(input.providerId, input.apiKey);
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			return { success: true };

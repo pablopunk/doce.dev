@@ -72,10 +72,16 @@ export function ProvidersSettings() {
 
 		setIsConnecting(true);
 		try {
-			await actions.providers.connect({
+			const { error } = await actions.providers.connect({
 				providerId: selectedProvider,
 				apiKey: apiKey.trim(),
 			});
+
+			if (error) {
+				toast.error(error.message || "Failed to connect provider");
+				return;
+			}
+
 			toast.success(
 				`Connected to ${providers.find((p) => p.id === selectedProvider)?.name || selectedProvider}`,
 			);
@@ -84,8 +90,10 @@ export function ProvidersSettings() {
 
 			const result = await actions.providers.list();
 			setProviders(result.data?.providers ?? []);
-		} catch {
-			toast.error("Failed to connect provider");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to connect provider";
+			toast.error(errorMessage);
 		} finally {
 			setIsConnecting(false);
 		}
