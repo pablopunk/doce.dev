@@ -15,7 +15,15 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"suspicious": {
+				"noConsole": {
+					"level": "error",
+					"options": {
+						"allow": ["warn"]
+					}
+				}
+			}
 		}
 	},
 	"javascript": {
@@ -48,6 +56,24 @@
 					"correctness": {
 						"noUnusedVariables": "off",
 						"noUnusedImports": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"**/components/**",
+				"**/hooks/**",
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"**/test.ts",
+				"scripts/**",
+				".opencode/**"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
 					}
 				}
 			}
