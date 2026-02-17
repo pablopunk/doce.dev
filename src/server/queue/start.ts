@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { logger } from "@/server/logger";
 import { getConcurrency } from "./queue.model";
 import { type QueueWorkerHandle, startQueueWorker } from "./queue.worker";
 
@@ -34,7 +35,7 @@ export function ensureQueueWorkerStarted(): void {
 	};
 
 	startWorker().catch((error) => {
-		console.error("Failed to fetch concurrency setting:", error);
+		logger.error({ error }, "Failed to fetch concurrency setting");
 		// Fallback to default if fetch fails
 		globalThis.__DOCE_QUEUE_WORKER__ = startQueueWorker(workerId, {
 			concurrency: 2,

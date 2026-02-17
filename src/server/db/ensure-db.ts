@@ -1,4 +1,5 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { logger } from "@/server/logger";
 import { ensureQueueSettingsRow } from "@/server/queue/queue.settings";
 import { db } from "./client";
 
@@ -36,7 +37,7 @@ export async function ensureDatabaseReady() {
 				throw error;
 			}
 
-			console.warn(
+			logger.warn(
 				"[DB] Migration metadata appears out of sync; continuing because schema already exists",
 			);
 		}
@@ -44,7 +45,7 @@ export async function ensureDatabaseReady() {
 		await ensureQueueSettingsRow();
 		migrationsRan = true;
 	} catch (error) {
-		console.error("[DB] Initialization failed:", error);
+		logger.error({ error }, "[DB] Initialization failed");
 		throw error;
 	}
 }

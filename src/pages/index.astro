@@ -6,6 +6,7 @@ import { ProjectsList } from "@/components/projects/ProjectsList";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { db } from "@/server/db/client";
 import { userSettings as userSettingsTable } from "@/server/db/schema";
+import { logger } from "@/server/logger";
 import { listConnectedProviderIds } from "@/server/opencode/authFile";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 
@@ -63,7 +64,7 @@ try {
 		})),
 	);
 } catch (error) {
-	console.error("Failed to load models:", error);
+	logger.error({ error }, "Failed to load models");
 	// Fallback to empty array
 }
 ---
