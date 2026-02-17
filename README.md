@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
 <br />
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev screenshot" width="80%" />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev showcase. not a real workflow, made in Remotion" width="80%" />
 </p>
 
 
@@ -21,8 +21,6 @@
 > This project is not built by the OpenCode team and is not affiliated with them in any way.
 
 <p align="center">
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-dark.png?raw=true#gh-dark-mode-only" alt="doce.dev screenshot" width="80%" />
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-light.png?raw=true#gh-light-mode-only" alt="doce.dev screenshot" width="80%" />
 </p>
 
 ## docker-compose.yml
@@ -42,3 +40,8 @@ services:
       - ./data:/app/data # DB and project files
       - /var/run/docker.sock:/var/run/docker.sock  # Required since we use containers to run projects/opencode
 ```
+
+<p align="center">
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-dark.png?raw=true#gh-dark-mode-only" alt="doce.dev screenshot" width="80%" />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-light.png?raw=true#gh-light-mode-only" alt="doce.dev screenshot" width="80%" />
+</p>
