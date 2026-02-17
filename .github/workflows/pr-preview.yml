@@ -55,6 +55,10 @@ jobs:
           chmod 700 ~/.ssh
           ssh-keyscan -H doce.pangolin-frog.ts.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: Docker cleanup
+        run: |
+          ssh root@doce.pangolin-frog.ts.net "docker system prune -af --volumes || true"
+
       - name: Deploy preview
         id: deploy
         run: |
@@ -249,7 +253,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest 2>/dev/null || true"
 
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
-            "docker image prune -a --force 2>/dev/null || true"
+            "docker system prune -af --volumes 2>/dev/null || true"
 
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" 2>/dev/null || true"
 
