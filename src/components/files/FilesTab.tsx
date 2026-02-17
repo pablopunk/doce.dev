@@ -1,6 +1,8 @@
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, FileCode, FolderTree, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { FileTree } from "./FileTree";
 import { ReadOnlyEditor } from "./ReadOnlyEditor";
@@ -29,6 +31,8 @@ interface FilesTabProps {
 	lastSelectedFile?: string | null;
 	onFileSelect?: (path: string) => void;
 }
+
+type MobilePane = "tree" | "editor";
 
 /**
  * Get all ancestor directory paths for a file path.
@@ -62,16 +66,25 @@ export function FilesTab({
 	const [isLoadingContent, setIsLoadingContent] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+	const [mobilePane, setMobilePane] = useState<MobilePane>("tree");
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } =
-		useResizablePanel({
-			projectId: `files_${projectId}`,
-			minSize: 20,
-			maxSize: 50,
-			defaultSize: 25,
-			containerRef,
-		});
+	const {
+		leftPercent,
+		rightPercent,
+		isDragging,
+		isMobile,
+		isResizable,
+		onSeparatorMouseDown,
+	} = useResizablePanel({
+		projectId: `files_${projectId}`,
+		minSize: 20,
+		maxSize: 50,
+		defaultSize: 25,
+		containerRef,
+	});
+
+	const shouldUseMobilePanes = isMobile;
 
 	const fetchFileContent = useCallback(
 		async (path: string) => {
@@ -139,6 +152,9 @@ export function FilesTab({
 							return newPaths;
 						});
 						await fetchFileContent(lastSelectedFile);
+						if (isMobile) {
+							setMobilePane("editor");
+						}
 					}
 				}
 			} catch (err) {
@@ -150,7 +166,7 @@ export function FilesTab({
 		};
 
 		fetchFileTree();
-	}, [projectId, lastSelectedFile, fetchFileContent]);
+	}, [projectId, lastSelectedFile, fetchFileContent, isMobile]);
 
 	if (isLoadingTree) {
 		return (
@@ -176,48 +192,114 @@ export function FilesTab({
 	}
 
 	return (
-		<div className="flex-1 flex flex-col h-full overflow-hidden">
+		<div className="flex-1 flex flex-col h-full w-full min-w-0 overflow-hidden">
+			{/* Mobile toggle bar */}
+			{shouldUseMobilePanes && (
+				<Tabs
+					value={mobilePane}
+					onValueChange={(v) => setMobilePane(v as MobilePane)}
+					className="md:hidden"
+				>
+					<TabsList
+						variant="line"
+						className="w-full justify-start rounded-none border-b bg-transparent px-2"
+					>
+						<TabsTrigger value="tree" className="flex-1">
+							<FolderTree className="h-4 w-4 mr-2" />
+							Tree
+						</TabsTrigger>
+						<TabsTrigger value="editor" className="flex-1">
+							<FileCode className="h-4 w-4 mr-2" />
+							Editor
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
+			)}
+
 			<div
-				className="flex-1 flex overflow-hidden relative"
+				className="flex-1 flex w-full min-w-0 overflow-hidden relative"
 				data-resizable-group
 				ref={containerRef}
 			>
-				{/* File Tree (left) */}
-				<div
-					className="flex flex-col h-full border-r overflow-hidden bg-muted/20"
-					style={{ width: `${leftPercent}%` }}
-				>
-					<FileTree
-						files={files}
-						onFileSelect={fetchFileContent}
-						selectedPath={selectedPath || undefined}
-						expandedPaths={expandedPaths}
-						onExpandedPathsChange={setExpandedPaths}
-					/>
-				</div>
-
-				{/* Draggable separator */}
-				<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
-
-				{/* Editor (right) */}
-				<div
-					className="flex flex-col h-full overflow-hidden"
-					style={{ width: `${rightPercent}%` }}
-				>
-					{selectedPath ? (
-						<ReadOnlyEditor
-							filePath={selectedPath}
-							content={fileContent}
-							isLoading={isLoadingContent}
-						/>
-					) : (
-						<div className="flex items-center justify-center h-full text-muted-foreground">
-							<p className="text-sm">Select a file to view its contents</p>
+				{/* Mobile: Show only active pane */}
+				{shouldUseMobilePanes ? (
+					<>
+						{mobilePane === "tree" && (
+							<div className="flex-1 flex flex-col h-full overflow-hidden">
+								<FileTree
+									files={files}
+									onFileSelect={(path) => {
+										fetchFileContent(path);
+										setMobilePane("editor");
+									}}
+									selectedPath={selectedPath || undefined}
+									expandedPaths={expandedPaths}
+									onExpandedPathsChange={setExpandedPaths}
+								/>
+							</div>
+						)}
+						{mobilePane === "editor" && (
+							<div className="flex-1 flex flex-col h-full overflow-hidden">
+								{selectedPath ? (
+									<ReadOnlyEditor
+										filePath={selectedPath}
+										content={fileContent}
+										isLoading={isLoadingContent}
+									/>
+								) : (
+									<div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+										<p className="text-sm">No file selected</p>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setMobilePane("tree")}
+										>
+											Go to Tree
+										</Button>
+									</div>
+								)}
+							</div>
+						)}
+					</>
+				) : (
+					<>
+						{/* Desktop split view */}
+						<div
+							className="flex flex-col h-full border-r overflow-hidden bg-muted/20"
+							style={{ width: `${leftPercent}%` }}
+						>
+							<FileTree
+								files={files}
+								onFileSelect={fetchFileContent}
+								selectedPath={selectedPath || undefined}
+								expandedPaths={expandedPaths}
+								onExpandedPathsChange={setExpandedPaths}
+							/>
 						</div>
-					)}
-				</div>
 
-				{/* Transparent overlay to capture mouse events during drag */}
+						{isResizable && (
+							<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
+						)}
+
+						<div
+							className="flex flex-col h-full overflow-hidden"
+							style={{ width: `${rightPercent}%` }}
+						>
+							{selectedPath ? (
+								<ReadOnlyEditor
+									filePath={selectedPath}
+									content={fileContent}
+									isLoading={isLoadingContent}
+								/>
+							) : (
+								<div className="flex items-center justify-center h-full text-muted-foreground">
+									<p className="text-sm">Select a file to view its contents</p>
+								</div>
+							)}
+						</div>
+					</>
+				)}
+
 				{isDragging && (
 					<div
 						style={{

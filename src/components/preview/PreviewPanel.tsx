@@ -1,7 +1,17 @@
 import { actions } from "astro:actions";
-import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import {
+	AlertTriangle,
+	ExternalLink,
+	FileCode2,
+	Image,
+	Loader2,
+	MessageSquare,
+	Monitor,
+	RefreshCw,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetsTab } from "@/components/assets/AssetsTab";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { FilesTab } from "@/components/files/FilesTab";
 import { DeployButton } from "@/components/preview/DeployButton";
 import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
@@ -9,6 +19,7 @@ import { ProjectDiagnosticBanner } from "@/components/projects/ProjectDiagnostic
 import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface PresenceResponse {
 	projectId: string;
@@ -52,10 +63,23 @@ interface PreviewPanelProps {
 	initialResponseProcessing?: boolean;
 	userMessageCount?: number;
 	isStreaming?: boolean;
+	forceTab?: TabType;
+	models?: ReadonlyArray<{
+		id: string;
+		name: string;
+		provider: string;
+		vendor: string;
+		supportsImages?: boolean;
+	}>;
+	onOpenFile?: (filePath: string) => void;
+	onStreamingStateChange?: (
+		userMessageCount: number,
+		isStreaming: boolean,
+	) => void;
 }
 
 type PreviewState = "initializing" | "starting" | "ready" | "error";
-type TabType = "preview" | "files" | "assets";
+type TabType = "chat" | "preview" | "files" | "assets";
 
 export function PreviewPanel({
 	projectId,
@@ -65,12 +89,23 @@ export function PreviewPanel({
 	onFileOpened,
 	userMessageCount = 0,
 	isStreaming = false,
+	forceTab,
+	models = [],
+	onOpenFile,
+	onStreamingStateChange,
 }: PreviewPanelProps) {
+	const isMobile = useIsMobile();
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [iframeKey, setIframeKey] = useState(0);
 	const [activeTab, setActiveTab] = useState<TabType>(() => {
+		if (forceTab) {
+			return forceTab;
+		}
+		if (isMobile) {
+			return "chat";
+		}
 		if (typeof window !== "undefined") {
 			const params = new URLSearchParams(window.location.search);
 			const tab = params.get("tab");
@@ -443,7 +478,7 @@ export function PreviewPanel({
 		<Tabs
 			value={activeTab}
 			onValueChange={(value) => setActiveTab(value as TabType)}
-			className="flex flex-col h-full"
+			className="flex flex-col h-full w-full min-w-0 pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0"
 		>
 			{/* OpenCode Diagnostic Banner */}
 			{opencodeDiagnostic && (
@@ -454,29 +489,31 @@ export function PreviewPanel({
 			)}
 
 			{/* Header with integrated tabs */}
-			<div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-muted/50">
+			<div className="flex items-center justify-between gap-3 px-3 md:px-4 py-2 border-b bg-muted/50">
 				{/* Left: Tabs + Status */}
-				<div className="flex items-center gap-4 flex-shrink-0">
+				<div className="flex items-center gap-3 flex-shrink min-w-0">
 					{/* Tab Navigation */}
-					<TabsList className="p-1">
-						<TabsTrigger value="preview">Preview</TabsTrigger>
-						<TabsTrigger value="files">Files</TabsTrigger>
-						<TabsTrigger value="assets">Assets</TabsTrigger>
-					</TabsList>
+					{!isMobile && (
+						<TabsList className="p-1">
+							<TabsTrigger value="preview">Preview</TabsTrigger>
+							<TabsTrigger value="files">Files</TabsTrigger>
+							<TabsTrigger value="assets">Assets</TabsTrigger>
+						</TabsList>
+					)}
 
 					{/* Status indicators (only for preview tab) */}
 					{activeTab === "preview" && (
-						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+						<div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
 							{state === "starting" && (
 								<>
 									<Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
-									<span>{message || "Starting..."}</span>
+									<span className="truncate">{message || "Starting..."}</span>
 								</>
 							)}
 							{state === "error" && (
 								<>
 									<AlertTriangle className="h-3 w-3 text-status-error" />
-									<span>{message || "Error"}</span>
+									<span className="truncate">{message || "Error"}</span>
 								</>
 							)}
 						</div>
@@ -484,48 +521,75 @@ export function PreviewPanel({
 				</div>
 
 				{/* Center: URL Bar with integrated buttons (only for preview tab when ready) */}
-				{activeTab === "preview" && state === "ready" && previewUrl && (
-					<div className="flex-1 relative flex items-center min-w-0 px-3 py-1 border border-border rounded bg-transparent">
-						<input
-							type="text"
-							value={
-								previewUrl.length > 50
-									? `${previewUrl.slice(0, 50)}...`
-									: previewUrl
-							}
-							disabled
-							title={previewUrl}
-							className="flex-1 min-w-0 bg-transparent text-xs text-foreground cursor-default opacity-60 text-center border-0 outline-none"
-							readOnly
-						/>
-						<div className="flex items-center gap-0 flex-shrink-0 ml-2">
-							<Button
-								variant="ghost"
-								size="icon"
-								className="h-6 w-6 hover:bg-accent"
-								onClick={handleRefresh}
-							>
-								<RefreshCw className="h-3.5 w-3.5" />
-							</Button>
-							<a
-								href={previewUrl ?? ""}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
+				{!isMobile &&
+					activeTab === "preview" &&
+					state === "ready" &&
+					previewUrl && (
+						<div className="flex-1 relative flex items-center min-w-0 px-3 py-1 border border-border rounded bg-transparent">
+							<input
+								type="text"
+								value={
+									previewUrl.length > 50
+										? `${previewUrl.slice(0, 50)}...`
+										: previewUrl
+								}
+								disabled
+								title={previewUrl}
+								className="flex-1 min-w-0 bg-transparent text-xs text-foreground cursor-default opacity-60 text-center border-0 outline-none"
+								readOnly
+							/>
+							<div className="flex items-center gap-0 flex-shrink-0 ml-2">
 								<Button
 									variant="ghost"
 									size="icon"
 									className="h-6 w-6 hover:bg-accent"
+									onClick={handleRefresh}
 								>
-									<ExternalLink className="h-3.5 w-3.5" />
+									<RefreshCw className="h-3.5 w-3.5" />
 								</Button>
-							</a>
+								<a
+									href={previewUrl ?? ""}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-6 w-6 hover:bg-accent"
+									>
+										<ExternalLink className="h-3.5 w-3.5" />
+									</Button>
+								</a>
+							</div>
 						</div>
-					</div>
-				)}
+					)}
 
 				{/* Right: Action buttons */}
 				<div className="flex items-center gap-2 flex-shrink-0">
+					{isMobile &&
+						activeTab === "preview" &&
+						state === "ready" &&
+						previewUrl && (
+							<>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="h-8 w-8"
+									onClick={handleRefresh}
+								>
+									<RefreshCw className="h-4 w-4" />
+								</Button>
+								<a
+									href={previewUrl ?? ""}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									<Button variant="ghost" size="icon" className="h-8 w-8">
+										<ExternalLink className="h-4 w-4" />
+									</Button>
+								</a>
+							</>
+						)}
 					{activeTab === "preview" && state === "error" && (
 						<Button variant="outline" size="sm" onClick={handleRetry}>
 							Retry
@@ -557,10 +621,29 @@ export function PreviewPanel({
 				/>
 			)}
 
+			{isMobile && (
+				<TabsContent
+					value="chat"
+					className="flex-1 flex flex-col w-full min-w-0 overflow-hidden border-0 p-0 m-0"
+				>
+					<ChatPanel
+						projectId={projectId}
+						models={models}
+						onOpenFile={(path) => {
+							onOpenFile?.(path);
+							setActiveTab("files");
+						}}
+						onStreamingStateChange={(count, streaming) => {
+							onStreamingStateChange?.(count, streaming);
+						}}
+					/>
+				</TabsContent>
+			)}
+
 			{/* Preview Tab Content */}
 			<TabsContent
 				value="preview"
-				className="flex-1 flex flex-col overflow-hidden border-0 p-0 m-0"
+				className="flex-1 flex flex-col w-full min-w-0 overflow-hidden border-0 p-0 m-0"
 			>
 				{/* Preview iframe */}
 				<div className="flex-1 relative bg-background">
@@ -615,7 +698,7 @@ export function PreviewPanel({
 			{/* Files Tab Content */}
 			<TabsContent
 				value="files"
-				className="flex-1 overflow-hidden border-0 p-0 m-0"
+				className="flex-1 flex flex-col w-full min-w-0 overflow-hidden border-0 p-0 m-0"
 			>
 				<FilesTab
 					projectId={projectId}
@@ -630,13 +713,48 @@ export function PreviewPanel({
 			{/* Assets Tab Content */}
 			<TabsContent
 				value="assets"
-				className="flex-1 overflow-hidden border-0 p-0 m-0"
+				className="flex-1 flex flex-col w-full min-w-0 overflow-hidden border-0 p-0 m-0"
 			>
 				<AssetsTab
 					projectId={projectId}
 					{...(previewUrl ? { previewUrl } : {})}
 				/>
 			</TabsContent>
+
+			{isMobile && (
+				<div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+					<TabsList className="grid h-[calc(4.25rem+env(safe-area-inset-bottom))] w-full grid-cols-4 rounded-none bg-transparent px-2 pb-[env(safe-area-inset-bottom)] pt-1">
+						<TabsTrigger
+							value="chat"
+							className="h-14 flex-col gap-1 text-[11px]"
+						>
+							<MessageSquare className="h-4 w-4" />
+							<span>Chat</span>
+						</TabsTrigger>
+						<TabsTrigger
+							value="preview"
+							className="h-14 flex-col gap-1 text-[11px]"
+						>
+							<Monitor className="h-4 w-4" />
+							<span>Preview</span>
+						</TabsTrigger>
+						<TabsTrigger
+							value="files"
+							className="h-14 flex-col gap-1 text-[11px]"
+						>
+							<FileCode2 className="h-4 w-4" />
+							<span>Files</span>
+						</TabsTrigger>
+						<TabsTrigger
+							value="assets"
+							className="h-14 flex-col gap-1 text-[11px]"
+						>
+							<Image className="h-4 w-4" />
+							<span>Assets</span>
+						</TabsTrigger>
+					</TabsList>
+				</div>
+			)}
 		</Tabs>
 	);
 }

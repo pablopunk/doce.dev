@@ -30,15 +30,20 @@ export function ProjectContentWrapper({
 	const [isStreaming, setIsStreaming] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	// Use custom resizable panel hook for managing layout with constraints
-	const { leftPercent, rightPercent, isDragging, onSeparatorMouseDown } =
-		useResizablePanel({
-			projectId,
-			minSize: 25,
-			maxSize: 75,
-			defaultSize: 33.33,
-			containerRef,
-		});
+	const {
+		leftPercent,
+		rightPercent,
+		isDragging,
+		isMobile,
+		isResizable,
+		onSeparatorMouseDown,
+	} = useResizablePanel({
+		projectId,
+		minSize: 25,
+		maxSize: 75,
+		defaultSize: 33.33,
+		containerRef,
+	});
 
 	// Check if containers are already ready on mount
 	useEffect(() => {
@@ -69,7 +74,6 @@ export function ProjectContentWrapper({
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden relative">
-			{/* Container restart display - shown until startup is complete */}
 			{showStartupDisplay && (
 				<ErrorBoundary componentName="ContainerStartupDisplay">
 					<ContainerStartupDisplay
@@ -80,40 +84,14 @@ export function ProjectContentWrapper({
 				</ErrorBoundary>
 			)}
 
-			{/* Chat and preview panels - shown after startup or if already ready */}
 			{!showStartupDisplay && (
 				<div
-					className="flex-1 flex overflow-hidden relative"
+					className="flex-1 flex w-full min-w-0 overflow-hidden relative"
 					data-resizable-group
 					ref={containerRef}
 				>
-					{/* Chat panel (left) */}
-					<div
-						className="flex flex-col h-full border-r overflow-hidden"
-						style={{ width: `${leftPercent}%` }}
-					>
-						<ErrorBoundary componentName="ChatPanel">
-							<ChatPanel
-								projectId={projectId}
-								models={models}
-								onOpenFile={setFileToOpen}
-								onStreamingStateChange={(count, streaming) => {
-									setUserMessageCount(count);
-									setIsStreaming(streaming);
-								}}
-							/>
-						</ErrorBoundary>
-					</div>
-
-					{/* Draggable separator */}
-					<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
-
-					{/* Preview panel (right) */}
-					<div
-						className="flex flex-col h-full overflow-hidden"
-						style={{ width: `${rightPercent}%` }}
-					>
-						<ErrorBoundary componentName="PreviewPanel">
+					{isMobile ? (
+						<div className="flex-1 flex flex-col h-full w-full min-w-0 overflow-hidden">
 							<PreviewPanel
 								projectId={projectId}
 								projectSlug={projectSlug || ""}
@@ -121,11 +99,55 @@ export function ProjectContentWrapper({
 								onFileOpened={() => setFileToOpen(null)}
 								userMessageCount={userMessageCount}
 								isStreaming={isStreaming}
+								models={models}
+								onOpenFile={setFileToOpen}
+								onStreamingStateChange={(count, streaming) => {
+									setUserMessageCount(count);
+									setIsStreaming(streaming);
+								}}
 							/>
-						</ErrorBoundary>
-					</div>
+						</div>
+					) : (
+						<>
+							<div
+								className="flex flex-col h-full border-r overflow-hidden"
+								style={{ width: `${leftPercent}%` }}
+							>
+								<ErrorBoundary componentName="ChatPanel">
+									<ChatPanel
+										projectId={projectId}
+										models={models}
+										onOpenFile={setFileToOpen}
+										onStreamingStateChange={(count, streaming) => {
+											setUserMessageCount(count);
+											setIsStreaming(streaming);
+										}}
+									/>
+								</ErrorBoundary>
+							</div>
 
-					{/* Transparent overlay to capture mouse events during drag */}
+							{isResizable && (
+								<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
+							)}
+
+							<div
+								className="flex flex-col h-full overflow-hidden"
+								style={{ width: `${rightPercent}%` }}
+							>
+								<ErrorBoundary componentName="PreviewPanel">
+									<PreviewPanel
+										projectId={projectId}
+										projectSlug={projectSlug || ""}
+										fileToOpen={fileToOpen}
+										onFileOpened={() => setFileToOpen(null)}
+										userMessageCount={userMessageCount}
+										isStreaming={isStreaming}
+									/>
+								</ErrorBoundary>
+							</div>
+						</>
+					)}
+
 					{isDragging && (
 						<div
 							style={{

@@ -177,7 +177,12 @@ export const assets = {
 					});
 				}
 
-				const projectPath = getProjectPreviewPath(input.projectId);
+				const projectPath = path.join(
+					process.cwd(),
+					"data",
+					"projects",
+					input.projectId,
+				);
 				const publicPath = path.join(projectPath, "public");
 				const oldPath = path.join(publicPath, input.oldName);
 				const newPath = path.join(publicPath, sanitizedNewName);
@@ -261,7 +266,12 @@ export const assets = {
 			}
 
 			try {
-				const projectPath = getProjectPreviewPath(input.projectId);
+				const projectPath = path.join(
+					process.cwd(),
+					"data",
+					"projects",
+					input.projectId,
+				);
 				const publicPath = path.join(projectPath, "public");
 				const filePath = path.join(publicPath, input.path);
 

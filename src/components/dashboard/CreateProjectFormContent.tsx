@@ -103,13 +103,14 @@ export function CreateProjectFormContent({
 					{imageError && (
 						<p className="text-sm text-destructive">{imageError}</p>
 					)}
-					<div className="flex items-center justify-between gap-3">
+					<div className="flex items-center justify-between gap-2 min-w-0">
 						<ModelSelector
 							models={models}
 							selectedModelId={selectedModel || ""}
 							onModelChange={onModelChange}
+							triggerClassName="max-w-[150px] min-[420px]:max-w-[200px] min-w-0"
 						/>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-1.5 shrink-0">
 							{/* Hidden File Input - only render when images are supported */}
 							{currentModelSupportsImages && (
 								<input
@@ -151,13 +152,14 @@ export function CreateProjectFormContent({
 								disabled={isLoading || !prompt.trim()}
 								title="Create project (or press Ctrl+Enter in textarea)"
 								type="button"
+								className="px-2.5 min-[380px]:px-3"
 							>
 								{isLoading ? (
 									<Loader2 className="w-5 h-5 animate-spin" />
 								) : (
 									<Sparkles className="w-5 h-5 text-chart-1" />
 								)}
-								<span className="bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
+								<span className="hidden min-[380px]:inline bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
 									Create
 								</span>
 							</Button>

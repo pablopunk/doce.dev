@@ -103,16 +103,16 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group relative overflow-hidden">
 				<CardHeader className="pb-2">
-					<div className="flex items-start justify-between">
+					<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 						<div className="flex-1 min-w-0">
 							<CardTitle className="text-lg truncate">{project.name}</CardTitle>
 						</div>
-						<div className="flex items-center gap-2 ml-2">
+						<div className="flex items-center gap-2 sm:ml-2 self-start">
 							{(() => {
 								const style = getStatusStyle(project.status);
 								return (
 									<span
-										className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full ${style.bg} ${style.text}`}
+										className={`inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${style.bg} ${style.text}`}
 									>
 										{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
 										{statusLabels[project.status]}
@@ -126,8 +126,8 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					<p className="text-sm text-muted-foreground line-clamp-2 mb-4">
 						{project.prompt}
 					</p>
-					<div className="flex items-center justify-between">
-						<div className="flex gap-2">
+					<div className="flex items-center justify-between gap-2 flex-wrap">
+						<div className="flex gap-2 flex-wrap min-w-0">
 							{isRunning && (
 								<a
 									href={previewUrl}
