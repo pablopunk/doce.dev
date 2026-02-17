@@ -32,7 +32,6 @@ export function AssetItem({
 	isLoading = false,
 	previewUrl,
 }: AssetItemProps) {
-	const [isHovering, setIsHovering] = useState(false);
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [newName, setNewName] = useState(asset.name);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -134,11 +133,7 @@ export function AssetItem({
 
 	return (
 		<>
-			<div
-				className="flex flex-col gap-2 rounded-lg border bg-card p-3 hover:bg-muted/50 transition-colors"
-				onMouseEnter={() => setIsHovering(true)}
-				onMouseLeave={() => setIsHovering(false)}
-			>
+			<div className="group flex flex-col gap-2 rounded-lg border bg-card p-3 hover:bg-muted/50 transition-colors">
 				{/* Thumbnail/Icon */}
 				<div className="relative aspect-square w-full rounded bg-muted flex items-center justify-center overflow-hidden">
 					{asset.isImage ? (
@@ -154,8 +149,8 @@ export function AssetItem({
 					)}
 
 					{/* Action buttons overlay */}
-					{isHovering && !isRenaming && (
-						<div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-1">
+					{!isRenaming && (
+						<div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-1 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
 							<Button
 								onClick={handleCopyUrl}
 								variant="secondary"

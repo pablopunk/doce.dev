@@ -64,6 +64,7 @@ export function useChatPanel({
 		isStreaming,
 		pendingImages,
 		pendingImageError,
+		latestDiagnostic,
 		setSessionId,
 		setOpenCodeReady,
 		setInitialPromptSent,
@@ -78,6 +79,7 @@ export function useChatPanel({
 		setItems,
 		addItem,
 		handleChatEvent,
+		setLatestDiagnostic,
 	} = store;
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -409,7 +411,16 @@ export function useChatPanel({
 			}
 			if (!currentSessionId) return;
 
-			const apiParts: any[] = [];
+			type ApiPromptPart =
+				| { type: "text"; text: string }
+				| {
+						type: "file";
+						mime: string;
+						url: string;
+						filename: string;
+				  };
+
+			const apiParts: ApiPromptPart[] = [];
 			if (content) apiParts.push({ type: "text", text: content });
 			if (images) {
 				for (const img of images) {
@@ -497,11 +508,13 @@ export function useChatPanel({
 		currentModel,
 		expandedTools,
 		scrollRef,
+		latestDiagnostic,
 		setPendingImages,
 		setPendingImageError,
 		handleSend,
 		handleModelChange,
 		toggleToolExpanded,
 		handleScroll,
+		clearDiagnostic: () => setLatestDiagnostic(null),
 	};
 }

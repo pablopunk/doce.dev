@@ -2,6 +2,7 @@ import { ActionError, defineAction } from "astro:actions";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { z } from "astro/zod";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import { isProjectOwnedByUser } from "@/server/projects/projects.model";
 import {
 	buildAssetsList,
@@ -33,12 +34,7 @@ export const assets = {
 			}
 
 			try {
-				const projectPath = path.join(
-					process.cwd(),
-					"data",
-					"projects",
-					input.projectId,
-				);
+				const projectPath = getProjectPreviewPath(input.projectId);
 				const publicPath = path.join(projectPath, "public");
 
 				try {
@@ -82,12 +78,7 @@ export const assets = {
 			}
 
 			try {
-				const projectPath = path.join(
-					process.cwd(),
-					"data",
-					"projects",
-					input.projectId,
-				);
+				const projectPath = getProjectPreviewPath(input.projectId);
 				const publicPath = path.join(projectPath, "public");
 
 				await fs.mkdir(publicPath, { recursive: true });

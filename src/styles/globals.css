@@ -156,6 +156,18 @@
 	html {
 		@apply font-sans;
 	}
+
+	/* Mobile viewport handling */
+	html,
+	body {
+		min-height: 100vh;
+		min-height: 100dvh;
+	}
+
+	/* Prevent horizontal scroll on mobile */
+	body {
+		overflow-x: hidden;
+	}
 }
 
 @layer utilities {

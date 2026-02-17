@@ -45,26 +45,19 @@ interface QueueTableLiveProps {
 export function QueueTableLive({
 	initialJobs,
 	initialPage = 1,
-	initialPagination,
+	initialPagination: _initialPagination,
 	initialPaused,
 	initialConcurrency = 2,
 	filters = {},
 }: QueueTableLiveProps) {
-	const {
-		jobs,
-		paused,
-		concurrency,
-		pagination,
-		hasNewJobs,
-		setHasNewJobs,
-		setPagination,
-	} = useQueueStream(
-		initialPage,
-		initialJobs,
-		initialPaused,
-		initialConcurrency,
-		filters,
-	);
+	const { jobs, paused, concurrency, pagination, hasNewJobs, setPagination } =
+		useQueueStream(
+			initialPage,
+			initialJobs,
+			initialPaused,
+			initialConcurrency,
+			filters,
+		);
 
 	const {
 		isLoading,
@@ -76,7 +69,6 @@ export function QueueTableLive({
 		handleToggleQueue,
 		handleStopAll,
 		handleConfirmStopAll,
-		handleActionClick,
 		handleBulkDelete,
 		handleConfirmAction,
 		handleAction,
@@ -101,6 +93,75 @@ export function QueueTableLive({
 		}
 	};
 
+	const formatCreatedAt = (createdAt: QueueJob["createdAt"]) => {
+		return new Date(createdAt).toLocaleString("en-US", {
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+			hour12: false,
+		});
+	};
+
+	const renderMobileActions = (job: QueueJob) => (
+		<div className="mt-3 flex flex-wrap gap-2">
+			{job.state === "queued" && (
+				<Button
+					onClick={() => handleAction("runNow", job.id)}
+					variant="secondary"
+					size="xs"
+				>
+					<Play className="w-3 h-3 mr-1" />
+					Run
+				</Button>
+			)}
+			{(job.state === "queued" || job.state === "running") && (
+				<Button
+					onClick={() => handleAction("cancel", job.id)}
+					variant="destructive"
+					size="xs"
+				>
+					<X className="w-3 h-3 mr-1" />
+					Cancel
+				</Button>
+			)}
+			{job.state === "failed" && (
+				<Button
+					onClick={() => handleAction("retry", job.id)}
+					variant="secondary"
+					size="xs"
+				>
+					<RotateCcw className="w-3 h-3 mr-1" />
+					Retry
+				</Button>
+			)}
+			{job.state === "running" && (
+				<Button
+					onClick={() => handleAction("forceUnlock", job.id)}
+					variant="secondary"
+					size="xs"
+				>
+					<AlertCircle className="w-3 h-3 mr-1" />
+					Unlock
+				</Button>
+			)}
+			{(job.state === "succeeded" ||
+				job.state === "failed" ||
+				job.state === "cancelled") && (
+				<Button
+					onClick={() => handleAction("delete", job.id)}
+					variant="ghost"
+					size="xs"
+				>
+					<Trash2 className="w-3 h-3 mr-1" />
+					Delete
+				</Button>
+			)}
+		</div>
+	);
+
 	const handlePageChange = (newPage: number) => {
 		const params = new URLSearchParams();
 		params.set("page", newPage.toString());
@@ -121,7 +182,7 @@ export function QueueTableLive({
 
 	return (
 		<>
-			<div className="px-8 py-6 max-w-7xl mx-auto">
+			<div className="px-3 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto">
 				<h1 className="text-2xl font-semibold mb-6">Queue</h1>
 
 				<div className="mb-6">
@@ -142,6 +203,7 @@ export function QueueTableLive({
 									variant="destructive"
 									size="sm"
 									disabled={isLoading}
+									className="w-full sm:w-auto"
 								>
 									<StopCircle className="w-4 h-4 mr-2" />
 									Stop All Projects
@@ -199,7 +261,55 @@ export function QueueTableLive({
 					)}
 				</div>
 
-				<div className="overflow-x-auto">
+				<div className="md:hidden space-y-3">
+					{jobs.length === 0 ? (
+						<div className="py-8 px-2 text-center text-muted-foreground rounded-lg border">
+							No jobs found
+						</div>
+					) : (
+						jobs.map((job) => (
+							<div key={job.id} className="rounded-lg border p-3 bg-card/40">
+								<div className="flex items-start justify-between gap-2">
+									<div className="flex items-center gap-2 min-w-0">
+										<span className="inline-flex items-center justify-center text-muted-foreground">
+											{getStateIcon(job.state)}
+										</span>
+										<a
+											href={`/queue/${job.id}`}
+											className="hover:underline text-status-info font-mono text-xs"
+										>
+											{job.id.slice(0, 8)}
+										</a>
+									</div>
+									<span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">
+										{job.state}
+									</span>
+								</div>
+								<div className="mt-2 space-y-1 text-xs text-muted-foreground">
+									<div className="break-all">
+										<span className="font-medium text-foreground">Type:</span>{" "}
+										{job.type}
+									</div>
+									<div className="break-all">
+										<span className="font-medium text-foreground">
+											Project:
+										</span>{" "}
+										{job.projectId || "—"}
+									</div>
+									<div>
+										<span className="font-medium text-foreground">
+											Created:
+										</span>{" "}
+										{formatCreatedAt(job.createdAt)}
+									</div>
+								</div>
+								{renderMobileActions(job)}
+							</div>
+						))
+					)}
+				</div>
+
+				<div className="hidden md:block overflow-x-auto">
 					<table className="w-full text-sm">
 						<thead>
 							<tr className="border-b">
@@ -245,15 +355,7 @@ export function QueueTableLive({
 											{job.projectId || "—"}
 										</td>
 										<td className="py-2 px-2 text-xs text-muted-foreground">
-											{new Date(job.createdAt).toLocaleString("en-US", {
-												year: "numeric",
-												month: "2-digit",
-												day: "2-digit",
-												hour: "2-digit",
-												minute: "2-digit",
-												second: "2-digit",
-												hour12: false,
-											})}
+											{formatCreatedAt(job.createdAt)}
 										</td>
 										<td className="py-2 px-2 space-x-2 flex">
 											{job.state === "queued" && (

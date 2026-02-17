@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
@@ -12,6 +13,35 @@ import {
 
 // Cache the detected compose command
 let composeCommand: string[] | null = null;
+
+async function loadProjectEnvFile(
+	envFilePath: string,
+): Promise<Record<string, string>> {
+	try {
+		const content = await fs.readFile(envFilePath, "utf-8");
+		const env: Record<string, string> = {};
+
+		for (const rawLine of content.split("\n")) {
+			const line = rawLine.trim();
+			if (!line || line.startsWith("#")) {
+				continue;
+			}
+
+			const separator = line.indexOf("=");
+			if (separator <= 0) {
+				continue;
+			}
+
+			const key = line.slice(0, separator).trim();
+			const value = line.slice(separator + 1).trim();
+			env[key] = value;
+		}
+
+		return env;
+	} catch {
+		return {};
+	}
+}
 
 /**
  * Detect whether to use `docker compose` or `docker-compose`.
@@ -107,6 +137,12 @@ async function runComposeCommand(
 
 	// Build args with optional profile and file flags (both must come BEFORE the subcommand)
 	const fullArgs = [...compose.slice(1), ...baseArgs];
+
+	// Add env file from parent directory (project root) since we run from preview/
+	// Use resolve to get absolute path (docker compose needs absolute path for --env-file)
+	const envFilePath = path.resolve(path.join(projectPath, "..", ".env"));
+	fullArgs.push("--env-file", envFilePath);
+
 	if (filePath) {
 		fullArgs.push("-f", filePath);
 	}
@@ -116,6 +152,7 @@ async function runComposeCommand(
 	fullArgs.push(...args);
 
 	const command = compose[0] ?? "docker";
+	const projectEnv = await loadProjectEnvFile(envFilePath);
 
 	logger.debug(
 		{ command, args: fullArgs, cwd: projectPath },
@@ -132,6 +169,7 @@ async function runComposeCommand(
 			cwd: projectPath,
 			env: {
 				...process.env,
+				...projectEnv,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
 			},
@@ -603,6 +641,41 @@ export async function ensureProjectDataVolume(
 		logger.warn(
 			{ error: err, projectId, volumeName },
 			"Failed to ensure project data volume",
+		);
+	}
+}
+
+/**
+ * Ensure a project-specific opencode storage volume exists.
+ * Idempotent - safe to call multiple times, no errors if already exists.
+ * @param projectId The project ID
+ */
+export async function ensureOpencodeStorageVolume(
+	projectId: string,
+): Promise<void> {
+	const volumeName = `doce_${projectId}_opencode_storage`;
+
+	try {
+		// Try to create the volume - Docker silently ignores if it already exists
+		const result = await runCommand(`docker volume create ${volumeName}`, {
+			timeout: 5000,
+		});
+		if (result.success) {
+			logger.debug(
+				{ projectId, volumeName },
+				"Opencode storage volume ensured",
+			);
+		} else {
+			logger.warn(
+				{ error: result.stderr, projectId, volumeName },
+				"Failed to ensure opencode storage volume",
+			);
+		}
+	} catch (err) {
+		// Log but don't throw - if Docker is unavailable, it will fail later anyway
+		logger.warn(
+			{ error: err, projectId, volumeName },
+			"Failed to ensure opencode storage volume",
 		);
 	}
 }

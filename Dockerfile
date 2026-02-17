@@ -26,7 +26,7 @@ RUN pnpm build
 FROM node:22-alpine
 
 # Install dumb-init for proper PID 1 handling and docker for preview environments
-RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git
+RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git bash
 
 # Install pnpm for running migrations
 RUN npm install -g pnpm@10.20.0
@@ -40,9 +40,14 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/templates ./templates
 COPY package.json ./
 COPY drizzle.config.ts ./
+COPY scripts/start-preview.sh ./scripts/
+COPY scripts/bootstrap.sh ./scripts/
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
+
+# Make scripts executable
+RUN chmod +x /app/scripts/start-preview.sh /app/scripts/bootstrap.sh
 
 # Run as root for Docker socket access in preview environments
 # (container runs as root for Docker daemon access)

@@ -47,7 +47,10 @@ function groupConsecutiveTools(
 	)[] = [];
 
 	for (let i = 0; i < items.length; i++) {
-		const item = items[i]!;
+		const item = items[i];
+		if (!item) {
+			continue;
+		}
 
 		if (item.type === "tool") {
 			const toolGroup: ToolCall[] = [item.data as ToolCall];

@@ -154,6 +154,13 @@ export const projects = {
 				await updateProjectStatus(input.projectId, "deleting");
 			} catch {}
 
+			try {
+				const { cancelActiveProductionJobs } = await import(
+					"@/server/productions/productions.model"
+				);
+				await cancelActiveProductionJobs(input.projectId);
+			} catch {}
+
 			const job = await enqueueProjectDelete({
 				projectId: input.projectId,
 				requestedByUserId: user.id,
@@ -185,6 +192,57 @@ export const projects = {
 			}
 
 			const job = await enqueueDockerStop({
+				projectId: input.projectId,
+				reason: "user",
+			});
+
+			return { success: true, jobId: job.id };
+		},
+	}),
+
+	restart: defineAction({
+		input: z.object({
+			projectId: z.string(),
+		}),
+		handler: async (input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in to restart a project",
+				});
+			}
+
+			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+			if (!isOwner) {
+				throw new ActionError({
+					code: "FORBIDDEN",
+					message: "You don't have access to this project",
+				});
+			}
+
+			const { getProjectById } = await import(
+				"@/server/projects/projects.model"
+			);
+			const project = await getProjectById(input.projectId);
+			if (!project) {
+				throw new ActionError({
+					code: "NOT_FOUND",
+					message: "Project not found",
+				});
+			}
+
+			const { enqueueDockerEnsureRunning } = await import(
+				"@/server/queue/enqueue"
+			);
+
+			const { updateProjectStatus } = await import(
+				"@/server/projects/projects.model"
+			);
+
+			await updateProjectStatus(input.projectId, "starting");
+
+			const job = await enqueueDockerEnsureRunning({
 				projectId: input.projectId,
 				reason: "user",
 			});
@@ -229,6 +287,16 @@ export const projects = {
 				});
 			}
 
+			const { hasActiveDeployment } = await import(
+				"@/server/productions/productions.model"
+			);
+			if (await hasActiveDeployment(input.projectId)) {
+				throw new ActionError({
+					code: "CONFLICT",
+					message: "A deployment is already in progress",
+				});
+			}
+
 			const job = await enqueueProductionBuild({
 				projectId: input.projectId,
 			});
@@ -265,6 +333,11 @@ export const projects = {
 					message: "Project not found",
 				});
 			}
+
+			const { cancelActiveProductionJobs } = await import(
+				"@/server/productions/productions.model"
+			);
+			await cancelActiveProductionJobs(input.projectId);
 
 			const job = await enqueueProductionStop(input.projectId);
 
@@ -388,10 +461,7 @@ export const projects = {
 			const { getProductionVersions } = await import(
 				"@/server/productions/cleanup"
 			);
-			const { deriveVersionPort } = await import("@/server/ports/allocate");
-			const { updateProjectNginxRouting } = await import(
-				"@/server/productions/nginx"
-			);
+			const { getProductionPath } = await import("@/server/projects/paths");
 			const { updateProductionStatus } = await import(
 				"@/server/productions/productions.model"
 			);
@@ -413,23 +483,77 @@ export const projects = {
 				});
 			}
 
-			const basePort = project.productionPort;
-			if (!basePort) {
+			const productionPort = project.productionPort;
+			if (!productionPort) {
 				throw new ActionError({
 					code: "BAD_REQUEST",
 					message: "Project not initialized for production",
 				});
 			}
 
-			const targetVersionPort = deriveVersionPort(
-				input.projectId,
-				input.toHash,
+			// Build Docker image for rollback version
+			const productionPath = getProductionPath(project.id, input.toHash);
+			const imageName = `doce-prod-${project.id}-${input.toHash}`;
+
+			const { spawnCommand } = await import("@/server/utils/execAsync");
+			const buildResult = await spawnCommand(
+				"docker",
+				["build", "-t", imageName, "-f", "Dockerfile.prod", "."],
+				{ cwd: productionPath },
 			);
-			await updateProjectNginxRouting(
-				input.projectId,
-				input.toHash,
-				targetVersionPort,
+
+			if (!buildResult.success) {
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Docker build failed: ${buildResult.stderr.slice(0, 200)}`,
+				});
+			}
+
+			// Stop and remove old container
+			const containerName = `doce-prod-${project.id}`;
+			const stopResult = await spawnCommand("docker", ["stop", containerName]);
+			const removeResult = await spawnCommand("docker", ["rm", containerName]);
+
+			if (!stopResult.success || !removeResult.success) {
+				// Container might not exist, continue
+			}
+
+			// Start new container
+			const runResult = await spawnCommand("docker", [
+				"run",
+				"-d",
+				"--name",
+				containerName,
+				"-p",
+				`${productionPort}:3000`,
+				"--restart",
+				"unless-stopped",
+				imageName,
+			]);
+
+			if (!runResult.success) {
+				throw new ActionError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: `Docker run failed: ${runResult.stderr.slice(0, 200)}`,
+				});
+			}
+
+			// Update symlink
+			const { getProductionCurrentSymlink } = await import(
+				"@/server/projects/paths"
 			);
+			const symlinkPath = getProductionCurrentSymlink(project.id);
+			const hashPath = getProductionPath(project.id, input.toHash);
+			const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+			const fs = await import("node:fs/promises");
+			try {
+				await fs.unlink(tempSymlink).catch(() => {});
+				await fs.symlink(hashPath, tempSymlink);
+				await fs.rename(tempSymlink, symlinkPath);
+			} catch {
+				// Symlink update failed, but container is running
+			}
 
 			await updateProductionStatus(input.projectId, "running", {
 				productionHash: input.toHash,
@@ -526,6 +650,7 @@ export const projects = {
 			const SETUP_JOBS = [
 				"project.create",
 				"docker.composeUp",
+				"docker.ensureRunning",
 				"docker.waitReady",
 				"opencode.sessionCreate",
 				"opencode.sendUserPrompt",
@@ -538,6 +663,14 @@ export const projects = {
 				projectId: input.projectId,
 				limit: 100,
 			});
+
+			type SetupJob = {
+				type: string;
+				state: "pending" | (typeof jobs)[number]["state"];
+				error?: string;
+				completedAt?: number;
+				createdAt?: number;
+			};
 
 			const jobsByType = new Map<string, (typeof jobs)[0]>();
 			for (const job of jobs) {
@@ -555,11 +688,18 @@ export const projects = {
 				}
 			}
 
-			const setupJobs: Record<string, any> = {};
+			const setupJobs: Record<string, SetupJob> = {};
 			let hasError = false;
 			let errorMessage: string | undefined;
 			let promptSentAt: number | undefined;
 			let isSetupComplete = true;
+
+			const projectCreateJob = jobsByType.get("project.create");
+			const dockerComposeUpJob = jobsByType.get("docker.composeUp");
+			const dockerEnsureRunningJob = jobsByType.get("docker.ensureRunning");
+			const dockerWaitReadyJob = jobsByType.get("docker.waitReady");
+			const sessionCreateJob = jobsByType.get("opencode.sessionCreate");
+			const sendPromptJob = jobsByType.get("opencode.sendUserPrompt");
 
 			for (const jobType of SETUP_JOBS) {
 				const job = jobsByType.get(jobType);
@@ -570,14 +710,19 @@ export const projects = {
 					setupJobs[jobType] = {
 						type: jobType,
 						state: job.state,
-						error: job.lastError || undefined,
+						...(job.lastError ? { error: job.lastError } : {}),
 						completedAt: job.updatedAt.getTime(),
 						createdAt: job.createdAt.getTime(),
 					};
 					if (job.state === "failed") {
-						hasError = true;
-						errorMessage = job.lastError || `${jobType} failed`;
-						isSetupComplete = false;
+						const isRecoveredDockerJob =
+							jobType === "docker.composeUp" &&
+							dockerEnsureRunningJob?.state === "succeeded";
+						if (!isRecoveredDockerJob) {
+							hasError = true;
+							errorMessage = job.lastError || `${jobType} failed`;
+							isSetupComplete = false;
+						}
 					}
 					if (jobType === "opencode.sendUserPrompt") {
 						promptSentAt = job.updatedAt.getTime();
@@ -585,16 +730,17 @@ export const projects = {
 				}
 			}
 
-			const projectCreateJob = jobsByType.get("project.create");
-			const dockerComposeUpJob = jobsByType.get("docker.composeUp");
-			const dockerWaitReadyJob = jobsByType.get("docker.waitReady");
-			const sessionCreateJob = jobsByType.get("opencode.sessionCreate");
-			const sendPromptJob = jobsByType.get("opencode.sendUserPrompt");
+			const dockerJob =
+				dockerComposeUpJob?.state === "succeeded"
+					? dockerComposeUpJob
+					: dockerEnsureRunningJob?.state === "succeeded"
+						? dockerEnsureRunningJob
+						: dockerComposeUpJob || dockerEnsureRunningJob;
 
 			let currentStep = 0;
 			if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded" &&
 				sessionCreateJob?.state === "succeeded" &&
 				sendPromptJob?.state === "succeeded"
@@ -602,7 +748,7 @@ export const projects = {
 				currentStep = 4;
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded" &&
 				sessionCreateJob?.state === "succeeded"
 			) {
@@ -610,7 +756,7 @@ export const projects = {
 				isSetupComplete = false;
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
-				dockerComposeUpJob?.state === "succeeded" &&
+				dockerJob?.state === "succeeded" &&
 				dockerWaitReadyJob?.state === "succeeded"
 			) {
 				currentStep = 2;
@@ -689,13 +835,13 @@ export const projects = {
 
 			const status = getProductionStatus(project);
 			const activeJob = await getActiveProductionJob(input.projectId);
-			const basePort = project.productionPort;
-			const url = basePort ? `http://localhost:${basePort}` : null;
+			const productionPort = project.productionPort;
+			const url = productionPort ? `http://localhost:${productionPort}` : null;
 
 			return {
 				status: status.status,
 				url,
-				basePort,
+				productionPort,
 				port: status.port,
 				error: status.error,
 				startedAt: status.startedAt?.toISOString() || null,
@@ -741,27 +887,23 @@ export const projects = {
 			const { getProductionVersions } = await import(
 				"@/server/productions/cleanup"
 			);
-			const { deriveVersionPort } = await import("@/server/ports/allocate");
 
 			const versions = await getProductionVersions(input.projectId);
-			const basePort = project.productionPort;
+			const productionPort = project.productionPort;
 
 			return {
-				basePort,
-				baseUrl: basePort ? `http://localhost:${basePort}` : null,
+				productionPort,
+				baseUrl: productionPort ? `http://localhost:${productionPort}` : null,
 				versions: versions.map((v) => {
-					const versionPort = deriveVersionPort(input.projectId, v.hash);
 					return {
 						hash: v.hash,
 						isActive: v.isActive,
 						createdAt: v.mtimeIso,
 						url:
-							v.isActive && basePort
-								? `http://localhost:${basePort}`
+							v.isActive && productionPort
+								? `http://localhost:${productionPort}`
 								: undefined,
-						basePort,
-						versionPort,
-						previewUrl: `http://localhost:${versionPort}`,
+						productionPort,
 					};
 				}),
 			};

@@ -186,6 +186,55 @@ export function unregisterVersionPort(versionPort: number): void {
 }
 
 /**
+ * Allocate a deterministic production port for a project (8000-9999).
+ * The port is derived from the project ID hash, ensuring consistency.
+ */
+export async function allocateProjectProductionPort(
+	projectId: string,
+): Promise<number> {
+	const PROD_PORT_MIN = 8000;
+	const PROD_PORT_MAX = 9999;
+
+	// Deterministic hash-based port allocation
+	let hash = 0;
+	for (let i = 0; i < projectId.length; i++) {
+		const char = projectId.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+
+	const offset = Math.abs(hash) % (PROD_PORT_MAX - PROD_PORT_MIN + 1);
+	const productionPort = PROD_PORT_MIN + offset;
+
+	const available = await isPortAvailable(productionPort);
+	if (!available) {
+		logger.warn(
+			{ projectId, productionPort },
+			"Preferred production port not available, finding alternative",
+		);
+		// Find next available port in the range
+		for (let port = productionPort + 1; port <= PROD_PORT_MAX; port++) {
+			const isAvail = await isPortAvailable(port);
+			if (isAvail) {
+				allocatedDevPorts.add(port);
+				logger.info(
+					{ projectId, productionPort: port },
+					"Allocated production port",
+				);
+				return port;
+			}
+		}
+		throw new Error(
+			`No available production ports in range ${PROD_PORT_MIN}-${PROD_PORT_MAX}`,
+		);
+	}
+
+	allocatedDevPorts.add(productionPort);
+	logger.info({ projectId, productionPort }, "Allocated production port");
+	return productionPort;
+}
+
+/**
  * Allocate two ports for a project: devPort (preview) and opencodePort.
  */
 export async function allocateProjectPorts(): Promise<{

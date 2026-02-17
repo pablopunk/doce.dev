@@ -44,6 +44,28 @@ export function getProjectPath(projectId: string): string {
 }
 
 /**
+ * Get the absolute path to the preview directory for a project.
+ */
+export function getProjectPreviewPath(projectId: string): string {
+	return path.join(getProjectPath(projectId), "preview");
+}
+
+export function getProjectPreviewOpencodePath(projectId: string): string {
+	return path.join(getProjectPreviewPath(projectId), "opencode.json");
+}
+
+/**
+ * Get the absolute path to the production directory for a project.
+ */
+export function getProjectProductionPath(
+	projectId: string,
+	hash?: string,
+): string {
+	const basePath = path.join(getProjectPath(projectId), "production");
+	return hash ? path.join(basePath, hash) : basePath;
+}
+
+/**
  * Get the relative path on disk for a project (stored in DB).
  */
 export function getProjectRelativePath(projectId: string): string {
@@ -52,6 +74,7 @@ export function getProjectRelativePath(projectId: string): string {
 
 /**
  * Get the absolute path to the productions directory.
+ * @deprecated Production is now in project/[projectId]/production/
  */
 export function getProductionsPath(): string {
 	return path.join(getDataPath(), PRODUCTIONS_DIR);
@@ -59,16 +82,16 @@ export function getProductionsPath(): string {
 
 /**
  * Get the absolute path to a specific production directory.
- * If hash is provided, returns the versioned hash directory.
- * If hash is omitted, returns the project-level directory containing all versions.
+ * If hash is provided, returns the versioned hash directory inside the production folder.
+ * If hash is omitted, returns the production directory for the project.
  *
  * @param projectId - The project ID
  * @param hash - Optional: 8-character hash for versioned directory
  * @returns Absolute path to production directory
  */
 export function getProductionPath(projectId: string, hash?: string): string {
-	const projectPath = path.join(getProductionsPath(), projectId);
-	return hash ? path.join(projectPath, hash) : projectPath;
+	const basePath = path.join(getProjectPath(projectId), "production");
+	return hash ? path.join(basePath, hash) : basePath;
 }
 
 /**
@@ -79,7 +102,7 @@ export function getProductionPath(projectId: string, hash?: string): string {
  * @returns Absolute path to current symlink
  */
 export function getProductionCurrentSymlink(projectId: string): string {
-	return path.join(getProductionsPath(), projectId, "current");
+	return path.join(getProjectProductionPath(projectId), "current");
 }
 
 /**
@@ -89,7 +112,7 @@ export function getProductionRelativePath(
 	projectId: string,
 	hash?: string,
 ): string {
-	const basePath = `${DATA_DIR}/${PRODUCTIONS_DIR}/${projectId}`;
+	const basePath = `${DATA_DIR}/${PROJECTS_DIR}/${projectId}/production`;
 	return hash ? `${basePath}/${hash}` : basePath;
 }
 

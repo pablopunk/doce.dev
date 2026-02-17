@@ -298,6 +298,16 @@ export function stopStreamingContainerLogs(projectId: string): void {
 }
 
 /**
+ * Check if log streaming is currently active for a project.
+ */
+export function isStreamingActive(projectId: string): boolean {
+	const proc = streamingProcesses.get(projectId);
+	if (!proc) return false;
+	// Check if process is still running (not killed)
+	return proc.exitCode === null && proc.signalCode === null;
+}
+
+/**
  * Read the last N bytes of the log file.
  */
 export async function readLogTail(
@@ -465,4 +475,90 @@ function truncateLine(line: string): string {
 		return line;
 	}
 	return `${line.slice(0, 197)}...`;
+}
+
+/**
+ * Check if containers are running for a project by running docker compose ps.
+ */
+async function checkContainersRunning(
+	projectId: string,
+	projectPath: string,
+): Promise<boolean> {
+	try {
+		const projectName = `doce_${projectId}`;
+		const result = await runCommand(
+			`docker compose --project-name ${projectName} ps --format json`,
+			{
+				cwd: projectPath,
+				timeout: 10_000,
+			},
+		);
+
+		if (!result.success || !result.stdout) {
+			return false;
+		}
+
+		// Parse the JSON output - each line is a container
+		const lines = result.stdout
+			.trim()
+			.split("\n")
+			.filter((l) => l.trim());
+		for (const line of lines) {
+			try {
+				const container = JSON.parse(line) as { State?: string };
+				if (container.State === "running") {
+					return true;
+				}
+			} catch {
+				// Ignore parse errors for individual lines
+			}
+		}
+		return false;
+	} catch (err) {
+		logger.debug(
+			{ error: err, projectId },
+			"Failed to check if containers are running",
+		);
+		return false;
+	}
+}
+
+/**
+ * Ensure log streaming is active for a project.
+ * Creates logs directory if needed, and starts streaming if containers are running.
+ * This is idempotent - safe to call multiple times.
+ *
+ * @returns Object indicating whether streaming was started and if containers are running
+ */
+export async function ensureLogStreaming(
+	projectId: string,
+	projectPath: string,
+): Promise<{ streamingStarted: boolean; containersRunning: boolean }> {
+	const logsDir = path.join(projectPath, "logs");
+
+	// Ensure logs directory exists
+	await ensureLogsDir(logsDir);
+
+	// Check if streaming is already active
+	if (isStreamingActive(projectId)) {
+		return { streamingStarted: false, containersRunning: true };
+	}
+
+	// Check if containers are running
+	const containersRunning = await checkContainersRunning(
+		projectId,
+		projectPath,
+	);
+	if (!containersRunning) {
+		return { streamingStarted: false, containersRunning: false };
+	}
+
+	// Containers are running but streaming is not active - start streaming
+	logger.info(
+		{ projectId },
+		"Containers running but log streaming not active, starting streaming",
+	);
+	streamContainerLogs(projectId, projectPath);
+
+	return { streamingStarted: true, containersRunning: true };
 }

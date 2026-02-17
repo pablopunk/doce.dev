@@ -8,6 +8,7 @@ import {
 	Lock,
 	Zap,
 } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import { useEffect, useState } from "react";
 import {
 	Command,
@@ -25,6 +26,7 @@ import {
 import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
 import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
 import { Gemini } from "@/components/ui/svgs/gemini";
+import { Kimi } from "@/components/ui/svgs/kimi";
 import { Minimax } from "@/components/ui/svgs/minimax";
 import { MinimaxDark } from "@/components/ui/svgs/minimaxDark";
 import { Openai } from "@/components/ui/svgs/openai";
@@ -32,18 +34,37 @@ import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
 import { ZaiDark } from "@/components/ui/svgs/zaiDark";
 import { ZaiLight } from "@/components/ui/svgs/zaiLight";
 import { Tooltip, TooltipContent } from "@/components/ui/tooltip";
+import { toVendorSlug } from "@/lib/modelVendor";
 import { cn } from "@/lib/utils";
 
 const VENDOR_LOGOS: Record<
 	string,
-	{ light: React.ComponentType<any>; dark: React.ComponentType<any> }
+	{
+		light: ComponentType<SVGProps<SVGSVGElement>>;
+		dark: ComponentType<SVGProps<SVGSVGElement>>;
+	}
 > = {
 	openai: { light: Openai, dark: OpenaiDark },
 	anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
 	google: { light: Gemini, dark: Gemini },
-	"z.ai": { light: ZaiLight, dark: ZaiDark },
+	"z-ai": { light: ZaiLight, dark: ZaiDark },
 	minimax: { light: Minimax, dark: MinimaxDark },
+	kimi: { light: Kimi, dark: Kimi },
+	moonshot: { light: Kimi, dark: Kimi },
 };
+
+function getVendorLogoVariants(
+	vendor: string,
+	provider: string,
+): {
+	light: ComponentType<SVGProps<SVGSVGElement>>;
+	dark: ComponentType<SVGProps<SVGSVGElement>>;
+} | null {
+	const vendorKey = toVendorSlug(vendor);
+	const providerKey = toVendorSlug(provider);
+
+	return VENDOR_LOGOS[vendorKey] ?? VENDOR_LOGOS[providerKey] ?? null;
+}
 
 interface ModelSelectorProps {
 	models: ReadonlyArray<{
@@ -59,6 +80,7 @@ interface ModelSelectorProps {
 	}>;
 	selectedModelId: string;
 	onModelChange: (modelId: string) => void;
+	triggerClassName?: string;
 }
 
 function getTierIcon(tier?: string) {
@@ -89,6 +111,7 @@ export function ModelSelector({
 	models,
 	selectedModelId,
 	onModelChange,
+	triggerClassName,
 }: ModelSelectorProps) {
 	const [theme, setTheme] = useState<"light" | "dark">("light");
 	const [open, setOpen] = useState(false);
@@ -119,12 +142,15 @@ export function ModelSelector({
 	// Auto-select first model if current selection is invalid
 	useEffect(() => {
 		if (!selectedModel && models.length > 0) {
-			onModelChange(getModelKey(models[0]?.provider, models[0]?.id));
+			const firstModel = models[0];
+			if (firstModel) {
+				onModelChange(getModelKey(firstModel.provider, firstModel.id));
+			}
 		}
 	}, [models, selectedModel, onModelChange]);
 
 	const vendorLogo = selectedModel
-		? VENDOR_LOGOS[selectedModel.vendor.toLowerCase()]
+		? getVendorLogoVariants(selectedModel.vendor, selectedModel.provider)
 		: null;
 
 	const renderLogo = (logoVariants: typeof vendorLogo) => {
@@ -133,7 +159,7 @@ export function ModelSelector({
 		return <Logo className="w-full h-full" />;
 	};
 
-	const grouped = Array.from(
+	const grouped: Array<[string, Array<(typeof models)[number]>]> = Array.from(
 		models.reduce((acc, model) => {
 			const provider = model.provider;
 			if (!acc.has(provider)) {
@@ -145,13 +171,25 @@ export function ModelSelector({
 			}
 			return acc;
 		}, new Map<string, Array<(typeof models)[number]>>()),
-	).sort((a, b) => a[0].localeCompare(b[0]));
+	)
+		.sort((a, b) => a[0].localeCompare(b[0]))
+		.map(([provider, providerModels]) => {
+			const sortedModels = [...providerModels].sort((a, b) =>
+				a.name.localeCompare(b.name, undefined, {
+					numeric: true,
+					sensitivity: "base",
+				}),
+			);
+
+			return [provider, sortedModels];
+		});
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				className={cn(
 					"focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-lg border border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground bg-clip-padding text-sm font-medium focus-visible:ring-[3px] aria-invalid:ring-[3px] [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-between w-full max-w-[200px] whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none h-8 gap-1.5 px-2.5",
+					triggerClassName,
 				)}
 				role="combobox"
 				aria-expanded={open}
@@ -177,8 +215,10 @@ export function ModelSelector({
 							<CommandGroup key={provider} heading={provider}>
 								{providerModels.map((model) => {
 									const isAvailable = model.available !== false;
-									const modelVendorLogo =
-										VENDOR_LOGOS[model.vendor.toLowerCase()];
+									const modelVendorLogo = getVendorLogoVariants(
+										model.vendor,
+										model.provider,
+									);
 									const modelKey = getModelKey(model.provider, model.id);
 									const item = (
 										<CommandItem
@@ -189,29 +229,33 @@ export function ModelSelector({
 												onModelChange(modelKey);
 												setOpen(false);
 											}}
-											className={`flex items-center gap-2 ${
+											className={`flex items-center justify-between gap-2 w-full ${
 												!isAvailable ? "opacity-50" : ""
 											}`}
 										>
-											{modelVendorLogo && (
-												<div className="w-4 h-4 shrink-0">
-													{renderLogo(modelVendorLogo)}
-												</div>
-											)}
-											<span className="flex-1 truncate">{model.name}</span>
-											{getTierIcon(model.tier)}
-											{getImageSupportIcon(model.supportsImages)}
-											{!isAvailable && (
-												<Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-											)}
-											<Check
-												className={cn(
-													"ml-auto size-4 shrink-0",
-													selectedModelId === modelKey
-														? "opacity-100"
-														: "opacity-0",
+											<div className="flex items-center gap-2 min-w-0">
+												{modelVendorLogo && (
+													<div className="w-4 h-4 shrink-0">
+														{renderLogo(modelVendorLogo)}
+													</div>
 												)}
-											/>
+												<span className="truncate">{model.name}</span>
+											</div>
+											<div className="flex items-center gap-2 shrink-0">
+												{getTierIcon(model.tier)}
+												{getImageSupportIcon(model.supportsImages)}
+												{!isAvailable && (
+													<Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+												)}
+												<Check
+													className={cn(
+														"size-4 shrink-0",
+														selectedModelId === modelKey
+															? "opacity-100"
+															: "opacity-0",
+													)}
+												/>
+											</div>
 										</CommandItem>
 									);
 

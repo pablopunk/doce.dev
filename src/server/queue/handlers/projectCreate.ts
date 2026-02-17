@@ -4,11 +4,11 @@ import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { ensureAuthDirectory } from "@/server/opencode/authFile";
 import { allocateProjectPorts } from "@/server/ports/allocate";
-import { createProject } from "@/server/projects/projects.model";
 import {
-	setupProjectFilesystem,
-	updateOpencodeModel,
-} from "@/server/projects/setup";
+	createProject,
+	updateOpencodeJsonModel,
+} from "@/server/projects/projects.model";
+import { setupProjectFilesystem } from "@/server/projects/setup";
 import { enqueueDockerComposeUp } from "../enqueue";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
@@ -27,7 +27,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		await ensureAuthDirectory();
 
-		const { projectPath } = await setupProjectFilesystem(
+		const { projectPath, productionPort } = await setupProjectFilesystem(
 			projectId,
 			devPort,
 			opencodePort,
@@ -37,8 +37,11 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 		await ctx.throwIfCancelRequested();
 
 		if (model) {
-			await updateOpencodeModel(projectPath, model);
-			logger.debug({ projectId, model }, "Updated opencode.json with model");
+			await updateOpencodeJsonModel(projectId, model);
+			logger.debug(
+				{ projectId, model },
+				"Updated preview/opencode.json with model",
+			);
 		}
 
 		await ctx.throwIfCancelRequested();
@@ -65,9 +68,9 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			prompt,
 			devPort,
 			opencodePort,
+			productionPort,
 			status: "created",
 			pathOnDisk: projectPath,
-			currentModel: model || null,
 		});
 
 		logger.info({ projectId, name, slug }, "Created project in database");

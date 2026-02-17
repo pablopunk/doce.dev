@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useIsMobile } from "./use-mobile";
 
 interface UseResizablePanelOptions {
 	projectId: string;
@@ -12,36 +13,39 @@ interface UseResizablePanelOptions {
 	maxSize?: number; // percentage (default 75)
 	defaultSize?: number; // percentage (default 50)
 	containerRef?: RefObject<HTMLDivElement | null>; // Optional: pass the container ref for accurate positioning
+	disabled?: boolean; // Explicitly disable resizing (e.g., on mobile)
 }
 
 interface UseResizablePanelReturn {
 	leftPercent: number;
 	rightPercent: number;
 	isDragging: boolean;
-	onSeparatorMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+	isMobile: boolean;
+	isResizable: boolean;
+	onSeparatorMouseDown: (e: React.MouseEvent<HTMLElement>) => void;
 	containerRef: RefObject<HTMLDivElement | null>;
 }
 
-/**
- * Custom hook for managing resizable panel layout
- * Handles drag-to-resize with localStorage persistence
- */
 export function useResizablePanel({
 	projectId,
 	minSize = 25,
 	maxSize = 75,
 	defaultSize = 50,
 	containerRef: externalRef,
+	disabled,
 }: UseResizablePanelOptions): UseResizablePanelReturn {
 	const internalRef = useRef<HTMLDivElement>(null);
 	const containerRef = externalRef || internalRef;
+	const isMobile = useIsMobile();
 
 	const [leftPercent, setLeftPercent] = useState(defaultSize);
 	const [isDragging, setIsDragging] = useState(false);
 
-	// Load from localStorage on mount
+	const isResizable = !disabled && !isMobile;
+
 	useEffect(() => {
 		if (typeof window === "undefined") return;
+		if (isMobile || disabled) return;
 
 		const storageKey = `resizable-panel-${projectId}`;
 		const saved = localStorage.getItem(storageKey);
@@ -56,7 +60,7 @@ export function useResizablePanel({
 				// Invalid storage, ignore
 			}
 		}
-	}, [projectId, minSize, maxSize]);
+	}, [projectId, minSize, maxSize, isMobile, disabled]);
 
 	// Handle mouse move during drag
 	const handleMouseMove = useCallback(
@@ -103,7 +107,7 @@ export function useResizablePanel({
 
 	// Handle separator mouse down (start drag)
 	const onSeparatorMouseDown = useCallback(
-		(e: React.MouseEvent<HTMLDivElement>) => {
+		(e: React.MouseEvent<HTMLElement>) => {
 			e.preventDefault();
 			setIsDragging(true);
 		},
@@ -114,6 +118,8 @@ export function useResizablePanel({
 		leftPercent,
 		rightPercent: 100 - leftPercent,
 		isDragging,
+		isMobile,
+		isResizable,
 		onSeparatorMouseDown,
 		containerRef,
 	};

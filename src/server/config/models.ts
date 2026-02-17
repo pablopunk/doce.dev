@@ -11,11 +11,29 @@
  */
 
 export const CURATED_MODELS = [
-	"gpt-5.2",
-	"openai/gpt-5.2",
-	"claude-haiku-4-5",
+	"anthropic/claude-haiku-4-5",
 	"anthropic/claude-haiku-4.5",
+	"anthropic/claude-opus-4-6",
+	"anthropic/claude-opus-4.6",
+	"anthropic/claude-sonnet-4-5",
+	"anthropic/claude-sonnet-4.5",
 	"gemini-3-flash",
+	"gemini-3-flash-preview",
+	"google/gemini-3-flash",
+	"google/gemini-3-flash-preview",
+	"kimi-k2.5",
+	"moonshotai/kimi-k2.5",
+	"minimax/minimax-m2.5",
+	"gpt-5.2-codex",
+	"openai/gpt-5.2-codex",
+	"glm-5",
+	"z-ai/glm-5",
+	"claude-haiku-4-5",
+	"claude-haiku-4.5",
+	"claude-opus-4-6",
+	"claude-opus-4.6",
+	"claude-sonnet-4-5",
+	"claude-sonnet-4.5",
 ] as const;
 
 /**

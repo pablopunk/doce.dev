@@ -1,0 +1,58 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt in build stage)
+node_modules
+
+# Build outputs (rebuilt in build stage)
+dist
+
+# Runtime data
+data
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Agent artifacts
+.sisyphus
+
+# CI/CD workflows
+.github
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Documentation (not needed in image)
+README.md
+AGENTS.md
+CONTRIBUTING.md
+LICENSE
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+coverage
+.e2e
+
+# Docker files (not needed in image)
+Dockerfile
+docker-compose.yml
+.dockerignore

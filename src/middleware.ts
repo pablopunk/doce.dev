@@ -18,8 +18,8 @@ async function ensureInitialized() {
 	try {
 		await ensureDatabaseReady();
 		ensureQueueWorkerStarted();
-		ensureDoceSharedNetwork();
-		ensureGlobalPnpmVolume();
+		await ensureDoceSharedNetwork();
+		await ensureGlobalPnpmVolume();
 		startupInitialized = true;
 	} catch (error) {
 		console.error("[Middleware] Initial startup failed:", error);
@@ -36,7 +36,7 @@ let setupCheckCache: { needsSetup: boolean; timestamp: number } | null = null;
 async function getSetupNeeded(): Promise<boolean> {
 	// Await initialization here instead of at the top level
 	await ensureInitialized();
-	
+
 	const now = Date.now();
 	if (
 		setupCheckCache &&

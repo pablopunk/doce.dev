@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install OpenCode
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.202
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.2.5
 
 # Set up environment
 ENV PATH=/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

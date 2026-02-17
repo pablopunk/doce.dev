@@ -62,9 +62,9 @@ export function QueuePlayerControl({
 	};
 
 	return (
-		<div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors">
+		<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 px-3 sm:px-4 py-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors">
 			{/* Concurrency Slider */}
-			<div className="flex items-center gap-3 min-w-[300px]">
+			<div className="flex items-center gap-3 w-full min-w-0 sm:min-w-[300px]">
 				<span className="text-sm font-medium whitespace-nowrap">
 					Concurrency
 				</span>
@@ -90,7 +90,7 @@ export function QueuePlayerControl({
 			</div>
 
 			{/* Status and Stats */}
-			<div className="flex items-center justify-end gap-2 min-w-0">
+			<div className="flex items-center justify-between sm:justify-end gap-2 min-w-0 w-full sm:w-auto">
 				{/* Play/Pause Icon Button */}
 				<Button
 					variant="ghost"
@@ -125,7 +125,7 @@ export function QueuePlayerControl({
 					/>
 
 					{/* Stats */}
-					<span className="text-xs text-muted-foreground truncate">
+					<span className="text-xs text-muted-foreground truncate max-w-[170px] sm:max-w-none">
 						{stats.queued} queued, {stats.running} running
 					</span>
 				</div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function useQueueActions() {
 	const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +27,9 @@ export function useQueueActions() {
 				throw new Error("Failed to toggle queue");
 			}
 		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to toggle queue");
+			toast.error(
+				err instanceof Error ? err.message : "Failed to toggle queue",
+			);
 		}
 	};
 
@@ -47,7 +50,9 @@ export function useQueueActions() {
 				throw new Error("Failed to stop all projects");
 			}
 		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to stop all projects");
+			toast.error(
+				err instanceof Error ? err.message : "Failed to stop all projects",
+			);
 		} finally {
 			setIsLoading(false);
 		}
@@ -124,7 +129,9 @@ export function useQueueActions() {
 				throw new Error("Failed to perform action");
 			}
 		} catch (err) {
-			alert(err instanceof Error ? err.message : "Failed to perform action");
+			toast.error(
+				err instanceof Error ? err.message : "Failed to perform action",
+			);
 		} finally {
 			setIsLoading(false);
 			setPendingAction(null);
@@ -144,7 +151,7 @@ export function useQueueActions() {
 					throw new Error("Failed to run job");
 				}
 			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to run job");
+				toast.error(err instanceof Error ? err.message : "Failed to run job");
 			}
 		} else if (action === "retry") {
 			try {
@@ -158,7 +165,7 @@ export function useQueueActions() {
 					throw new Error("Failed to retry job");
 				}
 			} catch (err) {
-				alert(err instanceof Error ? err.message : "Failed to retry job");
+				toast.error(err instanceof Error ? err.message : "Failed to retry job");
 			}
 		} else if (
 			action === "cancel" ||

@@ -163,7 +163,8 @@ export async function enqueueProductionBuild(
 		type: "production.build",
 		projectId: input.projectId,
 		payload: input,
-		dedupeKey: `production.build:${input.projectId}`,
+		// Deploy-level dedupe: prevents duplicate deploys while build job is active
+		dedupeKey: `production.deploy:${input.projectId}`,
 	});
 }
 

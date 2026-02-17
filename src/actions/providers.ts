@@ -89,7 +89,9 @@ export const providers = {
 
 					// Filter to only include curated models
 					const filteredModels = availableModels.filter((model) =>
-						CURATED_MODELS.includes(model.id as any),
+						CURATED_MODELS.some(
+							(curatedModelId) => curatedModelId === model.id,
+						),
 					);
 
 					// Enrich with vision support data

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface LogLine {
+	id: number;
 	text: string;
 	type: "docker" | "app";
 	streamType: "out" | "err";
@@ -25,6 +26,7 @@ export function TerminalDock({
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const lineIdRef = useRef(0);
 
 	const scrollToBottom = useCallback(() => {
 		if (terminalRef.current) {
@@ -44,6 +46,15 @@ export function TerminalDock({
 		const eventSource = new EventSource(url);
 		eventSourceRef.current = eventSource;
 
+		const createLogLine = (
+			text: string,
+			type: "docker" | "app",
+			streamType: "out" | "err",
+		): LogLine => {
+			lineIdRef.current += 1;
+			return { id: lineIdRef.current, text, type, streamType };
+		};
+
 		eventSource.addEventListener("log.chunk", (e) => {
 			try {
 				const data = JSON.parse(e.data);
@@ -52,11 +63,11 @@ export function TerminalDock({
 				if (truncated && lines.length === 0) {
 					// Show truncation indicator
 					setLines([
-						{
-							text: "[...showing last portion of logs...]",
-							type: logType,
-							streamType: "out",
-						},
+						createLogLine(
+							"[...showing last portion of logs...]",
+							logType,
+							"out",
+						),
 					]);
 				}
 
@@ -92,7 +103,7 @@ export function TerminalDock({
 								return null;
 							}
 
-							return { text: displayText, type, streamType };
+							return createLogLine(displayText, type, streamType);
 						})
 						.filter((line: LogLine | null): line is LogLine => line !== null);
 
@@ -135,6 +146,7 @@ export function TerminalDock({
 		>
 			{/* Header */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				aria-expanded={isOpen}
 				aria-label={`Toggle ${title} terminal`}
@@ -180,14 +192,14 @@ export function TerminalDock({
 					{lines.length === 0 ? (
 						<div className="text-gray-500">Waiting for logs...</div>
 					) : (
-						lines.map((line, i) => {
+						lines.map((line) => {
 							const isError = line.streamType === "err";
 							const colorClass = isError
 								? "text-status-error"
 								: "text-status-success";
 							return (
 								<div
-									key={i}
+									key={line.id}
 									className={cn("whitespace-pre-wrap break-all", colorClass)}
 								>
 									{line.text}

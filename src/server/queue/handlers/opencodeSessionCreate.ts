@@ -1,7 +1,6 @@
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
-import { normalizeProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
@@ -51,9 +50,7 @@ export async function handleOpencodeSessionCreate(
 
 		await ctx.throwIfCancelRequested();
 
-		// Load model configuration from opencode.json
-		const projectPath = normalizeProjectPath(project.pathOnDisk);
-		const config = await loadOpencodeConfig(projectPath);
+		const config = await loadOpencodeConfig(project.id);
 		let modelInfo = {
 			providerID: "openrouter",
 			modelID: FALLBACK_MODEL.split("/").slice(1).join("/"),

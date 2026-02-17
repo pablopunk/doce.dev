@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 
+import { canUserAccessQueueJob } from "@/server/queue/access";
 import { getJobById } from "@/server/queue/queue.model";
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -19,6 +20,11 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const initialJob = await getJobById(jobId);
 	if (!initialJob) {
 		return new Response("Job not found", { status: 404 });
+	}
+
+	const canAccessJob = await canUserAccessQueueJob(user.id, initialJob);
+	if (!canAccessJob) {
+		return new Response("Not found", { status: 404 });
 	}
 
 	const headers = new Headers({

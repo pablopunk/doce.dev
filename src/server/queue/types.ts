@@ -137,6 +137,7 @@ export type ProductionStartPayload = z.infer<
 export const productionWaitReadyPayloadSchema = z.object({
 	projectId: z.string().min(1),
 	productionPort: z.number().int().positive(),
+	productionHash: z.string().min(1),
 	startedAt: z.number(),
 	rescheduleCount: z.number().default(0),
 });

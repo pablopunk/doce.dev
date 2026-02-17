@@ -1,3 +1,4 @@
+import { toVendorSlug } from "@/lib/modelVendor";
 import { logger } from "@/server/logger";
 import { getModelById, getModelsIndex } from "./modelsDev";
 
@@ -6,6 +7,59 @@ export interface ModelCapabilities {
 	supportedInputTypes: string[];
 	inputCost: number;
 	contextLimit: number;
+}
+
+const MODEL_VENDOR_PATTERNS: Array<{ pattern: RegExp; vendor: string }> = [
+	{ pattern: /^gpt[-_]/, vendor: "openai" },
+	{ pattern: /^claude[-_]/, vendor: "anthropic" },
+	{ pattern: /^gemini[-_]/, vendor: "google" },
+	{ pattern: /^grok[-_]/, vendor: "xai" },
+	{ pattern: /(^|[-_])kimi([-_.]|$)/, vendor: "moonshot" },
+	{ pattern: /^glm[-_]/, vendor: "z-ai" },
+];
+
+const MULTI_VENDOR_PROVIDERS = new Set(["openrouter", "opencode"]);
+
+function extractVendorFromModelId(modelId: string): string | null {
+	const separatorIndex = modelId.indexOf("/");
+	if (separatorIndex <= 0) {
+		return null;
+	}
+
+	const vendorPart = modelId.slice(0, separatorIndex);
+	if (!vendorPart) {
+		return null;
+	}
+
+	return toVendorSlug(vendorPart);
+}
+
+function inferVendorFromModelId(modelId: string): string | null {
+	const normalizedModelId = modelId.trim().toLowerCase();
+
+	for (const { pattern, vendor } of MODEL_VENDOR_PATTERNS) {
+		if (pattern.test(normalizedModelId)) {
+			return vendor;
+		}
+	}
+
+	return null;
+}
+
+export function resolveModelVendor(
+	providerId: string,
+	modelId: string,
+): string {
+	const normalizedProvider = toVendorSlug(providerId);
+	const vendorFromModelId = extractVendorFromModelId(modelId);
+
+	if (!MULTI_VENDOR_PROVIDERS.has(normalizedProvider)) {
+		return normalizedProvider;
+	}
+
+	return (
+		vendorFromModelId ?? inferVendorFromModelId(modelId) ?? normalizedProvider
+	);
 }
 
 /**
@@ -24,52 +78,7 @@ function normalizeModelId(
 	modelId: string,
 	providerId: string,
 ): { id: string; vendor: string } {
-	// For openrouter, models are already in vendor/model format
-	// Return as-is and extract vendor from the ID
-	if (providerId === "openrouter") {
-		// Extract vendor from the model ID (first part before /)
-		const parts = modelId.split("/");
-		const vendor = parts[0] ?? modelId;
-		return { id: modelId, vendor };
-	}
-
-	// If already in vendor/model format, return as-is (for other providers with vendor prefix)
-	if (modelId.includes("/")) {
-		const parts = modelId.split("/");
-		const vendor = parts[0];
-		if (!vendor) {
-			throw new Error(`Invalid model ID format: ${modelId}`);
-		}
-		return { id: modelId, vendor };
-	}
-
-	// For opencode provider, models don't have vendor prefix in their ID
-	// Infer vendor from model name for display/grouping purposes only
-	if (providerId === "opencode") {
-		if (modelId.startsWith("gpt-") || modelId.startsWith("gpt_")) {
-			return { id: modelId, vendor: "openai" };
-		}
-		if (modelId.startsWith("claude-")) {
-			return { id: modelId, vendor: "anthropic" };
-		}
-		if (modelId.startsWith("gemini-")) {
-			return { id: modelId, vendor: "google" };
-		}
-		if (modelId.startsWith("grok-")) {
-			return { id: modelId, vendor: "xai" };
-		}
-		if (modelId.includes("kimi") || modelId.startsWith("kimi-")) {
-			return { id: modelId, vendor: "moonshot" };
-		}
-		// Default: use the model ID as vendor if no match
-		return { id: modelId, vendor: modelId };
-	}
-
-	// For other providers, use the first part of the model ID as vendor if available
-	const parts = modelId.split("/");
-	const vendor = parts[0] ?? modelId;
-
-	return { id: modelId, vendor };
+	return { id: modelId, vendor: resolveModelVendor(providerId, modelId) };
 }
 
 /**
@@ -142,7 +151,7 @@ export async function getAutonameModel(
 	}
 
 	// Return the ID of the first (cheapest) model
-	return available[0]?.id;
+	return available[0]?.id ?? null;
 }
 
 /**

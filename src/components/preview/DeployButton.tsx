@@ -176,6 +176,23 @@ export function DeployButton({
 								<CheckCircle2 className="h-4 w-4 text-status-success" />
 								<span className="font-medium text-sm">Deployed</span>
 							</div>
+
+							{state.url && (
+								<div className="space-y-2 mt-3">
+									<p className="text-xs text-muted-foreground">
+										Production URL:
+									</p>
+									<a
+										href={state.url}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="block text-sm text-status-info hover:text-status-info hover:underline break-all"
+									>
+										{state.url}
+									</a>
+								</div>
+							)}
+
 							<div className="flex gap-2 mt-3">
 								<Button
 									size="sm"

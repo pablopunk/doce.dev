@@ -77,14 +77,21 @@ export const projects = sqliteTable("projects", {
 		.notNull()
 		.default(false),
 	// Production deployment fields
-	productionPort: integer("production_port"),
+	productionPort: integer("production_port").notNull(),
 	productionUrl: text("production_url"),
 	productionStatus: text("production_status", {
 		enum: ["queued", "building", "running", "failed", "stopped"],
-	}).default("stopped"),
+	})
+		.notNull()
+		.default("stopped"),
 	productionStartedAt: integer("production_started_at", { mode: "timestamp" }),
 	productionError: text("production_error"),
 	productionHash: text("production_hash"),
+	opencodeErrorCategory: text("opencode_error_category"),
+	opencodeErrorCode: text("opencode_error_code"),
+	opencodeErrorMessage: text("opencode_error_message"),
+	opencodeErrorSource: text("opencode_error_source"),
+	opencodeErrorAt: integer("opencode_error_at", { mode: "timestamp" }),
 });
 
 // Queue jobs table (durable background tasks)

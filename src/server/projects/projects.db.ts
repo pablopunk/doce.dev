@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type NewProject, type Project, projects } from "@/server/db/schema";
+import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
 
 export type ProjectStatus = Project["status"];
 
@@ -186,6 +187,35 @@ export async function markUserPromptCompleted(id: string): Promise<void> {
 		.set({
 			userPromptCompleted: true,
 			initialPromptCompleted: true,
+		})
+		.where(eq(projects.id, id));
+}
+
+export async function updateProjectOpencodeError(
+	id: string,
+	diagnostic: OpencodeDiagnostic,
+): Promise<void> {
+	await db
+		.update(projects)
+		.set({
+			opencodeErrorCategory: diagnostic.category,
+			opencodeErrorCode: diagnostic.technicalDetails?.errorName ?? null,
+			opencodeErrorMessage: diagnostic.message,
+			opencodeErrorSource: diagnostic.source,
+			opencodeErrorAt: new Date(),
+		})
+		.where(eq(projects.id, id));
+}
+
+export async function clearProjectOpencodeError(id: string): Promise<void> {
+	await db
+		.update(projects)
+		.set({
+			opencodeErrorCategory: null,
+			opencodeErrorCode: null,
+			opencodeErrorMessage: null,
+			opencodeErrorSource: null,
+			opencodeErrorAt: null,
 		})
 		.where(eq(projects.id, id));
 }

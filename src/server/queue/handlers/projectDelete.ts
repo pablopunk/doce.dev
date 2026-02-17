@@ -1,12 +1,16 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
-import { normalizeProjectPath } from "@/server/projects/paths";
+import {
+	getProjectPreviewPath,
+	normalizeProjectPath,
+} from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	hardDeleteProject,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
+import { spawnCommand } from "@/server/utils/execAsync";
 import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 
@@ -53,13 +57,47 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 
 	// Step 2: Stop and remove Docker containers (best-effort)
 	try {
-		await composeDownWithVolumes(project.id, project.pathOnDisk);
-		logger.debug({ projectId: project.id }, "Docker compose down completed");
+		// Stop dev containers (preview + opencode)
+		const previewPath = getProjectPreviewPath(project.id);
+		await composeDownWithVolumes(project.id, previewPath);
+		logger.debug(
+			{ projectId: project.id },
+			"Dev containers stopped (preview + opencode)",
+		);
+
+		// Stop production container
+		const containerName = `doce-prod-${project.id}`;
+		const stopResult = await spawnCommand("docker", ["stop", containerName]);
+		const removeResult = await spawnCommand("docker", ["rm", containerName]);
+
+		if (stopResult.success && removeResult.success) {
+			logger.debug(
+				{ projectId: project.id, containerName },
+				"Production container stopped and removed",
+			);
+		}
+
+		// Clean up Docker images (best-effort)
+		const imagePrefix = `doce-prod-${project.id}-`;
+		const listResult = await spawnCommand("docker", [
+			"images",
+			imagePrefix,
+			"--format",
+			"{{.Repository}}:{{.Tag}}",
+		]);
+
+		if (listResult.success && listResult.stdout) {
+			const images = listResult.stdout.trim().split("\n").filter(Boolean);
+			for (const image of images) {
+				await spawnCommand("docker", ["rmi", image]);
+				logger.debug({ projectId: project.id, image }, "Removed Docker image");
+			}
+		}
 	} catch (error) {
 		// Non-critical: Docker might not be available or already stopped
 		logger.warn(
 			{ error, projectId: project.id },
-			"Failed to stop Docker containers",
+			"Failed to stop Docker containers or remove images",
 		);
 	}
 

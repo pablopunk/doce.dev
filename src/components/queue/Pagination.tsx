@@ -17,6 +17,7 @@ export function Pagination({
 	return (
 		<div className="flex items-center justify-center gap-4">
 			<button
+				type="button"
 				onClick={() => onPageChange(currentPage - 1)}
 				disabled={!canGoPrev}
 				className="px-3 py-2 text-sm rounded border border-muted-foreground/30 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
@@ -30,6 +31,7 @@ export function Pagination({
 			</span>
 
 			<button
+				type="button"
 				onClick={() => onPageChange(currentPage + 1)}
 				disabled={!canGoNext}
 				className="px-3 py-2 text-sm rounded border border-muted-foreground/30 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"

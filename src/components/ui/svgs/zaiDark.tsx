@@ -2,6 +2,7 @@ import type { SVGProps } from "react";
 
 const ZaiDark = (props: SVGProps<SVGSVGElement>) => (
 	<svg {...props} viewBox="1.17 1.17 27.66 27.65" fill="none">
+		<title>ZAI</title>
 		<path
 			fill="#2D2D2D"
 			stroke="#FFFFFF"

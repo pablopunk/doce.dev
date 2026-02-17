@@ -18,6 +18,10 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * For CRUD operations, prefer React hooks or programmatic fetch calls (stil, astro actions) over HTML forms.
 * Avoid success/error/info callouts in components, always use `sonner` component for feedback after actions.
 * Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
+* Use Biome (`pnpm format`) for formatting/linting, not ESLint/Prettier.
+* Use `defineAction` with Zod `input` schemas for all server actions.
+* Use `@/server/logger` (Pino) instead of `console.*` in server code.
+* API routes handle their own auth via cookies; don't assume middleware auth for `/_actions` and `/api`.
 
 ## Clean code
 

@@ -1,7 +1,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { getProjectPath } from "@/server/projects/paths";
+import {
+	getProjectPreviewOpencodePath,
+	getTemplatePath,
+} from "@/server/projects/paths";
 
 interface OpencodeConfig {
 	model?: string;
@@ -11,18 +14,51 @@ interface OpencodeConfig {
 	[key: string]: unknown;
 }
 
+const OPENCODE_FILENAME = "opencode.json";
+
+async function ensurePreviewOpencodeJson(projectId: string): Promise<void> {
+	const previewPath = getProjectPreviewOpencodePath(projectId);
+	try {
+		await fs.access(previewPath);
+		return;
+	} catch (_error) {
+		try {
+			await fs.mkdir(path.dirname(previewPath), { recursive: true });
+			const templatePath = path.join(getTemplatePath(), OPENCODE_FILENAME);
+			await fs.copyFile(templatePath, previewPath);
+			logger.debug(
+				{ projectId, path: previewPath },
+				"Initialized preview opencode.json from template",
+			);
+		} catch (copyError) {
+			logger.error(
+				{
+					projectId,
+					error: String(copyError),
+				},
+				"Failed to initialize preview opencode.json",
+			);
+			throw copyError;
+		}
+	}
+}
+
 /**
  * Load opencode.json configuration from a project directory.
  */
 export async function loadOpencodeConfig(
-	projectPath: string,
+	projectId: string,
 ): Promise<OpencodeConfig | null> {
 	try {
-		const configPath = path.join(projectPath, "opencode.json");
+		await ensurePreviewOpencodeJson(projectId);
+		const configPath = getProjectPreviewOpencodePath(projectId);
 		const content = await fs.readFile(configPath, "utf-8");
 		return JSON.parse(content) as OpencodeConfig;
-	} catch {
-		logger.debug({ projectPath }, "Could not load opencode.json");
+	} catch (error) {
+		logger.debug(
+			{ projectId, error: String(error) },
+			"Could not load preview/opencode.json",
+		);
 		return null;
 	}
 }
@@ -57,22 +93,25 @@ export async function updateOpencodeJsonModel(
 	projectId: string,
 	newModel: string,
 ): Promise<void> {
-	const projectPath = getProjectPath(projectId);
-	const opencodeJsonPath = path.join(projectPath, "opencode.json");
+	const configPath = getProjectPreviewOpencodePath(projectId);
+	await ensurePreviewOpencodeJson(projectId);
 
 	try {
-		const content = await fs.readFile(opencodeJsonPath, "utf-8");
+		const content = await fs.readFile(configPath, "utf-8");
 		const config = JSON.parse(content) as Record<string, unknown>;
 
 		config.model = newModel;
 
-		await fs.writeFile(opencodeJsonPath, JSON.stringify(config, null, 2));
+		await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
-		logger.debug({ projectId, newModel }, "Updated opencode.json model");
+		logger.debug(
+			{ projectId, newModel },
+			"Updated preview/opencode.json model",
+		);
 	} catch (error) {
 		logger.error(
 			{ projectId, newModel, error: String(error) },
-			"Failed to update opencode.json model",
+			"Failed to update preview/opencode.json model",
 		);
 		throw error;
 	}

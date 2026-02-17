@@ -2,6 +2,7 @@
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { JobDetailLive } from "@/components/queue/JobDetailLive";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { canUserAccessQueueJob } from "@/server/queue/access";
 import { getJobById } from "@/server/queue/queue.model";
 
 const user = Astro.locals.user;
@@ -16,6 +17,11 @@ if (!jobId) {
 
 const job = await getJobById(jobId);
 if (!job) {
+	return Astro.redirect("/queue");
+}
+
+const canAccessJob = await canUserAccessQueueJob(user.id, job);
+if (!canAccessJob) {
 	return Astro.redirect("/queue");
 }
 ---

@@ -28,5 +28,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_PERMISSION: '{"bash": "deny"}'
         with:
+          model: opencode/kimi-k2.5
           model: opencode/minimax-m2.5

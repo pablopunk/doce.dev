@@ -1,13 +1,20 @@
 {
-	"version": "7",
-	"dialect": "sqlite",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "6",
-			"when": 1767962667134,
-			"tag": "0000_cultured_mother_askani",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1769712818274,
+      "tag": "0000_brief_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771242358542,
+      "tag": "0001_supreme_yellowjacket",
+      "breakpoints": true
+    }
+  ]
 }

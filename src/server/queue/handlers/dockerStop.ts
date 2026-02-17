@@ -1,4 +1,5 @@
 import { composeDown } from "@/server/docker/compose";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
@@ -22,7 +23,8 @@ export async function handleDockerStop(ctx: QueueJobContext): Promise<void> {
 
 	await ctx.throwIfCancelRequested();
 
-	const result = await composeDown(project.id, project.pathOnDisk);
+	const previewPath = getProjectPreviewPath(project.id);
+	const result = await composeDown(project.id, previewPath);
 
 	if (result.success) {
 		await updateProjectStatus(project.id, "stopped");

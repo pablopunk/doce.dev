@@ -61,7 +61,8 @@ export function AssetsList({
 	};
 
 	return (
-		<div
+		<section
+			aria-label="Assets list dropzone"
 			className="p-4 h-full overflow-y-auto relative"
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
@@ -78,7 +79,7 @@ export function AssetsList({
 						onRename={onRename}
 						onDelete={onDelete}
 						isLoading={isLoading}
-						previewUrl={previewUrl}
+						{...(previewUrl ? { previewUrl } : {})}
 					/>
 				))}
 			</div>
@@ -92,6 +93,6 @@ export function AssetsList({
 					</div>
 				</div>
 			)}
-		</div>
+		</section>
 	);
 }

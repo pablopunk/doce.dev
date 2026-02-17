@@ -14,6 +14,7 @@ import { handleProductionWaitReady } from "./handlers/productionWaitReady";
 import { handleProjectCreate } from "./handlers/projectCreate";
 import { handleProjectDelete } from "./handlers/projectDelete";
 import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
+import { runWithQueueJobLogContext } from "./job-log-context";
 import {
 	cancelRunningJob,
 	claimNextJob,
@@ -192,76 +193,76 @@ async function runJob(
 	options: QueueWorkerOptions,
 	signal: AbortSignal,
 ): Promise<void> {
-	const heartbeatTimer = setInterval(() => {
-		heartbeatLease(job.id, workerId, options.leaseMs).catch(() => {
-			// ignore
-		});
-	}, 5000);
+	return runWithQueueJobLogContext(job.id, async () => {
+		const heartbeatTimer = setInterval(() => {
+			heartbeatLease(job.id, workerId, options.leaseMs).catch(() => {
+				// ignore
+			});
+		}, 5000);
 
-	const throwIfCancelRequested = async () => {
-		const cancelRequestedAt = await getJobCancelRequestedAt(job.id);
-		if (cancelRequestedAt) {
-			throw new Error("cancel_requested");
-		}
-	};
-
-	try {
-		await throwIfCancelRequested();
-
-		const handler = handlerByType[job.type as QueueJobType];
-		if (!handler) {
-			throw new Error(`No handler for job type: ${job.type}`);
-		}
-
-		const reschedule = (delayMs: number): never => {
-			throw new RescheduleError(delayMs);
+		const throwIfCancelRequested = async () => {
+			const cancelRequestedAt = await getJobCancelRequestedAt(job.id);
+			if (cancelRequestedAt) {
+				throw new Error("cancel_requested");
+			}
 		};
 
-		await handler({ job, workerId, throwIfCancelRequested, reschedule });
+		try {
+			await throwIfCancelRequested();
 
-		await completeJob(job.id, workerId);
-		logger.info({ jobId: job.id, type: job.type }, "Queue job succeeded");
-	} catch (error) {
-		// Handle reschedule (not an error, just re-queue)
-		if (error instanceof RescheduleError) {
-			await rescheduleJob(job.id, workerId, error.delayMs);
-			logger.info(
-				{
-					jobId: job.id,
-					type: job.type,
-					delayMs: error.delayMs,
-					attempts: job.attempts,
-				},
-				"Queue job rescheduled",
+			const handler = handlerByType[job.type as QueueJobType];
+			if (!handler) {
+				throw new Error(`No handler for job type: ${job.type}`);
+			}
+
+			const reschedule = (delayMs: number): never => {
+				throw new RescheduleError(delayMs);
+			};
+
+			await handler({ job, workerId, throwIfCancelRequested, reschedule });
+
+			await completeJob(job.id, workerId);
+			logger.info({ jobId: job.id, type: job.type }, "Queue job succeeded");
+		} catch (error) {
+			if (error instanceof RescheduleError) {
+				await rescheduleJob(job.id, workerId, error.delayMs);
+				logger.info(
+					{
+						jobId: job.id,
+						type: job.type,
+						delayMs: error.delayMs,
+						attempts: job.attempts,
+					},
+					"Queue job rescheduled",
+				);
+				return;
+			}
+
+			const message = toErrorMessage(error);
+
+			if (message === "cancel_requested") {
+				await cancelRunningJob(job.id, workerId);
+				logger.info({ jobId: job.id, type: job.type }, "Queue job cancelled");
+				return;
+			}
+
+			if (job.attempts < job.maxAttempts && !signal.aborted) {
+				const delay = retryDelayMs(job.attempts);
+				await scheduleRetry(job.id, workerId, delay, message);
+				logger.warn(
+					{ jobId: job.id, type: job.type, attempts: job.attempts, delay },
+					"Queue job scheduled for retry",
+				);
+				return;
+			}
+
+			await failJob(job.id, workerId, message);
+			logger.error(
+				{ jobId: job.id, type: job.type, error: message },
+				"Queue job failed",
 			);
-			return;
+		} finally {
+			clearInterval(heartbeatTimer);
 		}
-
-		const message = toErrorMessage(error);
-
-		if (message === "cancel_requested") {
-			await cancelRunningJob(job.id, workerId);
-			logger.info({ jobId: job.id, type: job.type }, "Queue job cancelled");
-			return;
-		}
-
-		// Retry if attempts remain
-		if (job.attempts < job.maxAttempts && !signal.aborted) {
-			const delay = retryDelayMs(job.attempts);
-			await scheduleRetry(job.id, workerId, delay, message);
-			logger.warn(
-				{ jobId: job.id, type: job.type, attempts: job.attempts, delay },
-				"Queue job scheduled for retry",
-			);
-			return;
-		}
-
-		await failJob(job.id, workerId, message);
-		logger.error(
-			{ jobId: job.id, type: job.type, error: message },
-			"Queue job failed",
-		);
-	} finally {
-		clearInterval(heartbeatTimer);
-	}
+	});
 }
