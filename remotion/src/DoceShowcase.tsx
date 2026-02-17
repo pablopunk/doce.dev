@@ -8,17 +8,19 @@ import { Scene3Chat } from "./scenes/Scene3Chat";
 import { Scene5Deploy } from "./scenes/Scene5Deploy";
 import { Scene6iPhone } from "./scenes/Scene6iPhone";
 import { Scene7Logo } from "./scenes/Scene7Logo";
+import { type ThemeMode, ThemeProvider, useTheme } from "./theme";
 
 const TRANSITION_FRAMES = 10;
 const WINDOW_WIDTH = 1720;
 const WINDOW_HEIGHT = 960;
 
-export const DoceShowcase: React.FC = () => {
+const DoceShowcaseInner: React.FC = () => {
+	const t = useTheme();
+
 	return (
 		<AbsoluteFill
 			style={{
-				background:
-					"radial-gradient(ellipse at 30% 20%, #1a1040 0%, #0c0c1a 40%, #080812 100%)",
+				background: t.wallpaperGradient,
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
@@ -32,8 +34,7 @@ export const DoceShowcase: React.FC = () => {
 					width: 500,
 					height: 500,
 					borderRadius: "50%",
-					background:
-						"radial-gradient(circle, rgba(99,70,220,0.12) 0%, transparent 70%)",
+					background: t.wallpaperGlow1,
 					filter: "blur(60px)",
 				}}
 			/>
@@ -45,8 +46,7 @@ export const DoceShowcase: React.FC = () => {
 					width: 400,
 					height: 400,
 					borderRadius: "50%",
-					background:
-						"radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%)",
+					background: t.wallpaperGlow2,
 					filter: "blur(50px)",
 				}}
 			/>
@@ -104,5 +104,13 @@ export const DoceShowcase: React.FC = () => {
 				</TransitionSeries>
 			</MacOSWindow>
 		</AbsoluteFill>
+	);
+};
+
+export const DoceShowcase: React.FC<{ mode: ThemeMode }> = ({ mode }) => {
+	return (
+		<ThemeProvider mode={mode}>
+			<DoceShowcaseInner />
+		</ThemeProvider>
 	);
 };

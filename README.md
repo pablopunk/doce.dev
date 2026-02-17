@@ -3,7 +3,8 @@
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
 <br />
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev showcase. not a real workflow, made in Remotion" width="80%" />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true#gh-dark-mode-only" alt="doce.dev showcase. not a real workflow, made in Remotion" width="80%" />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-light-960-15fps-hq.gif?raw=true#gh-light-mode-only" alt="doce.dev showcase. not a real workflow, made in Remotion" width="80%" />
 </p>
 
 Doce stands for:

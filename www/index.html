@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Delicious Open Code Environments" />
+    <title>doce.dev</title>
+    <link rel="icon" href="./icon-1080.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+
+    <script>
+      // Mirror the main app theme behavior (no toggle here):
+      // - use localStorage('doce-theme') if present
+      // - fallback to prefers-color-scheme
+      // - apply .dark on <html>
+      (() => {
+        try {
+          const saved = localStorage.getItem("doce-theme");
+          const theme =
+            saved ||
+            (window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light");
+          if (theme === "dark") document.documentElement.classList.add("dark");
+        } catch {
+          // Ignore (private mode / blocked storage)
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <main class="frame">
+      <header class="top">
+        <a class="brand" href="/" aria-label="doce.dev home">
+          doce.dev
+        </a>
+
+        <div class="meta">
+          <span class="pill pill-alpha">Alpha</span>
+        </div>
+      </header>
+
+      <section class="stack" aria-label="Showcase">
+        <h1 class="sr-only">doce.dev</h1>
+
+        <div class="video-wrap" aria-label="Product video">
+          <video
+            class="video video-dark"
+            src="./assets/doce-showcase.mp4"
+            poster="./assets/doce-showcase.gif"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+          ></video>
+          <video
+            class="video video-light"
+            src="./assets/doce-showcase-light.mp4"
+            poster="./assets/doce-showcase-light.gif"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+          ></video>
+        </div>
+
+        <section class="controls" aria-label="Actions">
+          <div class="actions" aria-label="Actions">
+            <a
+              class="btn"
+              href="https://github.com/pablopunk/doce.dev"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              GitHub
+            </a>
+
+            <button class="btn btn-primary" type="button" id="selfhost-trigger">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/>
+                <path d="M10 21.9V14L2.1 9.1"/>
+                <path d="m10 14 11.9-6.9"/>
+                <path d="M14 19.8v-8.1"/>
+                <path d="M18 17.5V9.4"/>
+              </svg>
+              Self-host
+            </button>
+
+            <button class="btn btn-primary" type="button" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/>
+                <path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/>
+                <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/>
+              </svg>
+              Deploy on doce.dev
+              <span class="pill pill-soon" aria-hidden="true">Soon</span>
+            </button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <!-- Modal -->
+    <div class="modal" id="selfhost-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+      <div class="modal-backdrop" id="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title">Self-host doce.dev</h2>
+          <button class="modal-close" type="button" aria-label="Close modal">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-alternative">
+            <h3 class="modal-alt-title">docker run</h3>
+            <div class="modal-code-wrap">
+              <pre class="modal-code"><code>docker run -d --name doce --restart unless-stopped \
+  -p 4321:4321 \
+  -v doce_data:/app/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/pablopunk/doce.dev:latest</code></pre>
+              <button class="modal-copy-btn" type="button" data-copy="run" aria-label="Copy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-alternative">
+            <h3 class="modal-alt-title">docker-compose.yml</h3>
+            <div class="modal-code-wrap">
+              <pre class="modal-code"><code>services:
+  doce:
+    image: ghcr.io/pablopunk/doce.dev:latest
+    container_name: doce
+    restart: unless-stopped
+    ports:
+      - "4321:4321"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+</code></pre>
+              <button class="modal-copy-btn" type="button" data-copy="compose" aria-label="Copy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="./main.js" type="module"></script>
+  </body>
+</html>
