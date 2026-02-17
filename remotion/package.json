@@ -1,0 +1,26 @@
+{
+  "name": "doce-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render DoceShowcase out/doce-showcase.mp4",
+    "build": "remotion render DoceShowcase out/doce-showcase.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.423",
+    "@remotion/google-fonts": "4.0.423",
+    "@remotion/transitions": "4.0.423",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.423"
+  },
+  "devDependencies": {
+    "@remotion/tailwind-v4": "4.0.423",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.0"
+  }
+}
