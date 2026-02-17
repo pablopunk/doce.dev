@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import type { QueueJob } from "@/server/db/schema";
+import { logger } from "@/server/logger";
 import {
 	countJobs,
 	getConcurrency,
@@ -188,13 +189,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
 							}
 						}
 					} catch (err) {
-						console.error("Error polling queue jobs:", err);
+						logger.error({ err }, "Error polling queue jobs");
 					}
 				}, 2000);
 
 				request.signal?.addEventListener("abort", () => closeStream?.());
 			} catch (err) {
-				console.error("Error in queue jobs stream:", err);
+				logger.error({ err }, "Error in queue jobs stream");
 				controller.error(err);
 			}
 		},

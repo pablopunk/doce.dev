@@ -6,6 +6,7 @@ import {
 	readLogFromOffset,
 	readLogTail,
 } from "@/server/docker/logs";
+import { logger } from "@/server/logger";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -47,7 +48,7 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 	// This handles the case where the server was restarted and lost the streaming process
 	void ensureLogStreaming(projectId, project.pathOnDisk).catch((error) => {
 		// Non-critical error - log but don't fail the request
-		console.error("Failed to ensure log streaming:", error);
+		logger.error({ error }, "Failed to ensure log streaming");
 	});
 
 	// Get offset from query params

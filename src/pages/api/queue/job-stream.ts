@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 
+import { logger } from "@/server/logger";
 import { canUserAccessQueueJob } from "@/server/queue/access";
 import { getJobById } from "@/server/queue/queue.model";
 
@@ -117,13 +118,13 @@ export const GET: APIRoute = async ({ request, locals }) => {
 							throw err;
 						}
 					} catch (err) {
-						console.error("Error polling queue job:", err);
+						logger.error({ err }, "Error polling queue job");
 					}
 				}, 1000);
 
 				request.signal?.addEventListener("abort", () => closeStream?.());
 			} catch (err) {
-				console.error("Error in job stream:", err);
+				logger.error({ err }, "Error in job stream");
 				controller.error(err);
 			}
 		},
