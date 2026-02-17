@@ -1,5 +1,12 @@
 # doce.dev - Self-Hosted AI Website Builder
 
+<p align="center">
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
+<br />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev screenshot" width="80%" />
+</p>
+
+
 ```
 (D)elicious (O)pen       (C)ode       (E)nvironments
 (D)eploy    (O)n         (C)ontainers (E)asily
@@ -10,18 +17,10 @@
  D           O            C            E
 ```
 
-<p align="center">
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
-<br />
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/remotion/out/doce-showcase-960-15fps-hq.gif?raw=true" alt="doce.dev screenshot" width="80%" />
-</p>
-
 > [!NOTE]
 > This project is not built by the OpenCode team and is not affiliated with them in any way.
 
 <p align="center">
-  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
-<br />
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-dark.png?raw=true#gh-dark-mode-only" alt="doce.dev screenshot" width="80%" />
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-light.png?raw=true#gh-light-mode-only" alt="doce.dev screenshot" width="80%" />
 </p>
