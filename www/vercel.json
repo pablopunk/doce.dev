@@ -1,0 +1,13 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"rewrites": [
+		{
+			"source": "/count",
+			"destination": "https://doce-dev.goatcounter.com/count"
+		},
+		{
+			"source": "/count(.*)",
+			"destination": "https://doce-dev.goatcounter.com/count$1"
+		}
+	]
+}
