@@ -1,3 +1,5 @@
+import { handleAppRestart } from "@/server/queue/handlers/appRestart";
+import { handleAppUpdate } from "@/server/queue/handlers/appUpdate";
 import { handleDockerComposeUp } from "@/server/queue/handlers/dockerComposeUp";
 import { handleDockerEnsureRunning } from "@/server/queue/handlers/dockerEnsureRunning";
 import { handleDockerStop } from "@/server/queue/handlers/dockerStop";
@@ -33,4 +35,6 @@ export function registerAllHandlers(): void {
 	registerHandler("production.start", handleProductionStart);
 	registerHandler("production.waitReady", handleProductionWaitReady);
 	registerHandler("production.stop", handleProductionStop);
+	registerHandler("app.update", handleAppUpdate);
+	registerHandler("app.restart", handleAppRestart);
 }

@@ -207,3 +207,23 @@ export async function enqueueProductionStop(
 		dedupeKey: `production.stop:${projectId}`,
 	});
 }
+
+// --- App update ---
+
+export async function enqueueAppUpdate(): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "app.update",
+		payload: {},
+		dedupeKey: "app.update",
+	});
+}
+
+export async function enqueueAppRestart(): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "app.restart",
+		payload: {},
+		dedupeKey: "app.restart",
+	});
+}

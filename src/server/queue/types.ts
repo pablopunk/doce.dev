@@ -19,6 +19,9 @@ export const queueJobTypeSchema = z.enum([
 	"production.start",
 	"production.waitReady",
 	"production.stop",
+	// App update
+	"app.update",
+	"app.restart",
 ]);
 
 export type QueueJobType = z.infer<typeof queueJobTypeSchema>;
@@ -152,6 +155,14 @@ const productionStopPayloadSchema = z.object({
 
 export type ProductionStopPayload = z.infer<typeof productionStopPayloadSchema>;
 
+export const appUpdatePayloadSchema = z.object({});
+
+export type AppUpdatePayload = z.infer<typeof appUpdatePayloadSchema>;
+
+export const appRestartPayloadSchema = z.object({});
+
+export type AppRestartPayload = z.infer<typeof appRestartPayloadSchema>;
+
 // --- Payload by type mapping ---
 
 const payloadSchemaByType = {
@@ -169,6 +180,8 @@ const payloadSchemaByType = {
 	"production.start": productionStartPayloadSchema,
 	"production.waitReady": productionWaitReadyPayloadSchema,
 	"production.stop": productionStopPayloadSchema,
+	"app.update": appUpdatePayloadSchema,
+	"app.restart": appRestartPayloadSchema,
 } as const satisfies Record<QueueJobType, z.ZodTypeAny>;
 
 export type PayloadByType = {
@@ -186,6 +199,8 @@ export type PayloadByType = {
 	"production.start": ProductionStartPayload;
 	"production.waitReady": ProductionWaitReadyPayload;
 	"production.stop": ProductionStopPayload;
+	"app.update": AppUpdatePayload;
+	"app.restart": AppRestartPayload;
 };
 
 export function parsePayload<T extends QueueJobType>(
