@@ -1,6 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { Effect } from "effect";
 import { FALLBACK_MODEL } from "@/server/config/models";
+import { OpenCodeError, ProjectError } from "@/server/effect/errors";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
 import { normalizeProjectPath } from "@/server/projects/paths";
@@ -11,50 +14,52 @@ import {
 	parseModelString,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
-import type { QueueJobContext } from "../queue.worker";
 import { type ImageAttachment, parsePayload } from "../types";
 
-/**
- * Handler for sending the user's actual project prompt.
- *
- * Flow:
- * 1. Send the user's prompt via prompt_async
- * 2. Wait briefly for the message to be created
- * 3. Fetch messages and capture the user prompt message ID
- * 4. Mark the initial prompt as sent
- */
-export async function handleOpencodeSendUserPrompt(
+export function handleOpencodeSendUserPrompt(
 	ctx: QueueJobContext,
-): Promise<void> {
-	const payload = parsePayload("opencode.sendUserPrompt", ctx.job.payloadJson);
-
-	const project = await getProjectByIdIncludeDeleted(payload.projectId);
-	if (!project) {
-		logger.warn(
-			{ projectId: payload.projectId },
-			"Project not found for opencode.sendUserPrompt",
+): Effect.Effect<void, ProjectError | OpenCodeError> {
+	return Effect.gen(function* () {
+		const payload = parsePayload(
+			"opencode.sendUserPrompt",
+			ctx.job.payloadJson,
 		);
-		return;
-	}
 
-	if (project.status === "deleting") {
-		logger.info(
-			{ projectId: project.id },
-			"Skipping opencode.sendUserPrompt for deleting project",
-		);
-		return;
-	}
+		const project = yield* Effect.tryPromise({
+			try: () => getProjectByIdIncludeDeleted(payload.projectId),
+			catch: (error) =>
+				new ProjectError({
+					projectId: payload.projectId,
+					operation: "getProjectByIdIncludeDeleted",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
 
-	// If already sent, skip
-	if (project.initialPromptSent) {
-		logger.info(
-			{ projectId: project.id },
-			"User prompt already sent, skipping",
-		);
-		return;
-	}
+		if (!project) {
+			logger.warn(
+				{ projectId: payload.projectId },
+				"Project not found for opencode.sendUserPrompt",
+			);
+			return;
+		}
 
-	try {
+		if (project.status === "deleting") {
+			logger.info(
+				{ projectId: project.id },
+				"Skipping opencode.sendUserPrompt for deleting project",
+			);
+			return;
+		}
+
+		if (project.initialPromptSent) {
+			logger.info(
+				{ projectId: project.id },
+				"User prompt already sent, skipping",
+			);
+			return;
+		}
+
 		logger.info(
 			{ projectId: project.id },
 			"opencode.sendUserPrompt handler started",
@@ -62,7 +67,11 @@ export async function handleOpencodeSendUserPrompt(
 
 		const sessionId = project.bootstrapSessionId;
 		if (!sessionId) {
-			throw new Error("No bootstrap session ID found - session not created?");
+			return yield* new OpenCodeError({
+				projectId: project.id,
+				operation: "sendUserPrompt",
+				message: "No bootstrap session ID found - session not created?",
+			});
 		}
 
 		logger.info(
@@ -70,32 +79,38 @@ export async function handleOpencodeSendUserPrompt(
 			"Bootstrap session ID found, proceeding with prompt send",
 		);
 
-		await ctx.throwIfCancelRequested();
+		yield* ctx.throwIfCancelRequested();
 
-		// Read images from temp file if it exists
 		const normalizedProjectPath = normalizeProjectPath(project.pathOnDisk);
 		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 		let images: ImageAttachment[] = [];
-		try {
-			const imagesContent = await fs.readFile(imagesPath, "utf-8");
-			images = JSON.parse(imagesContent);
-			// Delete the temp file after reading
-			await fs.unlink(imagesPath).catch(() => {});
+
+		const imagesContent = yield* Effect.tryPromise({
+			try: () => fs.readFile(imagesPath, "utf-8"),
+			catch: () => null,
+		});
+
+		if (imagesContent) {
+			images = yield* Effect.tryPromise({
+				try: () =>
+					Promise.resolve(JSON.parse(imagesContent) as ImageAttachment[]),
+				catch: () => [],
+			});
+			yield* Effect.tryPromise({
+				try: () => fs.unlink(imagesPath).catch(() => Promise.resolve()),
+				catch: () => null,
+			});
 			logger.debug(
 				{ projectId: project.id, imageCount: images.length },
 				"Loaded images for initial prompt",
 			);
-		} catch {
-			// No images file - that's fine
 		}
 
-		// Build parts array: text first, then images as file parts (OpenCode pattern)
 		const parts: Array<
 			| { type: "text"; text: string }
 			| { type: "file"; mime: string; url: string; filename?: string }
 		> = [{ type: "text", text: project.prompt }];
 
-		// Add images as file parts
 		for (const img of images) {
 			parts.push({
 				type: "file",
@@ -105,68 +120,85 @@ export async function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		const config = await loadOpencodeConfig(project.id);
-		const modelString = config?.model || FALLBACK_MODEL;
+		const config = yield* Effect.tryPromise({
+			try: () => loadOpencodeConfig(project.id),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "loadOpencodeConfig",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
 
-		// Parse the provider-prefixed model string
+		const modelString = config?.model || FALLBACK_MODEL;
 		const modelInfo = parseModelString(modelString);
 		if (!modelInfo) {
-			throw new Error(`Invalid model string: ${modelString}`);
+			return yield* new OpenCodeError({
+				projectId: project.id,
+				operation: "parseModelString",
+				message: `Invalid model string: ${modelString}`,
+			});
 		}
 
-		// Create SDK client for this project
-		// Pass projectId and opencodePort to connect via container hostname (Docker) or localhost (dev)
 		const client = createOpencodeClient(project.id, project.opencodePort);
 
-		// Send the user's prompt via SDK with model specified
-		try {
-			const promptResponse = await client.session.promptAsync({
-				sessionID: sessionId,
-				model: {
-					providerID: modelInfo.providerID,
-					modelID: modelInfo.modelID,
-				},
-				parts,
-			});
-
-			// Validate response
-			if (!promptResponse) {
-				throw new Error("No response received from promptAsync");
-			}
-
-			logger.info(
-				{ projectId: project.id, sessionId, modelInfo },
-				"Sent user prompt with model",
-			);
-		} catch (error) {
-			logger.error(
-				{
+		const promptResponse = yield* Effect.tryPromise({
+			try: () =>
+				client.session.promptAsync({
+					sessionID: sessionId,
+					model: {
+						providerID: modelInfo.providerID,
+						modelID: modelInfo.modelID,
+					},
+					parts,
+				}),
+			catch: (error) =>
+				new OpenCodeError({
 					projectId: project.id,
-					sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to send user prompt",
-			);
-			throw error;
+					operation: "promptAsync",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
+
+		if (!promptResponse) {
+			return yield* new OpenCodeError({
+				projectId: project.id,
+				operation: "promptAsync",
+				message: "No response received from promptAsync",
+			});
 		}
 
-		await ctx.throwIfCancelRequested();
+		logger.info(
+			{ projectId: project.id, sessionId, modelInfo },
+			"Sent user prompt with model",
+		);
 
-		// Wait a moment for the message to be created, then capture its ID
-		// Use a longer delay to ensure the user message is created before we fetch
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		yield* ctx.throwIfCancelRequested();
+		yield* Effect.sleep(1000);
 
-		// Fetch messages via SDK
 		let messages: Array<{
 			info?: { id?: string; role?: string };
 			parts?: Array<{ type?: string; text?: string }>;
 		}> = [];
 
-		try {
-			const messagesResponse = await client.session.messages({
-				sessionID: sessionId,
-			});
+		const messagesResponse = yield* Effect.tryPromise({
+			try: () => client.session.messages({ sessionID: sessionId }),
+			catch: (error) => {
+				logger.warn(
+					{
+						projectId: project.id,
+						sessionId,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					"Failed to fetch messages after prompt",
+				);
+				return null;
+			},
+		});
 
+		if (messagesResponse) {
 			logger.info(
 				{
 					projectId: project.id,
@@ -176,7 +208,6 @@ export async function handleOpencodeSendUserPrompt(
 				"Messages response received",
 			);
 
-			// Validate response structure
 			if (!messagesResponse.data) {
 				logger.warn(
 					{ projectId: project.id, sessionId },
@@ -205,21 +236,7 @@ export async function handleOpencodeSendUserPrompt(
 					"Messages fetched successfully",
 				);
 			}
-		} catch (error) {
-			logger.warn(
-				{
-					projectId: project.id,
-					sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				},
-				"Failed to fetch messages after prompt",
-			);
-			// Non-fatal: we'll log the prompt as sent without a specific message ID
 		}
-
-		// We need to find the user message with the project prompt
-		// Since prompt_async is async, the message might not exist yet or might be the last one
-		// Strategy: look for a user message that matches the project prompt text
 
 		let userMsgId: string | undefined;
 
@@ -232,11 +249,9 @@ export async function handleOpencodeSendUserPrompt(
 			"Starting message search",
 		);
 
-		// First pass: find user message with matching text
 		for (let i = messages.length - 1; i >= 0; i--) {
 			const msg = messages[i];
 			if (msg?.info?.role === "user" && msg?.info?.id) {
-				// Check all parts for text content
 				const msgText =
 					msg.parts
 						?.filter((p) => p.type === "text")
@@ -260,7 +275,6 @@ export async function handleOpencodeSendUserPrompt(
 					"Checking message for match",
 				);
 
-				// Check if message contains at least the first 30 characters of prompt
 				if (
 					msgText.includes(promptText.slice(0, Math.min(30, promptText.length)))
 				) {
@@ -274,7 +288,6 @@ export async function handleOpencodeSendUserPrompt(
 			}
 		}
 
-		// If no match found, use the last user message (fallback)
 		if (!userMsgId) {
 			logger.debug(
 				{ projectId: project.id },
@@ -294,7 +307,16 @@ export async function handleOpencodeSendUserPrompt(
 		}
 
 		if (userMsgId) {
-			await updateUserPromptMessageId(project.id, userMsgId);
+			yield* Effect.tryPromise({
+				try: () => updateUserPromptMessageId(project.id, userMsgId!),
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "updateUserPromptMessageId",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
 			logger.info(
 				{ projectId: project.id, userMsgId },
 				"Stored user prompt message ID",
@@ -306,8 +328,17 @@ export async function handleOpencodeSendUserPrompt(
 			);
 		}
 
-		// Mark initial prompt as sent (legacy flag for backward compatibility)
-		await markInitialPromptSent(project.id);
+		yield* Effect.tryPromise({
+			try: () => markInitialPromptSent(project.id),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "markInitialPromptSent",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
+
 		logger.info(
 			{ projectId: project.id },
 			"Marked initial prompt as sent in database",
@@ -317,15 +348,17 @@ export async function handleOpencodeSendUserPrompt(
 			{ projectId: project.id },
 			"opencode.sendUserPrompt handler completed successfully",
 		);
-	} catch (error) {
-		logger.error(
-			{
-				projectId: project.id,
-				error: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined,
-			},
-			"opencode.sendUserPrompt handler failed",
-		);
-		throw error;
-	}
+	}).pipe(
+		Effect.tapError((error) =>
+			Effect.sync(() => {
+				logger.error(
+					{
+						error: error.message,
+						cause: error.cause,
+					},
+					"opencode.sendUserPrompt handler failed",
+				);
+			}),
+		),
+	);
 }

@@ -10,15 +10,15 @@ import {
 	ensureDoceSharedNetwork,
 	ensureGlobalPnpmVolume,
 } from "@/server/docker/compose";
+import { ensureEffectQueueWorkerStarted } from "@/server/effect";
 import { logger } from "@/server/logger";
-import { ensureQueueWorkerStarted } from "@/server/queue/start";
 
 let startupInitialized = false;
 async function ensureInitialized() {
 	if (startupInitialized) return;
 	try {
 		await ensureDatabaseReady();
-		ensureQueueWorkerStarted();
+		ensureEffectQueueWorkerStarted();
 		await ensureDoceSharedNetwork();
 		await ensureGlobalPnpmVolume();
 		startupInitialized = true;

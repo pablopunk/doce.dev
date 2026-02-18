@@ -1,19 +1,8 @@
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
-import { handleDockerComposeUp } from "./handlers/dockerComposeUp";
-import { handleDockerEnsureRunning } from "./handlers/dockerEnsureRunning";
 import { handleDockerStop } from "./handlers/dockerStop";
-import { handleDockerWaitReady } from "./handlers/dockerWaitReady";
-import { handleOpencodeSendInitialPrompt } from "./handlers/opencodeSendInitialPrompt";
-import { handleOpencodeSendUserPrompt } from "./handlers/opencodeSendUserPrompt";
-import { handleOpencodeSessionCreate } from "./handlers/opencodeSessionCreate";
-import { handleProductionBuild } from "./handlers/productionBuild";
-import { handleProductionStart } from "./handlers/productionStart";
-import { handleProductionStop } from "./handlers/productionStop";
-import { handleProductionWaitReady } from "./handlers/productionWaitReady";
 import { handleProjectCreate } from "./handlers/projectCreate";
 import { handleProjectDelete } from "./handlers/projectDelete";
-import { handleDeleteAllForUser } from "./handlers/projectsDeleteAllForUser";
 import { runWithQueueJobLogContext } from "./job-log-context";
 import {
 	cancelRunningJob,
@@ -61,22 +50,22 @@ export interface QueueJobContext {
 
 const handlerByType: Record<
 	QueueJobType,
-	(ctx: QueueJobContext) => Promise<void>
+	((ctx: QueueJobContext) => Promise<void>) | undefined
 > = {
 	"project.create": handleProjectCreate,
 	"project.delete": handleProjectDelete,
-	"projects.deleteAllForUser": handleDeleteAllForUser,
-	"docker.composeUp": handleDockerComposeUp,
-	"docker.waitReady": handleDockerWaitReady,
-	"docker.ensureRunning": handleDockerEnsureRunning,
 	"docker.stop": handleDockerStop,
-	"opencode.sessionCreate": handleOpencodeSessionCreate,
-	"opencode.sendInitialPrompt": handleOpencodeSendInitialPrompt,
-	"opencode.sendUserPrompt": handleOpencodeSendUserPrompt,
-	"production.build": handleProductionBuild,
-	"production.start": handleProductionStart,
-	"production.waitReady": handleProductionWaitReady,
-	"production.stop": handleProductionStop,
+	"projects.deleteAllForUser": undefined,
+	"docker.composeUp": undefined,
+	"docker.waitReady": undefined,
+	"docker.ensureRunning": undefined,
+	"opencode.sessionCreate": undefined,
+	"opencode.sendInitialPrompt": undefined,
+	"opencode.sendUserPrompt": undefined,
+	"production.build": undefined,
+	"production.start": undefined,
+	"production.waitReady": undefined,
+	"production.stop": undefined,
 };
 
 function sleep(ms: number): Promise<void> {

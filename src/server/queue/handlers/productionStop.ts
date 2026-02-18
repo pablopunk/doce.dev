@@ -1,27 +1,39 @@
 import * as fs from "node:fs/promises";
+import { Effect } from "effect";
+import { ProjectError } from "@/server/effect/errors";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { updateProductionStatus } from "@/server/productions/productions.model";
 import { getProductionPath } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
-import type { QueueJobContext } from "../queue.worker";
 import { parsePayload } from "../types";
 
-export async function handleProductionStop(
+export function handleProductionStop(
 	ctx: QueueJobContext,
-): Promise<void> {
-	const payload = parsePayload("production.stop", ctx.job.payloadJson);
+): Effect.Effect<void, ProjectError> {
+	return Effect.gen(function* () {
+		const payload = parsePayload("production.stop", ctx.job.payloadJson);
 
-	const project = await getProjectByIdIncludeDeleted(payload.projectId);
-	if (!project) {
-		logger.warn(
-			{ projectId: payload.projectId },
-			"Project not found for production.stop",
-		);
-		return;
-	}
+		const project = yield* Effect.tryPromise({
+			try: () => getProjectByIdIncludeDeleted(payload.projectId),
+			catch: (error) =>
+				new ProjectError({
+					projectId: payload.projectId,
+					operation: "getProjectByIdIncludeDeleted",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
 
-	try {
+		if (!project) {
+			logger.warn(
+				{ projectId: payload.projectId },
+				"Project not found for production.stop",
+			);
+			return;
+		}
+
 		const containerName = `doce-prod-${project.id}`;
 
 		logger.info(
@@ -29,87 +41,117 @@ export async function handleProductionStop(
 			"Stopping production container",
 		);
 
-		await stopContainer(project.id, containerName);
-		await removeContainer(project.id, containerName);
-		await removeDockerImages(project.id);
-		await removeProductionArtifacts(project.id);
+		yield* stopContainer(project.id, containerName);
+		yield* removeContainer(project.id, containerName);
+		yield* removeDockerImages(project.id);
+		yield* removeProductionArtifacts(project.id);
 
 		if (project.status !== "deleting") {
-			await updateProductionStatus(project.id, "stopped");
+			yield* Effect.tryPromise({
+				try: () => updateProductionStatus(project.id, "stopped"),
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "updateProductionStatus",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
 		}
 
 		logger.info({ projectId: project.id }, "Production cleanup complete");
-	} catch (error) {
-		logger.error(
-			{ projectId: project.id, error },
-			"production.stop handler failed",
-		);
-		throw error;
-	}
+	}).pipe(
+		Effect.tapError((error) =>
+			Effect.sync(() => {
+				logger.error(
+					{
+						projectId: error.projectId,
+						error: error.message,
+					},
+					"production.stop handler failed",
+				);
+			}),
+		),
+	);
 }
 
-async function stopContainer(
+function stopContainer(
 	projectId: string,
 	containerName: string,
-): Promise<void> {
-	const result = await spawnCommand("docker", ["stop", containerName]);
-	if (!result.success) {
-		logger.warn(
-			{ projectId, stderr: result.stderr.slice(0, 200) },
-			"Failed to stop production container (may not exist)",
-		);
-	}
+): Effect.Effect<void, never> {
+	return Effect.gen(function* () {
+		const result = yield* Effect.tryPromise({
+			try: () => spawnCommand("docker", ["stop", containerName]),
+			catch: () => null,
+		});
+
+		if (!result?.success) {
+			logger.warn(
+				{ projectId, stderr: result?.stderr?.slice(0, 200) },
+				"Failed to stop production container (may not exist)",
+			);
+		}
+	}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 }
 
-async function removeContainer(
+function removeContainer(
 	projectId: string,
 	containerName: string,
-): Promise<void> {
-	const result = await spawnCommand("docker", ["rm", containerName]);
-	if (!result.success) {
-		logger.warn(
-			{ projectId, stderr: result.stderr.slice(0, 200) },
-			"Failed to remove production container (may not exist)",
-		);
-	}
+): Effect.Effect<void, never> {
+	return Effect.gen(function* () {
+		const result = yield* Effect.tryPromise({
+			try: () => spawnCommand("docker", ["rm", containerName]),
+			catch: () => null,
+		});
+
+		if (!result?.success) {
+			logger.warn(
+				{ projectId, stderr: result?.stderr?.slice(0, 200) },
+				"Failed to remove production container (may not exist)",
+			);
+		}
+	}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 }
 
-async function removeDockerImages(projectId: string): Promise<void> {
-	const imagePrefix = `doce-prod-${projectId}-`;
-	try {
-		const listResult = await spawnCommand("docker", [
-			"images",
-			imagePrefix,
-			"--format",
-			"{{.Repository}}:{{.Tag}}",
-		]);
+function removeDockerImages(projectId: string): Effect.Effect<void, never> {
+	return Effect.gen(function* () {
+		const imagePrefix = `doce-prod-${projectId}-`;
 
-		if (!listResult.success || !listResult.stdout) return;
+		const listResult = yield* Effect.tryPromise({
+			try: () =>
+				spawnCommand("docker", [
+					"images",
+					imagePrefix,
+					"--format",
+					"{{.Repository}}:{{.Tag}}",
+				]),
+			catch: () => null,
+		});
+
+		if (!listResult?.success || !listResult.stdout) return;
 
 		const images = listResult.stdout.trim().split("\n").filter(Boolean);
 		for (const image of images) {
-			const rmiResult = await spawnCommand("docker", ["rmi", image]);
-			if (rmiResult.success) {
+			const rmiResult = yield* Effect.tryPromise({
+				try: () => spawnCommand("docker", ["rmi", image]),
+				catch: () => null,
+			});
+			if (rmiResult?.success) {
 				logger.debug({ projectId, image }, "Removed Docker image");
 			}
 		}
-	} catch (error) {
-		logger.debug(
-			{ projectId, error },
-			"Failed to remove Docker images (may not exist)",
-		);
-	}
+	}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 }
 
-async function removeProductionArtifacts(projectId: string): Promise<void> {
-	const productionDir = getProductionPath(projectId);
-	try {
-		await fs.rm(productionDir, { recursive: true, force: true });
+function removeProductionArtifacts(
+	projectId: string,
+): Effect.Effect<void, never> {
+	return Effect.gen(function* () {
+		const productionDir = getProductionPath(projectId);
+		yield* Effect.tryPromise({
+			try: () => fs.rm(productionDir, { recursive: true, force: true }),
+			catch: () => null,
+		});
 		logger.debug({ projectId, productionDir }, "Removed production artifacts");
-	} catch (error) {
-		logger.debug(
-			{ projectId, error },
-			"Failed to remove production artifacts (may not exist)",
-		);
-	}
+	}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 }
