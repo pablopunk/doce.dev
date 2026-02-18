@@ -5,6 +5,7 @@ import { providers } from "./providers";
 import { queue } from "./queue";
 import { settings } from "./settings";
 import { setup } from "./setup";
+import { update } from "./update";
 
 export const server = {
 	setup,
@@ -14,4 +15,5 @@ export const server = {
 	providers,
 	queue,
 	assets,
+	update,
 };
