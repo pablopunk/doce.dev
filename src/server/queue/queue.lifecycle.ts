@@ -114,19 +114,22 @@ export async function requestCancel(jobId: string): Promise<void> {
 		.where(eq(queueJobs.id, jobId));
 }
 
-export async function runNow(jobId: string): Promise<void> {
+export async function runNow(jobId: string): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({ runAt: now, updatedAt: now })
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
-export async function forceUnlock(jobId: string): Promise<void> {
+export async function forceUnlock(jobId: string): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "failed",
@@ -137,7 +140,10 @@ export async function forceUnlock(jobId: string): Promise<void> {
 			lockedBy: null,
 			updatedAt: now,
 		})
-		.where(eq(queueJobs.id, jobId));
+		.where(eq(queueJobs.id, jobId))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function recoverExpiredJobs(): Promise<void> {

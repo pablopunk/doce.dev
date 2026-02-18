@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { QueueJob } from "@/server/db/schema";
 
 interface PaginationData {
@@ -41,6 +41,7 @@ export function useQueueStream(
 		totalPages: 1,
 	});
 	const [hasNewJobs, setHasNewJobs] = useState(false);
+	const totalCountRef = useRef(initialJobs.length);
 
 	useEffect(() => {
 		setHasNewJobs(false);
@@ -63,13 +64,16 @@ export function useQueueStream(
 				setPaused(data.paused);
 				setConcurrency(data.concurrency);
 
+				const previousTotalCount = totalCountRef.current;
+
 				if (
 					pagination.page === 1 &&
-					data.pagination.totalCount > pagination.totalCount
+					data.pagination.totalCount > previousTotalCount
 				) {
 					setHasNewJobs(true);
 				}
 
+				totalCountRef.current = data.pagination.totalCount;
 				setPagination(data.pagination);
 			} catch (err) {
 				console.error("Failed to parse queue update:", err);
@@ -84,7 +88,13 @@ export function useQueueStream(
 		return () => {
 			eventSource.close();
 		};
-	}, [pagination.page, pagination.totalCount, filters]);
+	}, [
+		pagination.page,
+		filters.state,
+		filters.type,
+		filters.projectId,
+		filters.q,
+	]);
 
 	return {
 		jobs,

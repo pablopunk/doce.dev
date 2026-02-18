@@ -71,7 +71,7 @@ export function Navbar() {
 		setMounted(true);
 	}, []);
 
-	// On server render, return a simple navbar stub
+	// On server render, return a simple navbar stub without dynamic badges
 	if (!mounted) {
 		return (
 			<header className="border-b border-border bg-background sticky top-0 z-40">
@@ -84,12 +84,6 @@ export function Navbar() {
 						<span>
 							doce<span className="text-muted-foreground">.dev</span>
 						</span>
-						<div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
-							alpha
-						</div>
-						<div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-							{VERSION}
-						</div>
 					</a>
 					<div className="hidden md:flex items-center gap-1" />
 					<div className="flex items-center gap-2" />

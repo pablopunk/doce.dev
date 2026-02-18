@@ -99,11 +99,7 @@ export const QueueServiceLive = Layer.succeed(
 					return 0;
 				},
 				catch: (e) => toQueueError(e),
-			}).pipe(
-				Effect.tap(() =>
-					Effect.sync(() => logger.debug("Recovered expired jobs")),
-				),
-			),
+			}),
 
 		listJobs: (filters) =>
 			Effect.tryPromise({

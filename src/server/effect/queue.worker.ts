@@ -12,6 +12,7 @@ export interface QueueWorkerOptions {
 
 export interface QueueWorkerHandle {
 	stop: () => Promise<void>;
+	isRunning: () => Promise<boolean>;
 }
 
 export interface QueueJobContext {
@@ -181,13 +182,17 @@ export const startQueueWorkerEffect = (
 	options: QueueWorkerOptions,
 ): Effect.Effect<QueueWorkerHandle, never, QueueService> =>
 	Effect.gen(function* () {
-		const fiber = yield* Effect.fork(workerLoop(workerId, options));
+		const fiber = yield* Effect.forkDaemon(workerLoop(workerId, options));
 
 		return {
 			stop: () =>
 				Effect.runPromise(Fiber.interrupt(fiber)).then(() => {
 					logger.info({ workerId }, "Queue worker stopped");
 				}),
+			isRunning: () =>
+				Effect.runPromise(Fiber.status(fiber)).then(
+					(status) => status._tag !== "Done",
+				),
 		};
 	});
 
