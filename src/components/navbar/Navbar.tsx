@@ -3,11 +3,23 @@
 import { useEffect, useState } from "react";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Badge } from "@/components/ui/badge";
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { MobileMenu } from "./MobileMenu";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
 
 function NavbarInner() {
+	const { badgeText, isClickable, isDisabled, pullUpdate, restart, state } =
+		useAppUpdate();
+
+	const handleBadgeClick = () => {
+		if (state === "update-available") {
+			void pullUpdate();
+		} else if (state === "restart-ready") {
+			void restart();
+		}
+	};
+
 	return (
 		<header className="border-b border-border bg-background sticky top-0 z-40">
 			<div className="flex h-14 items-center justify-between px-4 md:px-6">
@@ -23,6 +35,19 @@ function NavbarInner() {
 					<Badge variant="secondary" className="text-xs">
 						alpha
 					</Badge>
+					{badgeText && (
+						<Badge
+							variant="secondary"
+							className={`text-xs ${isClickable ? "cursor-pointer hover:bg-secondary/80" : ""} ${isDisabled ? "opacity-70 cursor-not-allowed" : ""}`}
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								handleBadgeClick();
+							}}
+						>
+							{badgeText}
+						</Badge>
+					)}
 				</a>
 
 				{/* Desktop Navigation */}
@@ -62,6 +87,9 @@ export function Navbar() {
 						</span>
 						<div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
 							alpha
+						</div>
+						<div className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground opacity-0">
+							Update
 						</div>
 					</a>
 					<div className="hidden md:flex items-center gap-1" />

@@ -110,6 +110,33 @@ function isCacheValid(entry: CacheEntry | undefined): boolean {
 	return Date.now() - entry.timestamp < CACHE_TTL_MS;
 }
 
+async function getContainerName(): Promise<string> {
+	const hostnameResult = await spawnCommand("hostname", [], { timeout: 5000 });
+	if (hostnameResult.success && hostnameResult.stdout.trim()) {
+		const hostname = hostnameResult.stdout.trim();
+		const inspectResult = await spawnCommand(
+			"docker",
+			["inspect", "--format", "{{.Name}}", hostname],
+			{ timeout: 10000 },
+		);
+		if (inspectResult.success) {
+			return inspectResult.stdout.trim().replace(/^\//, "");
+		}
+	}
+
+	const psResult = await spawnCommand(
+		"docker",
+		["ps", "--filter", "label=app=doce.dev", "--format", "{{.Names}}"],
+		{ timeout: 10000 },
+	);
+	if (psResult.success && psResult.stdout.trim()) {
+		const first = psResult.stdout.trim().split("\n")[0];
+		if (first) return first;
+	}
+
+	return process.env.CONTAINER_NAME || "doce";
+}
+
 export const update = {
 	checkForUpdate: defineAction({
 		accept: "json",
@@ -176,6 +203,93 @@ export const update = {
 				return {
 					hasUpdate: false,
 					error: `Failed to check for updates: ${message}`,
+				};
+			}
+		},
+	}),
+
+	pull: defineAction({
+		accept: "json",
+		input: z.object({}),
+		handler: async () => {
+			try {
+				const containerName = await getContainerName();
+				logger.info({ containerName }, "Pulling latest image");
+
+				const pullResult = await spawnCommand(
+					"docker",
+					["pull", `${IMAGE_NAME}:latest`],
+					{ timeout: 300000 },
+				);
+
+				if (!pullResult.success) {
+					const errorMsg = pullResult.stderr || "Unknown error";
+					logger.error({ error: errorMsg }, "Failed to pull image");
+					return {
+						success: false,
+						error: `Failed to pull image: ${errorMsg}`,
+					};
+				}
+
+				logger.info("Image pulled successfully");
+				return { success: true };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : "Unknown error";
+				logger.error({ err }, `Unexpected error in pull: ${message}`);
+				return {
+					success: false,
+					error: `Failed to pull update: ${message}`,
+				};
+			}
+		},
+	}),
+
+	restart: defineAction({
+		accept: "json",
+		input: z.object({}),
+		handler: async () => {
+			try {
+				const containerName = await getContainerName();
+				logger.info({ containerName }, "Restarting container");
+
+				const stopResult = await spawnCommand(
+					"docker",
+					["stop", containerName],
+					{ timeout: 60000 },
+				);
+
+				if (!stopResult.success) {
+					const errorMsg = stopResult.stderr || "Unknown error";
+					logger.error({ error: errorMsg }, "Failed to stop container");
+					return {
+						success: false,
+						error: `Failed to stop container: ${errorMsg}`,
+					};
+				}
+
+				const startResult = await spawnCommand(
+					"docker",
+					["start", containerName],
+					{ timeout: 60000 },
+				);
+
+				if (!startResult.success) {
+					const errorMsg = startResult.stderr || "Unknown error";
+					logger.error({ error: errorMsg }, "Failed to start container");
+					return {
+						success: false,
+						error: `Failed to start container: ${errorMsg}`,
+					};
+				}
+
+				logger.info("Container restarted successfully");
+				return { success: true };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : "Unknown error";
+				logger.error({ err }, `Unexpected error in restart: ${message}`);
+				return {
+					success: false,
+					error: `Failed to restart: ${message}`,
 				};
 			}
 		},
