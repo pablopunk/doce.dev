@@ -68,6 +68,12 @@ export function FilesTab({
 	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 	const [mobilePane, setMobilePane] = useState<MobilePane>("tree");
 	const containerRef = useRef<HTMLDivElement>(null);
+	const onFileSelectRef = useRef(onFileSelect);
+	const latestFileRequestRef = useRef(0);
+
+	useEffect(() => {
+		onFileSelectRef.current = onFileSelect;
+	}, [onFileSelect]);
 
 	const {
 		leftPercent,
@@ -91,7 +97,10 @@ export function FilesTab({
 	}, []);
 
 	const handleFileSelect = useCallback(
-		async (path: string) => {
+		async (path: string, notifyParent: boolean = true) => {
+			const requestId = latestFileRequestRef.current + 1;
+			latestFileRequestRef.current = requestId;
+
 			try {
 				setSelectedPath(path);
 				setIsLoadingContent(true);
@@ -107,21 +116,29 @@ export function FilesTab({
 
 				const data = (await response.json()) as FileContentResponse;
 
+				if (requestId !== latestFileRequestRef.current) {
+					return;
+				}
+
 				if (data.error) {
 					setError(data.error);
 					setFileContent("");
 				} else {
 					setFileContent(data.content);
-					onFileSelect?.(path);
+					if (notifyParent) {
+						onFileSelectRef.current?.(path);
+					}
 				}
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to load file");
 				setFileContent("");
 			} finally {
-				setIsLoadingContent(false);
+				if (requestId === latestFileRequestRef.current) {
+					setIsLoadingContent(false);
+				}
 			}
 		},
-		[onFileSelect, projectId],
+		[projectId],
 	);
 
 	const handleMobileFileSelect = useCallback(
@@ -132,7 +149,6 @@ export function FilesTab({
 		[handleFileSelect],
 	);
 
-	// Fetch file tree on mount
 	useEffect(() => {
 		const fetchFileTree = async () => {
 			try {
@@ -151,23 +167,6 @@ export function FilesTab({
 					setFiles([]);
 				} else {
 					setFiles(data.tree || []);
-
-					// If we have a last selected file and it exists, fetch it
-					if (lastSelectedFile && data.tree && data.tree.length > 0) {
-						// Expand ancestors to reveal the file in tree
-						const ancestors = getAncestorPaths(lastSelectedFile);
-						setExpandedPaths((prev) => {
-							const newPaths = new Set(prev);
-							for (const ancestor of ancestors) {
-								newPaths.add(ancestor);
-							}
-							return newPaths;
-						});
-						await handleFileSelect(lastSelectedFile);
-						if (isMobile) {
-							setMobilePane("editor");
-						}
-					}
 				}
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to fetch files");
@@ -178,7 +177,39 @@ export function FilesTab({
 		};
 
 		fetchFileTree();
-	}, [projectId, lastSelectedFile, handleFileSelect, isMobile]);
+	}, [projectId]);
+
+	useEffect(() => {
+		if (
+			isLoadingContent ||
+			!lastSelectedFile ||
+			files.length === 0 ||
+			lastSelectedFile === selectedPath
+		) {
+			return;
+		}
+
+		const ancestors = getAncestorPaths(lastSelectedFile);
+		setExpandedPaths((prev) => {
+			const next = new Set(prev);
+			for (const ancestor of ancestors) {
+				next.add(ancestor);
+			}
+			return next;
+		});
+
+		void handleFileSelect(lastSelectedFile, false);
+		if (isMobile) {
+			setMobilePane("editor");
+		}
+	}, [
+		lastSelectedFile,
+		files.length,
+		selectedPath,
+		isLoadingContent,
+		handleFileSelect,
+		isMobile,
+	]);
 
 	if (isLoadingTree) {
 		return (
