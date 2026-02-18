@@ -3,6 +3,7 @@ import {
 	type OpencodeClient,
 } from "@opencode-ai/sdk/v2/client";
 
+import { Effect } from "effect";
 import { logger } from "@/server/logger";
 
 // Cache clients by projectId to avoid recreating connections
@@ -119,23 +120,35 @@ export async function isOpencodeHealthy(
 	projectId: string,
 	opencodePort?: number,
 ): Promise<boolean> {
-	try {
-		const client = createOpencodeClient(projectId, opencodePort);
-		const response = await client.global.health();
-		return response.response.ok;
-	} catch {
-		// Fallback to direct fetch if SDK method fails
-		try {
-			const baseUrl = getOpencodeBaseUrl(projectId, opencodePort);
-			const response = await fetch(`${baseUrl}/doc`, {
-				method: "GET",
-				signal: AbortSignal.timeout(2000),
-			});
-			return response.status === 200;
-		} catch {
-			return false;
-		}
-	}
+	const checkSdkHealth = (): Effect.Effect<boolean, Error> =>
+		Effect.tryPromise({
+			try: async () => {
+				const client = createOpencodeClient(projectId, opencodePort);
+				const response = await client.global.health();
+				return response.response.ok;
+			},
+			catch: (error) => error as Error,
+		});
+
+	const checkDirectFetch = (): Effect.Effect<boolean, Error> =>
+		Effect.tryPromise({
+			try: async () => {
+				const baseUrl = getOpencodeBaseUrl(projectId, opencodePort);
+				const response = await fetch(`${baseUrl}/doc`, {
+					method: "GET",
+					signal: AbortSignal.timeout(2000),
+				});
+				return response.status === 200;
+			},
+			catch: (error) => error as Error,
+		});
+
+	const checkHealthEffect = checkSdkHealth().pipe(
+		Effect.orElse(() => checkDirectFetch()),
+		Effect.orElse(() => Effect.succeed(false)),
+	);
+
+	return Effect.runPromise(checkHealthEffect);
 }
 
 export type { OpencodeClient };

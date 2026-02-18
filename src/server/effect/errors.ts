@@ -232,6 +232,67 @@ export class OpenCodeSessionError extends Data.TaggedError(
 }> {}
 
 // ============================================================================
+// LLM Errors
+// ============================================================================
+
+/**
+ * Base error type for LLM operations
+ */
+export class LlmError extends Data.TaggedError("LlmError")<{
+	readonly model: string;
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+/**
+ * LLM request timed out
+ */
+export class LlmTimeoutError extends Data.TaggedError("LlmTimeoutError")<{
+	readonly model: string;
+	readonly timeoutMs: number;
+}> {}
+
+/**
+ * Failed to fetch available models
+ */
+export class ModelsFetchError extends Data.TaggedError("ModelsFetchError")<{
+	readonly source: string;
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+/**
+ * Model not found in the model index
+ */
+export class ModelNotFoundError extends Data.TaggedError("ModelNotFoundError")<{
+	readonly modelId: string;
+}> {}
+
+// ============================================================================
+// Auth Errors
+// ============================================================================
+
+/**
+ * Auth file operation failed
+ */
+export class AuthFileError extends Data.TaggedError("AuthFileError")<{
+	readonly operation: "read" | "write" | "delete" | "parse";
+	readonly path: string;
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+/**
+ * API key validation failed
+ */
+export class ApiKeyValidationError extends Data.TaggedError(
+	"ApiKeyValidationError",
+)<{
+	readonly provider: string;
+	readonly message: string;
+}> {}
+
+// ============================================================================
 // Production Errors
 // ============================================================================
 
@@ -294,3 +355,17 @@ export type ProjectOperationError =
 	| ProjectNotFoundError
 	| ProjectExistsError
 	| ProjectError;
+
+/**
+ * All possible LLM errors
+ */
+export type LlmOperationError =
+	| LlmError
+	| LlmTimeoutError
+	| ModelsFetchError
+	| ModelNotFoundError;
+
+/**
+ * All possible auth errors
+ */
+export type AuthOperationError = AuthFileError | ApiKeyValidationError;

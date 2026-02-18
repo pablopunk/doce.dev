@@ -1,4 +1,6 @@
+import { Effect } from "effect";
 import { toVendorSlug } from "@/lib/modelVendor";
+import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
 import { getModelById, getModelsIndex } from "./modelsDev";
 
@@ -94,44 +96,55 @@ export async function getAvailableModels(
 		vendor: string;
 	}>
 > {
-	if (connectedProviderIds.length === 0) {
-		return [];
-	}
+	return Effect.runPromise(
+		Effect.tryPromise({
+			try: async () => {
+				if (connectedProviderIds.length === 0) {
+					return [];
+				}
 
-	const allModels = await getModelsIndex();
-	const available: Array<{
-		id: string;
-		name: string;
-		provider: string;
-		vendor: string;
-		cost: number;
-	}> = [];
+				const allModels = await getModelsIndex();
+				const available: Array<{
+					id: string;
+					name: string;
+					provider: string;
+					vendor: string;
+					cost: number;
+				}> = [];
 
-	for (const providerId of connectedProviderIds) {
-		const providerModels = allModels[providerId];
-		if (providerModels) {
-			for (const model of providerModels) {
-				const { id, vendor } = normalizeModelId(model.id, providerId);
-				available.push({
+				for (const providerId of connectedProviderIds) {
+					const providerModels = allModels[providerId];
+					if (providerModels) {
+						for (const model of providerModels) {
+							const { id, vendor } = normalizeModelId(model.id, providerId);
+							available.push({
+								id,
+								name: model.name,
+								provider: providerId,
+								vendor,
+								cost: model.cost.input ?? 0,
+							});
+						}
+					}
+				}
+
+				available.sort((a, b) => a.cost - b.cost);
+
+				return available.map(({ id, name, provider, vendor }) => ({
 					id,
-					name: model.name,
-					provider: providerId,
+					name,
+					provider,
 					vendor,
-					cost: model.cost.input ?? 0,
-				});
-			}
-		}
-	}
-
-	// Sort by cost (cheapest first)
-	available.sort((a, b) => a.cost - b.cost);
-
-	return available.map(({ id, name, provider, vendor }) => ({
-		id,
-		name,
-		provider,
-		vendor,
-	}));
+				}));
+			},
+			catch: (error) =>
+				new ModelsFetchError({
+					source: "models.ts:getAvailableModels",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}),
+	);
 }
 
 /**
@@ -140,30 +153,53 @@ export async function getAvailableModels(
 export async function getAutonameModel(
 	connectedProviderIds: string[],
 ): Promise<string | null> {
-	const available = await getAvailableModels(connectedProviderIds);
+	return Effect.runPromise(
+		Effect.tryPromise({
+			try: async () => {
+				const available = await getAvailableModels(connectedProviderIds);
 
-	if (available.length === 0) {
-		logger.warn(
-			{ connectedProviderIds },
-			"No available models for autoname selection",
-		);
-		return null;
-	}
+				if (available.length === 0) {
+					logger.warn(
+						{ connectedProviderIds },
+						"No available models for autoname selection",
+					);
+					return null;
+				}
 
-	// Return the ID of the first (cheapest) model
-	return available[0]?.id ?? null;
+				return available[0]?.id ?? null;
+			},
+			catch: (error) =>
+				new ModelsFetchError({
+					source: "models.ts:getAutonameModel",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}),
+	);
 }
 
 /**
  * Check if a model supports vision (has "image" in input modalities)
  */
 export async function modelSupportsVision(modelId: string): Promise<boolean> {
-	const model = await getModelById(modelId);
-	if (!model) {
-		return false;
-	}
+	return Effect.runPromise(
+		Effect.tryPromise({
+			try: async () => {
+				const model = await getModelById(modelId);
+				if (!model) {
+					return false;
+				}
 
-	return model.modalities.input.includes("image");
+				return model.modalities.input.includes("image");
+			},
+			catch: (error) =>
+				new ModelsFetchError({
+					source: "models.ts:modelSupportsVision",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}),
+	);
 }
 
 /**
@@ -172,15 +208,27 @@ export async function modelSupportsVision(modelId: string): Promise<boolean> {
 export async function getModelCapabilities(
 	modelId: string,
 ): Promise<ModelCapabilities | null> {
-	const model = await getModelById(modelId);
-	if (!model) {
-		return null;
-	}
+	return Effect.runPromise(
+		Effect.tryPromise({
+			try: async () => {
+				const model = await getModelById(modelId);
+				if (!model) {
+					return null;
+				}
 
-	return {
-		supportsVision: model.modalities.input.includes("image"),
-		supportedInputTypes: model.modalities.input,
-		inputCost: model.cost.input ?? 0,
-		contextLimit: model.limit.context ?? 0,
-	};
+				return {
+					supportsVision: model.modalities.input.includes("image"),
+					supportedInputTypes: model.modalities.input,
+					inputCost: model.cost.input ?? 0,
+					contextLimit: model.limit.context ?? 0,
+				};
+			},
+			catch: (error) =>
+				new ModelsFetchError({
+					source: "models.ts:getModelCapabilities",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}),
+	);
 }

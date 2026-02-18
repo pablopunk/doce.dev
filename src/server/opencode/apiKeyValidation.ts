@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+import { ApiKeyValidationError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
 
 /**
@@ -15,60 +17,92 @@ export async function validateApiKey(
 	providerId: string,
 	apiKey: string,
 ): Promise<ValidationResult> {
-	const validators: Record<
-		string,
-		(apiKey: string) => Promise<ValidationResult>
-	> = {
-		openrouter: validateOpenRouterKey,
-		anthropic: validateAnthropicKey,
-		openai: validateOpenAIKey,
-		zai: validateOpenAICompatibleKey("https://api.z.ai/api/paas/v4"),
-		zenmux: validateOpenAICompatibleKey("https://zenmux.ai/api/anthropic/v1"),
-		gemini: validateOpenAICompatibleKey(
-			"https://generativelanguage.googleapis.com/v1beta",
-		),
-		cohere: validateOpenAICompatibleKey("https://api.cohere.ai/v1"),
-		mistral: validateOpenAICompatibleKey("https://api.mistral.ai/v1"),
-		groq: validateOpenAICompatibleKey("https://api.groq.com/openai/v1"),
-	};
-
-	const validator =
-		validators[providerId] ||
-		(() => validateOpenAICompatibleKey("https://api.openai.com/v1")(apiKey));
-
-	try {
-		const result = await validator(apiKey);
-		return result;
-	} catch (error) {
-		const err = error as Error;
-		logger.error({ provider: providerId, error }, "API key validation failed");
-		return {
-			valid: false,
-			error: err instanceof Error ? err.message : String(error),
+	const effect = Effect.gen(function* () {
+		const validators: Record<
+			string,
+			(apiKey: string) => Effect.Effect<ValidationResult, ApiKeyValidationError>
+		> = {
+			openrouter: validateOpenRouterKeyEffect,
+			anthropic: validateAnthropicKeyEffect,
+			openai: validateOpenAIKeyEffect,
+			zai: validateOpenAICompatibleKeyEffect("https://api.z.ai/api/paas/v4"),
+			zenmux: validateOpenAICompatibleKeyEffect(
+				"https://zenmux.ai/api/anthropic/v1",
+			),
+			gemini: validateOpenAICompatibleKeyEffect(
+				"https://generativelanguage.googleapis.com/v1beta",
+			),
+			cohere: validateOpenAICompatibleKeyEffect("https://api.cohere.ai/v1"),
+			mistral: validateOpenAICompatibleKeyEffect("https://api.mistral.ai/v1"),
+			groq: validateOpenAICompatibleKeyEffect("https://api.groq.com/openai/v1"),
 		};
-	}
-}
 
-/**
- * Generic OpenAI-compatible API validator
- */
-function validateOpenAICompatibleKey(baseUrl: string) {
-	return async (apiKey: string): Promise<ValidationResult> => {
-		if (!apiKey.startsWith("sk-") && !apiKey.startsWith("api-")) {
+		const validatorEffect =
+			validators[providerId] ??
+			validateOpenAICompatibleKeyEffect("https://api.openai.com/v1");
+
+		const result = yield* Effect.either(validatorEffect(apiKey));
+
+		if (result._tag === "Left") {
+			logger.error(
+				{ provider: providerId, error: result.left },
+				"API key validation failed",
+			);
 			return {
 				valid: false,
-				error:
-					"Invalid API key format. Keys typically start with 'sk-' or 'api-'.",
+				error: result.left.message,
 			};
 		}
 
-		try {
-			const response = await fetch(`${baseUrl}/models`, {
-				method: "GET",
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
+		return result.right;
+	});
+
+	return Effect.runPromise(effect);
+}
+
+function validateOpenAICompatibleKeyEffect(baseUrl: string) {
+	return (
+		apiKey: string,
+	): Effect.Effect<ValidationResult, ApiKeyValidationError> =>
+		Effect.gen(function* () {
+			if (!apiKey.startsWith("sk-") && !apiKey.startsWith("api-")) {
+				return {
+					valid: false,
+					error:
+						"Invalid API key format. Keys typically start with 'sk-' or 'api-'.",
+				};
+			}
+
+			const response = yield* Effect.tryPromise({
+				try: () =>
+					fetch(`${baseUrl}/models`, {
+						method: "GET",
+						headers: {
+							Authorization: `Bearer ${apiKey}`,
+						},
+						signal: AbortSignal.timeout(10_000),
+					}),
+				catch: (error) => {
+					const err = error as Error;
+					if (error instanceof DOMException) {
+						return new ApiKeyValidationError({
+							provider: baseUrl,
+							message:
+								"Failed to connect to provider. Please check your internet connection.",
+						});
+					}
+					if (err.name === "TimeoutError") {
+						return new ApiKeyValidationError({
+							provider: baseUrl,
+							message: "Validation timed out. Please try again.",
+						});
+					}
+					logger.error({ error }, "API key validation request failed");
+					return new ApiKeyValidationError({
+						provider: baseUrl,
+						message: "Failed to connect to provider. Please try again.",
+					});
 				},
-				signal: AbortSignal.timeout(10_000),
 			});
 
 			if (response.ok) {
@@ -91,38 +125,43 @@ function validateOpenAICompatibleKey(baseUrl: string) {
 				valid: false,
 				error: `Unable to verify API key (${response.status}). Please try again.`,
 			};
-		} catch (error) {
-			const err = error as Error;
-			if (error instanceof DOMException) {
-				throw new Error(
-					"Failed to connect to provider. Please check your internet connection.",
-				);
-			}
-			if (err.name === "TimeoutError") {
-				return {
-					valid: false,
-					error: "Validation timed out. Please try again.",
-				};
-			}
-			logger.error({ error }, "API key validation request failed");
-			throw new Error("Failed to connect to provider. Please try again.");
-		}
-	};
+		});
 }
 
-/**
- * Validate OpenRouter API key by calling their /key endpoint
- */
-export async function validateOpenRouterKey(
+function validateOpenRouterKeyEffect(
 	apiKey: string,
-): Promise<ValidationResult> {
-	try {
-		const response = await fetch("https://openrouter.ai/api/v1/key", {
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
+): Effect.Effect<ValidationResult, ApiKeyValidationError> {
+	return Effect.gen(function* () {
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetch("https://openrouter.ai/api/v1/key", {
+					method: "GET",
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+					},
+					signal: AbortSignal.timeout(10_000),
+				}),
+			catch: (error) => {
+				const err = error as Error;
+				if (error instanceof DOMException) {
+					return new ApiKeyValidationError({
+						provider: "openrouter",
+						message:
+							"Failed to connect to OpenRouter. Please check your internet connection.",
+					});
+				}
+				if (err.name === "TimeoutError") {
+					return new ApiKeyValidationError({
+						provider: "openrouter",
+						message: "Validation timed out. Please try again.",
+					});
+				}
+				logger.error({ error }, "OpenRouter validation request failed");
+				return new ApiKeyValidationError({
+					provider: "openrouter",
+					message: "Failed to connect to OpenRouter. Please try again.",
+				});
 			},
-			signal: AbortSignal.timeout(10_000),
 		});
 
 		if (response.ok) {
@@ -140,47 +179,61 @@ export async function validateOpenRouterKey(
 			valid: false,
 			error: `Unable to verify API key (${response.status}). Please try again.`,
 		};
-	} catch (error) {
-		const err = error as Error;
-		if (error instanceof DOMException) {
-			throw new Error(
-				"Failed to connect to OpenRouter. Please check your internet connection.",
-			);
-		}
-		if (err.name === "TimeoutError") {
-			return {
-				valid: false,
-				error: "Validation timed out. Please try again.",
-			};
-		}
-		logger.error({ error }, "OpenRouter validation request failed");
-		throw new Error("Failed to connect to OpenRouter. Please try again.");
-	}
+	});
 }
 
 /**
- * Validate Anthropic API key by calling their /models endpoint
+ * Validate OpenRouter API key by calling their /key endpoint
  */
-export async function validateAnthropicKey(
+export async function validateOpenRouterKey(
 	apiKey: string,
 ): Promise<ValidationResult> {
-	// Basic format check
-	if (!apiKey.startsWith("sk-ant-")) {
-		return {
-			valid: false,
-			error:
-				"Invalid Anthropic API key format. Keys should start with 'sk-ant-'.",
-		};
-	}
+	return Effect.runPromise(validateOpenRouterKeyEffect(apiKey));
+}
 
-	try {
-		const response = await fetch("https://api.anthropic.com/v1/models", {
-			method: "GET",
-			headers: {
-				"x-api-key": apiKey,
-				"anthropic-version": "2023-06-01",
+function validateAnthropicKeyEffect(
+	apiKey: string,
+): Effect.Effect<ValidationResult, ApiKeyValidationError> {
+	return Effect.gen(function* () {
+		if (!apiKey.startsWith("sk-ant-")) {
+			return {
+				valid: false,
+				error:
+					"Invalid Anthropic API key format. Keys should start with 'sk-ant-'.",
+			};
+		}
+
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetch("https://api.anthropic.com/v1/models", {
+					method: "GET",
+					headers: {
+						"x-api-key": apiKey,
+						"anthropic-version": "2023-06-01",
+					},
+					signal: AbortSignal.timeout(10_000),
+				}),
+			catch: (error) => {
+				const err = error as Error;
+				if (error instanceof DOMException) {
+					return new ApiKeyValidationError({
+						provider: "anthropic",
+						message:
+							"Failed to connect to Anthropic. Please check your internet connection.",
+					});
+				}
+				if (err.name === "TimeoutError") {
+					return new ApiKeyValidationError({
+						provider: "anthropic",
+						message: "Validation timed out. Please try again.",
+					});
+				}
+				logger.error({ error }, "Anthropic validation request failed");
+				return new ApiKeyValidationError({
+					provider: "anthropic",
+					message: "Failed to connect to Anthropic. Please try again.",
+				});
 			},
-			signal: AbortSignal.timeout(10_000),
 		});
 
 		if (response.ok) {
@@ -194,7 +247,6 @@ export async function validateAnthropicKey(
 			};
 		}
 
-		// Rate limited (429) during validation, assume key is valid
 		if (response.status === 429) {
 			logger.warn(
 				"Anthropic rate limited during key validation, assuming valid",
@@ -206,45 +258,59 @@ export async function validateAnthropicKey(
 			valid: false,
 			error: `Unable to verify API key (${response.status}). Please try again.`,
 		};
-	} catch (error) {
-		const err = error as Error;
-		if (error instanceof DOMException) {
-			throw new Error(
-				"Failed to connect to Anthropic. Please check your internet connection.",
-			);
-		}
-		if (err.name === "TimeoutError") {
-			return {
-				valid: false,
-				error: "Validation timed out. Please try again.",
-			};
-		}
-		logger.error({ error }, "Anthropic validation request failed");
-		throw new Error("Failed to connect to Anthropic. Please try again.");
-	}
+	});
 }
 
 /**
- * Validate OpenAI API key by calling their /models endpoint
+ * Validate Anthropic API key by calling their /models endpoint
  */
-export async function validateOpenAIKey(
+export async function validateAnthropicKey(
 	apiKey: string,
 ): Promise<ValidationResult> {
-	// Basic format check
-	if (!apiKey.startsWith("sk-")) {
-		return {
-			valid: false,
-			error: "Invalid OpenAI API key format. Keys should start with 'sk-'.",
-		};
-	}
+	return Effect.runPromise(validateAnthropicKeyEffect(apiKey));
+}
 
-	try {
-		const response = await fetch("https://api.openai.com/v1/models", {
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
+function validateOpenAIKeyEffect(
+	apiKey: string,
+): Effect.Effect<ValidationResult, ApiKeyValidationError> {
+	return Effect.gen(function* () {
+		if (!apiKey.startsWith("sk-")) {
+			return {
+				valid: false,
+				error: "Invalid OpenAI API key format. Keys should start with 'sk-'.",
+			};
+		}
+
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetch("https://api.openai.com/v1/models", {
+					method: "GET",
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+					},
+					signal: AbortSignal.timeout(10_000),
+				}),
+			catch: (error) => {
+				const err = error as Error;
+				if (error instanceof DOMException) {
+					return new ApiKeyValidationError({
+						provider: "openai",
+						message:
+							"Failed to connect to OpenAI. Please check your internet connection.",
+					});
+				}
+				if (err.name === "TimeoutError") {
+					return new ApiKeyValidationError({
+						provider: "openai",
+						message: "Validation timed out. Please try again.",
+					});
+				}
+				logger.error({ error }, "OpenAI validation request failed");
+				return new ApiKeyValidationError({
+					provider: "openai",
+					message: "Failed to connect to OpenAI. Please try again.",
+				});
 			},
-			signal: AbortSignal.timeout(10_000),
 		});
 
 		if (response.ok) {
@@ -258,7 +324,6 @@ export async function validateOpenAIKey(
 			};
 		}
 
-		// Rate limited (429) during validation, assume key is valid
 		if (response.status === 429) {
 			logger.warn("OpenAI rate limited during key validation, assuming valid");
 			return { valid: true };
@@ -268,20 +333,14 @@ export async function validateOpenAIKey(
 			valid: false,
 			error: `Unable to verify API key (${response.status}). Please try again.`,
 		};
-	} catch (error) {
-		const err = error as Error;
-		if (error instanceof DOMException) {
-			throw new Error(
-				"Failed to connect to OpenAI. Please check your internet connection.",
-			);
-		}
-		if (err.name === "TimeoutError") {
-			return {
-				valid: false,
-				error: "Validation timed out. Please try again.",
-			};
-		}
-		logger.error({ error }, "OpenAI validation request failed");
-		throw new Error("Failed to connect to OpenAI. Please try again.");
-	}
+	});
+}
+
+/**
+ * Validate OpenAI API key by calling their /models endpoint
+ */
+export async function validateOpenAIKey(
+	apiKey: string,
+): Promise<ValidationResult> {
+	return Effect.runPromise(validateOpenAIKeyEffect(apiKey));
 }

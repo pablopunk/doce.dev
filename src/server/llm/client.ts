@@ -1,5 +1,7 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
+import { Effect } from "effect";
+import { LlmError, LlmTimeoutError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
 import { getApiKey } from "@/server/opencode/authFile";
 
@@ -10,19 +12,35 @@ let openRouterProvider: ReturnType<typeof createOpenRouter> | null = null;
  * Get or create an OpenRouter provider instance.
  * Uses cached instance to avoid overhead.
  */
-async function getOpenRouterProvider(): Promise<
-	ReturnType<typeof createOpenRouter>
+function getOpenRouterProvider(): Effect.Effect<
+	ReturnType<typeof createOpenRouter>,
+	LlmError
 > {
-	if (!openRouterProvider) {
-		const apiKey = await getApiKey("openrouter");
-		if (!apiKey) {
-			throw new Error("No OpenRouter API key configured");
+	return Effect.gen(function* () {
+		if (!openRouterProvider) {
+			const apiKey = yield* Effect.tryPromise({
+				try: () => getApiKey("openrouter"),
+				catch: (cause) =>
+					new LlmError({
+						model: "openrouter",
+						message: "Failed to retrieve OpenRouter API key",
+						cause,
+					}),
+			});
+
+			if (!apiKey) {
+				return yield* new LlmError({
+					model: "openrouter",
+					message: "No OpenRouter API key configured",
+				});
+			}
+
+			openRouterProvider = createOpenRouter({
+				apiKey,
+			});
 		}
-		openRouterProvider = createOpenRouter({
-			apiKey,
-		});
-	}
-	return openRouterProvider;
+		return openRouterProvider;
+	});
 }
 
 /**
@@ -36,32 +54,59 @@ export async function generateTextWithFallback(
 		timeoutMs?: number;
 	} = {},
 ): Promise<string> {
-	try {
-		const provider = await getOpenRouterProvider();
-		const generateOptions: {
-			model: string;
-			prompt: string;
-			abortSignal?: AbortSignal;
-		} = {
-			model: provider(model),
-			prompt,
-		};
+	const program = Effect.gen(function* () {
+		const provider = yield* getOpenRouterProvider();
 
-		if (options.timeoutMs) {
-			generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs);
-		}
+		const generateEffect = Effect.tryPromise({
+			try: () =>
+				generateText({
+					model: provider(model),
+					prompt,
+				}),
+			catch: (cause) =>
+				new LlmError({
+					model,
+					message: "Text generation failed",
+					cause,
+				}),
+		});
 
-		const { text } = await generateText(generateOptions);
+		const timeoutEffect = options.timeoutMs
+			? generateEffect.pipe(
+					Effect.timeout(options.timeoutMs),
+					Effect.catchTag(
+						"TimeoutException",
+						() =>
+							new LlmTimeoutError({
+								model,
+								timeoutMs: options.timeoutMs ?? 0,
+							}),
+					),
+				)
+			: generateEffect;
 
+		const { text } = yield* timeoutEffect;
 		return text;
-	} catch (error) {
-		logger.warn(
-			{
-				model,
-				error: error instanceof Error ? error.message : String(error),
-			},
-			"Text generation failed",
-		);
-		throw error;
-	}
+	}).pipe(
+		Effect.tapError((error) =>
+			Effect.sync(() => {
+				logger.warn(
+					{
+						model,
+						error:
+							error instanceof LlmError
+								? error.message
+								: error instanceof LlmTimeoutError
+									? `Timeout after ${error.timeoutMs}ms`
+									: String(error),
+					},
+					"Text generation failed",
+				);
+			}),
+		),
+		Effect.catchTag("LlmError", (error) => Effect.fail(error)),
+		Effect.catchTag("LlmTimeoutError", (error) => Effect.fail(error)),
+	);
+
+	return Effect.runPromise(program);
 }

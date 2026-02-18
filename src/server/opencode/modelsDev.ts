@@ -1,6 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { Effect } from "effect";
 import { getOrSet } from "@/server/cache/memory";
+import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
 
 const CACHE_FILE_PATH = path.join(
@@ -12,6 +14,7 @@ const CACHE_FILE_PATH = path.join(
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROVIDERS_CACHE_KEY = "cache:v1:fn:modelsDev.providersIndex:{}";
 const MODELS_CACHE_KEY = "cache:v1:fn:modelsDev.modelsIndex:{}";
+const FETCH_TIMEOUT_MS = 10 * 1000;
 
 interface ModelsDevProvider {
 	id: string;
@@ -63,64 +66,113 @@ type RawProviderRecord = Record<
 	}
 >;
 
-export async function getProvidersIndex(): Promise<ModelsDevProvider[]> {
-	return getOrSet(PROVIDERS_CACHE_KEY, { ttlMs: CACHE_TTL_MS }, async () => {
-		try {
-			return await fetchProvidersFromRemote();
-		} catch (fetchError) {
-			logger.error(
-				{
-					error:
-						fetchError instanceof Error
-							? fetchError.message
-							: String(fetchError),
+const toModelsFetchError = (source: string, error: unknown): ModelsFetchError =>
+	new ModelsFetchError({
+		source,
+		message: error instanceof Error ? error.message : String(error),
+		cause: error,
+	});
+
+const fetchProvidersFromRemoteEffect = (): Effect.Effect<
+	ModelsDevProvider[],
+	ModelsFetchError
+> =>
+	Effect.tryPromise({
+		try: async () => {
+			const response = await fetch("https://models.dev/api.json", {
+				headers: {
+					"User-Agent": "doce.dev",
 				},
-				"Failed to fetch Models.dev, falling back to disk",
-			);
-			try {
-				return await readProvidersFromDisk();
-			} catch {
-				return [];
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+			});
+
+			if (!response.ok) {
+				throw new Error(`Models.dev responded with ${response.status}`);
 			}
-		}
-	});
-}
 
-async function readProvidersFromDisk(): Promise<ModelsDevProvider[]> {
-	const file = await fs.readFile(CACHE_FILE_PATH, "utf-8");
-	const data = JSON.parse(file) as RawProviderRecord;
-	const providers = normalizeProviders(data);
-	logger.debug(
-		{ count: providers.length },
-		"Loaded Models.dev providers from cache",
-	);
-	return providers;
-}
+			const data = (await response.json()) as RawProviderRecord;
+			const providers = normalizeProviders(data);
 
-async function fetchProvidersFromRemote(): Promise<ModelsDevProvider[]> {
-	const response = await fetch("https://models.dev/api.json", {
-		headers: {
-			"User-Agent": "doce.dev",
+			await fs.mkdir(path.dirname(CACHE_FILE_PATH), { recursive: true });
+			await fs.writeFile(
+				CACHE_FILE_PATH,
+				JSON.stringify(data, null, 2),
+				"utf-8",
+			);
+
+			logger.info(
+				{ count: providers.length },
+				"Fetched and cached Models.dev providers",
+			);
+			return providers;
 		},
-		signal: AbortSignal.timeout(10 * 1000),
+		catch: (error) => toModelsFetchError("remote", error),
 	});
 
-	if (!response.ok) {
-		throw new Error(`Models.dev responded with ${response.status}`);
-	}
+const readProvidersFromDiskEffect = (): Effect.Effect<
+	ModelsDevProvider[],
+	ModelsFetchError
+> =>
+	Effect.tryPromise({
+		try: async () => {
+			const file = await fs.readFile(CACHE_FILE_PATH, "utf-8");
+			const data = JSON.parse(file) as RawProviderRecord;
+			const providers = normalizeProviders(data);
+			logger.debug(
+				{ count: providers.length },
+				"Loaded Models.dev providers from cache",
+			);
+			return providers;
+		},
+		catch: (error) => toModelsFetchError("disk", error),
+	});
 
-	const data = (await response.json()) as RawProviderRecord;
-	const providers = normalizeProviders(data);
+const fetchModelsFromRemoteEffect = (): Effect.Effect<
+	Record<string, ModelsDevModel[]>,
+	ModelsFetchError
+> =>
+	Effect.tryPromise({
+		try: async () => {
+			const response = await fetch("https://models.dev/api.json", {
+				headers: {
+					"User-Agent": "doce.dev",
+				},
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+			});
 
-	await fs.mkdir(path.dirname(CACHE_FILE_PATH), { recursive: true });
-	await fs.writeFile(CACHE_FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
+			if (!response.ok) {
+				throw new Error(`Models.dev responded with ${response.status}`);
+			}
 
-	logger.info(
-		{ count: providers.length },
-		"Fetched and cached Models.dev providers",
-	);
-	return providers;
-}
+			const data = (await response.json()) as RawProviderRecord;
+			const models = normalizeModels(data);
+
+			logger.info(
+				{ providerCount: Object.keys(models).length },
+				"Fetched models from Models.dev",
+			);
+			return models;
+		},
+		catch: (error) => toModelsFetchError("remote", error),
+	});
+
+const readModelsFromDiskEffect = (): Effect.Effect<
+	Record<string, ModelsDevModel[]>,
+	ModelsFetchError
+> =>
+	Effect.tryPromise({
+		try: async () => {
+			const file = await fs.readFile(CACHE_FILE_PATH, "utf-8");
+			const data = JSON.parse(file) as RawProviderRecord;
+			const models = normalizeModels(data);
+			logger.debug(
+				{ providerCount: Object.keys(models).length },
+				"Loaded models from cache",
+			);
+			return models;
+		},
+		catch: (error) => toModelsFetchError("disk", error),
+	});
 
 function normalizeProviders(data: RawProviderRecord): ModelsDevProvider[] {
 	return Object.values(data).map((provider) => ({
@@ -128,66 +180,6 @@ function normalizeProviders(data: RawProviderRecord): ModelsDevProvider[] {
 		name: provider.name,
 		env: provider.env ?? [],
 	}));
-}
-
-export async function getModelsIndex(): Promise<
-	Record<string, ModelsDevModel[]>
-> {
-	return getOrSet(MODELS_CACHE_KEY, { ttlMs: CACHE_TTL_MS }, async () => {
-		try {
-			return await fetchModelsFromRemote();
-		} catch (fetchError) {
-			logger.error(
-				{
-					error:
-						fetchError instanceof Error
-							? fetchError.message
-							: String(fetchError),
-				},
-				"Failed to fetch models from Models.dev, falling back to disk",
-			);
-			try {
-				return await readModelsFromDisk();
-			} catch {
-				return {};
-			}
-		}
-	});
-}
-
-async function readModelsFromDisk(): Promise<Record<string, ModelsDevModel[]>> {
-	const file = await fs.readFile(CACHE_FILE_PATH, "utf-8");
-	const data = JSON.parse(file) as RawProviderRecord;
-	const models = normalizeModels(data);
-	logger.debug(
-		{ providerCount: Object.keys(models).length },
-		"Loaded models from cache",
-	);
-	return models;
-}
-
-async function fetchModelsFromRemote(): Promise<
-	Record<string, ModelsDevModel[]>
-> {
-	const response = await fetch("https://models.dev/api.json", {
-		headers: {
-			"User-Agent": "doce.dev",
-		},
-		signal: AbortSignal.timeout(10 * 1000),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Models.dev responded with ${response.status}`);
-	}
-
-	const data = (await response.json()) as RawProviderRecord;
-	const models = normalizeModels(data);
-
-	logger.info(
-		{ providerCount: Object.keys(models).length },
-		"Fetched models from Models.dev",
-	);
-	return models;
 }
 
 function normalizeModels(
@@ -208,6 +200,54 @@ function normalizeModels(
 	}
 
 	return result;
+}
+
+const getProvidersFromRemoteOrDisk = (): Effect.Effect<ModelsDevProvider[]> =>
+	fetchProvidersFromRemoteEffect().pipe(
+		Effect.tapError((error) =>
+			Effect.sync(() =>
+				logger.error(
+					{ error: error.message },
+					"Failed to fetch Models.dev, falling back to disk",
+				),
+			),
+		),
+		Effect.orElse(() =>
+			readProvidersFromDiskEffect().pipe(
+				Effect.orElse(() => Effect.succeed([])),
+			),
+		),
+	);
+
+const getModelsFromRemoteOrDisk = (): Effect.Effect<
+	Record<string, ModelsDevModel[]>
+> =>
+	fetchModelsFromRemoteEffect().pipe(
+		Effect.tapError((error) =>
+			Effect.sync(() =>
+				logger.error(
+					{ error: error.message },
+					"Failed to fetch models from Models.dev, falling back to disk",
+				),
+			),
+		),
+		Effect.orElse(() =>
+			readModelsFromDiskEffect().pipe(Effect.orElse(() => Effect.succeed({}))),
+		),
+	);
+
+export async function getProvidersIndex(): Promise<ModelsDevProvider[]> {
+	return getOrSet(PROVIDERS_CACHE_KEY, { ttlMs: CACHE_TTL_MS }, async () =>
+		Effect.runPromise(getProvidersFromRemoteOrDisk()),
+	);
+}
+
+export async function getModelsIndex(): Promise<
+	Record<string, ModelsDevModel[]>
+> {
+	return getOrSet(MODELS_CACHE_KEY, { ttlMs: CACHE_TTL_MS }, async () =>
+		Effect.runPromise(getModelsFromRemoteOrDisk()),
+	);
 }
 
 export async function getModelById(
