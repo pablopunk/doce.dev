@@ -16,6 +16,11 @@ interface CheckResult {
 	error?: string;
 }
 
+interface PullResult {
+	success: boolean;
+	error?: string;
+}
+
 export function useAppUpdate() {
 	const [state, setState] = useState<UpdateState>("idle");
 	const [error, setError] = useState<string | null>(null);
@@ -61,10 +66,6 @@ export function useAppUpdate() {
 	}, [state]);
 
 	const pullUpdate = useCallback(async () => {
-		if (state !== "update-available") {
-			return;
-		}
-
 		setState("updating");
 		setError(null);
 
@@ -79,6 +80,11 @@ export function useAppUpdate() {
 				throw new Error("Failed to pull update");
 			}
 
+			const result = (await res.json()) as PullResult;
+			if (!result.success) {
+				throw new Error(result.error || "Failed to pull update");
+			}
+
 			setState("restart-ready");
 		} catch (err) {
 			const message =
@@ -87,13 +93,9 @@ export function useAppUpdate() {
 			setState("error");
 			toast.error(message);
 		}
-	}, [state]);
+	}, []);
 
 	const restart = useCallback(async () => {
-		if (state !== "restart-ready") {
-			return;
-		}
-
 		try {
 			const res = await fetch("/_actions/update.restart", {
 				method: "POST",
@@ -104,13 +106,26 @@ export function useAppUpdate() {
 			if (!res.ok) {
 				throw new Error("Failed to restart");
 			}
+
+			toast.success("Container restarting...");
+			setState("idle");
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Failed to restart";
 			setError(message);
 			setState("error");
 			toast.error(message);
 		}
-	}, [state]);
+	}, []);
+
+	const handleClick = useCallback(() => {
+		if (state === "update-available") {
+			void pullUpdate();
+		} else if (state === "restart-ready") {
+			void restart();
+		} else if (state === "idle" || state === "error") {
+			void checkForUpdate();
+		}
+	}, [state, pullUpdate, restart, checkForUpdate]);
 
 	useEffect(() => {
 		if (checkedRef.current) return;
@@ -118,30 +133,10 @@ export function useAppUpdate() {
 		void checkForUpdate();
 	}, []);
 
-	const badgeText = (() => {
-		switch (state) {
-			case "update-available":
-				return "Update";
-			case "updating":
-				return "Updating...";
-			case "restart-ready":
-				return "Restart";
-			default:
-				return null;
-		}
-	})();
-
-	const isClickable = state === "update-available" || state === "restart-ready";
-	const isDisabled = state === "updating";
-
 	return {
 		state,
 		error,
-		badgeText,
-		isClickable,
-		isDisabled,
+		handleClick,
 		checkForUpdate,
-		pullUpdate,
-		restart,
 	};
 }

@@ -10,16 +10,11 @@ import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
 
 function NavbarInner() {
-	const { badgeText, isClickable, isDisabled, pullUpdate, restart, state } =
-		useAppUpdate();
+	const { handleClick, state } = useAppUpdate();
 
-	const handleBadgeClick = () => {
-		if (state === "update-available") {
-			void pullUpdate();
-		} else if (state === "restart-ready") {
-			void restart();
-		}
-	};
+	const needsUpdate = state === "update-available";
+	const isUpdating = state === "updating";
+	const needsRestart = state === "restart-ready";
 
 	return (
 		<header className="border-b border-border bg-background sticky top-0 z-40">
@@ -36,22 +31,22 @@ function NavbarInner() {
 					<Badge variant="secondary" className="text-xs">
 						alpha
 					</Badge>
-					<Badge variant="outline" className="text-xs text-muted-foreground">
-						{VERSION}
+					<Badge
+						variant="outline"
+						className={`text-xs text-muted-foreground cursor-pointer hover:bg-accent ${needsUpdate ? "border-orange-500 text-orange-500" : ""} ${isUpdating ? "opacity-70" : ""}`}
+						onClick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							handleClick();
+						}}
+					>
+						<span>{VERSION}</span>
+						{needsUpdate && (
+							<span className="ml-1 w-2 h-2 rounded-full bg-orange-500" />
+						)}
+						{isUpdating && <span className="ml-1">...</span>}
+						{needsRestart && <span className="ml-1">↻</span>}
 					</Badge>
-					{badgeText && (
-						<Badge
-							variant="secondary"
-							className={`text-xs ${isClickable ? "cursor-pointer hover:bg-secondary/80" : ""} ${isDisabled ? "opacity-70 cursor-not-allowed" : ""}`}
-							onClick={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								handleBadgeClick();
-							}}
-						>
-							{badgeText}
-						</Badge>
-					)}
 				</a>
 
 				{/* Desktop Navigation */}
