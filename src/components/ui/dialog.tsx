@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
-import type * as React from "react";
+import { motion } from "motion/react";
+import type React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -28,11 +29,18 @@ function DialogOverlay({
 		<DialogPrimitive.Backdrop
 			data-slot="dialog-overlay"
 			className={cn(
-				"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50",
+				"bg-black/10 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50",
 				className,
 			)}
 			{...props}
-		/>
+		>
+			<motion.div
+				className="absolute inset-0 bg-black/10"
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ duration: 0.15 }}
+			/>
+		</DialogPrimitive.Backdrop>
 	);
 }
 
@@ -50,27 +58,33 @@ function DialogContent({
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"
 				className={cn(
-					"bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 ring-foreground/10 grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-sm ring-1 duration-100 sm:max-w-sm fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
+					"bg-background ring-foreground/10 grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-sm ring-1 sm:max-w-sm fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
 					className,
 				)}
 				{...props}
 			>
-				{children}
-				{showCloseButton && (
-					<DialogPrimitive.Close
-						data-slot="dialog-close"
-						render={
-							<Button
-								variant="ghost"
-								className="absolute top-2 right-2"
-								size="icon-sm"
-							/>
-						}
-					>
-						<XIcon />
-						<span className="sr-only">Close</span>
-					</DialogPrimitive.Close>
-				)}
+				<motion.div
+					initial={{ opacity: 0, scale: 0.95 }}
+					animate={{ opacity: 1, scale: 1 }}
+					transition={{ duration: 0.2, ease: "easeOut" }}
+				>
+					{children}
+					{showCloseButton && (
+						<DialogPrimitive.Close
+							data-slot="dialog-close"
+							render={
+								<Button
+									variant="ghost"
+									className="absolute top-2 right-2"
+									size="icon-sm"
+								/>
+							}
+						>
+							<XIcon />
+							<span className="sr-only">Close</span>
+						</DialogPrimitive.Close>
+					)}
+				</motion.div>
 			</DialogPrimitive.Popup>
 		</DialogPortal>
 	);

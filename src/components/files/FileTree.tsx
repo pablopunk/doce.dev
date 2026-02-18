@@ -1,4 +1,5 @@
 import { ChevronRight, File } from "lucide-react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -64,22 +65,19 @@ export function FileTree({
 						}
 					}}
 					className={cn(
-						// Base styles from sidebarMenuButton
 						"ring-sidebar-ring hover:bg-muted active:bg-muted active:text-sidebar-accent-foreground gap-1 rounded-md px-2 py-1 text-left text-sm transition-[width,height,padding] focus-visible:ring-2 peer/menu-button flex w-full items-center overflow-hidden outline-hidden [&>span:last-child]:truncate [&_svg]:shrink-0",
-						// Active state
 						isSelected && "font-medium bg-muted",
-						// Disabled state
 						"disabled:pointer-events-none disabled:opacity-50",
 					)}
 					style={{ paddingLeft: `${depth * 12 + 8}px` }}
 				>
 					{isDirectory && (
-						<ChevronRight
-							size={12}
-							className={`flex-shrink-0 transition-transform ${
-								isExpanded ? "rotate-90" : ""
-							}`}
-						/>
+						<motion.div
+							animate={{ rotate: isExpanded ? 90 : 0 }}
+							transition={{ duration: 0.15 }}
+						>
+							<ChevronRight size={12} className="flex-shrink-0" />
+						</motion.div>
 					)}
 
 					{!isDirectory && (
@@ -89,10 +87,18 @@ export function FileTree({
 					<span className="truncate">{node.name}</span>
 				</button>
 
-				{isDirectory && isExpanded && node.children && (
-					<div>
+				{isDirectory && node.children && (
+					<motion.div
+						initial={{ height: 0, opacity: 0 }}
+						animate={{
+							height: isExpanded ? "auto" : 0,
+							opacity: isExpanded ? 1 : 0,
+						}}
+						transition={{ duration: 0.2, ease: "easeOut" }}
+						style={{ overflow: "hidden" }}
+					>
 						{node.children.map((child) => renderNode(child, depth + 1))}
-					</div>
+					</motion.div>
 				)}
 			</div>
 		);

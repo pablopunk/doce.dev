@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "motion/react";
 import type { ChatItem } from "@/stores/useChatStore";
 import type { Message } from "@/types/message";
 import { ChatMessage } from "./ChatMessage";
@@ -21,19 +22,34 @@ export function ChatMessages({
 
 	return (
 		<div className="divide-y">
-			{grouped.map((item) =>
-				item.type === "message" ? (
-					<ChatMessage key={item.id} message={item.data as Message} />
-				) : item.type === "toolGroup" ? (
-					<ToolCallGroup
-						key={item.id}
-						toolCalls={item.data as ToolCall[]}
-						expandedTools={expandedTools}
-						onToggle={onToggleTool}
-						onFileOpen={onOpenFile}
-					/>
-				) : null,
-			)}
+			<AnimatePresence>
+				{grouped.map((item) =>
+					item.type === "message" ? (
+						<motion.div
+							key={item.id}
+							initial={{ opacity: 0, y: 10 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.2, ease: "easeOut" }}
+						>
+							<ChatMessage message={item.data as Message} />
+						</motion.div>
+					) : item.type === "toolGroup" ? (
+						<motion.div
+							key={item.id}
+							initial={{ opacity: 0, y: 10 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.2, ease: "easeOut" }}
+						>
+							<ToolCallGroup
+								toolCalls={item.data as ToolCall[]}
+								expandedTools={expandedTools}
+								onToggle={onToggleTool}
+								onFileOpen={onOpenFile}
+							/>
+						</motion.div>
+					) : null,
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }
