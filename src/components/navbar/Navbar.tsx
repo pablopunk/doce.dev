@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Badge } from "@/components/ui/badge";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
+import { VERSION } from "@/server/version";
 import { MobileMenu } from "./MobileMenu";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
@@ -34,6 +35,9 @@ function NavbarInner() {
 					</span>
 					<Badge variant="secondary" className="text-xs">
 						alpha
+					</Badge>
+					<Badge variant="outline" className="text-xs text-muted-foreground">
+						{VERSION}
 					</Badge>
 					{badgeText && (
 						<Badge
@@ -88,8 +92,8 @@ export function Navbar() {
 						<div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
 							alpha
 						</div>
-						<div className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground opacity-0">
-							Update
+						<div className="inline-flex items-center rounded-full border border-input bg-background px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+							{VERSION}
 						</div>
 					</a>
 					<div className="hidden md:flex items-center gap-1" />

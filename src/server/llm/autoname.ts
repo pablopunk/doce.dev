@@ -166,7 +166,6 @@ export async function generateProjectName(prompt: string): Promise<string> {
 
 		return normalized;
 	}).pipe(
-		// Log errors but don't fail - use fallback instead
 		Effect.tapError((error) =>
 			Effect.sync(() => {
 				logger.warn(
@@ -182,11 +181,10 @@ export async function generateProjectName(prompt: string): Promise<string> {
 				);
 			}),
 		),
-		// Fallback to slug generation if all models fail
 		Effect.orElse(() =>
 			Effect.tryPromise({
 				try: () => generateUniqueSlug(prompt),
-				catch: () => prompt, // Last resort fallback
+				catch: () => prompt,
 			}),
 		),
 	);

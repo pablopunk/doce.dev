@@ -2,6 +2,7 @@ import { defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { logger } from "@/server/logger";
 import { spawnCommand } from "@/server/utils/execAsync";
+import { VERSION } from "@/server/version";
 
 const IMAGE_NAME = "ghcr.io/pablopunk/doce.dev";
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -74,7 +75,7 @@ async function fetchRemoteVersion(): Promise<string> {
 }
 
 function getLocalVersion(): string | null {
-	return process.env.VERSION || null;
+	return VERSION !== "unknown" ? VERSION : null;
 }
 
 function isCacheValid(entry: CacheEntry | undefined): boolean {
