@@ -86,6 +86,10 @@ export function FilesTab({
 
 	const shouldUseMobilePanes = isMobile;
 
+	const handleExpandedPathsChange = useCallback((paths: Set<string>) => {
+		setExpandedPaths(paths);
+	}, []);
+
 	const fetchFileContent = useCallback(
 		async (path: string) => {
 			try {
@@ -234,7 +238,7 @@ export function FilesTab({
 									}}
 									selectedPath={selectedPath || undefined}
 									expandedPaths={expandedPaths}
-									onExpandedPathsChange={setExpandedPaths}
+									onExpandedPathsChange={handleExpandedPathsChange}
 								/>
 							</div>
 						)}
@@ -273,7 +277,7 @@ export function FilesTab({
 								onFileSelect={fetchFileContent}
 								selectedPath={selectedPath || undefined}
 								expandedPaths={expandedPaths}
-								onExpandedPathsChange={setExpandedPaths}
+								onExpandedPathsChange={handleExpandedPathsChange}
 							/>
 						</div>
 

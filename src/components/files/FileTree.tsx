@@ -1,6 +1,6 @@
 import { ChevronRight, File } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface FileTreeNode {
@@ -20,7 +20,7 @@ interface FileTreeProps {
 	onExpandedPathsChange?: (paths: Set<string>) => void;
 }
 
-export function FileTree({
+export const FileTree = React.memo(function FileTree({
 	files,
 	onFileSelect,
 	selectedPath,
@@ -117,4 +117,4 @@ export function FileTree({
 			{files.map((node) => renderNode(node))}
 		</div>
 	);
-}
+});
