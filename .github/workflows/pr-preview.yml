@@ -3,12 +3,86 @@ name: PR Preview Environment
 on:
   pull_request:
     types: [opened, reopened, synchronize, closed]
+  pull_request_review:
+    types: [submitted, dismissed]
 
 jobs:
+  check-approval:
+    name: Check PR Approval
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.check.outputs.approved }}
+    steps:
+      - name: Check approval status
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWER: ${{ github.event.review && github.event.review.user.login || '' }}
+          REVIEW_STATE: ${{ github.event.review && github.event.review.state || '' }}
+        run: |
+          # Check if author has write permissions
+          AUTHOR_PERMS=$(gh api repos/${{ github.repository }}/collaborators/$PR_AUTHOR/permission --jq '.permission' 2>/dev/null || echo "none")
+          echo "Author ($PR_AUTHOR) permission: $AUTHOR_PERMS"
+          
+          # Define write-level permissions
+          WRITE_PERMS="admin maintain write"
+          
+          # Check if author has write access (auto-approve)
+          if echo "$WRITE_PERMS" | grep -qw "$AUTHOR_PERMS"; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Author has write access, auto-approved"
+            exit 0
+          fi
+          
+          # If triggered by a review, check if reviewer has write access
+          if [ "$REVIEW_STATE" = "approved" ] && [ -n "$REVIEWER" ]; then
+            REVIEWER_PERMS=$(gh api repos/${{ github.repository }}/collaborators/$REVIEWER/permission --jq '.permission' 2>/dev/null || echo "none")
+            echo "Reviewer ($REVIEWER) permission: $REVIEWER_PERMS"
+            
+            if echo "$WRITE_PERMS" | grep -qw "$REVIEWER_PERMS"; then
+              echo "approved=true" >> "$GITHUB_OUTPUT"
+              echo "✅ Reviewer has write access, approved"
+              exit 0
+            else
+              echo "approved=false" >> "$GITHUB_OUTPUT"
+              echo "❌ Reviewer lacks write permissions"
+              exit 1
+            fi
+          fi
+          
+          # For pull_request events (open/reopen/sync), check if there's already an approved review
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Checking for existing approved reviews..."
+            # Get the first approved review
+            APPROVED_BY=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
+              --jq '.[] | select(.state == "APPROVED") | .user.login' 2>/dev/null | head -1)
+            
+            if [ -n "$APPROVED_BY" ]; then
+              echo "Found approval from: $APPROVED_BY"
+              APPROVER_PERMS=$(gh api repos/${{ github.repository }}/collaborators/$APPROVED_BY/permission --jq '.permission' 2>/dev/null || echo "none")
+              echo "Approver permission: $APPROVER_PERMS"
+              
+              if echo "$WRITE_PERMS" | grep -qw "$APPROVER_PERMS"; then
+                echo "approved=true" >> "$GITHUB_OUTPUT"
+                echo "✅ Existing approval from write-access user"
+                exit 0
+              fi
+            fi
+          fi
+          
+          # No valid approval found
+          echo "approved=false" >> "$GITHUB_OUTPUT"
+          echo "❌ No valid approval from write-access user"
+          exit 1
+
   deploy:
     name: Deploy PR Preview
+    needs: check-approval
     runs-on: self-hosted
     if: |
+      needs.check-approval.outputs.approved == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.action != 'closed'
     permissions:
