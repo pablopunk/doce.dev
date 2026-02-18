@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type UpdateState =
@@ -11,14 +11,15 @@ export type UpdateState =
 
 interface CheckResult {
 	hasUpdate: boolean;
-	currentDigest?: string;
-	remoteDigest?: string;
+	currentVersion?: string;
+	remoteVersion?: string;
 	error?: string;
 }
 
 export function useAppUpdate() {
 	const [state, setState] = useState<UpdateState>("idle");
 	const [error, setError] = useState<string | null>(null);
+	const checkedRef = useRef(false);
 
 	const checkForUpdate = useCallback(async () => {
 		if (state === "checking" || state === "updating") {
@@ -112,8 +113,10 @@ export function useAppUpdate() {
 	}, [state]);
 
 	useEffect(() => {
+		if (checkedRef.current) return;
+		checkedRef.current = true;
 		void checkForUpdate();
-	}, [checkForUpdate]);
+	}, []);
 
 	const badgeText = (() => {
 		switch (state) {

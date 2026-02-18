@@ -25,16 +25,21 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           build-args: |
-            VERSION=${{ github.sha }}
+            VERSION=${{ steps.date.outputs.date }}-${{ github.sha }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/doce.dev:latest
             ghcr.io/${{ github.repository_owner }}/doce.dev:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/doce.dev:${{ steps.date.outputs.date }}-${{ github.sha }}
           labels: |
             type=${{ github.event_name }}
             branch=${{ github.ref_name }}
