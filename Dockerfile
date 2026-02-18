@@ -25,8 +25,13 @@ RUN pnpm build
 # Runtime stage
 FROM node:22-alpine
 
+ARG VERSION=unknown
+
 # Install dumb-init for proper PID 1 handling and docker for preview environments
 RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git bash
+
+# Set version for self-update detection
+ENV VERSION=${VERSION}
 
 # Install pnpm for running migrations
 RUN npm install -g pnpm@10.20.0

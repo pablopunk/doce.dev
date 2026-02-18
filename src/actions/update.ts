@@ -7,16 +7,16 @@ const IMAGE_NAME = "ghcr.io/pablopunk/doce.dev";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 interface CacheEntry {
-	digest: string;
+	version: string;
 	timestamp: number;
 }
 
-interface DigestCache {
+interface VersionCache {
 	remote?: CacheEntry;
 	local?: CacheEntry;
 }
 
-const digestCache: DigestCache = {};
+const versionCache: VersionCache = {};
 
 async function getGhcrToken(): Promise<string> {
 	const tokenUrl = `https://ghcr.io/token?service=ghcr.io&scope=repository:pablopunk/doce.dev:pull`;
@@ -38,7 +38,8 @@ async function getGhcrToken(): Promise<string> {
 	return data.token;
 }
 
-async function fetchRemoteDigest(token: string): Promise<string> {
+async function fetchRemoteVersion(): Promise<string> {
+	const token = await getGhcrToken();
 	const manifestUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/latest`;
 	const response = await fetch(manifestUrl, {
 		headers: {
@@ -49,9 +50,8 @@ async function fetchRemoteDigest(token: string): Promise<string> {
 	});
 
 	if (!response.ok) {
-		const errorBody = await response.text();
 		throw new Error(
-			`Failed to fetch manifest: ${response.status} ${response.statusText} - ${errorBody}`,
+			`Failed to fetch manifest: ${response.status} ${response.statusText}`,
 		);
 	}
 
@@ -62,47 +62,19 @@ async function fetchRemoteDigest(token: string): Promise<string> {
 		}>;
 	};
 
-	if (!index.manifests || index.manifests.length === 0) {
-		throw new Error("No manifests found in OCI index");
-	}
-
-	const amd64Manifest = index.manifests.find(
+	const amd64Manifest = index.manifests?.find(
 		(m) => m.platform?.architecture === "amd64" && m.platform?.os === "linux",
 	);
 
 	if (!amd64Manifest) {
-		throw new Error("No amd64/linux manifest found in OCI index");
+		throw new Error("No amd64/linux manifest found");
 	}
 
 	return amd64Manifest.digest;
 }
 
-async function getLocalDigest(): Promise<string | null> {
-	const result = await spawnCommand(
-		"docker",
-		["inspect", "--format", "{{index .RepoDigests 0}}", `${IMAGE_NAME}:latest`],
-		{ timeout: 10000 },
-	);
-
-	if (!result.success) {
-		logger.debug(
-			{ stderr: result.stderr },
-			"Local image not found or inspect failed",
-		);
-		return null;
-	}
-
-	const output = result.stdout.trim();
-	const digestMatch = output.match(/sha256:[a-f0-9]+/);
-	if (!digestMatch) {
-		logger.warn(
-			{ output },
-			"Could not parse digest from docker inspect output",
-		);
-		return null;
-	}
-
-	return digestMatch[0];
+function getLocalVersion(): string | null {
+	return process.env.VERSION || null;
 }
 
 function isCacheValid(entry: CacheEntry | undefined): boolean {
@@ -143,59 +115,49 @@ export const update = {
 		input: z.object({}),
 		handler: async () => {
 			try {
-				if (
-					isCacheValid(digestCache.remote) &&
-					isCacheValid(digestCache.local)
-				) {
-					const hasUpdate =
-						digestCache.local?.digest !== digestCache.remote?.digest;
+				const localVersion = getLocalVersion();
+
+				if (!localVersion || localVersion === "unknown") {
+					logger.warn("No VERSION env var set in container");
 					return {
-						hasUpdate,
-						currentDigest: digestCache.local?.digest,
-						remoteDigest: digestCache.remote?.digest,
+						hasUpdate: false,
+						error:
+							"Version not available. This container was built without version info.",
 					};
 				}
 
-				let remoteDigest: string;
+				if (isCacheValid(versionCache.remote)) {
+					const hasUpdate = localVersion !== versionCache.remote?.version;
+					return {
+						hasUpdate,
+						currentVersion: localVersion,
+						remoteVersion: versionCache.remote?.version,
+					};
+				}
+
+				let remoteVersion: string;
 				try {
-					const token = await getGhcrToken();
-					remoteDigest = await fetchRemoteDigest(token);
-					digestCache.remote = { digest: remoteDigest, timestamp: Date.now() };
+					remoteVersion = await fetchRemoteVersion();
+					versionCache.remote = {
+						version: remoteVersion,
+						timestamp: Date.now(),
+					};
 				} catch (err) {
 					const message = err instanceof Error ? err.message : "Unknown error";
-					logger.error({ err }, `Failed to check remote digest: ${message}`);
+					logger.error({ err }, `Failed to check remote version: ${message}`);
 					return {
 						hasUpdate: false,
+						currentVersion: localVersion,
 						error: `Failed to check for updates: ${message}`,
 					};
 				}
 
-				let localDigest: string | null = null;
-				try {
-					localDigest = await getLocalDigest();
-					if (localDigest) {
-						digestCache.local = { digest: localDigest, timestamp: Date.now() };
-					}
-				} catch (err) {
-					const message = err instanceof Error ? err.message : "Unknown error";
-					logger.warn({ err }, `Failed to get local digest: ${message}`);
-				}
-
-				if (!localDigest) {
-					return {
-						hasUpdate: false,
-						remoteDigest,
-						error:
-							"Local image not found. Pull the latest version to check for updates.",
-					};
-				}
-
-				const hasUpdate = localDigest !== remoteDigest;
+				const hasUpdate = localVersion !== remoteVersion;
 
 				return {
 					hasUpdate,
-					currentDigest: localDigest,
-					remoteDigest,
+					currentVersion: localVersion,
+					remoteVersion,
 				};
 			} catch (err) {
 				const message = err instanceof Error ? err.message : "Unknown error";
