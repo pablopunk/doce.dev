@@ -6,19 +6,16 @@ export type ThemeMode = "dark" | "light";
 export type Theme = {
 	mode: ThemeMode;
 
-	// Wallpaper (behind macOS window)
 	wallpaperGradient: string;
 	wallpaperGlow1: string;
 	wallpaperGlow2: string;
 
-	// MacOS window chrome
 	windowTitleBar: string;
 	windowTitleText: string;
 	windowBorder: string;
 	windowShadow: string;
 	windowTitleBorderBottom: string;
 
-	// Main scene backgrounds
 	sceneBg: string;
 	navbarBg: string;
 	chatPanelBg: string;
@@ -29,7 +26,6 @@ export type Theme = {
 	codeTabBg: string;
 	codeTabBorder: string;
 
-	// iPhone
 	iphoneBody: string;
 	iphoneBorder: string;
 	iphoneNotch: string;
@@ -37,7 +33,6 @@ export type Theme = {
 	iphoneShadow: string;
 	iphoneLiveBadgeBg: string;
 
-	// Text
 	textPrimary: string;
 	textSecondary: string;
 	textMuted: string;
@@ -47,26 +42,27 @@ export type Theme = {
 	chatUserLabel: string;
 	chatAssistantLabel: string;
 
-	// Borders
 	borderSubtle: string;
 	borderLight: string;
 	borderMedium: string;
+	inputBorderColor: string;
 
-	// Divider (between panels)
 	divider: string;
 
-	// Action pills
 	pillBg: string;
 	pillBorder: string;
 	pillText: string;
 
-	// File tree
+	tabsListBg: string;
+	tabsTriggerActive: string;
+
+	mutedBg50: string;
+
 	fileHighlightBg: string;
 	fileHighlightText: string;
 	fileText: string;
 	fileIcon: string;
 
-	// Code syntax (changes between themes)
 	codeKeyword: string;
 	codeString: string;
 	codeTag: string;
@@ -76,21 +72,25 @@ export type Theme = {
 	codeLineNumber: string;
 	codeCursor: string;
 
-	// Buttons
 	buttonBg: string;
 	buttonBgPressed: string;
+	buttonPrimary: string;
+	buttonPrimaryForeground: string;
 
-	// Deploy scene blurred bg elements
+	chart1: string;
+	chart4: string;
+	chart5: string;
+
 	blurredBg: string;
 	blurredBorder: string;
 	blurredPlaceholder: string;
 
-	// Spinner
 	spinnerTrack: string;
 	spinnerArc: string;
 
-	// Avatar
 	assistantAvatarBg: string;
+
+	statusSuccess: string;
 };
 
 const dark: Theme = {
@@ -109,15 +109,15 @@ const dark: Theme = {
 	windowShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)",
 	windowTitleBorderBottom: "rgba(255,255,255,0.06)",
 
-	sceneBg: "#0a0a12",
-	navbarBg: "#0d0d18",
-	chatPanelBg: "#0f1115",
-	rightPanelBg: "#111318",
-	cardBg: "#161b2e",
-	inputBg: "#1a1d24",
-	codeBg: "#0d1117",
-	codeTabBg: "#161b22",
-	codeTabBorder: "#21262d",
+	sceneBg: "#0f1117",
+	navbarBg: "#0f1117",
+	chatPanelBg: "#0f1117",
+	rightPanelBg: "#0f1117",
+	cardBg: "#1e2030",
+	inputBg: "rgba(255,255,255,0.05)",
+	codeBg: "#1e1e1e",
+	codeTabBg: "#1e2030",
+	codeTabBorder: "rgba(255,255,255,0.10)",
 
 	iphoneBody: "#1c1c1e",
 	iphoneBorder: "rgba(255,255,255,0.15)",
@@ -127,29 +127,35 @@ const dark: Theme = {
 		"0 50px 100px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset",
 	iphoneLiveBadgeBg: "rgba(0,0,0,0.6)",
 
-	textPrimary: "#ffffff",
+	textPrimary: "#f8f9fa",
 	textSecondary: "#9ca3af",
-	textMuted: "#6b7280",
+	textMuted: "#8b93a5",
 	textSubtle: "rgba(255,255,255,0.6)",
-	chatUserText: "#ffffff",
-	chatAssistantText: "#d1d5db",
-	chatUserLabel: "#d1d5db",
-	chatAssistantLabel: "#9ca3af",
+	chatUserText: "#f8f9fa",
+	chatAssistantText: "#e5e7eb",
+	chatUserLabel: "#9ca3af",
+	chatAssistantLabel: "#8b93a5",
 
-	borderSubtle: "rgba(255,255,255,0.06)",
-	borderLight: "rgba(255,255,255,0.08)",
-	borderMedium: "rgba(255,255,255,0.1)",
+	borderSubtle: "rgba(255,255,255,0.10)",
+	borderLight: "rgba(255,255,255,0.10)",
+	borderMedium: "rgba(255,255,255,0.15)",
+	inputBorderColor: "rgba(255,255,255,0.15)",
 
-	divider: "rgba(255,255,255,0.06)",
+	divider: "rgba(255,255,255,0.10)",
 
-	pillBg: "#1e2438",
-	pillBorder: "rgba(255,255,255,0.08)",
+	pillBg: "#2a2e3e",
+	pillBorder: "rgba(255,255,255,0.10)",
 	pillText: "#d1d5db",
+
+	tabsListBg: "#2a2e3e",
+	tabsTriggerActive: "#1e2030",
+
+	mutedBg50: "rgba(42,46,62,0.5)",
 
 	fileHighlightBg: "#1e3a5f",
 	fileHighlightText: "#58a6ff",
 	fileText: "#e6edf3",
-	fileIcon: "#8b949e",
+	fileIcon: "#9ca3af",
 
 	codeKeyword: "#ff7b72",
 	codeString: "#a5d6ff",
@@ -160,8 +166,14 @@ const dark: Theme = {
 	codeLineNumber: "#484f58",
 	codeCursor: "#58a6ff",
 
-	buttonBg: "linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)",
-	buttonBgPressed: "linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%)",
+	buttonBg: "#e8eaf0",
+	buttonBgPressed: "#d1d5db",
+	buttonPrimary: "#e8eaf0",
+	buttonPrimaryForeground: "#1e2030",
+
+	chart1: "#e97316",
+	chart4: "#eab308",
+	chart5: "#f59e0b",
 
 	blurredBg: "rgba(255,255,255,0.03)",
 	blurredBorder: "rgba(255,255,255,0.05)",
@@ -170,7 +182,9 @@ const dark: Theme = {
 	spinnerTrack: "rgba(124,58,237,0.2)",
 	spinnerArc: "#7c3aed",
 
-	assistantAvatarBg: "#1e2438",
+	assistantAvatarBg: "#2a2e3e",
+
+	statusSuccess: "#22c55e",
 };
 
 const light: Theme = {
@@ -193,7 +207,7 @@ const light: Theme = {
 	navbarBg: "#fafafa",
 	chatPanelBg: "#f9fafb",
 	rightPanelBg: "#ffffff",
-	cardBg: "#f3f4f6",
+	cardBg: "#ffffff",
 	inputBg: "#f3f4f6",
 	codeBg: "#ffffff",
 	codeTabBg: "#f3f4f6",
@@ -209,27 +223,33 @@ const light: Theme = {
 
 	textPrimary: "#111827",
 	textSecondary: "#6b7280",
-	textMuted: "#9ca3af",
+	textMuted: "#6b7280",
 	textSubtle: "rgba(0,0,0,0.5)",
 	chatUserText: "#111827",
 	chatAssistantText: "#374151",
 	chatUserLabel: "#374151",
 	chatAssistantLabel: "#6b7280",
 
-	borderSubtle: "rgba(0,0,0,0.06)",
-	borderLight: "rgba(0,0,0,0.08)",
-	borderMedium: "rgba(0,0,0,0.12)",
+	borderSubtle: "#e5e7eb",
+	borderLight: "#e5e7eb",
+	borderMedium: "#d1d5db",
+	inputBorderColor: "#e5e7eb",
 
-	divider: "rgba(0,0,0,0.08)",
+	divider: "#e5e7eb",
 
-	pillBg: "#e5e7eb",
-	pillBorder: "rgba(0,0,0,0.08)",
+	pillBg: "#f3f4f6",
+	pillBorder: "#e5e7eb",
 	pillText: "#374151",
+
+	tabsListBg: "#f3f4f6",
+	tabsTriggerActive: "#ffffff",
+
+	mutedBg50: "rgba(243,244,246,0.5)",
 
 	fileHighlightBg: "#dbeafe",
 	fileHighlightText: "#2563eb",
 	fileText: "#24292f",
-	fileIcon: "#6e7781",
+	fileIcon: "#9ca3af",
 
 	codeKeyword: "#cf222e",
 	codeString: "#0a3069",
@@ -240,8 +260,14 @@ const light: Theme = {
 	codeLineNumber: "#8b949e",
 	codeCursor: "#2563eb",
 
-	buttonBg: "linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)",
-	buttonBgPressed: "linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%)",
+	buttonBg: "#111827",
+	buttonBgPressed: "#374151",
+	buttonPrimary: "#111827",
+	buttonPrimaryForeground: "#f8f9fa",
+
+	chart1: "#e97316",
+	chart4: "#eab308",
+	chart5: "#f59e0b",
 
 	blurredBg: "rgba(0,0,0,0.03)",
 	blurredBorder: "rgba(0,0,0,0.05)",
@@ -250,7 +276,9 @@ const light: Theme = {
 	spinnerTrack: "rgba(124,58,237,0.15)",
 	spinnerArc: "#7c3aed",
 
-	assistantAvatarBg: "#e5e7eb",
+	assistantAvatarBg: "#f3f4f6",
+
+	statusSuccess: "#22c55e",
 };
 
 export const themes = { dark, light } as const;
