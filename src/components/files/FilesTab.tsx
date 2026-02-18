@@ -90,7 +90,7 @@ export function FilesTab({
 		setExpandedPaths(paths);
 	}, []);
 
-	const fetchFileContent = useCallback(
+	const handleFileSelect = useCallback(
 		async (path: string) => {
 			try {
 				setSelectedPath(path);
@@ -124,6 +124,14 @@ export function FilesTab({
 		[onFileSelect, projectId],
 	);
 
+	const handleMobileFileSelect = useCallback(
+		async (path: string) => {
+			await handleFileSelect(path);
+			setMobilePane("editor");
+		},
+		[handleFileSelect],
+	);
+
 	// Fetch file tree on mount
 	useEffect(() => {
 		const fetchFileTree = async () => {
@@ -155,7 +163,7 @@ export function FilesTab({
 							}
 							return newPaths;
 						});
-						await fetchFileContent(lastSelectedFile);
+						await handleFileSelect(lastSelectedFile);
 						if (isMobile) {
 							setMobilePane("editor");
 						}
@@ -170,7 +178,7 @@ export function FilesTab({
 		};
 
 		fetchFileTree();
-	}, [projectId, lastSelectedFile, fetchFileContent, isMobile]);
+	}, [projectId, lastSelectedFile, handleFileSelect, isMobile]);
 
 	if (isLoadingTree) {
 		return (
@@ -232,10 +240,7 @@ export function FilesTab({
 							<div className="flex-1 flex flex-col h-full overflow-hidden">
 								<FileTree
 									files={files}
-									onFileSelect={(path) => {
-										fetchFileContent(path);
-										setMobilePane("editor");
-									}}
+									onFileSelect={handleMobileFileSelect}
 									selectedPath={selectedPath || undefined}
 									expandedPaths={expandedPaths}
 									onExpandedPathsChange={handleExpandedPathsChange}
@@ -274,7 +279,7 @@ export function FilesTab({
 						>
 							<FileTree
 								files={files}
-								onFileSelect={fetchFileContent}
+								onFileSelect={handleFileSelect}
 								selectedPath={selectedPath || undefined}
 								expandedPaths={expandedPaths}
 								onExpandedPathsChange={handleExpandedPathsChange}
