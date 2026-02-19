@@ -1,4 +1,4 @@
-import { defineMiddleware } from "astro:middleware";
+import { defineMiddleware, sequence } from "astro:middleware";
 import {
 	cleanupExpiredSessions,
 	validateSession,
@@ -72,24 +72,44 @@ const SELF_AUTH_PREFIXES = ["/api/", "/_actions/"];
 // Routes that should always be accessible (bypasses setup check redirects)
 const ALWAYS_ACCESSIBLE = ["/api/setup", "/_actions/setup.createAdmin"];
 
-export const onRequest = defineMiddleware(async (context, next) => {
+const securityHeaders = defineMiddleware(async (_context, next) => {
+	const response = await next();
+
+	if (!response.headers.get("X-Frame-Options")) {
+		response.headers.set("X-Frame-Options", "SAMEORIGIN");
+		response.headers.set("X-Content-Type-Options", "nosniff");
+		response.headers.set("X-XSS-Protection", "1; mode=block");
+		response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+		response.headers.set(
+			"Permissions-Policy",
+			"camera=(), microphone=(), geolocation=()",
+		);
+
+		if (import.meta.env.PROD) {
+			response.headers.set(
+				"Strict-Transport-Security",
+				"max-age=31536000; includeSubDomains; preload",
+			);
+		}
+	}
+
+	return response;
+});
+
+const authMiddleware = defineMiddleware(async (context, next) => {
 	const { pathname: rawPathname } = context.url;
-	// Normalize pathname by removing trailing slash (except for root)
 	const pathname = rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
 
-	// Check if setup is needed (no users exist)
 	const needsSetup = await getSetupNeeded();
 	if (needsSetup) {
 		logger.info("[Middleware] No users found. Redirecting to setup.");
 	}
 
-	// Routes that should always be accessible
 	const isAlwaysAccessible = ALWAYS_ACCESSIBLE.some((path) => {
 		const normalizedPath = path === "/" ? "/" : path.replace(/\/$/, "");
 		return pathname === normalizedPath;
 	});
 
-	// If needs setup and not on setup page or always-accessible route, redirect
 	if (needsSetup) {
 		if (pathname !== "/setup" && !isAlwaysAccessible) {
 			logger.info(
@@ -100,7 +120,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return next();
 	}
 
-	// If setup done and on setup page, redirect to dashboard or login
 	if (pathname === "/setup" && !isAlwaysAccessible) {
 		const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
 		if (sessionToken) {
@@ -110,7 +129,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return context.redirect("/login");
 	}
 
-	// Get session from cookie
 	const sessionToken = context.cookies.get(SESSION_COOKIE_NAME)?.value;
 	let user = null;
 
@@ -129,20 +147,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	context.locals.user = user;
 
-	// Redirect logged-in users away from login/setup
 	if (user && AUTH_ROUTES.includes(pathname)) {
 		return context.redirect("/");
 	}
 
-	// Skip auth for API/Actions
 	const isSelfAuthRoute = SELF_AUTH_PREFIXES.some((prefix) =>
 		pathname.startsWith(prefix),
 	);
 
-	// Redirect not-logged-in users to login
 	if (!user && !PUBLIC_ROUTES.includes(pathname) && !isSelfAuthRoute) {
 		return context.redirect("/login");
 	}
 
 	return next();
 });
+
+export const onRequest = sequence(securityHeaders, authMiddleware);
