@@ -176,6 +176,10 @@ jobs:
               ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
                 "docker rmi -f doce-pr-$DIR_PR_NUM:latest 2>/dev/null || true"
               ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "docker volume rm pr-${DIR_PR_NUM}_pr_${DIR_PR_NUM}_data 2>/dev/null || true"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+                "docker volume ls -q | grep -E '^pr-${DIR_PR_NUM}_|^doce_[a-f0-9]+_${DIR_PR_NUM}_' | xargs -r docker volume rm 2>/dev/null || true"
+              ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
                 "rm -rf /root/previews/$dir"
             fi
           done
@@ -184,6 +188,13 @@ jobs:
           echo "📦 Cleaning up stale containers for PR #$PR_NUM..."
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
             "docker rm -f doce-pr-$PR_NUM 2>/dev/null || true; cd /root/previews && for dir in pr-*; do [ -d \"\$dir\" ] && (cd \"\$dir\" && docker-compose down 2>/dev/null || true) || true; done"
+          
+          # Clean up stale volumes for this PR
+          echo "🧹 Cleaning up stale volumes for PR #$PR_NUM..."
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker volume rm pr-${PR_NUM}_pr_${PR_NUM}_data 2>/dev/null || true"
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker volume ls -q | grep -E '^pr-${PR_NUM}_|^doce_[a-f0-9]+_${PR_NUM}_' | xargs -r docker volume rm 2>/dev/null || true"
 
           # Step 2: Create PR directory
           echo "📁 Creating PR directory..."
@@ -327,7 +338,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "docker rmi -f doce-pr-$PR_NUM:latest 2>/dev/null || true"
 
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
-            "docker system prune -af --volumes 2>/dev/null || true"
+            "docker volume rm pr-${PR_NUM}_pr_${PR_NUM}_data 2>/dev/null || true"
+
+          ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+            "docker volume ls -q | grep -E '^pr-${PR_NUM}_|^doce_[a-f0-9]+_${PR_NUM}_' | xargs -r docker volume rm 2>/dev/null || true"
 
           ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" "rm -rf \"$PR_DIR\" 2>/dev/null || true"
 
