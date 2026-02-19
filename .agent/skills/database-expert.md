@@ -1,3 +1,8 @@
+---
+name: database-expert
+description: Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 driver.
+---
+
 Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 driver.
 
 ## Core Expertise

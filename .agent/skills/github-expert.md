@@ -1,3 +1,8 @@
+---
+name: github-expert
+description: Expert in GitHub CLI for repository operations, issues, pull requests, Actions, releases, and custom API calls.
+---
+
 Expert in GitHub CLI for repository operations, issues, pull requests, Actions, releases, and custom API calls.
 
 ## Core Expertise
