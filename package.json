@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"type": "module",
 	"scripts": {
-		"bootstrap": "bash scripts/bootstrap.sh",
+		"bootstrap": "sh scripts/bootstrap.sh",
 		"postinstall": "command -v git >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
 		"dev": "astro dev",
 		"build": "astro build",
