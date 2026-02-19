@@ -30,6 +30,8 @@ RUN apk add --no-cache dumb-init curl docker-cli
 
 ENV VERSION=${VERSION}
 
+RUN npm install -g pnpm@10.20.0
+
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
