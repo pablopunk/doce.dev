@@ -61,8 +61,6 @@ ENV PORT=4321
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:4321 || exit 1
 
-# Use dumb-init to handle signals properly
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Start the application
-CMD ["node", "./dist/server/entry.mjs"]
+CMD ["sh", "-c", "pnpm bootstrap && node ./dist/server/entry.mjs"]
