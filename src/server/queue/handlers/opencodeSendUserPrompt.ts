@@ -82,11 +82,17 @@ export function handleOpencodeSendUserPrompt(
 		yield* ctx.throwIfCancelRequested();
 
 		const normalizedProjectPath = normalizeProjectPath(project.pathOnDisk);
-		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 		let images: ImageAttachment[] = [];
+		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 
 		const imagesContent = yield* Effect.tryPromise({
-			try: () => fs.readFile(imagesPath, "utf-8"),
+			try: async () => {
+				try {
+					return await fs.readFile(imagesPath, "utf-8");
+				} catch {
+					return null;
+				}
+			},
 			catch: () => null,
 		});
 
@@ -351,10 +357,12 @@ export function handleOpencodeSendUserPrompt(
 	}).pipe(
 		Effect.tapError((error) =>
 			Effect.sync(() => {
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
 				logger.error(
 					{
-						error: error.message,
-						cause: error.cause,
+						error: errorMessage,
+						cause: error instanceof Error ? error.cause : undefined,
 					},
 					"opencode.sendUserPrompt handler failed",
 				);

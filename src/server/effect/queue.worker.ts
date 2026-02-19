@@ -1,4 +1,4 @@
-import { Duration, Effect, Fiber } from "effect";
+import { Cause, Duration, Effect, Fiber } from "effect";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { JobCancelledError, RescheduleError } from "./errors";
@@ -81,7 +81,13 @@ const runJob = (
 
 		const cause = result.cause;
 		const error =
-			cause._tag === "Fail" ? cause.error : new Error("Unknown error");
+			cause._tag === "Fail"
+				? cause.error
+				: cause._tag === "Die"
+					? cause.defect
+					: cause._tag === "Interrupt"
+						? new Error("Job was interrupted")
+						: new Error(Cause.pretty(cause));
 
 		if (error instanceof RescheduleError) {
 			yield* queue.rescheduleJob(job.id, workerId, error.delayMs);

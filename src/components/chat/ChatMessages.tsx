@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useMemo } from "react";
 import type { ChatItem } from "@/stores/useChatStore";
 import type { Message } from "@/types/message";
 import { ChatMessage } from "./ChatMessage";
@@ -18,27 +19,31 @@ export function ChatMessages({
 	onToggleTool,
 	onOpenFile,
 }: ChatMessagesProps) {
-	const grouped = groupConsecutiveTools(items);
+	const grouped = useMemo(() => groupConsecutiveTools(items), [items]);
 
 	return (
 		<div className="divide-y">
-			<AnimatePresence>
+			<AnimatePresence mode="popLayout">
 				{grouped.map((item) =>
 					item.type === "message" ? (
 						<motion.div
 							key={item.id}
+							layout
 							initial={{ opacity: 0, y: 10 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.2, ease: "easeOut" }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.15, ease: "easeOut" }}
 						>
 							<ChatMessage message={item.data as Message} />
 						</motion.div>
 					) : item.type === "toolGroup" ? (
 						<motion.div
 							key={item.id}
+							layout
 							initial={{ opacity: 0, y: 10 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.2, ease: "easeOut" }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.15, ease: "easeOut" }}
 						>
 							<ToolCallGroup
 								toolCalls={item.data as ToolCall[]}

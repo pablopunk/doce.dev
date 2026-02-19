@@ -1,6 +1,18 @@
-import { ChevronDown, ChevronUp, Terminal, Trash2 } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronUp,
+	RotateCcw,
+	Terminal,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface LogLine {
@@ -111,6 +123,30 @@ export function TerminalDocks({
 		setAppLines([]);
 	};
 
+	const handleRestartPreview = async () => {
+		try {
+			const response = await fetch(
+				`/api/projects/${projectId}/restart-preview`,
+				{
+					method: "POST",
+				},
+			);
+
+			if (!response.ok) {
+				const data = await response.json();
+				throw new Error(data.error || "Failed to restart preview");
+			}
+
+			toast.success("Preview restarted", {
+				description: "The preview container is restarting...",
+			});
+		} catch (error) {
+			toast.error("Failed to restart preview", {
+				description: error instanceof Error ? error.message : "Unknown error",
+			});
+		}
+	};
+
 	const renderLogLines = (lines: LogLine[]) =>
 		lines.map((line) => (
 			<div
@@ -147,17 +183,44 @@ export function TerminalDocks({
 				</div>
 				<div className="flex items-center gap-1">
 					{isOpen && (
-						<Button
-							variant="ghost"
-							size="icon"
-							className="h-6 w-6"
-							onClick={(e) => {
-								e.stopPropagation();
-								handleClear();
-							}}
-						>
-							<Trash2 className="h-3 w-3" />
-						</Button>
+						<>
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-6 w-6"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleRestartPreview();
+											}}
+										>
+											<RotateCcw className="h-3 w-3" />
+										</Button>
+									}
+								/>
+								<TooltipContent>Restart preview container</TooltipContent>
+							</Tooltip>
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-6 w-6"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleClear();
+											}}
+										>
+											<Trash2 className="h-3 w-3" />
+										</Button>
+									}
+								/>
+								<TooltipContent>Clear logs</TooltipContent>
+							</Tooltip>
+						</>
 					)}
 					{isOpen ? (
 						<ChevronDown className="h-4 w-4" />

@@ -125,7 +125,7 @@ export interface ComposeResult {
  * @param profile Optional profile name. Must come before the subcommand in Docker Compose.
  * @param filePath Optional compose file path. Must come before the subcommand in Docker Compose.
  */
-async function runComposeCommand(
+export async function runComposeCommand(
 	projectId: string,
 	projectPath: string,
 	args: string[],
