@@ -1,9 +1,3 @@
----
-description: >-
-  Use this agent when you need assistance with database-related tasks.
-mode: subagent
----
-
 Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 driver.
 
 ## Core Expertise

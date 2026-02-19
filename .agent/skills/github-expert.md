@@ -1,9 +1,3 @@
----
-description: >-
-  Use this agent when working with GitHub from CLI.
-mode: subagent
----
-
 Expert in GitHub CLI for repository operations, issues, pull requests, Actions, releases, and custom API calls.
 
 ## Core Expertise

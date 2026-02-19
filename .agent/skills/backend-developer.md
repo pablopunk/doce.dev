@@ -1,9 +1,3 @@
----
-description: >-
-  Use this agent when working on server-side development tasks.
-mode: subagent
----
-
 Expert in Astro v5, Drizzle ORM, Docker Compose, OpenCode SDK v2, queue systems, and backend architecture.
 
 ## Core Expertise

@@ -1,8 +1,3 @@
----
-description: Debug web applications using browser DevTools and server logs
-mode: primary
----
-
 Debug web applications using Chrome DevTools MCP tools and server-side log analysis.
 
 ## Required MCPs
