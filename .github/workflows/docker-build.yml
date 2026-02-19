@@ -38,8 +38,7 @@ jobs:
             VERSION=${{ steps.date.outputs.date }}-${{ github.sha[0:7] }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/doce.dev:latest
-            ghcr.io/${{ github.repository_owner }}/doce.dev:${{ github.sha[0:7] }}
-            ghcr.io/${{ github.repository_owner }}/doce.dev:${{ steps.date.outputs.date }}-${{ github.sha[0:5] }}
+            ghcr.io/${{ github.repository_owner }}/doce.dev:${{ steps.date.outputs.date }}-${{ github.sha[0:7] }}
           labels: |
             type=${{ github.event_name }}
             branch=${{ github.ref_name }}
