@@ -13,7 +13,6 @@ COPY package.json pnpm-lock.yaml ./
 # Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Install dependencies and build native modules
 RUN pnpm install --frozen-lockfile --dangerously-allow-all-builds
 
 # Copy source code
@@ -27,20 +26,17 @@ FROM node:22-alpine
 
 ARG VERSION=unknown
 
-# Install dumb-init for proper PID 1 handling and docker for preview environments
-RUN apk add --no-cache dumb-init curl docker-cli docker-cli-compose docker-compose git bash
+RUN apk add --no-cache dumb-init curl docker-cli
 
-# Set version for self-update detection
 ENV VERSION=${VERSION}
-
-# Install pnpm for running migrations
-RUN npm install -g pnpm@10.20.0
 
 WORKDIR /app
 
-# Copy built application from builder
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && corepack prepare pnpm@latest --activate && \
+    pnpm install --frozen-lockfile --prod
+
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/templates ./templates
 COPY package.json ./
