@@ -1,6 +1,5 @@
-#!/bin/bash
+#!/bin/sh
 
-# Bootstrap script that never fails - handles fresh database setup
 set -e
 
 mkdir -p data
