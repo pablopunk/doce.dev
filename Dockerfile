@@ -26,18 +26,13 @@ FROM node:22-alpine
 
 ARG VERSION=unknown
 
-RUN apk add --no-cache dumb-init curl docker-cli python3 make g++
+RUN apk add --no-cache dumb-init curl docker-cli
 
 ENV VERSION=${VERSION}
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && corepack prepare pnpm@latest --activate && \
-    pnpm install --frozen-lockfile --prod --ignore-scripts && \
-    pnpm rebuild better-sqlite3 && \
-    rm -rf /root/.cache
-
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/templates ./templates
