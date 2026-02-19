@@ -2,7 +2,6 @@ import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
-import { CURATED_MODELS } from "@/server/config/models";
 import { logger } from "@/server/logger";
 import { validateApiKey } from "@/server/opencode/apiKeyValidation";
 import {
@@ -102,16 +101,9 @@ export const providers = {
 					const availableModels =
 						await getAvailableModels(connectedProviderIds);
 
-					// Filter to only include curated models
-					const filteredModels = availableModels.filter((model) =>
-						CURATED_MODELS.some(
-							(curatedModelId) => curatedModelId === model.id,
-						),
-					);
-
 					// Enrich with vision support data
 					const enrichedModels: AvailableModel[] = [];
-					for (const model of filteredModels) {
+					for (const model of availableModels) {
 						const supportsImages = await modelSupportsVision(model.id);
 						enrichedModels.push({
 							id: model.id,

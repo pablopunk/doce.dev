@@ -8,7 +8,6 @@ import {
 	Lock,
 	Zap,
 } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
 import { useEffect, useState } from "react";
 import {
 	Command,
@@ -23,47 +22,43 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { AnthropicBlack } from "@/components/ui/svgs/anthropicBlack";
-import { AnthropicWhite } from "@/components/ui/svgs/anthropicWhite";
-import { Gemini } from "@/components/ui/svgs/gemini";
-import { Kimi } from "@/components/ui/svgs/kimi";
-import { Minimax } from "@/components/ui/svgs/minimax";
-import { MinimaxDark } from "@/components/ui/svgs/minimaxDark";
-import { Openai } from "@/components/ui/svgs/openai";
-import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
-import { ZaiDark } from "@/components/ui/svgs/zaiDark";
-import { ZaiLight } from "@/components/ui/svgs/zaiLight";
 import { Tooltip, TooltipContent } from "@/components/ui/tooltip";
-import { toVendorSlug } from "@/lib/modelVendor";
+import {
+	getProviderLogo,
+	getProviderMonogram,
+	type ProviderLogoResult,
+} from "@/lib/providerLogos";
 import { cn } from "@/lib/utils";
 
-const VENDOR_LOGOS: Record<
-	string,
-	{
-		light: ComponentType<SVGProps<SVGSVGElement>>;
-		dark: ComponentType<SVGProps<SVGSVGElement>>;
+function renderLogo(
+	logo: ProviderLogoResult,
+	theme: "light" | "dark",
+	size?: string,
+) {
+	if (!logo) return null;
+
+	if (logo.type === "svg") {
+		const Component = theme === "dark" ? logo.dark : logo.light;
+		return <Component className={size ?? "w-full h-full"} />;
 	}
-> = {
-	openai: { light: Openai, dark: OpenaiDark },
-	anthropic: { light: AnthropicBlack, dark: AnthropicWhite },
-	google: { light: Gemini, dark: Gemini },
-	"z-ai": { light: ZaiLight, dark: ZaiDark },
-	minimax: { light: Minimax, dark: MinimaxDark },
-	kimi: { light: Kimi, dark: Kimi },
-	moonshot: { light: Kimi, dark: Kimi },
-};
 
-function getVendorLogoVariants(
-	vendor: string,
-	provider: string,
-): {
-	light: ComponentType<SVGProps<SVGSVGElement>>;
-	dark: ComponentType<SVGProps<SVGSVGElement>>;
-} | null {
-	const vendorKey = toVendorSlug(vendor);
-	const providerKey = toVendorSlug(provider);
+	return (
+		<img
+			src={logo.url}
+			alt=""
+			className={size ?? "w-full h-full"}
+			style={{ objectFit: "contain" }}
+		/>
+	);
+}
 
-	return VENDOR_LOGOS[vendorKey] ?? VENDOR_LOGOS[providerKey] ?? null;
+function renderMonogram(provider: string) {
+	const letter = getProviderMonogram(provider);
+	return (
+		<div className="w-4 h-4 flex items-center justify-center bg-muted rounded text-[10px] font-medium">
+			{letter}
+		</div>
+	);
 }
 
 interface ModelSelectorProps {
@@ -78,6 +73,7 @@ interface ModelSelectorProps {
 		available?: boolean;
 		unavailableReason?: string;
 	}>;
+	recentModels?: ReadonlyArray<string>;
 	selectedModelId: string;
 	onModelChange: (modelId: string) => void;
 	triggerClassName?: string;
@@ -98,17 +94,13 @@ function getImageSupportIcon(supportsImages?: boolean) {
 	return null;
 }
 
-/**
- * Generate a unique composite key for a model that includes both provider and model ID.
- * This ensures that the same model from different providers is treated as separate options.
- * E.g., "opencode:openai/gpt-5.2" vs "openrouter:openai/gpt-5.2"
- */
 function getModelKey(provider: string, id: string): string {
 	return `${provider}:${id}`;
 }
 
 export function ModelSelector({
 	models,
+	recentModels = [],
 	selectedModelId,
 	onModelChange,
 	triggerClassName,
@@ -133,13 +125,10 @@ export function ModelSelector({
 		return () => observer.disconnect();
 	}, []);
 
-	// Find selected model or fallback to first available model
-	// selectedModelId is now a composite key: "provider:modelId"
 	const selectedModel =
 		models.find((m) => getModelKey(m.provider, m.id) === selectedModelId) ||
 		models[0];
 
-	// Auto-select first model if current selection is invalid
 	useEffect(() => {
 		if (!selectedModel && models.length > 0) {
 			const firstModel = models[0];
@@ -150,14 +139,14 @@ export function ModelSelector({
 	}, [models, selectedModel, onModelChange]);
 
 	const vendorLogo = selectedModel
-		? getVendorLogoVariants(selectedModel.vendor, selectedModel.provider)
+		? getProviderLogo(selectedModel.vendor, selectedModel.provider)
 		: null;
 
-	const renderLogo = (logoVariants: typeof vendorLogo) => {
-		if (!logoVariants) return null;
-		const Logo = theme === "dark" ? logoVariants.dark : logoVariants.light;
-		return <Logo className="w-full h-full" />;
-	};
+	const recentModelKeys = recentModels.slice(0, 5);
+
+	const recentSectionModels = models.filter((m) =>
+		recentModelKeys.includes(getModelKey(m.provider, m.id)),
+	);
 
 	const grouped: Array<[string, Array<(typeof models)[number]>]> = Array.from(
 		models.reduce((acc, model) => {
@@ -195,9 +184,13 @@ export function ModelSelector({
 				aria-expanded={open}
 			>
 				<span className="flex items-center gap-2 flex-1 truncate">
-					{vendorLogo && (
-						<div className="w-4 h-4 shrink-0">{renderLogo(vendorLogo)}</div>
-					)}
+					{vendorLogo ? (
+						<div className="w-4 h-4 shrink-0">
+							{renderLogo(vendorLogo, theme)}
+						</div>
+					) : selectedModel ? (
+						renderMonogram(selectedModel.provider)
+					) : null}
 					<span className="truncate">
 						{selectedModel?.name || "Select model"}
 					</span>
@@ -207,23 +200,94 @@ export function ModelSelector({
 				<ChevronsUpDown className="opacity-50 size-4 shrink-0" />
 			</PopoverTrigger>
 			<PopoverContent className="w-full p-0">
-				<Command>
+				<Command
+					filter={(value, search) => {
+						const normalizedValue = value.toLowerCase();
+						const normalizedSearch = search.toLowerCase().trim();
+
+						if (normalizedSearch.length === 0) return 1;
+
+						const searchWords = normalizedSearch.split(/\s+/);
+
+						const allWordsMatch = searchWords.every((word) =>
+							normalizedValue.includes(word),
+						);
+
+						if (!allWordsMatch) return 0;
+
+						const valueWords = normalizedValue.split(/\s+|[-_/]/);
+						let score = 1;
+
+						for (const searchWord of searchWords) {
+							for (const valueWord of valueWords) {
+								if (valueWord === searchWord) {
+									score += 10;
+								} else if (valueWord.startsWith(searchWord)) {
+									score += 5;
+								} else if (valueWord.includes(searchWord)) {
+									score += 2;
+								}
+							}
+						}
+
+						return score;
+					}}
+				>
 					<CommandInput placeholder="Search models..." />
 					<CommandList>
 						<CommandEmpty>No model found.</CommandEmpty>
+						{recentSectionModels.length > 0 && (
+							<CommandGroup heading="Recent">
+								{recentSectionModels.map((model) => {
+									const modelKey = getModelKey(model.provider, model.id);
+									const logo = getProviderLogo(model.vendor, model.provider);
+
+									return (
+										<CommandItem
+											key={modelKey}
+											value={model.name}
+											onSelect={() => {
+												onModelChange(modelKey);
+												setOpen(false);
+											}}
+											className="flex items-center justify-between gap-2"
+										>
+											<div className="flex items-center gap-2 min-w-0">
+												{logo ? (
+													<div className="w-4 h-4 shrink-0">
+														{renderLogo(logo, theme)}
+													</div>
+												) : (
+													renderMonogram(model.provider)
+												)}
+												<span className="truncate">{model.name}</span>
+											</div>
+											<div className="flex items-center gap-2 shrink-0">
+												<Check
+													className={cn(
+														"size-4 shrink-0",
+														selectedModelId === modelKey
+															? "opacity-100"
+															: "opacity-0",
+													)}
+												/>
+											</div>
+										</CommandItem>
+									);
+								})}
+							</CommandGroup>
+						)}
 						{grouped.map(([provider, providerModels]) => (
 							<CommandGroup key={provider} heading={provider}>
 								{providerModels.map((model) => {
 									const isAvailable = model.available !== false;
-									const modelVendorLogo = getVendorLogoVariants(
-										model.vendor,
-										model.provider,
-									);
+									const logo = getProviderLogo(model.vendor, model.provider);
 									const modelKey = getModelKey(model.provider, model.id);
+
 									const item = (
 										<CommandItem
 											key={modelKey}
-											value={`${model.id} ${model.name} ${provider} ${model.vendor}`}
+											value={model.name}
 											disabled={!isAvailable}
 											onSelect={() => {
 												onModelChange(modelKey);
@@ -234,15 +298,16 @@ export function ModelSelector({
 											}`}
 										>
 											<div className="flex items-center gap-2 min-w-0">
-												{modelVendorLogo && (
+												{logo ? (
 													<div className="w-4 h-4 shrink-0">
-														{renderLogo(modelVendorLogo)}
+														{renderLogo(logo, theme)}
 													</div>
+												) : (
+													renderMonogram(model.provider)
 												)}
 												<span className="truncate">{model.name}</span>
 											</div>
 											<div className="flex items-center gap-2 shrink-0">
-												{getTierIcon(model.tier)}
 												{getImageSupportIcon(model.supportsImages)}
 												{!isAvailable && (
 													<Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />

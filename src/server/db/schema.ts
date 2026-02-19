@@ -32,7 +32,18 @@ export const userSettings = sqliteTable("user_settings", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	openrouterApiKey: text("openrouter_api_key"),
 	defaultModel: text("default_model"),
+	fastModel: text("fast_model"),
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const modelFavorites = sqliteTable("model_favorites", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	provider: text("provider").notNull(),
+	modelId: text("model_id").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
 // Projects table
@@ -151,6 +162,8 @@ export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
+export type ModelFavorite = typeof modelFavorites.$inferSelect;
+export type NewModelFavorite = typeof modelFavorites.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type QueueJob = typeof queueJobs.$inferSelect;

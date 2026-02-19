@@ -32,7 +32,7 @@ const settingsDefaultModel = userSettings[0]?.defaultModel;
 const connectedProviderIds = await listConnectedProviderIds();
 
 // Get available models from connected providers
-let curatedModels: Array<{
+let allModels: Array<{
 	id: string;
 	name: string;
 	provider: string;
@@ -43,19 +43,11 @@ let curatedModels: Array<{
 try {
 	const { getAvailableModels } = await import("@/server/opencode/models");
 	const { modelSupportsVision } = await import("@/server/opencode/models");
-	const { CURATED_MODELS } = await import("@/server/config/models");
 
 	const availableModels = await getAvailableModels(connectedProviderIds);
 
-	// Filter to only include curated models and add vision support
-	const filteredModels = availableModels.filter((model) =>
-		CURATED_MODELS.includes(
-			model.id as unknown as (typeof CURATED_MODELS)[number],
-		),
-	);
-
-	curatedModels = await Promise.all(
-		filteredModels.map(async (model) => ({
+	allModels = await Promise.all(
+		availableModels.map(async (model) => ({
 			id: model.id,
 			name: model.name,
 			provider: model.provider,
@@ -71,7 +63,7 @@ try {
 
 <AppLayout title="Dashboard">
   <HeroSection>
-    <CreateProjectForm client:load models={curatedModels} defaultModel={(settingsDefaultModel || undefined) as string | undefined} />
+    <CreateProjectForm client:load models={allModels} defaultModel={(settingsDefaultModel || undefined) as string | undefined} />
   </HeroSection>
 
   <ProjectsList fallback={projects} client:load />
