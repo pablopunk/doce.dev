@@ -131,7 +131,7 @@ export function useAppUpdate() {
 		if (checkedRef.current) return;
 		checkedRef.current = true;
 		void checkForUpdate();
-	}, []);
+	}, [checkForUpdate]);
 
 	return {
 		state,

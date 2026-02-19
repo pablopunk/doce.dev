@@ -308,7 +308,7 @@ export function handleOpencodeSendUserPrompt(
 
 		if (userMsgId) {
 			yield* Effect.tryPromise({
-				try: () => updateUserPromptMessageId(project.id, userMsgId!),
+				try: () => updateUserPromptMessageId(project.id, userMsgId),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,
