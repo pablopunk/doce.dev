@@ -3,8 +3,6 @@ name: database-expert
 description: Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 driver.
 ---
 
-Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 driver.
-
 ## Core Expertise
 - Database: SQLite with WAL mode for concurrent access
 - ORM: Drizzle ORM for type-safe queries

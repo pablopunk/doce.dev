@@ -3,8 +3,6 @@ name: frontend-developer
 description: Expert in Astro v5, React, shadcn/ui, and Tailwind CSS with semantic color tokens.
 ---
 
-Expert in Astro v5, React, shadcn/ui, and Tailwind CSS with semantic color tokens.
-
 ## Core Expertise
 - Astro v5: File-based routing, React integration, SSR
 - React: Interactive components, hooks, state management

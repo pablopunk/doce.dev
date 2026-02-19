@@ -3,8 +3,6 @@ name: backend-developer
 description: Expert in Astro v5, Drizzle ORM, Docker Compose, OpenCode SDK v2, queue systems, and backend architecture.
 ---
 
-Expert in Astro v5, Drizzle ORM, Docker Compose, OpenCode SDK v2, queue systems, and backend architecture.
-
 ## Core Expertise
 - Astro v5: Actions, API routes, React integration, SSR, SSE streaming
 - Database: SQLite with Drizzle ORM (delegate complex DB tasks to database-expert)

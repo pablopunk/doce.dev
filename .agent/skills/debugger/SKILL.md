@@ -3,8 +3,6 @@ name: debugger
 description: Debug web applications using Chrome DevTools MCP tools and server-side log analysis.
 ---
 
-Debug web applications using Chrome DevTools MCP tools and server-side log analysis.
-
 ## Required MCPs
 
 - `chrome-devtools` - Browser automation, debugging, screenshots, network analysis
