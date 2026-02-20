@@ -1,9 +1,68 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "78ee3b27-2fbe-4d21-9c4c-842c6e86e079",
+  "id": "1b3d9d05-149a-4159-8ad5-52f5731f88ad",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "model_favorites": {
+      "name": "model_favorites",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "model_favorites_user_id_users_id_fk": {
+          "name": "model_favorites_user_id_users_id_fk",
+          "tableFrom": "model_favorites",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "projects": {
       "name": "projects",
       "columns": {
@@ -162,6 +221,41 @@
         "production_hash": {
           "name": "production_hash",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opencode_error_category": {
+          "name": "opencode_error_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opencode_error_code": {
+          "name": "opencode_error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opencode_error_message": {
+          "name": "opencode_error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opencode_error_source": {
+          "name": "opencode_error_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opencode_error_at": {
+          "name": "opencode_error_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -493,6 +587,13 @@
         },
         "default_model": {
           "name": "default_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fast_model": {
+          "name": "fast_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -1,3 +1,12 @@
+CREATE TABLE `model_favorites` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`provider` text NOT NULL,
+	`model_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `projects` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner_user_id` text NOT NULL,
@@ -21,6 +30,11 @@ CREATE TABLE `projects` (
 	`production_started_at` integer,
 	`production_error` text,
 	`production_hash` text,
+	`opencode_error_category` text,
+	`opencode_error_code` text,
+	`opencode_error_message` text,
+	`opencode_error_source` text,
+	`opencode_error_at` integer,
 	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -71,6 +85,7 @@ CREATE TABLE `user_settings` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`openrouter_api_key` text,
 	`default_model` text,
+	`fast_model` text,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
