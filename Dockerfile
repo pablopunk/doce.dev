@@ -26,7 +26,7 @@ FROM node:22-alpine
 
 ARG VERSION=unknown
 
-RUN apk add --no-cache dumb-init curl docker-cli sqlite
+RUN apk add --no-cache dumb-init curl docker-cli
 
 ENV VERSION=${VERSION}
 
