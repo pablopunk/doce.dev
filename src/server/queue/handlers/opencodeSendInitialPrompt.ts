@@ -6,6 +6,7 @@ import {
 	getProjectByIdIncludeDeleted,
 	markInitialPromptSent,
 } from "@/server/projects/projects.model";
+import { isRunningInDocker } from "@/server/utils/docker";
 import { parsePayload } from "../types";
 
 export function handleOpencodeSendInitialPrompt(
@@ -64,8 +65,7 @@ export function handleOpencodeSendInitialPrompt(
 
 		yield* ctx.throwIfCancelRequested();
 
-		const isRunningInDocker = !!process.env.DOCE_NETWORK;
-		const baseUrl = isRunningInDocker
+		const baseUrl = isRunningInDocker()
 			? `http://doce_${project.id}-opencode-1:3000`
 			: `http://localhost:${project.opencodePort}`;
 		const url = `${baseUrl}/session/${sessionId}/prompt_async`;

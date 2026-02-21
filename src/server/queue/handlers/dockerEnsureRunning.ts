@@ -19,6 +19,7 @@ import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
+import { isRunningInDocker } from "@/server/utils/docker";
 import { enqueueOpencodeSessionCreate } from "../enqueue";
 import { parsePayload } from "../types";
 
@@ -180,8 +181,7 @@ export function handleDockerEnsureRunning(
 				});
 
 				try {
-					const isRunningInDocker = !!process.env.DOCE_NETWORK;
-					const baseUrl = isRunningInDocker
+					const baseUrl = isRunningInDocker()
 						? `http://doce_${project.id}-opencode-1:3000`
 						: `http://localhost:${project.opencodePort}`;
 					const sessionUrl = `${baseUrl}/session`;

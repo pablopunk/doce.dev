@@ -11,6 +11,7 @@ import {
 	isProjectOwnedByUser,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
+import { isRunningInDocker } from "@/server/utils/docker";
 
 const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
@@ -47,8 +48,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 	// Connect to upstream opencode SSE
 	// - In Docker: use container hostname for inter-container communication
 	// - On host (dev mode): use localhost with the project's opencode port
-	const isRunningInDocker = !!process.env.DOCE_NETWORK;
-	const baseUrl = isRunningInDocker
+	const baseUrl = isRunningInDocker()
 		? `http://doce_${projectId}-opencode-1:3000`
 		: `http://localhost:${project.opencodePort}`;
 	const upstreamUrl = `${baseUrl}/event`;

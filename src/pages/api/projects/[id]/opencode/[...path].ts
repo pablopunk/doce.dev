@@ -6,6 +6,7 @@ import {
 	getProjectById,
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
+import { isRunningInDocker } from "@/server/utils/docker";
 
 const SESSION_COOKIE_NAME = "doce_session";
 
@@ -117,8 +118,7 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 	// Build upstream URL
 	// - In Docker: use container hostname for inter-container communication
 	// - On host (dev mode): use localhost with the project's opencode port
-	const isRunningInDocker = !!process.env.DOCE_NETWORK;
-	const baseUrl = isRunningInDocker
+	const baseUrl = isRunningInDocker()
 		? `http://doce_${projectId}-opencode-1:3000`
 		: `http://localhost:${project.opencodePort}`;
 	const upstreamUrl = `${baseUrl}/${proxyPath}`;

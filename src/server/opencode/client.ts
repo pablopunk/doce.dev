@@ -5,17 +5,10 @@ import {
 
 import { Effect } from "effect";
 import { logger } from "@/server/logger";
+import { isRunningInDocker } from "@/server/utils/docker";
 
 // Cache clients by projectId to avoid recreating connections
 const clientCache = new Map<string, OpencodeClient>();
-
-/**
- * Check if we're running inside a Docker container.
- * DOCE_NETWORK is set by docker-compose when running in container mode.
- */
-function isRunningInDocker(): boolean {
-	return !!process.env.DOCE_NETWORK;
-}
 
 /**
  * Get the container hostname for the opencode service.

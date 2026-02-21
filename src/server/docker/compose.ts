@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
+import { isRunningInDocker } from "@/server/utils/docker";
 import { runCommand } from "@/server/utils/execAsync";
 import {
 	appendDockerLog,
@@ -555,8 +557,94 @@ export function parseComposePs(output: string): ContainerStatus[] {
 }
 
 /**
+ * Get the current container ID if running inside Docker.
+ * Reads /proc/self/cgroup to extract the container ID.
+ */
+function getCurrentContainerId(): string | null {
+	try {
+		const cgroup = readFileSync("/proc/self/cgroup", "utf8");
+		// Extract container ID from cgroup paths like:
+		// 0::/docker/ba47f7b63b.../...
+		const match = cgroup.match(/\/docker\/([a-f0-9]{12,64})/);
+		if (match) {
+			return match[1] ?? null;
+		}
+		// Try alternative format (newer Docker versions)
+		const lines = cgroup.split("\n");
+		for (const line of lines) {
+			const parts = line.split(":");
+			if (parts.length >= 3) {
+				const path = parts[2];
+				// Extract from paths like /docker/container-id
+				const pathMatch = path?.match(/\/docker\/([a-f0-9]{12,64})/);
+				if (pathMatch) {
+					return pathMatch[1] ?? null;
+				}
+			}
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Attach the current container to the shared network.
+ * This allows the doce container to communicate with project containers.
+ * Idempotent - safe to call multiple times.
+ */
+async function attachToSharedNetwork(): Promise<void> {
+	const networkName = process.env.DOCE_NETWORK || "doce-shared";
+	const containerId = getCurrentContainerId();
+
+	if (!containerId) {
+		logger.debug("Could not determine container ID, skipping network attach");
+		return;
+	}
+
+	try {
+		// Check if already attached
+		const inspectResult = await runCommand(
+			`docker inspect --format='{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}' ${containerId}`,
+			{ timeout: 5000 },
+		);
+
+		if (inspectResult.success && inspectResult.stdout.includes(networkName)) {
+			logger.debug({ networkName }, "Already attached to shared network");
+			return;
+		}
+
+		// Attach to network
+		const result = await runCommand(
+			`docker network connect ${networkName} ${containerId}`,
+			{ timeout: 5000 },
+		);
+
+		if (result.success) {
+			logger.info(
+				{ networkName, containerId: containerId.slice(0, 12) },
+				"Attached to shared network successfully",
+			);
+		} else if (result.stderr.includes("already exists")) {
+			logger.debug({ networkName }, "Already attached to shared network");
+		} else {
+			logger.warn(
+				{ error: result.stderr, networkName },
+				"Failed to attach to shared network",
+			);
+		}
+	} catch (err) {
+		logger.warn(
+			{ error: err, networkName },
+			"Failed to attach to shared network",
+		);
+	}
+}
+
+/**
  * Ensure the shared network exists.
- * Idempotent - safe to call multiple times, no errors if already exists.
+ * Idempotent - safe to call multiple times, no errors if it already exists.
+ * Also attaches the current container to the network if running in Docker.
  */
 export async function ensureDoceSharedNetwork(): Promise<void> {
 	const networkName = process.env.DOCE_NETWORK || "doce-shared";
@@ -567,20 +655,24 @@ export async function ensureDoceSharedNetwork(): Promise<void> {
 			timeout: 5000,
 		});
 		if (result.success) {
-			logger.debug({ networkName }, "Shared network ensured");
+			logger.info({ networkName }, "Shared network created");
 		} else {
 			// Ignore error if it already exists
-			if (result.stderr.includes("already exists")) {
-				return;
+			if (!result.stderr.includes("already exists")) {
+				logger.warn(
+					{ error: result.stderr, networkName },
+					"Failed to ensure shared network",
+				);
 			}
-			logger.warn(
-				{ error: result.stderr, networkName },
-				"Failed to ensure shared network",
-			);
 		}
 	} catch (err) {
 		// Log but don't throw - if Docker is unavailable, it will fail later anyway
 		logger.warn({ error: err, networkName }, "Failed to ensure shared network");
+	}
+
+	// If running in Docker, attach to the network
+	if (isRunningInDocker()) {
+		await attachToSharedNetwork();
 	}
 }
 

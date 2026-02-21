@@ -97,7 +97,7 @@ export function handleOpencodeSessionCreate(
 		const client = createOpencodeClient(project.id, project.opencodePort);
 
 		logger.info({ projectId: project.id }, "Calling client.session.create()");
-		const sessionResponse = yield* Effect.tryPromise({
+		const result = yield* Effect.tryPromise({
 			try: () => client.session.create(),
 			catch: (error) =>
 				new OpenCodeSessionError({
@@ -110,21 +110,27 @@ export function handleOpencodeSessionCreate(
 		logger.info(
 			{
 				projectId: project.id,
-				responseOk: sessionResponse.response?.ok,
-				hasData: !!sessionResponse.data,
+				hasData: !!result.data,
+				hasError: !!result.error,
 			},
 			"Received session creation response",
 		);
 
-		if (!sessionResponse.data || typeof sessionResponse.data !== "object") {
+		if (result.error) {
+			return yield* new OpenCodeSessionError({
+				projectId: project.id,
+				message: `Session creation failed: ${String(result.error)}`,
+			});
+		}
+
+		if (!result.data || typeof result.data !== "object") {
 			return yield* new OpenCodeSessionError({
 				projectId: project.id,
 				message: "Invalid session response structure",
 			});
 		}
 
-		const responseData = sessionResponse.data as Record<string, unknown>;
-		const sessionId = responseData.id;
+		const sessionId = result.data.id;
 
 		if (!sessionId || typeof sessionId !== "string") {
 			return yield* new OpenCodeSessionError({
