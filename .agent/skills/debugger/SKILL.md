@@ -1,6 +1,6 @@
 ---
 name: debugger
-description: Debug web applications using Chrome DevTools MCP tools and server-side log analysis.
+description: Debug this app using Chrome DevTools MCP tools and server-side log analysis.
 ---
 
 ## Required MCPs
