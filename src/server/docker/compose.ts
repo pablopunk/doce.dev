@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import * as fs from "node:fs/promises";
+import { hostname } from "node:os";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
@@ -561,6 +562,11 @@ export function parseComposePs(output: string): ContainerStatus[] {
  * Reads /proc/self/cgroup to extract the container ID.
  */
 function getCurrentContainerId(): string | null {
+	const hostnameValue = hostname();
+	if (/^[a-f0-9]{12,64}$/.test(hostnameValue)) {
+		return hostnameValue;
+	}
+
 	try {
 		const cgroup = readFileSync("/proc/self/cgroup", "utf8");
 		// Extract container ID from cgroup paths like:
