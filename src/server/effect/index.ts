@@ -14,13 +14,13 @@ export const AppLayer = Layer.mergeAll(
 	DatabaseServiceLive,
 );
 
+export { DockerServiceLive } from "./DockerServiceLive";
 export {
 	DatabaseService,
 	DockerService,
-	DockerServiceLive,
 	QueueService,
-	QueueServiceLive,
 } from "./layers";
+export { QueueServiceLive } from "./QueueServiceLive";
 export type { QueueWorkerHandle, QueueWorkerOptions } from "./queue.worker";
 export {
 	getHandlers,
