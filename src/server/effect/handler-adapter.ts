@@ -20,11 +20,15 @@ export function wrapLegacyHandler(
 ): (ctx: EffectQueueJobContext) => Effect.Effect<void, unknown> {
 	return (ctx: EffectQueueJobContext) =>
 		Effect.gen(function* () {
+			// Check cancellation before running the legacy handler
+			// This runs with the worker's layer context
+			yield* ctx.throwIfCancelRequested();
+
 			const legacyCtx = {
 				job: ctx.job,
 				workerId: ctx.workerId,
-				throwIfCancelRequested: () =>
-					Effect.runPromise(ctx.throwIfCancelRequested()),
+				// No-op since we already checked above
+				throwIfCancelRequested: () => Promise.resolve(),
 				reschedule: ctx.reschedule,
 			};
 
