@@ -1,4 +1,4 @@
-import { Cause, Duration, Effect, Fiber } from "effect";
+import { Cause, Duration, Effect, Fiber, type Layer } from "effect";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { JobCancelledError, RescheduleError } from "./errors";
@@ -8,6 +8,11 @@ export interface QueueWorkerOptions {
 	concurrency: number;
 	leaseMs: number;
 	pollMs: number;
+	/**
+	 * Layer to provide to each job handler. Should include all services
+	 * required by handlers (e.g., BaseLayer merged with AppLayer).
+	 */
+	layer: Layer.Layer<unknown>;
 }
 
 export interface QueueWorkerHandle {
@@ -33,6 +38,7 @@ export const registerHandler = (type: string, handler: JobHandler) => {
 const runJob = (
 	job: QueueJob,
 	workerId: string,
+	layer: Layer.Layer<unknown>,
 ): Effect.Effect<void, never, QueueService> =>
 	Effect.gen(function* () {
 		const queue = yield* QueueService;
@@ -71,7 +77,7 @@ const runJob = (
 			return;
 		}
 
-		const result = yield* Effect.exit(handler(ctx));
+		const result = yield* Effect.exit(handler(ctx).pipe(Effect.provide(layer)));
 
 		if (result._tag === "Success") {
 			yield* queue.completeJob(job.id, workerId);
@@ -165,7 +171,7 @@ const workerLoop = (
 				});
 				if (!job) break;
 
-				const fiber = yield* Effect.fork(runJob(job, workerId));
+				const fiber = yield* Effect.fork(runJob(job, workerId, options.layer));
 				fibers.push(fiber);
 			}
 

@@ -16,13 +16,14 @@ let workerStartPromise: Promise<void> | null = null;
 
 const startWorker = async () => {
 	const workerId = `host_${randomBytes(6).toString("hex")}`;
-
+	const layer = Layer.merge(BaseLayer, AppLayer);
 	const handle = await Effect.runPromise(
 		startQueueWorkerEffect(workerId, {
 			concurrency: 2,
 			leaseMs: 60_000,
 			pollMs: 250,
-		}).pipe(Effect.provide(Layer.merge(BaseLayer, AppLayer))),
+			layer,
+		}),
 	);
 
 	globalThis.__DOCE_EFFECT_QUEUE_WORKER__ = handle;
