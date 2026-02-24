@@ -7,6 +7,11 @@ RUN npm install -g pnpm@10.20.0
 
 WORKDIR /app
 
+# Pass VERSION build arg to builder stage
+ARG VERSION=unknown
+ENV VERSION=${VERSION}
+
+
 # Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 
