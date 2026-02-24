@@ -77,7 +77,9 @@ const runJob = (
 			return;
 		}
 
-		const result = yield* Effect.exit(handler(ctx).pipe(Effect.provide(layer)));
+		// Provide the layer to the handler and run it to get an Exit
+		const handledEffect = handler(ctx).pipe(Effect.provide(layer));
+		const result = yield* Effect.exit(handledEffect);
 
 		if (result._tag === "Success") {
 			yield* queue.completeJob(job.id, workerId);
