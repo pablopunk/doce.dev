@@ -263,6 +263,21 @@ export function DeployButton({
 							</Button>
 						</>
 					)}
+
+					{/* Fallback/Loading State - shown when none of the other states match */}
+					{!isStopping && !isBuilding && !isDeployed && !isFailed && (
+						<div className="flex items-center gap-2">
+							<Loader2 className="h-4 w-4 animate-spin" />
+							<div className="flex flex-col">
+								<span className="font-medium text-sm text-muted-foreground">
+									Loading...
+								</span>
+								<span className="text-xs text-muted-foreground">
+									Fetching deployment status...
+								</span>
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 		</div>
