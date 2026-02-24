@@ -82,14 +82,16 @@ export function BaseUrlSettings() {
 					/>
 				</div>
 
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					<Button
+						className="shrink-0"
 						onClick={handleSave}
 						disabled={isLoading || isSaving || !hasChanges}
 					>
 						{isSaving ? "Saving..." : "Save Base URL"}
 					</Button>
 					<Button
+						className="max-w-full"
 						variant="outline"
 						onClick={() => {
 							if (!currentHostBaseUrl) {
@@ -99,9 +101,10 @@ export function BaseUrlSettings() {
 						}}
 						disabled={isLoading || isSaving || !currentHostBaseUrl}
 					>
-						{`Use ${currentHostname}`}
+						<span className="truncate">{`Use ${currentHostname}`}</span>
 					</Button>
 					<Button
+						className="shrink-0"
 						variant="outline"
 						onClick={() => setDraft("")}
 						disabled={isLoading || isSaving || draft.length === 0}
