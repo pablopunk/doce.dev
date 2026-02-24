@@ -1,9 +1,28 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { DEFAULT_MODEL, FAST_MODEL } from "@/server/config/models";
 import { db } from "@/server/db/client";
-import { modelFavorites, userSettings } from "@/server/db/schema";
+import { modelFavorites, userSettings, users } from "@/server/db/schema";
+import {
+	getInstanceBaseUrl,
+	setInstanceBaseUrl,
+} from "@/server/settings/instance.settings";
+
+async function ensureAdminUser(userId: string): Promise<void> {
+	const firstUser = await db
+		.select({ id: users.id })
+		.from(users)
+		.orderBy(asc(users.createdAt))
+		.limit(1);
+
+	if (firstUser[0]?.id !== userId) {
+		throw new ActionError({
+			code: "FORBIDDEN",
+			message: "Only admin can change instance settings",
+		});
+	}
+}
 
 export const settings = {
 	save: defineAction({
@@ -152,6 +171,47 @@ export const settings = {
 				.where(eq(userSettings.userId, user.id));
 
 			return { success: true };
+		},
+	}),
+
+	getBaseUrl: defineAction({
+		handler: async (_input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in to get base URL",
+				});
+			}
+
+			const baseUrl = await getInstanceBaseUrl();
+
+			return {
+				baseUrl,
+			};
+		},
+	}),
+
+	setBaseUrl: defineAction({
+		accept: "json",
+		input: z.object({
+			baseUrl: z.string().optional(),
+		}),
+		handler: async (input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in to set base URL",
+				});
+			}
+
+			await ensureAdminUser(user.id);
+
+			const normalizedBaseUrl = input.baseUrl?.trim() || null;
+			await setInstanceBaseUrl(normalizedBaseUrl);
+
+			return { success: true, baseUrl: normalizedBaseUrl };
 		},
 	}),
 };

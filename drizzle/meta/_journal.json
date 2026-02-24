@@ -8,6 +8,13 @@
       "when": 1771621563041,
       "tag": "0000_fast_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771887688428,
+      "tag": "0001_fearless_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

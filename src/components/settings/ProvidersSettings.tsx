@@ -115,7 +115,7 @@ export function ProvidersSettings() {
 	if (isLoading) {
 		return (
 			<div className="space-y-6">
-				<Card>
+				<Card className="h-full">
 					<CardHeader>
 						<CardTitle>Providers</CardTitle>
 						<CardDescription>
@@ -134,7 +134,7 @@ export function ProvidersSettings() {
 	const availableProviders = providers.filter((p) => !p.connected);
 
 	return (
-		<Card>
+		<Card className="h-full">
 			<CardHeader>
 				<CardTitle>Providers</CardTitle>
 				<CardDescription>
@@ -142,7 +142,7 @@ export function ProvidersSettings() {
 					volume and shared with all project OpenCode containers.
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="space-y-6">
+			<CardContent className="flex h-full flex-col space-y-6">
 				<div className="space-y-4">
 					<div>
 						<label
@@ -227,7 +227,7 @@ export function ProvidersSettings() {
 				</div>
 
 				{providers.filter((p) => p.connected).length > 0 && (
-					<div>
+					<div className="mt-auto">
 						<h3 className="text-lg font-semibold mb-3">Connected providers</h3>
 						<div className="space-y-2">
 							{providers

@@ -8,6 +8,8 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
+import { mapPortUrlToPreferredHost } from "@/lib/base-url";
 
 export interface ProductionVersion {
 	hash: string;
@@ -35,10 +37,21 @@ export function DeploymentVersionHistory({
 	onRollback,
 	isLoading = false,
 }: DeploymentVersionHistoryProps) {
+	const { baseUrl } = useBaseUrlSetting();
 	const [selectedRollbackHash, setSelectedRollbackHash] = useState<
 		string | null
 	>(null);
 	const [isRollingBack, setIsRollingBack] = useState(false);
+
+	const normalizeDisplayUrl = (url: string | undefined): string | undefined => {
+		if (!url || typeof window === "undefined") {
+			return url;
+		}
+
+		return (
+			mapPortUrlToPreferredHost(url, baseUrl, window.location.origin) ?? url
+		);
+	};
 
 	if (!versions || versions.length === 0) {
 		return null;
@@ -50,6 +63,13 @@ export function DeploymentVersionHistory({
 	if (!currentVersion) {
 		return null;
 	}
+
+	const currentVersionUrl = normalizeDisplayUrl(
+		currentVersion.url || currentVersion.previewUrl,
+	);
+	const previousVersionUrl = normalizeDisplayUrl(
+		previousVersion?.url || previousVersion?.previewUrl,
+	);
 
 	const handleRollbackConfirm = async () => {
 		if (!selectedRollbackHash) return;
@@ -74,12 +94,11 @@ export function DeploymentVersionHistory({
 				<button
 					type="button"
 					onClick={() => {
-						const url = currentVersion.url || currentVersion.previewUrl;
-						if (url) {
-							window.open(url, "_blank");
+						if (currentVersionUrl) {
+							window.open(currentVersionUrl, "_blank");
 						}
 					}}
-					disabled={!currentVersion.url && !currentVersion.previewUrl}
+					disabled={!currentVersionUrl}
 					className="mb-2 w-full flex items-center justify-between px-2 py-2 rounded bg-neutral-800/50 hover:bg-neutral-800 disabled:hover:bg-neutral-800/50 transition-colors disabled:cursor-default"
 				>
 					<div className="flex items-center gap-2 flex-1 min-w-0">
@@ -93,9 +112,9 @@ export function DeploymentVersionHistory({
 							<div className="text-xs text-neutral-500">
 								{new Date(currentVersion.createdAt).toLocaleString()}
 							</div>
-							{(currentVersion.url || currentVersion.previewUrl) && (
+							{currentVersionUrl && (
 								<div className="text-xs text-blue-400 truncate">
-									{currentVersion.url || currentVersion.previewUrl}
+									{currentVersionUrl}
 								</div>
 							)}
 							{currentVersion.basePort && (
@@ -116,12 +135,11 @@ export function DeploymentVersionHistory({
 						<button
 							type="button"
 							onClick={() => {
-								const url = previousVersion.url || previousVersion.previewUrl;
-								if (url) {
-									window.open(url, "_blank");
+								if (previousVersionUrl) {
+									window.open(previousVersionUrl, "_blank");
 								}
 							}}
-							disabled={!previousVersion.url && !previousVersion.previewUrl}
+							disabled={!previousVersionUrl}
 							className="flex-1 flex items-center gap-2 min-w-0 hover:opacity-80 disabled:hover:opacity-100 disabled:cursor-default transition-opacity"
 						>
 							<div className="flex-shrink-0 w-5 h-5 rounded-full bg-neutral-600 flex items-center justify-center">
@@ -134,9 +152,9 @@ export function DeploymentVersionHistory({
 								<div className="text-xs text-neutral-500">
 									{new Date(previousVersion.createdAt).toLocaleString()}
 								</div>
-								{(previousVersion.url || previousVersion.previewUrl) && (
+								{previousVersionUrl && (
 									<div className="text-xs text-blue-400 truncate">
-										{previousVersion.url || previousVersion.previewUrl}
+										{previousVersionUrl}
 									</div>
 								)}
 								{previousVersion.versionPort && (

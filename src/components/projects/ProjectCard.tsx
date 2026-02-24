@@ -3,6 +3,8 @@ import { ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
+import { mapPortUrlToPreferredHost } from "@/lib/base-url";
 import type { Project } from "@/server/db/schema";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
@@ -69,8 +71,16 @@ function getStatusStyle(status: string): StatusStyle {
 export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const { baseUrl } = useBaseUrlSetting();
 
-	const previewUrl = `http://localhost:${project.devPort}`;
+	const previewUrl =
+		typeof window === "undefined"
+			? `http://localhost:${project.devPort}`
+			: (mapPortUrlToPreferredHost(
+					`http://localhost:${project.devPort}`,
+					baseUrl,
+					window.location.origin,
+				) ?? `http://localhost:${project.devPort}`);
 	const isRunning = project.status === "running";
 	const isLoading =
 		project.status === "starting" ||

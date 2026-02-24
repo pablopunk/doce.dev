@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { logger } from "@/server/logger";
 import { ensureQueueSettingsRow } from "@/server/queue/queue.settings";
+import { ensureInstanceSettingsRow } from "@/server/settings/instance.settings";
 import { db } from "./client";
 
 let migrationsRan = false;
@@ -17,11 +18,7 @@ function isBenignAlreadyExistsError(error: unknown): boolean {
 			: "";
 
 	const combined = `${message} ${cause}`;
-	return (
-		combined.includes("table") &&
-		combined.includes("already exists") &&
-		combined.includes("projects")
-	);
+	return combined.includes("table") && combined.includes("already exists");
 }
 
 export async function ensureDatabaseReady() {
@@ -43,6 +40,7 @@ export async function ensureDatabaseReady() {
 		}
 
 		await ensureQueueSettingsRow();
+		await ensureInstanceSettingsRow();
 		migrationsRan = true;
 	} catch (error) {
 		logger.error({ error }, "[DB] Initialization failed");

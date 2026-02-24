@@ -20,6 +20,8 @@ import { TerminalDocks } from "@/components/terminal/TerminalDocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
+import { mapPortUrlToPreferredHost } from "@/lib/base-url";
 
 interface PresenceResponse {
 	projectId: string;
@@ -95,6 +97,7 @@ export function PreviewPanel({
 	onStreamingStateChange,
 }: PreviewPanelProps) {
 	const isMobile = useIsMobile();
+	const { baseUrl } = useBaseUrlSetting();
 	const [state, setState] = useState<PreviewState>("initializing");
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -192,40 +195,22 @@ export function PreviewPanel({
 			}
 		}, [projectId]);
 
-	const mapPortUrlToCurrentHost = useCallback((url: string | null) => {
-		if (!url || typeof window === "undefined") {
-			return url;
-		}
-
-		const originWithoutPort = window.location.origin.replace(/:\d+$/, "");
-
-		try {
-			const parsed = new URL(url);
-			if (!parsed.port) {
+	const mapPortUrlToPreferredBase = useCallback(
+		(url: string | null) => {
+			if (!url || typeof window === "undefined") {
 				return url;
 			}
 
-			return `${originWithoutPort}:${parsed.port}${parsed.pathname}${parsed.search}${parsed.hash}`;
-		} catch {
-			const match = url.match(/:(\d+)(?:\/|$)/);
-			if (!match) {
-				return url;
-			}
-
-			return `${originWithoutPort}:${match[1]}`;
-		}
-	}, []);
+			return mapPortUrlToPreferredHost(url, baseUrl, window.location.origin);
+		},
+		[baseUrl],
+	);
 
 	const handlePresenceResponse = useCallback(
 		(data: PresenceResponse) => {
-			// Construct preview URL from current window location origin + port from backend response
-			// This ensures the preview works in both local and remote deployments
-			if (typeof window !== "undefined" && data.previewUrl) {
-				// Extract port from the backend's previewUrl (e.g., "http://127.0.0.1:42949" -> "42949")
-				const match = data.previewUrl.match(/:(\d+)$/);
-				const port = match ? match[1] : "4321";
-				const frontendPreviewUrl = `${window.location.origin.replace(/:\d+$/, "")}:${port}`;
-				setPreviewUrl(frontendPreviewUrl);
+			if (typeof window !== "undefined") {
+				const mappedPreviewUrl = mapPortUrlToPreferredBase(data.previewUrl);
+				setPreviewUrl(mappedPreviewUrl ?? data.previewUrl);
 			} else {
 				setPreviewUrl(data.previewUrl);
 			}
@@ -253,7 +238,7 @@ export function PreviewPanel({
 
 			return data;
 		},
-		[onStatusChange],
+		[mapPortUrlToPreferredBase, onStatusChange],
 	);
 
 	// Initial heartbeat and polling
@@ -335,7 +320,10 @@ export function PreviewPanel({
 				});
 				if (!error) {
 					const status = data as unknown as ProductionStatus;
-					const frontendUrl = mapPortUrlToCurrentHost(status.url);
+					const frontendUrl =
+						typeof window === "undefined"
+							? status.url
+							: mapPortUrlToPreferredBase(status.url);
 					const normalizedStatus = {
 						...status,
 						url: frontendUrl,
@@ -348,7 +336,7 @@ export function PreviewPanel({
 				console.error("Failed to fetch production status:", error);
 			}
 			return null;
-		}, [projectId, mapPortUrlToCurrentHost]);
+		}, [projectId, mapPortUrlToPreferredBase]);
 
 	const pollProductionHistory = useCallback(async () => {
 		try {

@@ -155,6 +155,12 @@ export const queueSettings = sqliteTable("queue_settings", {
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
+export const instanceSettings = sqliteTable("instance_settings", {
+	id: integer("id").primaryKey(),
+	baseUrl: text("base_url"),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -170,3 +176,5 @@ export type QueueJob = typeof queueJobs.$inferSelect;
 export type NewQueueJob = typeof queueJobs.$inferInsert;
 export type QueueSettings = typeof queueSettings.$inferSelect;
 export type NewQueueSettings = typeof queueSettings.$inferInsert;
+export type InstanceSettings = typeof instanceSettings.$inferSelect;
+export type NewInstanceSettings = typeof instanceSettings.$inferInsert;
