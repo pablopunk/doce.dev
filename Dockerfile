@@ -7,11 +7,6 @@ RUN npm install -g pnpm@10.20.0
 
 WORKDIR /app
 
-# Pass VERSION build arg to builder stage
-ARG VERSION=unknown
-ENV VERSION=${VERSION}
-
-
 # Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 
@@ -20,8 +15,15 @@ RUN apk add --no-cache python3 make g++
 
 RUN pnpm install --frozen-lockfile --dangerously-allow-all-builds
 
+# Cache bust: VERSION changes with every commit (date-SHA)
+# This must be placed BEFORE "COPY . ." to ensure cache invalidation
+ARG VERSION=unknown
+
 # Copy source code
 COPY . .
+
+# Set VERSION env for build
+ENV VERSION=${VERSION}
 
 # Build the application
 RUN pnpm build
