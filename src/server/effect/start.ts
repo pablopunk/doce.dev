@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { logger } from "@/server/logger";
 import { AppLayer, registerAllHandlers } from "./index";
 import { type QueueWorkerHandle, startQueueWorkerEffect } from "./queue.worker";
+import { BaseLayer } from "./runtime";
 
 declare global {
 	// eslint-disable-next-line no-var
@@ -21,7 +22,7 @@ const startWorker = async () => {
 			concurrency: 2,
 			leaseMs: 60_000,
 			pollMs: 250,
-		}).pipe(Effect.provide(AppLayer)),
+		}).pipe(Effect.provide(Layer.merge(BaseLayer, AppLayer))),
 	);
 
 	globalThis.__DOCE_EFFECT_QUEUE_WORKER__ = handle;
