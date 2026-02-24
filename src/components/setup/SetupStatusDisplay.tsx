@@ -225,9 +225,8 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 					setJobTimeoutWarning(data.jobTimeoutWarning);
 				}
 
-				// When we reach step 4, the backend has marked initial_prompt_completed
-				// Reload the page so it shows the chat/preview instead of setup
-				if (data.currentStep >= 4 && data.isSetupComplete) {
+				// When we reach step 4, all setup jobs have succeeded
+				if (data.currentStep >= 4) {
 					// Wait a moment for the UI to show final state, then reload
 					setTimeout(() => {
 						window.location.reload();
