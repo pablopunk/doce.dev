@@ -156,8 +156,10 @@ export function useCreateProject({
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			try {
-				const result = await actions.projects.get({ projectId });
-				if (result.data?.project) {
+				const result = await actions.projects.list();
+				if (
+					result.data?.projects?.some((project) => project.id === projectId)
+				) {
 					// Project exists! We can redirect now
 					return;
 				}
