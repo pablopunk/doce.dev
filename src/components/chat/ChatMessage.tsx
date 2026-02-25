@@ -34,8 +34,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
 				{isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
 			</div>
 			<div className="flex-1 space-y-2 overflow-hidden">
-				<div className="font-medium text-sm">
-					{isUser ? "You" : "Assistant"}
+				<div className="flex items-center gap-2 font-medium text-sm">
+					<span>{isUser ? "You" : "Assistant"}</span>
+					{isUser && message.localStatus === "pending" && (
+						<span className="text-xs text-muted-foreground">Sending...</span>
+					)}
+					{isUser && message.localStatus === "failed" && (
+						<span className="text-xs text-destructive">Failed</span>
+					)}
 				</div>
 				<div className="space-y-2">
 					{message.parts.map((part, idx) => {

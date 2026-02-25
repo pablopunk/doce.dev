@@ -3,6 +3,9 @@ import { useChatPanel } from "@/hooks/useChatPanel";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
+import { PermissionDock } from "./composer/PermissionDock";
+import { QuestionDock } from "./composer/QuestionDock";
+import { TodoDock } from "./composer/TodoDock";
 
 interface ChatPanelProps {
 	projectId: string;
@@ -29,6 +32,9 @@ export function ChatPanel({
 		items,
 		opencodeReady,
 		isStreaming,
+		pendingPermission,
+		pendingQuestion,
+		todos,
 		pendingImages,
 		pendingImageError,
 		currentModel,
@@ -39,10 +45,15 @@ export function ChatPanel({
 		setPendingImageError,
 		handleSend,
 		handleModelChange,
+		handlePermissionDecision,
+		handleQuestionSubmit,
+		handleQuestionReject,
 		toggleToolExpanded,
 		handleScroll,
 		clearDiagnostic,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
+
+	const isBlocked = Boolean(pendingPermission || pendingQuestion);
 
 	return (
 		<div className="flex flex-col h-full">
@@ -91,25 +102,43 @@ export function ChatPanel({
 					)?.supportsImages ?? true;
 
 				return (
-					<ChatInput
-						onSend={handleSend}
-						disabled={!opencodeReady || isStreaming}
-						placeholder={
-							!opencodeReady
-								? "Waiting for opencode..."
-								: isStreaming
-									? "Processing..."
-									: "Type a message..."
-						}
-						model={compositeModelKey}
-						models={models}
-						onModelChange={handleModelChange}
-						images={pendingImages}
-						onImagesChange={setPendingImages}
-						imageError={pendingImageError}
-						onImageError={setPendingImageError}
-						supportsImages={modelSupport}
-					/>
+					<>
+						{todos.length > 0 && !isBlocked && <TodoDock todos={todos} />}
+						{pendingQuestion && (
+							<QuestionDock
+								request={pendingQuestion}
+								onSubmit={handleQuestionSubmit}
+								onReject={handleQuestionReject}
+							/>
+						)}
+						{pendingPermission && (
+							<PermissionDock
+								request={pendingPermission}
+								onDecide={handlePermissionDecision}
+							/>
+						)}
+						{!isBlocked && (
+							<ChatInput
+								onSend={handleSend}
+								disabled={!opencodeReady || isStreaming}
+								placeholder={
+									!opencodeReady
+										? "Waiting for opencode..."
+										: isStreaming
+											? "Processing..."
+											: "Type a message..."
+								}
+								model={compositeModelKey}
+								models={models}
+								onModelChange={handleModelChange}
+								images={pendingImages}
+								onImagesChange={setPendingImages}
+								imageError={pendingImageError}
+								onImageError={setPendingImageError}
+								supportsImages={modelSupport}
+							/>
+						)}
+					</>
 				);
 			})()}
 		</div>
