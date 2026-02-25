@@ -1,14 +1,39 @@
 import { actions } from "astro:actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useChatStore } from "@/stores/useChatStore";
+import { type ChatItem, useChatStore } from "@/stores/useChatStore";
 import {
+	createErrorPart,
 	createImagePart,
 	createTextPart,
 	type ImagePart,
 	type Message,
 	type MessagePart,
 } from "@/types/message";
+
+const MAX_SSE_RECONNECT_DELAY_MS = 10_000;
+const MAX_SSE_RECONNECT_ATTEMPTS = 12;
+const SSE_INACTIVITY_TIMEOUT_MS = 45_000;
+
+interface ProxyErrorPayload {
+	message?: string;
+	error?: string;
+	title?: string;
+	category?: string;
+	source?: string;
+}
+
+class ChatApiError extends Error {
+	status: number;
+	body: ProxyErrorPayload | null;
+
+	constructor(message: string, status: number, body: ProxyErrorPayload | null) {
+		super(message);
+		this.name = "ChatApiError";
+		this.status = status;
+		this.body = body;
+	}
+}
 
 /**
  * Normalize model ID from OpenCode messages by matching against available models.
@@ -65,6 +90,9 @@ export function useChatPanel({
 		pendingImages,
 		pendingImageError,
 		latestDiagnostic,
+		pendingPermission,
+		pendingQuestion,
+		todos,
 		setSessionId,
 		setOpenCodeReady,
 		setInitialPromptSent,
@@ -78,8 +106,12 @@ export function useChatPanel({
 		setPendingImageError,
 		setItems,
 		addItem,
+		updateItem,
 		handleChatEvent,
 		setLatestDiagnostic,
+		setPendingPermission,
+		setPendingQuestion,
+		setTodos,
 	} = store;
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
@@ -89,10 +121,14 @@ export function useChatPanel({
 	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
+	const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const reconnectAttemptsRef = useRef(0);
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const loadingHistoryRef = useRef(false);
 	const configLoadedRef = useRef(false);
+	const streamDegradedRef = useRef(false);
 
 	const isNearBottom = useCallback(() => {
 		if (!scrollRef.current) return false;
@@ -120,6 +156,147 @@ export function useChatPanel({
 		}
 	}, [shouldAutoScroll, items]);
 
+	const toErrorMessage = useCallback((error: unknown): string => {
+		if (error instanceof ChatApiError) {
+			return (
+				error.body?.message ||
+				error.body?.error ||
+				error.body?.title ||
+				error.message
+			);
+		}
+		if (error instanceof Error) {
+			return error.message;
+		}
+		return String(error);
+	}, []);
+
+	const fetchJson = useCallback(
+		async <T>(url: string, init?: RequestInit): Promise<T> => {
+			const response = await fetch(url, init);
+			if (response.status === 204) {
+				return {} as T;
+			}
+
+			const contentType = response.headers.get("content-type") ?? "";
+			const hasJson = contentType.includes("application/json");
+			const body = hasJson
+				? ((await response.json()) as ProxyErrorPayload | T)
+				: null;
+
+			if (!response.ok) {
+				throw new ChatApiError(
+					`Request failed with status ${response.status}`,
+					response.status,
+					(body as ProxyErrorPayload | null) ?? null,
+				);
+			}
+
+			return (body as T) ?? ({} as T);
+		},
+		[],
+	);
+
+	const showRequestError = useCallback(
+		(title: string, error: unknown) => {
+			const message = toErrorMessage(error);
+			toast.error(title, { description: message });
+			setLatestDiagnostic({
+				timestamp: new Date().toISOString(),
+				source: "unknown",
+				category: "unknown",
+				title,
+				message,
+				technicalDetails: undefined,
+				remediation: [],
+				isRetryable: true,
+			});
+		},
+		[setLatestDiagnostic, toErrorMessage],
+	);
+
+	const refreshBlockingState = useCallback(
+		async (activeSessionId: string) => {
+			try {
+				const [permissions, questions, sessionTodos] = await Promise.all([
+					fetchJson<
+						Array<{
+							id: string;
+							sessionID: string;
+							permission: string;
+							patterns: string[];
+							tool?: { messageID: string; callID: string };
+						}>
+					>(`/api/projects/${projectId}/opencode/permission`),
+					fetchJson<
+						Array<{
+							id: string;
+							sessionID: string;
+							questions: Array<{
+								header: string;
+								question: string;
+								options: Array<{ label: string; description: string }>;
+								multiple?: boolean;
+								custom?: boolean;
+							}>;
+							tool?: { messageID: string; callID: string };
+						}>
+					>(`/api/projects/${projectId}/opencode/question`),
+					fetchJson<
+						Array<{ content: string; status: string; priority: string }>
+					>(
+						`/api/projects/${projectId}/opencode/session/${activeSessionId}/todo`,
+					),
+				]);
+
+				const permission = permissions.find(
+					(request) => request.sessionID === activeSessionId,
+				);
+				const question = questions.find(
+					(request) => request.sessionID === activeSessionId,
+				);
+
+				setPendingPermission(
+					permission
+						? {
+								requestId: permission.id,
+								sessionId: permission.sessionID,
+								permission: permission.permission,
+								patterns: permission.patterns,
+								...(permission.tool?.messageID
+									? { messageId: permission.tool.messageID }
+									: {}),
+								...(permission.tool?.callID
+									? { toolCallId: permission.tool.callID }
+									: {}),
+							}
+						: null,
+				);
+
+				setPendingQuestion(
+					question
+						? {
+								requestId: question.id,
+								sessionId: question.sessionID,
+								questions: question.questions,
+								...(question.tool?.messageID
+									? { messageId: question.tool.messageID }
+									: {}),
+								...(question.tool?.callID
+									? { toolCallId: question.tool.callID }
+									: {}),
+							}
+						: null,
+				);
+
+				setTodos(Array.isArray(sessionTodos) ? sessionTodos : []);
+			} catch {
+				// The stream will eventually sync this state. Ignore best-effort hydration errors.
+			}
+		},
+		[fetchJson, projectId, setPendingPermission, setPendingQuestion, setTodos],
+	);
+
 	// Load model from OpenCode config
 	useEffect(() => {
 		if (!opencodeReady || configLoadedRef.current) return;
@@ -127,22 +304,25 @@ export function useChatPanel({
 		const loadConfig = async () => {
 			try {
 				configLoadedRef.current = true;
-				const res = await fetch(`/api/projects/${projectId}/opencode/config`);
-				if (!res.ok) return;
-				const config = await res.json();
+				const config = await fetchJson<{ model?: string }>(
+					`/api/projects/${projectId}/opencode/config`,
+				);
 				if (config.model) {
 					const parts = config.model.split("/");
-					if (parts.length >= 2) {
+					const providerID = parts[0];
+					if (parts.length >= 2 && providerID) {
 						setCurrentModel({
-							providerID: parts[0],
+							providerID,
 							modelID: parts.slice(1).join("/"),
 						});
 					}
 				}
-			} catch {}
+			} catch (error) {
+				showRequestError("Failed to load model config", error);
+			}
 		};
 		loadConfig();
-	}, [projectId, opencodeReady, setCurrentModel]);
+	}, [fetchJson, opencodeReady, projectId, setCurrentModel, showRequestError]);
 
 	// Load history
 	useEffect(() => {
@@ -157,16 +337,35 @@ export function useChatPanel({
 		const loadHistory = async () => {
 			loadingHistoryRef.current = true;
 			try {
-				const sessionsRes = await fetch(
-					`/api/projects/${projectId}/opencode/session`,
-				);
-				if (!sessionsRes.ok) {
-					setHistoryLoaded(true);
-					loadingHistoryRef.current = false;
-					return;
-				}
-				const sessionsData = await sessionsRes.json();
-				const sessions = sessionsData.sessions || sessionsData || [];
+				type SessionListItem = { id?: string } | string;
+				type SessionMessage = {
+					info?: {
+						id?: string;
+						role?: "user" | "assistant";
+						model?: { providerID: string; modelID: string };
+						error?: { name?: string; data?: { message?: string } };
+					};
+					parts?: Array<{
+						type?: string;
+						id?: string;
+						text?: string;
+						tool?: string;
+						callID?: string;
+						state?: {
+							input?: unknown;
+							output?: unknown;
+							status?: string;
+							error?: unknown;
+						};
+					}>;
+				};
+
+				const sessionsData = await fetchJson<
+					SessionListItem[] | { sessions?: SessionListItem[] }
+				>(`/api/projects/${projectId}/opencode/session`);
+				const sessions = Array.isArray(sessionsData)
+					? sessionsData
+					: sessionsData.sessions || [];
 				if (sessions.length === 0) {
 					setHistoryLoaded(true);
 					loadingHistoryRef.current = false;
@@ -174,26 +373,28 @@ export function useChatPanel({
 				}
 
 				const latestSession = sessions[sessions.length - 1];
-				const latestSessionId = latestSession.id || latestSession;
-				setSessionId(latestSessionId);
-
-				const messagesRes = await fetch(
-					`/api/projects/${projectId}/opencode/session/${latestSessionId}/message`,
-				);
-				if (!messagesRes.ok) {
+				const latestSessionId =
+					typeof latestSession === "string" ? latestSession : latestSession?.id;
+				if (!latestSessionId) {
 					setHistoryLoaded(true);
 					loadingHistoryRef.current = false;
 					return;
 				}
-				const messagesData = await messagesRes.json();
+				setSessionId(latestSessionId);
+				await refreshBlockingState(latestSessionId);
+
+				const messagesData = await fetchJson<
+					SessionMessage[] | { messages?: SessionMessage[] }
+				>(
+					`/api/projects/${projectId}/opencode/session/${latestSessionId}/message`,
+				);
 				const messages = Array.isArray(messagesData)
 					? messagesData
 					: messagesData.messages || [];
 
 				const lastUserMessageWithModel = messages
 					.filter(
-						(m: { info?: { role?: string; model?: string } }) =>
-							m.info?.role === "user" && m.info?.model,
+						(message) => message.info?.role === "user" && message.info.model,
 					)
 					.pop();
 
@@ -203,12 +404,7 @@ export function useChatPanel({
 					);
 				}
 
-				const historyItems: Array<{
-					role: "user" | "assistant";
-					content?: string;
-					toolUseId?: string;
-					toolName?: string;
-				}> = [];
+				const historyItems: ChatItem[] = [];
 				let foundUserPrompt = false;
 
 				for (const msg of messages) {
@@ -224,6 +420,7 @@ export function useChatPanel({
 
 					if (role === "user" || role === "assistant") {
 						const messageParts: MessagePart[] = [];
+						const assistantError = info.error?.data?.message;
 						for (const part of msgParts) {
 							if (part.type === "text" && part.text) {
 								messageParts.push(createTextPart(part.text, part.id));
@@ -243,6 +440,9 @@ export function useChatPanel({
 								});
 							}
 						}
+						if (role === "assistant" && assistantError) {
+							messageParts.push(createErrorPart(assistantError));
+						}
 						if (messageParts.length > 0) {
 							historyItems.push({
 								type: "message",
@@ -252,6 +452,7 @@ export function useChatPanel({
 									role,
 									parts: messageParts,
 									isStreaming: false,
+									localStatus: "sent",
 								},
 							});
 						}
@@ -261,7 +462,9 @@ export function useChatPanel({
 					setItems(historyItems);
 					setTimeout(scrollToBottom, 100);
 				}
-			} catch {}
+			} catch (error) {
+				showRequestError("Failed to load chat history", error);
+			}
 			loadingHistoryRef.current = false;
 			setHistoryLoaded(true);
 		};
@@ -276,8 +479,11 @@ export function useChatPanel({
 		setHistoryLoaded,
 		setSessionId,
 		setCurrentModel,
+		fetchJson,
+		refreshBlockingState,
 		setItems,
 		scrollToBottom,
+		showRequestError,
 	]);
 
 	// Poll for readiness
@@ -347,24 +553,53 @@ export function useChatPanel({
 	useEffect(() => {
 		if (!opencodeReady) return;
 
+		const clearInactivityTimer = () => {
+			if (inactivityTimeoutRef.current) {
+				clearTimeout(inactivityTimeoutRef.current);
+				inactivityTimeoutRef.current = null;
+			}
+		};
+
+		const scheduleInactivityTimeout = () => {
+			clearInactivityTimer();
+			inactivityTimeoutRef.current = setTimeout(() => {
+				setIsStreaming(false);
+				if (!streamDegradedRef.current) {
+					streamDegradedRef.current = true;
+					toast.warning("Connection looks unstable", {
+						description:
+							"The assistant stream stalled. Reconnecting automatically...",
+					});
+				}
+			}, SSE_INACTIVITY_TIMEOUT_MS);
+		};
+
 		const connect = () => {
 			const eventSource = new EventSource(
 				`/api/projects/${projectId}/opencode/event`,
 			);
 			eventSourceRef.current = eventSource;
+			scheduleInactivityTimeout();
 
 			const handler = (e: Event) => {
 				try {
+					scheduleInactivityTimeout();
 					handleChatEvent(JSON.parse((e as MessageEvent).data));
-				} catch {}
+					streamDegradedRef.current = false;
+				} catch (error) {
+					showRequestError("Failed to process live event", error);
+				}
 			};
 
 			eventSource.addEventListener("chat.event", handler);
 			eventSource.onopen = () => {
 				reconnectAttemptsRef.current = 0;
+				streamDegradedRef.current = false;
+				scheduleInactivityTimeout();
 			};
 
 			eventSource.onerror = () => {
+				clearInactivityTimer();
 				if (eventSourceRef.current === eventSource) {
 					eventSource.close();
 					eventSourceRef.current = null;
@@ -375,8 +610,22 @@ export function useChatPanel({
 				}
 
 				const attempt = reconnectAttemptsRef.current;
-				const delay = Math.min(10_000, 1_000 * 2 ** attempt);
+				const delay = Math.min(
+					MAX_SSE_RECONNECT_DELAY_MS,
+					1_000 * 2 ** attempt + Math.floor(Math.random() * 250),
+				);
 				reconnectAttemptsRef.current = attempt + 1;
+
+				if (reconnectAttemptsRef.current > MAX_SSE_RECONNECT_ATTEMPTS) {
+					setIsStreaming(false);
+					if (!streamDegradedRef.current) {
+						streamDegradedRef.current = true;
+						toast.error("Live updates disconnected", {
+							description:
+								"Please refresh the page if reconnection does not recover shortly.",
+						});
+					}
+				}
 
 				reconnectTimeoutRef.current = setTimeout(() => {
 					if (opencodeReady) {
@@ -385,13 +634,16 @@ export function useChatPanel({
 								projectId,
 								viewerId: `chat_reconnect_${Date.now()}`,
 							})
-							.catch(() => {});
+							.catch((error) => {
+								showRequestError("Failed to refresh runtime presence", error);
+							});
 						connect();
 					}
 				}, delay);
 			};
 
 			return () => {
+				clearInactivityTimer();
 				eventSource.removeEventListener("chat.event", handler);
 				eventSource.close();
 			};
@@ -400,13 +652,20 @@ export function useChatPanel({
 		const cleanup = connect();
 		return () => {
 			cleanup();
+			clearInactivityTimer();
 			if (reconnectTimeoutRef.current) {
 				clearTimeout(reconnectTimeoutRef.current);
 				reconnectTimeoutRef.current = null;
 			}
 			eventSourceRef.current = null;
 		};
-	}, [projectId, opencodeReady, handleChatEvent]);
+	}, [
+		handleChatEvent,
+		opencodeReady,
+		projectId,
+		setIsStreaming,
+		showRequestError,
+	]);
 
 	// Streaming state change
 	useEffect(() => {
@@ -438,23 +697,31 @@ export function useChatPanel({
 		addItem({
 			type: "message",
 			id: userMessageId,
-			data: { id: userMessageId, role: "user", parts: messageParts },
+			data: {
+				id: userMessageId,
+				role: "user",
+				parts: messageParts,
+				localStatus: "pending",
+			},
 		});
 		scrollToBottom();
 
 		try {
 			let currentSessionId = sessionId;
 			if (!currentSessionId) {
-				const res = await fetch(`/api/projects/${projectId}/opencode/session`, {
-					method: "POST",
-				});
-				if (res.ok) {
-					const data = (await res.json()) as { id: string };
-					currentSessionId = data.id;
-					setSessionId(currentSessionId);
-				}
+				const data = await fetchJson<{ id: string }>(
+					`/api/projects/${projectId}/opencode/session`,
+					{
+						method: "POST",
+					},
+				);
+				currentSessionId = data.id;
+				setSessionId(currentSessionId);
+				await refreshBlockingState(currentSessionId);
 			}
-			if (!currentSessionId) return;
+			if (!currentSessionId) {
+				throw new Error("Session could not be created");
+			}
 
 			type ApiPromptPart =
 				| { type: "text"; text: string }
@@ -478,7 +745,7 @@ export function useChatPanel({
 				}
 			}
 
-			const res = await fetch(
+			await fetchJson(
 				`/api/projects/${projectId}/opencode/session/${currentSessionId}/prompt_async`,
 				{
 					method: "POST",
@@ -489,13 +756,20 @@ export function useChatPanel({
 					}),
 				},
 			);
-			if (res.ok || res.status === 204) {
-				setIsStreaming(true);
-				setPendingImages([]);
-				setPendingImageError(null);
-			}
+			updateItem(userMessageId, { localStatus: "sent" });
+			setIsStreaming(true);
+			setPendingImages([]);
+			setPendingImageError(null);
 		} catch (error) {
-			console.error("Failed to send message:", error);
+			updateItem(userMessageId, {
+				localStatus: "failed",
+				localError: toErrorMessage(error),
+				parts: [
+					...messageParts,
+					createErrorPart("Message failed to send", toErrorMessage(error)),
+				],
+			});
+			showRequestError("Failed to send message", error);
 		}
 	};
 
@@ -535,6 +809,82 @@ export function useChatPanel({
 		}
 	};
 
+	const handlePermissionDecision = useCallback(
+		async (reply: "once" | "always" | "reject") => {
+			if (!pendingPermission) return;
+
+			try {
+				await fetchJson(
+					`/api/projects/${projectId}/opencode/permission/${pendingPermission.requestId}/reply`,
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ reply }),
+					},
+				);
+				setPendingPermission(null);
+			} catch (error) {
+				showRequestError("Failed to respond to permission request", error);
+			}
+		},
+		[
+			fetchJson,
+			pendingPermission,
+			projectId,
+			setPendingPermission,
+			showRequestError,
+		],
+	);
+
+	const handleQuestionSubmit = useCallback(
+		async (answers: string[][]) => {
+			if (!pendingQuestion) return;
+
+			try {
+				await fetchJson(
+					`/api/projects/${projectId}/opencode/question/${pendingQuestion.requestId}/reply`,
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ answers }),
+					},
+				);
+				setPendingQuestion(null);
+			} catch (error) {
+				showRequestError("Failed to submit question response", error);
+			}
+		},
+		[
+			fetchJson,
+			pendingQuestion,
+			projectId,
+			setPendingQuestion,
+			showRequestError,
+		],
+	);
+
+	const handleQuestionReject = useCallback(async () => {
+		if (!pendingQuestion) return;
+
+		try {
+			await fetchJson(
+				`/api/projects/${projectId}/opencode/question/${pendingQuestion.requestId}/reject`,
+				{
+					method: "POST",
+				},
+			);
+			setPendingQuestion(null);
+		} catch (error) {
+			showRequestError("Failed to reject question", error);
+		}
+	}, [
+		fetchJson,
+		pendingQuestion,
+		projectId,
+		setPendingQuestion,
+		showRequestError,
+	]);
+
 	const toggleToolExpanded = (id: string) => {
 		setExpandedTools((prev) => {
 			const next = new Set(prev);
@@ -548,6 +898,9 @@ export function useChatPanel({
 		items,
 		opencodeReady,
 		isStreaming,
+		pendingPermission,
+		pendingQuestion,
+		todos,
 		pendingImages,
 		pendingImageError,
 		currentModel,
@@ -558,6 +911,9 @@ export function useChatPanel({
 		setPendingImageError,
 		handleSend,
 		handleModelChange,
+		handlePermissionDecision,
+		handleQuestionSubmit,
+		handleQuestionReject,
 		toggleToolExpanded,
 		handleScroll,
 		clearDiagnostic: () => setLatestDiagnostic(null),
