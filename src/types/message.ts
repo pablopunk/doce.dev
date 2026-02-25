@@ -125,6 +125,8 @@ export interface Message {
 	role: "user" | "assistant";
 	parts: MessagePart[];
 	isStreaming?: boolean;
+	localStatus?: "pending" | "sent" | "failed";
+	localError?: string;
 }
 
 // ============================================================================

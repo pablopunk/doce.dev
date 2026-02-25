@@ -11,7 +11,15 @@ import { isRunningInDocker } from "@/server/utils/docker";
 const SESSION_COOKIE_NAME = "doce_session";
 
 // Allowlisted paths for the opencode proxy
-const ALLOWED_PATH_PREFIXES = ["session", "event", "doc", "path", "config"];
+const ALLOWED_PATH_PREFIXES = [
+	"session",
+	"event",
+	"doc",
+	"path",
+	"config",
+	"permission",
+	"question",
+];
 
 // Headers to strip from forwarded requests
 const HOP_BY_HOP_HEADERS = [
@@ -191,21 +199,6 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 			},
 			projectId,
 		);
-
-		const isSessionListRequest = proxyPath === "session" && method === "GET";
-		const isRuntimeUnavailable = diagnostic.category === "runtime_unreachable";
-
-		if (isSessionListRequest && isRuntimeUnavailable) {
-			logger.warn(
-				{ projectId, proxyPath, category: diagnostic.category, isTimeout },
-				"OpenCode runtime unavailable for session list; returning empty result",
-			);
-
-			return new Response(JSON.stringify({ sessions: [] }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			});
-		}
 
 		logger.error(
 			{ error, projectId, proxyPath, category: diagnostic.category, isTimeout },

@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
-import { createTextPart, type ImagePart, type Message } from "@/types/message";
+import {
+	createErrorPart,
+	createTextPart,
+	type ImagePart,
+	type Message,
+} from "@/types/message";
 
 /**
  * ToolCall type (moved from ToolCallDisplay for reuse)
@@ -21,6 +26,42 @@ export interface ChatItem {
 	type: "message" | "tool";
 	id: string;
 	data: Message | ToolCall;
+}
+
+export interface QuestionOption {
+	label: string;
+	description: string;
+}
+
+export interface QuestionInfo {
+	header: string;
+	question: string;
+	options: QuestionOption[];
+	multiple?: boolean;
+	custom?: boolean;
+}
+
+export interface PendingQuestionRequest {
+	requestId: string;
+	sessionId: string;
+	questions: QuestionInfo[];
+	messageId?: string;
+	toolCallId?: string;
+}
+
+export interface PendingPermissionRequest {
+	requestId: string;
+	sessionId: string;
+	permission: string;
+	patterns: string[];
+	messageId?: string;
+	toolCallId?: string;
+}
+
+export interface TodoItem {
+	content: string;
+	status: string;
+	priority: string;
 }
 
 /**
@@ -53,6 +94,11 @@ interface ChatStore {
 	latestDiagnostic: OpencodeDiagnostic | null;
 	diagnosticHistory: OpencodeDiagnostic[];
 
+	// State: Blocking requests and todos
+	pendingQuestion: PendingQuestionRequest | null;
+	pendingPermission: PendingPermissionRequest | null;
+	todos: TodoItem[];
+
 	// Actions: Session & status
 	setSessionId: (id: string | null) => void;
 	setOpenCodeReady: (ready: boolean) => void;
@@ -78,10 +124,14 @@ interface ChatStore {
 	setLatestDiagnostic: (diagnostic: OpencodeDiagnostic | null) => void;
 	addDiagnostic: (diagnostic: OpencodeDiagnostic) => void;
 	clearDiagnostics: () => void;
+	setPendingQuestion: (request: PendingQuestionRequest | null) => void;
+	setPendingPermission: (request: PendingPermissionRequest | null) => void;
+	setTodos: (todos: TodoItem[]) => void;
 
 	// Actions: Message management
 	setItems: (items: ChatItem[]) => void;
 	addItem: (item: ChatItem) => void;
+	removeItem: (id: string) => void;
 	updateItem: (id: string, updates: Partial<ChatItem["data"]>) => void;
 
 	// Actions: Event handling
@@ -111,6 +161,9 @@ const initialState = {
 	pendingImageError: null as string | null,
 	latestDiagnostic: null as OpencodeDiagnostic | null,
 	diagnosticHistory: [] as OpencodeDiagnostic[],
+	pendingQuestion: null as PendingQuestionRequest | null,
+	pendingPermission: null as PendingPermissionRequest | null,
+	todos: [] as TodoItem[],
 };
 
 /**
@@ -132,10 +185,17 @@ export function createChatStore() {
 		setIsStreaming: (streaming) => set({ isStreaming: streaming }),
 		setPendingImages: (images) => set({ pendingImages: images }),
 		setPendingImageError: (error) => set({ pendingImageError: error }),
+		setPendingQuestion: (request) => set({ pendingQuestion: request }),
+		setPendingPermission: (request) => set({ pendingPermission: request }),
+		setTodos: (todos) => set({ todos }),
 
 		// Message management
 		setItems: (items) => set({ items }),
 		addItem: (item) => set((state) => ({ items: [...state.items, item] })),
+		removeItem: (id) =>
+			set((state) => ({
+				items: state.items.filter((item) => item.id !== id),
+			})),
 		updateItem: (id, updates) =>
 			set((state) => ({
 				items: state.items.map((item) =>
@@ -165,11 +225,12 @@ export function createChatStore() {
 
 			switch (type) {
 				case "chat.message.part.added": {
-					const { messageId, partId, partType, deltaText } = payload as {
+					const { messageId, partId, partType, deltaText, text } = payload as {
 						messageId: string;
 						partId: string;
 						partType: string;
 						deltaText?: string;
+						text?: string;
 					};
 
 					set((state) => {
@@ -181,12 +242,16 @@ export function createChatStore() {
 							const msg = existing.data as Message;
 							const textPartIdx = msg.parts.findIndex((p) => p.type === "text");
 
-							if (textPartIdx !== -1 && deltaText) {
-								// Append delta to existing text part
+							if (textPartIdx !== -1 && (deltaText || text)) {
+								// Replace if full text available, otherwise append delta
 								const updatedParts = [...msg.parts];
 								const part = updatedParts[textPartIdx];
 								if (part && part.type === "text") {
-									part.text = part.text + deltaText;
+									if (typeof text === "string") {
+										part.text = text;
+									} else if (deltaText) {
+										part.text = part.text + deltaText;
+									}
 								}
 								return {
 									items: state.items.map((item) =>
@@ -203,11 +268,12 @@ export function createChatStore() {
 									),
 									isStreaming: true,
 								};
-							} else if (deltaText) {
+							} else if (deltaText || text) {
 								// Create new text part
+								const partText = text ?? deltaText ?? "";
 								const updatedParts = [
 									...msg.parts,
-									createTextPart(deltaText, partId),
+									createTextPart(partText, partId),
 								];
 								return {
 									items: state.items.map((item) =>
@@ -225,15 +291,16 @@ export function createChatStore() {
 									isStreaming: true,
 								};
 							}
-						} else if (partType === "text" && deltaText) {
+						} else if (partType === "text" && (deltaText || text)) {
 							// New message
+							const partText = text ?? deltaText ?? "";
 							const newItem: ChatItem = {
 								type: "message",
 								id: messageId,
 								data: {
 									id: messageId,
 									role: "assistant",
-									parts: [createTextPart(deltaText, partId)],
+									parts: [createTextPart(partText, partId)],
 									isStreaming: true,
 								},
 							};
@@ -327,15 +394,43 @@ export function createChatStore() {
 				}
 
 				case "chat.message.final": {
-					const { messageId } = payload as { messageId: string };
+					const { messageId, error } = payload as {
+						messageId: string;
+						error?: { message: string; details?: unknown };
+					};
 
 					set((state) => {
 						const items = state.items.map((item) => {
 							if (item.type === "message" && item.id === messageId) {
 								const msg = item.data as Message;
+								const hasErrorPart = msg.parts.some(
+									(part) =>
+										part.type === "error" &&
+										error &&
+										part.message === error.message,
+								);
+								const nextParts =
+									error && !hasErrorPart
+										? [
+												...msg.parts,
+												createErrorPart(
+													error.message,
+													typeof error.details === "string"
+														? error.details
+														: undefined,
+												),
+											]
+										: msg.parts;
+								const nextMessage: Message = {
+									...msg,
+									parts: nextParts,
+									isStreaming: false,
+									localStatus: "sent",
+									...(error ? { localError: error.message } : {}),
+								};
 								return {
 									...item,
-									data: { ...msg, isStreaming: false },
+									data: nextMessage,
 								};
 							}
 							return item;
@@ -346,6 +441,34 @@ export function createChatStore() {
 							isStreaming: false,
 						};
 					});
+					break;
+				}
+
+				case "chat.permission.requested": {
+					const request = payload as unknown as PendingPermissionRequest;
+					set({ pendingPermission: request });
+					break;
+				}
+
+				case "chat.permission.resolved": {
+					set({ pendingPermission: null });
+					break;
+				}
+
+				case "chat.question.requested": {
+					const request = payload as unknown as PendingQuestionRequest;
+					set({ pendingQuestion: request });
+					break;
+				}
+
+				case "chat.question.resolved": {
+					set({ pendingQuestion: null });
+					break;
+				}
+
+				case "chat.todo.updated": {
+					const todoPayload = payload as { todos: TodoItem[] };
+					set({ todos: todoPayload.todos ?? [] });
 					break;
 				}
 

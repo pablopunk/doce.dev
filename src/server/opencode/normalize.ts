@@ -13,11 +13,18 @@ import type {
 	EventFileEdited,
 	EventMessagePartUpdated,
 	EventMessageUpdated,
+	EventPermissionAsked,
+	EventPermissionReplied,
+	EventQuestionAsked,
+	EventQuestionRejected,
+	EventQuestionReplied,
 	EventSessionError,
 	EventSessionStatus,
+	EventTodoUpdated,
 	ReasoningPart as SDKReasoningPart,
 	TextPart as SDKTextPart,
 	ToolPart as SDKToolPart,
+	Todo,
 } from "@opencode-ai/sdk/v2/client";
 import { createSseDiagnostic, type OpencodeDiagnostic } from "./diagnostics";
 
@@ -33,6 +40,11 @@ export type NormalizedEventType =
 	| "chat.reasoning.part"
 	| "chat.file.changed"
 	| "chat.diagnostic"
+	| "chat.permission.requested"
+	| "chat.permission.resolved"
+	| "chat.question.requested"
+	| "chat.question.resolved"
+	| "chat.todo.updated"
 	| "chat.event.unknown";
 
 export interface NormalizedEventEnvelope {
@@ -64,6 +76,11 @@ export interface MessagePartPayload {
 
 export interface MessageFinalPayload {
 	messageId: string;
+	error?: {
+		name?: string;
+		message: string;
+		details?: unknown;
+	};
 }
 
 export interface ReasoningPartPayload {
@@ -102,6 +119,52 @@ export interface UnknownEventPayload {
 
 export interface DiagnosticPayload {
 	diagnostic: OpencodeDiagnostic;
+}
+
+export interface PermissionRequestPayload {
+	requestId: string;
+	sessionId: string;
+	permission: string;
+	patterns: string[];
+	toolCallId?: string;
+	messageId?: string;
+}
+
+export interface PermissionResolvedPayload {
+	requestId: string;
+	reply: "once" | "always" | "reject";
+}
+
+export interface QuestionOptionPayload {
+	label: string;
+	description: string;
+}
+
+export interface QuestionInfoPayload {
+	header: string;
+	question: string;
+	options: QuestionOptionPayload[];
+	multiple?: boolean;
+	custom?: boolean;
+}
+
+export interface QuestionRequestPayload {
+	requestId: string;
+	sessionId: string;
+	questions: QuestionInfoPayload[];
+	toolCallId?: string;
+	messageId?: string;
+}
+
+export interface QuestionResolvedPayload {
+	requestId: string;
+	answers?: string[][];
+	rejected: boolean;
+}
+
+export interface TodoUpdatedPayload {
+	sessionId: string;
+	todos: Todo[];
 }
 
 // ============================================================================
@@ -162,6 +225,27 @@ function getOrCreateToolId(state: NormalizationState, callId: string): string {
 	return id;
 }
 
+function extractAssistantErrorMessage(error: unknown): string {
+	if (typeof error !== "object" || error === null) {
+		return "The assistant request failed.";
+	}
+
+	const errorObject = error as {
+		name?: string;
+		data?: { message?: string };
+	};
+
+	if (errorObject.data?.message) {
+		return errorObject.data.message;
+	}
+
+	if (errorObject.name) {
+		return errorObject.name;
+	}
+
+	return "The assistant request failed.";
+}
+
 // ============================================================================
 // Event Normalization
 // ============================================================================
@@ -198,13 +282,14 @@ export function normalizeEvent(
 		case "message.part.updated": {
 			const partEvent = event as EventMessagePartUpdated;
 			const part = partEvent.properties?.part;
-			const delta = partEvent.properties?.delta;
 
 			if (!part) return null;
 
-			// Text part with streaming delta
-			if (part.type === "text" && delta) {
+			// Text part updates
+			if (part.type === "text") {
 				const textPart = part as SDKTextPart;
+				const nextText = textPart.text ?? "";
+				if (!nextText) return null;
 				const messageId =
 					textPart.messageID || state.currentMessageId || generateId("msg");
 				state.currentMessageId = messageId;
@@ -223,7 +308,8 @@ export function normalizeEvent(
 						messageId,
 						partId,
 						partType: "text",
-						deltaText: delta,
+						deltaText: nextText,
+						text: nextText,
 					} satisfies MessagePartPayload,
 				};
 			}
@@ -304,12 +390,29 @@ export function normalizeEvent(
 			if (info?.role === "assistant" && state.currentMessageId) {
 				const messageId = state.currentMessageId;
 				state.currentMessageId = null;
+				let assistantError: MessageFinalPayload["error"] | undefined;
+				if (info.error) {
+					const errorName =
+						typeof info.error === "object" &&
+						info.error !== null &&
+						"name" in info.error
+							? String((info.error as { name?: string }).name)
+							: undefined;
+					assistantError = {
+						message: extractAssistantErrorMessage(info.error),
+						details: info.error,
+						...(errorName ? { name: errorName } : {}),
+					};
+				}
 
 				return {
 					type: "chat.message.final",
 					projectId,
 					time,
-					payload: { messageId } satisfies MessageFinalPayload,
+					payload: {
+						messageId,
+						...(assistantError ? { error: assistantError } : {}),
+					} satisfies MessageFinalPayload,
 				};
 			}
 			return null;
@@ -354,8 +457,103 @@ export function normalizeEvent(
 			return null;
 
 		// Other events we don't need to handle
-		case "permission.updated":
-		case "permission.replied":
+		case "permission.asked": {
+			const permissionEvent = event as EventPermissionAsked;
+			const properties = permissionEvent.properties;
+
+			return {
+				type: "chat.permission.requested",
+				projectId,
+				time,
+				payload: {
+					requestId: properties.id,
+					sessionId: properties.sessionID,
+					permission: properties.permission,
+					patterns: properties.patterns,
+					...(properties.tool?.callID
+						? { toolCallId: properties.tool.callID }
+						: {}),
+					...(properties.tool?.messageID
+						? { messageId: properties.tool.messageID }
+						: {}),
+				} satisfies PermissionRequestPayload,
+			};
+		}
+
+		case "permission.replied": {
+			const permissionEvent = event as EventPermissionReplied;
+			return {
+				type: "chat.permission.resolved",
+				projectId,
+				time,
+				payload: {
+					requestId: permissionEvent.properties.requestID,
+					reply: permissionEvent.properties.reply,
+				} satisfies PermissionResolvedPayload,
+			};
+		}
+
+		case "question.asked": {
+			const questionEvent = event as EventQuestionAsked;
+			const properties = questionEvent.properties;
+			return {
+				type: "chat.question.requested",
+				projectId,
+				time,
+				payload: {
+					requestId: properties.id,
+					sessionId: properties.sessionID,
+					questions: properties.questions,
+					...(properties.tool?.callID
+						? { toolCallId: properties.tool.callID }
+						: {}),
+					...(properties.tool?.messageID
+						? { messageId: properties.tool.messageID }
+						: {}),
+				} satisfies QuestionRequestPayload,
+			};
+		}
+
+		case "question.replied": {
+			const questionEvent = event as EventQuestionReplied;
+			return {
+				type: "chat.question.resolved",
+				projectId,
+				time,
+				payload: {
+					requestId: questionEvent.properties.requestID,
+					answers: questionEvent.properties.answers,
+					rejected: false,
+				} satisfies QuestionResolvedPayload,
+			};
+		}
+
+		case "question.rejected": {
+			const questionEvent = event as EventQuestionRejected;
+			return {
+				type: "chat.question.resolved",
+				projectId,
+				time,
+				payload: {
+					requestId: questionEvent.properties.requestID,
+					rejected: true,
+				} satisfies QuestionResolvedPayload,
+			};
+		}
+
+		case "todo.updated": {
+			const todoEvent = event as EventTodoUpdated;
+			return {
+				type: "chat.todo.updated",
+				projectId,
+				time,
+				payload: {
+					sessionId: todoEvent.properties.sessionID,
+					todos: todoEvent.properties.todos,
+				} satisfies TodoUpdatedPayload,
+			};
+		}
+
 		case "message.removed":
 		case "message.part.removed":
 		case "file.watcher.updated":
@@ -371,7 +569,6 @@ export function normalizeEvent(
 		case "project.updated":
 		case "server.connected":
 		case "server.instance.disposed":
-		case "todo.updated":
 		case "command.executed":
 		case "mcp.tools.changed":
 		case "tui.prompt.append":
