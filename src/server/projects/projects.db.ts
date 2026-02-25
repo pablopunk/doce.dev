@@ -153,6 +153,24 @@ export async function markInitialPromptCompleted(id: string): Promise<void> {
 }
 
 /**
+ * Reset prompt/session tracking when runtime session state is lost.
+ * This allows bootstrap flow to recreate a session and resend the project prompt.
+ */
+export async function resetPromptStateForSessionRecovery(
+	id: string,
+): Promise<void> {
+	await db
+		.update(projects)
+		.set({
+			initialPromptSent: false,
+			initialPromptCompleted: false,
+			userPromptCompleted: false,
+			userPromptMessageId: null,
+		})
+		.where(eq(projects.id, id));
+}
+
+/**
  * Update a project's bootstrap session ID.
  */
 export async function updateBootstrapSessionId(

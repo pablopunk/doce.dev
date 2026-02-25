@@ -76,16 +76,3 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 
 ### Containerization
 **Docker Compose** - Each project runs in isolated containers (preview server + OpenCode agent).
-
-### AI Integration
-**OpenCode SDK** (`@opencode-ai/sdk`) - TypeScript client for communicating with OpenCode AI agents.
-
-**OpenRouter** - LLM provider abstraction, allowing users to select from multiple AI models.
-
-
-## Subagents
-
-- For ui-specific tasks, use the @frontend-developer agent
-- For backend-specific tasks, use the @backend-developer agent
-- For opencode integration tasks, use the @opencode-expert agent
-- For github-related tasks, use the @github-expert agent

@@ -34,9 +34,11 @@ export function ContainerStartupDisplay({
 	const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(
 		null,
 	);
-	const [sessionsLoaded, setSessionsLoaded] = useState(false);
+	const [sessionsLoaded] = useState(true);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const startTimeRef = useRef<number>(Date.now());
+	const completionScheduledRef = useRef(false);
+	const viewerIdRef = useRef(`startup_${projectId}_${Date.now()}`);
 
 	const handleOpencodeEvent = useCallback(
 		(event: { type: string; payload: Record<string, unknown> }) => {
@@ -77,6 +79,7 @@ export function ContainerStartupDisplay({
 	// Connect to opencode event stream to show progress
 	useEffect(() => {
 		if (isComplete) return;
+		completionScheduledRef.current = false;
 
 		// Open SSE connection to opencode events
 		const eventSource = new EventSource(
@@ -152,29 +155,42 @@ export function ContainerStartupDisplay({
 				const shouldWaitForSessions = reason === "restart";
 				const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
 
+				const presenceResult = await actions.projects.presence({
+					projectId,
+					viewerId: viewerIdRef.current,
+				});
+
+				const runtimeReady = Boolean(
+					!presenceResult.error &&
+						presenceResult.data.status === "running" &&
+						presenceResult.data.opencodeReady &&
+						presenceResult.data.previewReady,
+				);
+
 				if (
-					data.currentStep >= 4 && // Changed from 5 to 4 since Action handles steps slightly differently or we want to align with its logic
+					data.currentStep >= 4 &&
 					data.isSetupComplete &&
-					sessionConditionMet
+					sessionConditionMet &&
+					runtimeReady
 				) {
+					if (completionScheduledRef.current) return;
+					completionScheduledRef.current = true;
+
 					// Wait a moment for the UI to show final state, then signal completion
 					setTimeout(() => {
 						setIsComplete(true);
 						onComplete?.();
 					}, 1000);
+				} else {
+					completionScheduledRef.current = false;
 				}
 			} catch (error) {
 				console.error("Failed to poll queue status:", error);
 			}
 		};
 
-		// Adaptive polling: faster at first, slower later
 		const elapsed = Date.now() - startTimeRef.current;
-		const pollCount = Math.floor(elapsed / 500);
-
-		let pollInterval = 2000;
-		if (pollCount < 3) pollInterval = 500;
-		else if (pollCount < 13) pollInterval = 1000;
+		const pollInterval = 2000;
 
 		// Check for timeout (30 seconds)
 		if (elapsed > 30_000 && !startupError) {
@@ -190,67 +206,6 @@ export function ContainerStartupDisplay({
 			if (intervalId) clearInterval(intervalId);
 		};
 	}, [projectId, isComplete, startupError, sessionsLoaded, reason, onComplete]);
-
-	// Poll for persisted session loading (only on restart)
-	useEffect(() => {
-		if (reason !== "restart" || sessionsLoaded || isComplete) return;
-
-		let intervalId: ReturnType<typeof setInterval> | null = null;
-		const sessionCheckStartTime = Date.now();
-
-		const pollSessions = async () => {
-			try {
-				const response = await fetch(
-					`/api/projects/${projectId}/opencode/session`,
-				);
-				if (!response.ok) return;
-
-				let data: unknown;
-				try {
-					data = await response.json();
-				} catch (parseError) {
-					// Response is not valid JSON
-					console.error(
-						"Failed to parse session response",
-						parseError instanceof Error
-							? parseError.message
-							: String(parseError),
-					);
-					return;
-				}
-
-				// Type-safe extraction of sessions array
-				const sessions = Array.isArray(data)
-					? data
-					: (data as Record<string, unknown>)?.sessions || null;
-
-				// If we have at least one session, mark as loaded
-				if (Array.isArray(sessions) && sessions.length > 0) {
-					setSessionsLoaded(true);
-					return;
-				}
-
-				// Timeout after 30s - assume sessions are loaded or don't exist
-				const elapsed = Date.now() - sessionCheckStartTime;
-				if (elapsed > 30_000) {
-					setSessionsLoaded(true);
-				}
-			} catch (error) {
-				console.error(
-					"Failed to check session loading",
-					error instanceof Error ? error.message : String(error),
-				);
-			}
-		};
-
-		// Poll every 500ms for sessions
-		intervalId = setInterval(pollSessions, 500);
-		pollSessions(); // Check immediately
-
-		return () => {
-			if (intervalId) clearInterval(intervalId);
-		};
-	}, [projectId, reason, sessionsLoaded, isComplete]);
 
 	const displayMessage = jobTimeoutWarning
 		? jobTimeoutWarning

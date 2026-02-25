@@ -11,6 +11,7 @@ import {
 	isProjectOwnedByUser,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
+import { enqueueDockerEnsureRunning } from "@/server/queue/enqueue";
 import { isRunningInDocker } from "@/server/utils/docker";
 
 const SESSION_COOKIE_NAME = "doce_session";
@@ -53,6 +54,17 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		: `http://localhost:${project.opencodePort}`;
 	const upstreamUrl = `${baseUrl}/event`;
 
+	const ensureRuntimeRunning = () => {
+		enqueueDockerEnsureRunning({ projectId, reason: "presence" }).catch(
+			(error) => {
+				logger.warn(
+					{ error, projectId },
+					"Failed to enqueue docker.ensureRunning from SSE endpoint",
+				);
+			},
+		);
+	};
+
 	let upstreamResponse: Response;
 	try {
 		const controller = new AbortController();
@@ -66,6 +78,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		clearTimeout(timeout);
 
 		if (!upstreamResponse.ok) {
+			ensureRuntimeRunning();
 			return new Response(`Upstream error: ${upstreamResponse.status}`, {
 				status: 502,
 			});
@@ -75,6 +88,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			return new Response("No response body", { status: 502 });
 		}
 	} catch (error) {
+		ensureRuntimeRunning();
 		logger.warn({ error, projectId }, "Failed to connect to opencode SSE");
 		return new Response("Failed to connect to opencode", { status: 502 });
 	}
@@ -173,7 +187,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
 
 			// Read from upstream
-			const reader = upstreamResponse.body?.getReader();
+			const reader = upstreamResponse.body.getReader();
 
 			try {
 				while (!isClosed) {

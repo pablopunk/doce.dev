@@ -17,6 +17,9 @@ const getGitVersion = (): string => {
 
 export default defineConfig({
 	output: "server",
+	security: {
+		checkOrigin: false,
+	},
 	adapter: node({
 		mode: "standalone",
 	}),

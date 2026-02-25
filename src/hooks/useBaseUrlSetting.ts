@@ -1,4 +1,3 @@
-import { actions } from "astro:actions";
 import { useEffect, useState } from "react";
 import { normalizeBaseUrl } from "@/lib/base-url";
 
@@ -36,8 +35,13 @@ async function fetchBaseUrl(): Promise<string | null> {
 
 	inFlightBaseUrlRequest = (async () => {
 		try {
-			const result = await actions.settings.getBaseUrl();
-			const baseUrl = normalizeBaseUrl(result.data?.baseUrl ?? null);
+			const response = await fetch("/api/settings/base-url");
+			if (!response.ok) {
+				cachedBaseUrl = null;
+				return null;
+			}
+			const result = (await response.json()) as { baseUrl: string | null };
+			const baseUrl = normalizeBaseUrl(result.baseUrl ?? null);
 			cachedBaseUrl = baseUrl;
 			return baseUrl;
 		} catch {

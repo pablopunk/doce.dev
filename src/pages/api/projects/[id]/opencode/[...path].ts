@@ -192,6 +192,21 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 			projectId,
 		);
 
+		const isSessionListRequest = proxyPath === "session" && method === "GET";
+		const isRuntimeUnavailable = diagnostic.category === "runtime_unreachable";
+
+		if (isSessionListRequest && isRuntimeUnavailable) {
+			logger.warn(
+				{ projectId, proxyPath, category: diagnostic.category, isTimeout },
+				"OpenCode runtime unavailable for session list; returning empty result",
+			);
+
+			return new Response(JSON.stringify({ sessions: [] }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+
 		logger.error(
 			{ error, projectId, proxyPath, category: diagnostic.category, isTimeout },
 			"Proxy error",

@@ -86,6 +86,10 @@ export function useChatPanel({
 	const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const reconnectAttemptsRef = useRef(0);
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const loadingHistoryRef = useRef(false);
 	const configLoadedRef = useRef(false);
@@ -342,23 +346,64 @@ export function useChatPanel({
 	// SSE events
 	useEffect(() => {
 		if (!opencodeReady) return;
-		const eventSource = new EventSource(
-			`/api/projects/${projectId}/opencode/event`,
-		);
-		eventSourceRef.current = eventSource;
-		const handler = (e: Event) => {
-			try {
-				handleChatEvent(JSON.parse(e.data));
-			} catch {}
+
+		const connect = () => {
+			const eventSource = new EventSource(
+				`/api/projects/${projectId}/opencode/event`,
+			);
+			eventSourceRef.current = eventSource;
+
+			const handler = (e: Event) => {
+				try {
+					handleChatEvent(JSON.parse((e as MessageEvent).data));
+				} catch {}
+			};
+
+			eventSource.addEventListener("chat.event", handler);
+			eventSource.onopen = () => {
+				reconnectAttemptsRef.current = 0;
+			};
+
+			eventSource.onerror = () => {
+				if (eventSourceRef.current === eventSource) {
+					eventSource.close();
+					eventSourceRef.current = null;
+				}
+
+				if (reconnectTimeoutRef.current) {
+					clearTimeout(reconnectTimeoutRef.current);
+				}
+
+				const attempt = reconnectAttemptsRef.current;
+				const delay = Math.min(10_000, 1_000 * 2 ** attempt);
+				reconnectAttemptsRef.current = attempt + 1;
+
+				reconnectTimeoutRef.current = setTimeout(() => {
+					if (opencodeReady) {
+						void actions.projects
+							.presence({
+								projectId,
+								viewerId: `chat_reconnect_${Date.now()}`,
+							})
+							.catch(() => {});
+						connect();
+					}
+				}, delay);
+			};
+
+			return () => {
+				eventSource.removeEventListener("chat.event", handler);
+				eventSource.close();
+			};
 		};
-		eventSource.addEventListener("chat.event", handler);
-		eventSource.onerror = () => {
-			eventSource.close();
-			eventSourceRef.current = null;
-		};
+
+		const cleanup = connect();
 		return () => {
-			eventSource.removeEventListener("chat.event", handler);
-			eventSource.close();
+			cleanup();
+			if (reconnectTimeoutRef.current) {
+				clearTimeout(reconnectTimeoutRef.current);
+				reconnectTimeoutRef.current = null;
+			}
 			eventSourceRef.current = null;
 		};
 	}, [projectId, opencodeReady, handleChatEvent]);

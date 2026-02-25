@@ -8,8 +8,10 @@ import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
 	parseModelString,
+	resetPromptStateForSessionRecovery,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
+import { isRunningInDocker } from "@/server/utils/docker";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import { parsePayload } from "../types";
 
@@ -46,13 +48,68 @@ export function handleOpencodeSessionCreate(
 			return;
 		}
 
-		// If already has a session, skip (idempotent)
+		let isSessionRecovery = false;
+
 		if (project.bootstrapSessionId) {
-			logger.info(
-				{ projectId: project.id },
-				"Session already created, skipping session create",
+			const baseUrl = isRunningInDocker()
+				? `http://doce_${project.id}-opencode-1:3000`
+				: `http://localhost:${project.opencodePort}`;
+
+			const hasExistingSession = yield* Effect.tryPromise({
+				try: async () => {
+					const response = await fetch(`${baseUrl}/session`);
+					if (!response.ok) return false;
+
+					const sessions = (await response.json()) as unknown;
+					if (!Array.isArray(sessions)) return false;
+
+					return sessions.some((entry) => {
+						if (typeof entry === "string") {
+							return entry === project.bootstrapSessionId;
+						}
+						if (typeof entry === "object" && entry !== null && "id" in entry) {
+							const sessionId = (entry as { id?: unknown }).id;
+							return (
+								typeof sessionId === "string" &&
+								sessionId === project.bootstrapSessionId
+							);
+						}
+						return false;
+					});
+				},
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "validateBootstrapSession",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
+
+			if (hasExistingSession) {
+				logger.info(
+					{ projectId: project.id, sessionId: project.bootstrapSessionId },
+					"Bootstrap session exists, skipping session create",
+				);
+				return;
+			}
+
+			isSessionRecovery = true;
+			logger.warn(
+				{ projectId: project.id, sessionId: project.bootstrapSessionId },
+				"Stored bootstrap session missing in runtime, recreating and reseeding",
 			);
-			return;
+
+			yield* Effect.tryPromise({
+				try: () => resetPromptStateForSessionRecovery(project.id),
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "resetPromptStateForSessionRecovery",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
 		}
 
 		logger.info(
@@ -174,7 +231,7 @@ export function handleOpencodeSessionCreate(
 		});
 
 		logger.info(
-			{ projectId: project.id },
+			{ projectId: project.id, isSessionRecovery },
 			"Enqueued opencode.sendUserPrompt job",
 		);
 	}).pipe(
