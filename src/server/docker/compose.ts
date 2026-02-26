@@ -175,6 +175,7 @@ export async function runComposeCommand(
 				...projectEnv,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
+				COMPOSE_BAKE: "false",
 			},
 		});
 
@@ -257,6 +258,7 @@ async function runComposeCommandProduction(
 				...process.env,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: docceNetwork,
+				COMPOSE_BAKE: "false",
 			},
 		});
 

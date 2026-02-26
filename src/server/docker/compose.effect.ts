@@ -260,6 +260,7 @@ export function runComposeCommand(
 				...projectEnv,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: doceNetwork,
+				COMPOSE_BAKE: "false",
 			},
 		});
 
@@ -319,6 +320,7 @@ export function runComposeCommandProduction(
 				...process.env,
 				PROJECT_ID: projectId,
 				DOCE_NETWORK: doceNetwork,
+				COMPOSE_BAKE: "false",
 			},
 		});
 

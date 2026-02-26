@@ -61,7 +61,7 @@ const logDebug = (msg: string, obj?: Record<string, unknown>) =>
 
 export const handleDockerComposeUp = (
 	ctx: QueueJobContext,
-): Effect.Effect<void, never, DockerService> =>
+): Effect.Effect<void, Error, DockerService> =>
 	Effect.gen(function* () {
 		const payload = parsePayload("docker.composeUp", ctx.job.payloadJson);
 
@@ -96,7 +96,10 @@ export const handleDockerComposeUp = (
 		const result = yield* docker.composeUp(project.id, previewPath);
 
 		if (!result.success) {
-			const errorMsg = `compose up failed: ${result.stderr.slice(0, 500)}`;
+			const dockerLogPath = `${previewPath}/logs/docker.log`;
+			const errorDetails =
+				result.stderr || result.stdout || "Unknown docker error";
+			const errorMsg = `compose up failed: ${errorDetails.slice(0, 2000)} (full logs: ${dockerLogPath})`;
 			yield* setProjectStatus(project.id, "error");
 			yield* Effect.fail(new Error(errorMsg));
 			return;
