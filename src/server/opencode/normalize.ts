@@ -34,6 +34,7 @@ import { createSseDiagnostic, type OpencodeDiagnostic } from "./diagnostics";
 
 export type NormalizedEventType =
 	| "chat.session.status"
+	| "chat.message.user"
 	| "chat.message.part.added"
 	| "chat.message.final"
 	| "chat.tool.update"
@@ -81,6 +82,10 @@ export interface MessageFinalPayload {
 		message: string;
 		details?: unknown;
 	};
+}
+
+export interface UserMessagePayload {
+	messageId: string;
 }
 
 export interface ReasoningPartPayload {
@@ -177,6 +182,8 @@ export interface TodoUpdatedPayload {
 export interface NormalizationState {
 	/** Current assistant message being streamed */
 	currentMessageId: string | null;
+	/** Track upstream message roles to avoid rendering user echoes as assistant */
+	messageRoleMap: Map<string, "user" | "assistant">;
 	/** Map of upstream tool callIDs to our stable tool IDs */
 	toolCallMap: Map<string, string>;
 	/** Counter for generating unique tool IDs */
@@ -188,6 +195,7 @@ export interface NormalizationState {
 export function createNormalizationState(): NormalizationState {
 	return {
 		currentMessageId: null,
+		messageRoleMap: new Map(),
 		toolCallMap: new Map(),
 		toolCounter: 0,
 		partIdMap: new Map(),
@@ -290,8 +298,12 @@ export function normalizeEvent(
 				const textPart = part as SDKTextPart;
 				const nextText = textPart.text ?? "";
 				if (!nextText) return null;
-				const messageId =
-					textPart.messageID || state.currentMessageId || generateId("msg");
+				const messageId = textPart.messageID || generateId("msg");
+				const knownRole = state.messageRoleMap.get(messageId);
+				if (knownRole === "user") {
+					return null;
+				}
+				state.messageRoleMap.set(messageId, "assistant");
 				state.currentMessageId = messageId;
 
 				const partId = getOrCreatePartId(
@@ -321,6 +333,10 @@ export function normalizeEvent(
 					reasoningPart.messageID ||
 					state.currentMessageId ||
 					generateId("msg");
+				if (state.messageRoleMap.get(messageId) === "user") {
+					return null;
+				}
+				state.messageRoleMap.set(messageId, "assistant");
 				const partId = getOrCreatePartId(
 					state,
 					`reasoning_${messageId}`,
@@ -345,6 +361,15 @@ export function normalizeEvent(
 				const { callID, tool, state: toolState } = toolPart;
 
 				if (!callID || !tool) return null;
+				if (
+					toolPart.messageID &&
+					state.messageRoleMap.get(toolPart.messageID) === "user"
+				) {
+					return null;
+				}
+				if (toolPart.messageID) {
+					state.messageRoleMap.set(toolPart.messageID, "assistant");
+				}
 
 				const toolCallId = getOrCreateToolId(state, callID);
 				const sdkStatus = toolState?.status;
@@ -385,10 +410,35 @@ export function normalizeEvent(
 		case "message.updated": {
 			const msgEvent = event as EventMessageUpdated;
 			const info = msgEvent.properties?.info;
+			const infoWithId = info as { id?: string; role?: "user" | "assistant" };
+			const infoMessageId = infoWithId.id;
+			const infoRole = infoWithId.role;
+
+			if (infoMessageId && infoRole) {
+				state.messageRoleMap.set(infoMessageId, infoRole);
+			}
+
+			if (infoRole === "user" && infoMessageId) {
+				if (state.currentMessageId === infoMessageId) {
+					state.currentMessageId = null;
+				}
+				return {
+					type: "chat.message.user",
+					projectId,
+					time,
+					payload: {
+						messageId: infoMessageId,
+					} satisfies UserMessagePayload,
+				};
+			}
 
 			// Only emit final for assistant messages
-			if (info?.role === "assistant" && state.currentMessageId) {
-				const messageId = state.currentMessageId;
+			if (
+				info?.role === "assistant" &&
+				(state.currentMessageId || infoMessageId)
+			) {
+				const messageId = infoMessageId || state.currentMessageId;
+				if (!messageId) return null;
 				state.currentMessageId = null;
 				let assistantError: MessageFinalPayload["error"] | undefined;
 				if (info.error) {

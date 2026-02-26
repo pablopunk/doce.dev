@@ -224,6 +224,21 @@ export function createChatStore() {
 			}
 
 			switch (type) {
+				case "chat.message.user": {
+					const { messageId } = payload as { messageId: string };
+					set((state) => ({
+						items: state.items.filter(
+							(item) =>
+								!(
+									item.type === "message" &&
+									item.id === messageId &&
+									(item.data as Message).role === "assistant"
+								),
+						),
+					}));
+					break;
+				}
+
 				case "chat.message.part.added": {
 					const { messageId, partId, partType, deltaText, text } = payload as {
 						messageId: string;
