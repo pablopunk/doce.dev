@@ -12,7 +12,7 @@ export interface QueueWorkerOptions {
 	 * Layer to provide to each job handler. Should include all services
 	 * required by handlers (e.g., BaseLayer merged with AppLayer).
 	 */
-	layer: Layer.Layer<unknown>;
+	layer: Layer.Layer<unknown, never, never>;
 }
 
 export interface QueueWorkerHandle {
@@ -38,7 +38,7 @@ export const registerHandler = (type: string, handler: JobHandler) => {
 const runJob = (
 	job: QueueJob,
 	workerId: string,
-	layer: Layer.Layer<unknown>,
+	layer: Layer.Layer<unknown, never, never>,
 ): Effect.Effect<void, never, QueueService> =>
 	Effect.gen(function* () {
 		const queue = yield* QueueService;
@@ -77,8 +77,10 @@ const runJob = (
 			return;
 		}
 
-		// Provide the layer to the handler and run it to get an Exit
-		const handledEffect = handler(ctx).pipe(Effect.provide(layer));
+		// Provide handler dependencies and a Scope for resource-safe effects
+		const handledEffect = Effect.scoped(
+			handler(ctx).pipe(Effect.provide(layer)),
+		);
 		const result = yield* Effect.exit(handledEffect);
 
 		if (result._tag === "Success") {
