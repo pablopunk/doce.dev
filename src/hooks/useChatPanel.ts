@@ -634,10 +634,16 @@ export function useChatPanel({
 								projectId,
 								viewerId: `chat_reconnect_${Date.now()}`,
 							})
-							.catch((error) => {
-								showRequestError("Failed to refresh runtime presence", error);
+							.then((result) => {
+								if (result.error || !result.data?.opencodeReady) {
+									setOpenCodeReady(false);
+									return;
+								}
+								connect();
+							})
+							.catch(() => {
+								setOpenCodeReady(false);
 							});
-						connect();
 					}
 				}, delay);
 			};
@@ -663,6 +669,7 @@ export function useChatPanel({
 		handleChatEvent,
 		opencodeReady,
 		projectId,
+		setOpenCodeReady,
 		setIsStreaming,
 		showRequestError,
 	]);
