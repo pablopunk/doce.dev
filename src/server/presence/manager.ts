@@ -295,27 +295,36 @@ export async function handlePresenceHeartbeat(
 				nextPollMs = 2000;
 				logger.error({ error, projectId }, "Failed to enqueue container start");
 			}
-		} else if (status === "running" && !previewReady && !opencodeReady) {
-			// Containers crashed or were stopped externally
+		} else if (status === "running" && (!previewReady || !opencodeReady)) {
+			// One or more services crashed or were stopped externally.
+			// Trigger a full ensure-running cycle to restore parity.
 			await updateProjectStatus(projectId, "stopped");
 			status = "stopped";
 
-			// Trigger restart
 			presence.isStarting = true;
 			presence.startedAt = Date.now();
+
+			const missingServices = [
+				!previewReady ? "preview" : null,
+				!opencodeReady ? "opencode" : null,
+			].filter((service): service is string => service !== null);
 
 			try {
 				await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
 				status = "starting";
-				message = "Restarting containers...";
+				message = `Restarting ${missingServices.join(" and ")}...`;
 				nextPollMs = 500;
+				logger.warn(
+					{ projectId, missingServices },
+					"Detected degraded runtime; queued docker.ensureRunning recovery",
+				);
 			} catch (error) {
 				await updateProjectStatus(projectId, "error");
 				status = "error";
 				message = "Failed to restart containers. Open terminal for details.";
 				nextPollMs = 2000;
 				logger.error(
-					{ error, projectId },
+					{ error, projectId, missingServices },
 					"Failed to enqueue container restart",
 				);
 			}
