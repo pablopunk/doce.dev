@@ -34,11 +34,10 @@ services:
       - "4321:4321"
     volumes:
       - ./data:/app/data # DB and project files
-      - /var/run/docker.sock:/var/run/docker.sock  # Required since we use containers to run projects/opencode
+      - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run projects/opencode
 ```
 
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-dark.png?raw=true#gh-dark-mode-only" alt="doce.dev screenshot" width="80%" />
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-light.png?raw=true#gh-light-mode-only" alt="doce.dev screenshot" width="80%" />
 </p>
-# Build cache bust: Tue Feb 24 12:04:44 CET 2026
