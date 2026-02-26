@@ -112,6 +112,7 @@ export function handleProductionWaitReady(
 				try: () =>
 					updateProductionStatus(project.id, "running", {
 						productionUrl,
+						productionError: null,
 					}),
 				catch: (error) =>
 					new ProjectError({
@@ -124,14 +125,23 @@ export function handleProductionWaitReady(
 
 			yield* Effect.tryPromise({
 				try: () => cleanupOldProductionVersions(project.id, 2),
-				catch: (error) => {
-					logger.warn(
-						{ projectId: project.id, error },
-						"Failed to cleanup old production versions",
-					);
-					return null;
-				},
-			});
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "cleanupOldProductionVersions",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			}).pipe(
+				Effect.catchAll((error) =>
+					Effect.sync(() => {
+						logger.warn(
+							{ projectId: project.id, error: error.message },
+							"Failed to cleanup old production versions",
+						);
+					}),
+				),
+			);
 
 			logger.info(
 				{
@@ -168,8 +178,14 @@ function rollbackOrFail(
 	return Effect.gen(function* () {
 		const previousHash = yield* Effect.tryPromise({
 			try: () => getPreviousReleaseHash(projectId, failedHash),
-			catch: () => null,
-		}).pipe(Effect.orElse(() => Effect.succeed(null)));
+			catch: (error) =>
+				new ProjectError({
+					projectId,
+					operation: "getPreviousReleaseHash",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}).pipe(Effect.catchAll(() => Effect.succeed(null)));
 
 		if (!previousHash) {
 			yield* Effect.tryPromise({
@@ -232,9 +248,15 @@ function promoteRelease(
 		const tempSymlink = `${symlinkPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 		yield* Effect.tryPromise({
-			try: () => fs.unlink(tempSymlink).catch(() => {}),
-			catch: () => null,
-		});
+			try: () => fs.unlink(tempSymlink).catch(() => undefined),
+			catch: (error) =>
+				new ProjectError({
+					projectId,
+					operation: "unlink",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		}).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
 		yield* Effect.tryPromise({
 			try: () => fs.symlink(hashPath, tempSymlink),
 			catch: (error) =>

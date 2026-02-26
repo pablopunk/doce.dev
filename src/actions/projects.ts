@@ -288,7 +288,7 @@ export const projects = {
 				});
 			}
 
-			const { hasActiveDeployment } = await import(
+			const { hasActiveDeployment, updateProductionStatus } = await import(
 				"@/server/productions/productions.model"
 			);
 			if (await hasActiveDeployment(input.projectId)) {
@@ -297,6 +297,10 @@ export const projects = {
 					message: "A deployment is already in progress",
 				});
 			}
+
+			await updateProductionStatus(input.projectId, "queued", {
+				productionError: null,
+			});
 
 			const job = await enqueueProductionBuild({
 				projectId: input.projectId,
