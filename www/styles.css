@@ -206,6 +206,38 @@ body {
 	mask-composite: intersect;
 }
 
+.seo-copy {
+	position: absolute;
+	left: clamp(14px, 2.2vw, 24px);
+	bottom: clamp(16px, 3vw, 24px);
+	z-index: 2;
+	max-width: min(620px, calc(100vw - 460px));
+	padding: 14px 16px;
+	border: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
+	background: color-mix(in oklch, var(--background) 55%, transparent);
+	backdrop-filter: blur(24px) saturate(140%);
+	-webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+.seo-copy h1 {
+	margin: 0 0 8px;
+	font-size: clamp(18px, 2.2vw, 28px);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	font-weight: 700;
+}
+
+.seo-copy p {
+	margin: 0;
+	font-size: clamp(13px, 1.1vw, 15px);
+	line-height: 1.45;
+	color: color-mix(
+		in oklch,
+		var(--foreground) 88%,
+		var(--muted-foreground) 12%
+	);
+}
+
 .pill {
 	display: inline-flex;
 	align-items: center;
@@ -646,5 +678,13 @@ body {
 
 	.actions .btn {
 		width: 100%;
+	}
+
+	.seo-copy {
+		left: 9px;
+		right: 9px;
+		bottom: auto;
+		top: 56px;
+		max-width: none;
 	}
 }

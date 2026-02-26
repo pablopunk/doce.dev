@@ -3,11 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Delicious Open Code Environments" />
-    <title>doce.dev</title>
+    <title>doce.dev - Self-hosted open-source AI website builder</title>
+    <meta
+      name="description"
+      content="Build and deploy websites with AI agents on your own infrastructure. Open-source, self-hostable, and community-driven."
+    />
+    <meta
+      name="keywords"
+      content="self-hosted ai website builder, open source ai builder, lovable alternative, bolt alternative, v0 alternative, ai coding environment"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="author" content="doce.dev" />
+    <link rel="canonical" href="https://doce.dev/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="doce.dev" />
+    <meta property="og:url" content="https://doce.dev/" />
+    <meta
+      property="og:title"
+      content="doce.dev - Self-hosted open-source AI website builder"
+    />
+    <meta
+      property="og:description"
+      content="Build and deploy websites with AI agents on your own infrastructure. Open-source, self-hostable, and community-driven."
+    />
+    <meta property="og:image" content="https://doce.dev/icon-1080.svg" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="doce.dev - Self-hosted open-source AI website builder"
+    />
+    <meta
+      name="twitter:description"
+      content="Build and deploy websites with AI agents on your own infrastructure. Open-source, self-hostable, and community-driven."
+    />
+    <meta name="twitter:image" content="https://doce.dev/icon-1080.svg" />
+
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content="#ffffff"
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#101828"
+    />
+
     <script data-goatcounter="/count" async src="./count.js"></script>
     <link rel="icon" href="./icon-1080.svg" />
     <link rel="stylesheet" href="./styles.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "doce.dev",
+            "url": "https://doce.dev/",
+            "logo": "https://doce.dev/icon-1080.svg",
+            "sameAs": ["https://github.com/pablopunk/doce.dev"]
+          },
+          {
+            "@type": "WebSite",
+            "name": "doce.dev",
+            "url": "https://doce.dev/"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "doce.dev",
+            "url": "https://doce.dev/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Web",
+            "description": "Open-source, self-hostable web UI for building and deploying websites with AI agents.",
+            "keywords": "self-hosted AI website builder, open-source AI builder, v0 alternative, Lovable alternative, Bolt alternative",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "publisher": {
+              "@type": "Organization",
+              "name": "doce.dev",
+              "url": "https://doce.dev/"
+            }
+          }
+        ]
+      }
+    </script>
 
     <script>
       // Mirror the main app theme behavior (no toggle here):
@@ -43,13 +132,12 @@
       </header>
 
       <section class="stack" aria-label="Showcase">
-        <h1 class="sr-only">doce.dev</h1>
+        <p class="sr-only">doce.dev</p>
 
         <div class="video-wrap" aria-label="Product video">
           <video
             class="video video-dark"
             src="./assets/doce-showcase.mp4"
-            poster="./assets/doce-showcase.gif"
             autoplay
             muted
             loop
@@ -59,7 +147,6 @@
           <video
             class="video video-light"
             src="./assets/doce-showcase-light.mp4"
-            poster="./assets/doce-showcase-light.gif"
             autoplay
             muted
             loop
@@ -67,6 +154,15 @@
             preload="metadata"
           ></video>
         </div>
+
+        <section class="seo-copy" aria-label="Product overview">
+          <h1>Self-hosted open-source AI website builder</h1>
+          <p>
+            Build and deploy websites with AI agents on infrastructure you
+            control. doce.dev is community-driven, transparent, and easy to
+            self-host.
+          </p>
+        </section>
 
         <section class="controls" aria-label="Actions">
           <div class="actions" aria-label="Actions">
