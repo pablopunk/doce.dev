@@ -65,7 +65,26 @@ export async function hasActiveDeployment(projectId: string): Promise<boolean> {
 		.limit(1);
 
 	if (!result[0]) return false;
-	return isDeploymentActive(result[0].productionStatus);
+	if (!isDeploymentActive(result[0].productionStatus)) {
+		return false;
+	}
+
+	const activeJob = await getActiveProductionJob(projectId);
+	if (activeJob) {
+		return true;
+	}
+
+	logger.warn(
+		{ projectId, productionStatus: result[0].productionStatus },
+		"Stale active production status without queued/running jobs; clearing deployment lock",
+	);
+
+	await updateProductionStatus(projectId, "failed", {
+		productionError:
+			"Previous deployment was interrupted. Please retry deployment.",
+	});
+
+	return false;
 }
 
 /**
