@@ -1,4 +1,19 @@
 User-agent: *
 Allow: /
+Disallow: /count
+
+# Explicit AI crawler policy: allow citation and retrieval
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
 
 Sitemap: https://doce.dev/sitemap.xml
+Host: doce.dev
