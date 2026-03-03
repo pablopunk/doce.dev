@@ -238,6 +238,7 @@ body {
 	color: var(--primary);
 	opacity: 0.8;
 	border: 1px solid var(--border);
+	transition: opacity 0.2s ease;
 }
 
 .actions {
@@ -308,6 +309,48 @@ body {
 	opacity: 0.7;
 	cursor: not-allowed;
 	transform: none;
+}
+
+.btn-deploy {
+	position: relative;
+	text-decoration: none;
+}
+
+.btn-deploy .btn-text-default,
+.btn-deploy .btn-text-hover,
+.btn-deploy .btn-icon-default,
+.btn-deploy .btn-icon-hover {
+	transition: opacity 0.2s ease;
+}
+
+.btn-deploy .btn-text-hover,
+.btn-deploy .btn-icon-hover {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.btn-deploy .btn-text-hover {
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+.btn-deploy .btn-icon-hover {
+	left: 16px;
+}
+
+.btn-deploy:hover .btn-text-default,
+.btn-deploy:hover .btn-icon-default {
+	opacity: 0;
+}
+
+.btn-deploy:hover .btn-text-hover,
+.btn-deploy:hover .btn-icon-hover {
+	opacity: 1;
+}
+
+.btn-deploy:hover .pill-soon {
+	opacity: 0;
 }
 
 .deploy {
