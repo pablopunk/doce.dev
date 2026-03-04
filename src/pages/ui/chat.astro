@@ -1,0 +1,10 @@
+---
+import { ChatDebugPage } from "@/components/debug/ChatDebugPage";
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Chat Debug - UI Testing">
+  <main class="flex-1 flex flex-col h-full overflow-hidden">
+    <ChatDebugPage client:load />
+  </main>
+</AppLayout>

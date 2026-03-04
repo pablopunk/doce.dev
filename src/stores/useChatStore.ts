@@ -67,7 +67,7 @@ export interface TodoItem {
 /**
  * ChatStore manages all chat state for a project
  */
-interface ChatStore {
+export interface ChatStore {
 	// State: Messages and tools
 	items: ChatItem[];
 
@@ -573,7 +573,10 @@ export function createChatStore() {
 }
 
 // Store instances map (one per project)
-const storeInstances = new Map<string, ReturnType<typeof createChatStore>>();
+export const storeInstances = new Map<
+	string,
+	ReturnType<typeof createChatStore>
+>();
 
 /**
  * Get or create a chat store for a project
