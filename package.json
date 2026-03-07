@@ -17,7 +17,7 @@
 		"drizzle:generate": "drizzle-kit generate",
 		"drizzle:migrate": "drizzle-kit migrate",
 		"drizzle:studio": "drizzle-kit studio",
-		"generate-videos": "cd remotion && npm run render && npm run render:gif && cp out/*.mp4 ../www/assets/"
+		"generate-videos": "pnpm --dir ./www/remotion render && pnpm --dir ./www/remotion render:gif"
 	},
 	"packageManager": "pnpm@10.20.0",
 	"dependencies": {

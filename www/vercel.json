@@ -1,13 +1,24 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
-	"rewrites": [
+	"routes": [
 		{
-			"source": "/count",
-			"destination": "https://doce-dev.goatcounter.com/count"
+			"src": "/remotion/out/(.*\\.(mp4|gif))",
+			"dest": "/remotion/out/$1"
 		},
 		{
-			"source": "/count(.*)",
-			"destination": "https://doce-dev.goatcounter.com/count$1"
+			"src": "/remotion(?:/.*)?",
+			"status": 404
+		},
+		{
+			"src": "/count",
+			"dest": "https://doce-dev.goatcounter.com/count"
+		},
+		{
+			"src": "/count(.*)",
+			"dest": "https://doce-dev.goatcounter.com/count$1"
+		},
+		{
+			"handle": "filesystem"
 		}
 	]
 }

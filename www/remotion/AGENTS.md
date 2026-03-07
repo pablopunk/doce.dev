@@ -9,11 +9,11 @@ This is a Remotion project that generates showcase videos for doce.dev. The vide
 ## Project Structure
 
 ### Package Manager
-**Uses `npm`** (NOT `pnpm`). The parent project uses `pnpm`, but this Remotion subproject has its own `package.json` and uses `npm`.
+**Uses `pnpm`**. Run commands from the repo root with `pnpm --dir ./www/remotion ...` or from this directory with `pnpm ...`.
 
 ### Directory Layout
 ```
-remotion/
+www/remotion/
 ├── src/
 │   ├── Root.tsx                 # Composition definitions (DoceShowcaseDark, DoceShowcaseLight)
 │   ├── DoceShowcase.tsx         # Main timeline - sequences all scenes with transitions
@@ -274,40 +274,33 @@ const buttonState = isSuccess ? "success" : isLoading ? "loading" : "idle";
 
 ### TypeScript Check
 ```bash
-cd /Users/pablopunk/src/doce.dev/remotion
-npx tsc --noEmit
+cd /Users/pablopunk/src/doce.dev/www/remotion
+pnpm exec tsc --noEmit
 ```
 
 ### Render Videos
 ```bash
 # Dark mode MP4
-npx remotion render DoceShowcaseDark out/doce-showcase.mp4
+pnpm exec remotion render DoceShowcaseDark out/doce-showcase.mp4
 
 # Light mode MP4
-npx remotion render DoceShowcaseLight out/doce-showcase-light.mp4
+pnpm exec remotion render DoceShowcaseLight out/doce-showcase-light.mp4
 ```
 
 ### Render GIFs (for README)
 ```bash
 # Dark GIF (half scale, 15fps)
-npx remotion render DoceShowcaseDark out/doce-showcase.gif --image-format=png --scale=0.5 --every-nth-frame=2
+pnpm exec remotion render DoceShowcaseDark out/doce-showcase.gif --image-format=png --scale=0.5 --every-nth-frame=2
 
 # Light GIF
-npx remotion render DoceShowcaseLight out/doce-showcase-light.gif --image-format=png --scale=0.5 --every-nth-frame=2
+pnpm exec remotion render DoceShowcaseLight out/doce-showcase-light.gif --image-format=png --scale=0.5 --every-nth-frame=2
 ```
 
 ### Output Locations
 After rendering:
-1. **MP4s** go to both:
-   - `remotion/out/` (source)
-   - `www/assets/` (for website) - manually copy after render
-2. **GIFs** stay in `remotion/out/` (for README)
-
-**Copy command**:
-```bash
-cp remotion/out/doce-showcase.mp4 www/assets/
-cp remotion/out/doce-showcase-light.mp4 www/assets/
-```
+1. **MP4s** stay in `www/remotion/out/` and are loaded directly by the website
+2. **GIFs** stay in `www/remotion/out/` for the README
+3. Vercel should only expose `www/remotion/out/*.mp4` and `www/remotion/out/*.gif`; the rest of `www/remotion/` stays blocked
 
 ## Troubleshooting
 
@@ -382,7 +375,7 @@ Before considering a scene "complete":
 - [ ] Matches real UI from `/src/components/` exactly
 - [ ] Uses real logo from `/public/favicon.svg`
 - [ ] All animations use `useCurrentFrame()` (no CSS animations)
-- [ ] TypeScript compiles with no errors (`npx tsc --noEmit`)
+- [ ] TypeScript compiles with no errors (`pnpm exec tsc --noEmit`)
 - [ ] Renders successfully for both dark and light modes
 - [ ] File tree is visible and properly sized (if applicable)
 - [ ] Text animations are sequential, not simultaneous (if applicable)
@@ -409,4 +402,4 @@ Before considering a scene "complete":
 - ✅ Code editor typing is sequential (one line at a time)
 - ✅ Deploy button follows real UI pattern (outline→spinner→filled)
 - ✅ Both dark and light modes fully functional
-- ✅ All outputs generated and copied to correct locations
+- ✅ All outputs generated in `www/remotion/out/` and reused directly by the site
