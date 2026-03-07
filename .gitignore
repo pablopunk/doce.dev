@@ -65,3 +65,9 @@ coverage/
 
 # Agent artifacts
 .sisyphus
+.claude/
+.crush/
+.mux/
+.pi/
+skills-lock.json
+/skills
