@@ -2,6 +2,8 @@
 	"name": "doce.dev",
 	"version": "1.0.0",
 	"type": "module",
+	"license": "GPL-3.0-or-later",
+	"author": "Pablo P Varela",
 	"scripts": {
 		"bootstrap": "sh scripts/bootstrap.sh",
 		"postinstall": "command -v git >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
