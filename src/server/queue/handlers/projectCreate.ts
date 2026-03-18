@@ -38,17 +38,17 @@ const toProjectError = (
 	projectId?: string,
 ): ProjectError =>
 	new ProjectError({
-		projectId,
 		operation,
 		message: error instanceof Error ? error.message : String(error),
 		cause: error,
+		...(projectId ? { projectId } : {}),
 	});
 
 const toQueueError = (error: unknown, jobId?: string): QueueError =>
 	new QueueError({
 		message: error instanceof Error ? error.message : String(error),
-		jobId,
 		cause: error,
+		...(jobId ? { jobId } : {}),
 	});
 
 const writeProjectImages = (
@@ -64,7 +64,7 @@ const writeProjectImages = (
 	});
 
 const allocatePortsEffect = (): Effect.Effect<
-	{ devPort: number; opencodePort: number },
+	{ devPort: number },
 	ProjectError
 > =>
 	Effect.tryPromise({
@@ -81,13 +81,12 @@ const ensureAuthDirectoryEffect = (): Effect.Effect<void, FilesystemError> =>
 const setupFilesystemEffect = (
 	projectId: string,
 	devPort: number,
-	opencodePort: number,
 ): Effect.Effect<
 	{ projectPath: string; productionPort: number },
 	ProjectError
 > =>
 	Effect.tryPromise({
-		try: () => setupProjectFilesystem(projectId, devPort, opencodePort),
+		try: () => setupProjectFilesystem(projectId, devPort),
 		catch: (error) =>
 			toProjectError(error, "setupProjectFilesystem", projectId),
 	});
@@ -115,7 +114,6 @@ const createProjectEffect = (params: {
 	slug: string;
 	prompt: string;
 	devPort: number;
-	opencodePort: number;
 	productionPort: number;
 	projectPath: string;
 }): Effect.Effect<void, ProjectError> =>
@@ -129,7 +127,6 @@ const createProjectEffect = (params: {
 				slug: params.slug,
 				prompt: params.prompt,
 				devPort: params.devPort,
-				opencodePort: params.opencodePort,
 				productionPort: params.productionPort,
 				status: "created",
 				pathOnDisk: params.projectPath,
@@ -157,17 +154,16 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			catch: (error) => toQueueError(error, ctx.job.id),
 		});
 
-		const [{ devPort, opencodePort }] = yield* Effect.all(
+		const [{ devPort }] = yield* Effect.all(
 			[allocatePortsEffect(), ensureAuthDirectoryEffect()],
 			{ concurrency: 2 },
 		);
 
-		logger.debug({ projectId, devPort, opencodePort }, "Allocated ports");
+		logger.debug({ projectId, devPort }, "Allocated ports");
 
 		const { projectPath, productionPort } = yield* setupFilesystemEffect(
 			projectId,
 			devPort,
-			opencodePort,
 		);
 
 		logger.debug({ projectId, projectPath }, "Set up project filesystem");
@@ -213,7 +209,6 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			slug,
 			prompt,
 			devPort,
-			opencodePort,
 			productionPort,
 			projectPath,
 		});

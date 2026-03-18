@@ -58,7 +58,6 @@ export const projects = sqliteTable("projects", {
 	slug: text("slug").notNull().unique(),
 	prompt: text("prompt").notNull(),
 	devPort: integer("dev_port").notNull(),
-	opencodePort: integer("opencode_port").notNull(),
 	status: text("status", {
 		enum: [
 			"created",

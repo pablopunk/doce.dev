@@ -1,3 +1,9 @@
+CREATE TABLE `instance_settings` (
+	`id` integer PRIMARY KEY NOT NULL,
+	`base_url` text,
+	`updated_at` integer NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `model_favorites` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -16,7 +22,6 @@ CREATE TABLE `projects` (
 	`slug` text NOT NULL,
 	`prompt` text NOT NULL,
 	`dev_port` integer NOT NULL,
-	`opencode_port` integer NOT NULL,
 	`status` text DEFAULT 'created' NOT NULL,
 	`path_on_disk` text NOT NULL,
 	`initial_prompt_sent` integer DEFAULT false NOT NULL,

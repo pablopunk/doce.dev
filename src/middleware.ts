@@ -12,6 +12,7 @@ import {
 } from "@/server/docker/compose";
 import { ensureEffectQueueWorkerStarted } from "@/server/effect";
 import { logger } from "@/server/logger";
+import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
 
 let startupInitialized = false;
 async function ensureInitialized() {
@@ -21,6 +22,7 @@ async function ensureInitialized() {
 		ensureEffectQueueWorkerStarted();
 		await ensureDoceSharedNetwork();
 		await ensureGlobalPnpmVolume();
+		await ensureGlobalOpencodeStarted();
 		startupInitialized = true;
 	} catch (error) {
 		logger.error({ error }, "[Middleware] Initial startup failed");

@@ -8,7 +8,6 @@ import {
 	composeUp,
 	composeUpProduction,
 	ensureDoceSharedNetwork,
-	ensureOpencodeStorageVolume,
 	ensureProjectDataVolume,
 	parseComposePs,
 } from "@/server/docker/compose";
@@ -52,10 +51,7 @@ const waitForContainersHealthy = (
 		while (Date.now() - startTime < timeoutMs) {
 			const result = yield* Effect.tryPromise({
 				try: () =>
-					Promise.all([
-						checkPreviewReady(projectId),
-						checkOpencodeReady(projectId),
-					]),
+					Promise.all([checkPreviewReady(projectId), checkOpencodeReady()]),
 				catch: () => null,
 			}).pipe(Effect.orElse(() => Effect.succeed([false, false] as const)));
 
@@ -151,11 +147,7 @@ export const DockerServiceLive = Layer.succeed(
 				catch: (e) => toDockerError(e, { projectId }),
 			}).pipe(Effect.orElse(() => Effect.succeed(undefined))),
 
-		ensureOpencodeStorageVolume: (projectId) =>
-			Effect.tryPromise({
-				try: () => ensureOpencodeStorageVolume(projectId),
-				catch: (e) => toDockerError(e, { projectId }),
-			}).pipe(Effect.orElse(() => Effect.succeed(undefined))),
+		ensureOpencodeStorageVolume: () => Effect.succeed(undefined),
 
 		streamContainerLogs: (projectId, projectPath) =>
 			Effect.sync(() => {

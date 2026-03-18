@@ -34,8 +34,30 @@ services:
       - "4321:4321"
     volumes:
       - ./data:/app/data # DB and project files
-      - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run projects/opencode
+      - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run project previews
 ```
+
+That's still the whole deployment story. Internally, `doce` now runs:
+
+- the Astro app
+- one central `opencode` server
+- the queue worker
+
+Project previews still run in isolated Docker Compose stacks, but OpenCode itself is now global and shared.
+
+## How it works
+
+- Provider auth lives in the central OpenCode runtime, not per project
+- Project files live under `data/projects/<project-id>/preview`
+- Preview containers bind-mount those project folders directly
+- The UI proxies project-scoped requests to the single OpenCode server
+- API-key and subscription-style auth methods are surfaced from upstream OpenCode
+
+## Notes
+
+- `./data` contains the SQLite database, OpenCode state, and all project files
+- If you delete `./data`, doce.dev starts from scratch with a clean database and no projects/providers
+- The bundled OpenCode runtime currently uses a permissive permission config intended for trusted self-hosted usage
 
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshot-dark.png?raw=true#gh-dark-mode-only" alt="doce.dev screenshot" width="80%" />

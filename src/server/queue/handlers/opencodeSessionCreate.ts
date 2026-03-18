@@ -4,6 +4,7 @@ import { OpenCodeSessionError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
+import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
@@ -11,7 +12,6 @@ import {
 	resetPromptStateForSessionRecovery,
 	updateBootstrapSessionId,
 } from "@/server/projects/projects.model";
-import { isRunningInDocker } from "@/server/utils/docker";
 import { enqueueOpencodeSendUserPrompt } from "../enqueue";
 import { parsePayload } from "../types";
 
@@ -49,24 +49,21 @@ export function handleOpencodeSessionCreate(
 		}
 
 		let isSessionRecovery = false;
+		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
 
 		if (project.bootstrapSessionId) {
-			const baseUrl = isRunningInDocker()
-				? `http://doce_${project.id}-opencode-1:3000`
-				: `http://localhost:${project.opencodePort}`;
-
 			const hasExistingSession = yield* Effect.tryPromise({
 				try: async () => {
-					const response = await fetch(`${baseUrl}/session`);
-					if (!response.ok) return false;
-
-					const sessions = (await response.json()) as unknown;
-					if (!Array.isArray(sessions)) return false;
+					const client = createOpencodeClient(projectDirectory);
+					const response = await client.session.list({
+						directory: projectDirectory,
+					});
+					const sessions = response.data;
+					if (!Array.isArray(sessions)) {
+						return false;
+					}
 
 					return sessions.some((entry) => {
-						if (typeof entry === "string") {
-							return entry === project.bootstrapSessionId;
-						}
 						if (typeof entry === "object" && entry !== null && "id" in entry) {
 							const sessionId = (entry as { id?: unknown }).id;
 							return (
@@ -148,14 +145,14 @@ export function handleOpencodeSessionCreate(
 		}
 
 		logger.info(
-			{ projectId: project.id, opencodePort: project.opencodePort },
+			{ projectId: project.id, directory: projectDirectory },
 			"Creating OpenCode client for container communication",
 		);
-		const client = createOpencodeClient(project.id, project.opencodePort);
+		const client = createOpencodeClient(projectDirectory);
 
 		logger.info({ projectId: project.id }, "Calling client.session.create()");
 		const result = yield* Effect.tryPromise({
-			try: () => client.session.create(),
+			try: () => client.session.create({ directory: projectDirectory }),
 			catch: (error) =>
 				new OpenCodeSessionError({
 					projectId: project.id,

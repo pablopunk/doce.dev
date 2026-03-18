@@ -24,6 +24,6 @@ When no specific test is requested:
 
 1. **Auth** - Signup/login with `admin/admin`
 2. **Setup API Key** - Set OpenRouter key (from `$OPENROUTER_API_KEY` or ask user)
-3. **Create Project** - "Minimal digital clock. Big, on the center. HH:MM"
+3. **Create Project** - "Minimal digital clock. Big, on the center. HH:MM". Use a fast but smart model, like haiku-4.5, search for it in the dropdown.
 4. **Verify Preview** - Check website loads in preview panel
 5. **Request Change** - "Change clock to be red" and verify update

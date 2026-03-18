@@ -5,6 +5,7 @@ import { ensureInstanceSettingsRow } from "@/server/settings/instance.settings";
 import { db } from "./client";
 
 let migrationsRan = false;
+let databaseReadyPromise: Promise<void> | null = null;
 
 function isBenignAlreadyExistsError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
@@ -26,24 +27,34 @@ export async function ensureDatabaseReady() {
 		return;
 	}
 
-	try {
+	if (databaseReadyPromise) {
+		return databaseReadyPromise;
+	}
+
+	databaseReadyPromise = (async () => {
 		try {
-			await migrate(db, { migrationsFolder: "./drizzle" });
-		} catch (error) {
-			if (!isBenignAlreadyExistsError(error)) {
-				throw error;
+			try {
+				await migrate(db, { migrationsFolder: "./drizzle" });
+			} catch (error) {
+				if (!isBenignAlreadyExistsError(error)) {
+					throw error;
+				}
+
+				logger.warn(
+					"[DB] Migration metadata appears out of sync; continuing because schema already exists",
+				);
 			}
 
-			logger.warn(
-				"[DB] Migration metadata appears out of sync; continuing because schema already exists",
-			);
+			await ensureQueueSettingsRow();
+			await ensureInstanceSettingsRow();
+			migrationsRan = true;
+		} catch (error) {
+			logger.error({ error }, "[DB] Initialization failed");
+			throw error;
+		} finally {
+			databaseReadyPromise = null;
 		}
+	})();
 
-		await ensureQueueSettingsRow();
-		await ensureInstanceSettingsRow();
-		migrationsRan = true;
-	} catch (error) {
-		logger.error({ error }, "[DB] Initialization failed");
-		throw error;
-	}
+	return databaseReadyPromise;
 }

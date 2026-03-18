@@ -98,6 +98,15 @@ function getModelKey(provider: string, id: string): string {
 	return `${provider}:${id}`;
 }
 
+function getModelSearchTerms(model: {
+	id: string;
+	name: string;
+	provider: string;
+	vendor: string;
+}) {
+	return [model.name, model.provider, model.vendor, model.id];
+}
+
 export function ModelSelector({
 	models,
 	recentModels = [],
@@ -201,8 +210,9 @@ export function ModelSelector({
 			</PopoverTrigger>
 			<PopoverContent className="w-full p-0">
 				<Command
-					filter={(value, search) => {
-						const normalizedValue = value.toLowerCase();
+					filter={(value, search, keywords = []) => {
+						const normalizedValue =
+							`${value} ${keywords.join(" ")}`.toLowerCase();
 						const normalizedSearch = search.toLowerCase().trim();
 
 						if (normalizedSearch.length === 0) return 1;
@@ -245,7 +255,8 @@ export function ModelSelector({
 									return (
 										<CommandItem
 											key={modelKey}
-											value={model.name}
+											value={modelKey}
+											keywords={getModelSearchTerms(model)}
 											onSelect={() => {
 												onModelChange(modelKey);
 												setOpen(false);
@@ -287,7 +298,8 @@ export function ModelSelector({
 									const item = (
 										<CommandItem
 											key={modelKey}
-											value={model.name}
+											value={modelKey}
+											keywords={getModelSearchTerms(model)}
 											disabled={!isAvailable}
 											onSelect={() => {
 												onModelChange(modelKey);

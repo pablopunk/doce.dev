@@ -1,6 +1,6 @@
 # Multi-stage build for production deployment
 # Builder stage
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 # Install pnpm
 RUN npm install -g pnpm@10.20.0
@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 RUN pnpm install --frozen-lockfile --dangerously-allow-all-builds
 
@@ -29,15 +29,18 @@ ENV VERSION=${VERSION}
 RUN pnpm build
 
 # Runtime stage
-FROM node:22-alpine
+FROM node:22-slim
 
 ARG VERSION=unknown
 
-RUN apk add --no-cache dumb-init curl docker-cli docker-compose
+RUN apt-get update && apt-get install -y dumb-init curl ca-certificates docker.io docker-compose && rm -rf /var/lib/apt/lists/*
 
 ENV VERSION=${VERSION}
 
 RUN npm install -g pnpm@10.20.0
+
+# Install OpenCode CLI for the central runtime
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.2.5
 
 WORKDIR /app
 
@@ -65,6 +68,7 @@ EXPOSE 4321
 # Set environment variables
 ENV HOST=0.0.0.0
 ENV PORT=4321
+ENV PATH=/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

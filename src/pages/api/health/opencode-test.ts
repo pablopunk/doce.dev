@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { logger } from "@/server/logger";
 import { getOpencodeClient } from "@/server/opencode/client";
+import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import { getProjectById } from "@/server/projects/projects.model";
 
 /**
@@ -36,6 +37,7 @@ export const GET: APIRoute = async ({ url }) => {
 		}
 
 		logger.info({ projectId }, "Running OpenCode diagnostic test");
+		const directory = getProjectPreviewPathFromRoot(project.pathOnDisk);
 
 		const results: Record<string, unknown> = {
 			projectId,
@@ -46,7 +48,7 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 1: Create client
 		try {
 			logger.info({ projectId }, "Test 1: Creating OpenCode client");
-			getOpencodeClient(projectId, project.opencodePort);
+			getOpencodeClient(directory);
 			(results.tests as Record<string, unknown>).client_creation = {
 				status: "success",
 			};
@@ -64,7 +66,7 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 2: Health check
 		try {
 			logger.info({ projectId }, "Test 2: Checking OpenCode health");
-			const client = getOpencodeClient(projectId, project.opencodePort);
+			const client = getOpencodeClient(directory);
 			const health = await client.global.health();
 			(results.tests as Record<string, unknown>).health_check = {
 				status: health.response?.ok ? "success" : "failed",
@@ -80,8 +82,8 @@ export const GET: APIRoute = async ({ url }) => {
 		// Test 3: Create session
 		try {
 			logger.info({ projectId }, "Test 3: Creating session");
-			const client = getOpencodeClient(projectId, project.opencodePort);
-			const session = await client.session.create();
+			const client = getOpencodeClient(directory);
+			const session = await client.session.create({ directory });
 			const sessionId = (session.data as Record<string, unknown>)?.id;
 			(results.tests as Record<string, unknown>).session_creation = {
 				status: sessionId ? "success" : "failed",
@@ -97,6 +99,7 @@ export const GET: APIRoute = async ({ url }) => {
 						"Test 4: Fetching session messages",
 					);
 					const messages = await client.session.messages({
+						directory,
 						sessionID: sessionId as string,
 					});
 					(results.tests as Record<string, unknown>).fetch_messages = {

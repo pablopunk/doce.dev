@@ -4,7 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile.preview
     volumes:
-      - project_files:/app
+      - type: bind
+        source: ${PROJECT_PREVIEW_BIND_MOUNT}
+        target: /app
+      - preview_node_modules:/app/node_modules
       - pnpm-store:/root/.local/share/pnpm/store
     ports:
       - "${DEV_PORT:-4321}:4321"
@@ -13,24 +16,10 @@ services:
     networks:
       - default
       - doce-shared
-  opencode:
-    build:
-      context: .
-      dockerfile: Dockerfile.opencode
-    volumes:
-      - project_files:/app
-      - opencode_storage:/root/.local/share/opencode
-    ports:
-      - "${OPENCODE_PORT:-3000}:3000"
-    networks:
-      - default
-      - doce-shared
 
 volumes:
-  project_files:
-    name: ${PROJECT_DATA_VOLUME_NAME}
-  opencode_storage:
-    name: doce_${PROJECT_ID}_opencode_storage
+  preview_node_modules:
+    name: doce_${PROJECT_ID}_preview_node_modules
   pnpm-store:
     external: true
     name: doce-global-pnpm-store

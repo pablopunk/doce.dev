@@ -1,9 +1,40 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1b3d9d05-149a-4159-8ad5-52f5731f88ad",
+  "id": "fddd9540-8f0f-44f8-9745-42632a7789f4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "instance_settings": {
+      "name": "instance_settings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "model_favorites": {
       "name": "model_favorites",
       "columns": {
@@ -117,13 +148,6 @@
         },
         "dev_port": {
           "name": "dev_port",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "opencode_port": {
-          "name": "opencode_port",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

@@ -37,9 +37,33 @@ export async function listConnectedProviderIds(): Promise<string[]> {
 			const content = await fs.readFile(authJsonPath, "utf-8");
 			const config = JSON.parse(content) as Record<
 				string,
-				{ type: string; key: string }
+				Record<string, unknown>
 			>;
-			const providerIds = Object.keys(config).filter((key) => config[key]?.key);
+			const providerIds = Object.keys(config).filter((key) => {
+				const providerConfig = config[key];
+				if (!providerConfig || typeof providerConfig !== "object") {
+					return false;
+				}
+
+				const authType = providerConfig.type;
+				if (authType === "api") {
+					return (
+						typeof providerConfig.key === "string" &&
+						providerConfig.key.length > 0
+					);
+				}
+
+				if (authType === "oauth") {
+					return (
+						typeof providerConfig.access === "string" &&
+						providerConfig.access.length > 0 &&
+						typeof providerConfig.refresh === "string" &&
+						providerConfig.refresh.length > 0
+					);
+				}
+
+				return false;
+			});
 			return providerIds;
 		},
 		catch: (error) =>

@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { toVendorSlug } from "@/lib/modelVendor";
 import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
-import { getModelById, getModelsIndex } from "./modelsDev";
+import { getOpencodeClient } from "./client";
 
 export interface ModelCapabilities {
 	supportsVision: boolean;
@@ -64,78 +64,117 @@ export function resolveModelVendor(
 	);
 }
 
-/**
- * Normalize model IDs from models.dev for each provider.
- * Returns the model ID as-is (matching models.dev format) and infers vendor for display.
- *
- * Key insight: OpenCode SDK expects model IDs without vendor prefix, while OpenRouter
- * expects model IDs with vendor prefix. This function just returns the canonical format
- * from models.dev and infers the vendor name for UI grouping.
- *
- * Examples:
- * - OpenCode "claude-haiku-4-5" → { id: "claude-haiku-4-5", vendor: "anthropic" }
- * - OpenRouter "openai/gpt-5.2" → { id: "openai/gpt-5.2", vendor: "openai" }
- */
-function normalizeModelId(
-	modelId: string,
-	providerId: string,
-): { id: string; vendor: string } {
-	return { id: modelId, vendor: resolveModelVendor(providerId, modelId) };
+interface OpencodeModel {
+	id: string;
+	providerID: string;
+	name: string;
+	family?: string;
+	capabilities: {
+		temperature: boolean;
+		reasoning: boolean;
+		attachment: boolean;
+		toolcall: boolean;
+		input: {
+			text: boolean;
+			audio: boolean;
+			image: boolean;
+			video: boolean;
+			pdf: boolean;
+		};
+		output: {
+			text: boolean;
+			audio: boolean;
+			image: boolean;
+			video: boolean;
+			pdf: boolean;
+		};
+		interleaved: boolean | { field: string };
+	};
+	cost: {
+		input: number;
+		output: number;
+		cache: {
+			read: number;
+			write: number;
+		};
+	};
+	limit: {
+		context: number;
+		input?: number;
+		output: number;
+	};
+	status: "alpha" | "beta" | "deprecated" | "active";
+}
+
+interface OpencodeProvider {
+	id: string;
+	name: string;
+	models: Record<string, OpencodeModel>;
 }
 
 /**
- * Get all available models from connected providers, sorted by input cost (cheapest first)
+ * Get all available models from connected providers via OpenCode, sorted by input cost (cheapest first)
  */
 export async function getAvailableModels(
-	connectedProviderIds: string[],
+	_connectedProviderIds: string[],
 ): Promise<
 	Array<{
 		id: string;
 		name: string;
 		provider: string;
 		vendor: string;
+		supportsImages?: boolean;
 	}>
 > {
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				if (connectedProviderIds.length === 0) {
+				const client = getOpencodeClient();
+				const response = await client.config.providers();
+
+				if (!response.data?.providers) {
+					logger.warn("No providers returned from OpenCode");
 					return [];
 				}
 
-				const allModels = await getModelsIndex();
 				const available: Array<{
 					id: string;
 					name: string;
 					provider: string;
 					vendor: string;
+					supportsImages: boolean;
 					cost: number;
 				}> = [];
 
-				for (const providerId of connectedProviderIds) {
-					const providerModels = allModels[providerId];
-					if (providerModels) {
-						for (const model of providerModels) {
-							const { id, vendor } = normalizeModelId(model.id, providerId);
-							available.push({
-								id,
-								name: model.name,
-								provider: providerId,
-								vendor,
-								cost: model.cost.input ?? 0,
-							});
-						}
+				for (const provider of response.data.providers as OpencodeProvider[]) {
+					if (!provider?.models) {
+						continue;
+					}
+
+					for (const [modelId, model] of Object.entries(provider.models)) {
+						const vendor = resolveModelVendor(provider.id, modelId);
+						available.push({
+							id: modelId,
+							name: model.name || modelId,
+							provider: provider.id,
+							vendor,
+							supportsImages: model.capabilities?.input?.image ?? false,
+							cost: model.cost?.input ?? 0,
+						});
 					}
 				}
 
 				available.sort((a, b) => a.cost - b.cost);
 
-				return available.map(({ id, name, provider, vendor }) => ({
-					id,
-					name,
-					provider,
-					vendor,
-				}));
+				return available.map(
+					({ id, name, provider, vendor, supportsImages }) => ({
+						id,
+						name,
+						provider,
+						vendor,
+						supportsImages,
+					}),
+				);
 			},
 			catch: (error) =>
 				new ModelsFetchError({
@@ -185,12 +224,21 @@ export async function modelSupportsVision(modelId: string): Promise<boolean> {
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const model = await getModelById(modelId);
-				if (!model) {
+				const client = getOpencodeClient();
+				const response = await client.config.providers();
+
+				if (!response.data?.providers) {
 					return false;
 				}
 
-				return model.modalities.input.includes("image");
+				for (const provider of response.data.providers) {
+					const models = (provider as OpencodeProvider).models;
+					if (models?.[modelId]) {
+						return models[modelId].capabilities?.input?.image ?? false;
+					}
+				}
+
+				return false;
 			},
 			catch: (error) =>
 				new ModelsFetchError({
@@ -211,17 +259,31 @@ export async function getModelCapabilities(
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const model = await getModelById(modelId);
-				if (!model) {
+				const client = getOpencodeClient();
+				const response = await client.config.providers();
+
+				if (!response.data?.providers) {
 					return null;
 				}
 
-				return {
-					supportsVision: model.modalities.input.includes("image"),
-					supportedInputTypes: model.modalities.input,
-					inputCost: model.cost.input ?? 0,
-					contextLimit: model.limit.context ?? 0,
-				};
+				for (const provider of response.data.providers) {
+					const models = (provider as OpencodeProvider).models;
+					const model = models?.[modelId];
+					if (model) {
+						return {
+							supportsVision: model.capabilities?.input?.image ?? false,
+							supportedInputTypes: Object.entries(
+								model.capabilities?.input || {},
+							)
+								.filter(([, v]) => v)
+								.map(([k]) => k),
+							inputCost: model.cost?.input ?? 0,
+							contextLimit: model.limit?.context ?? 0,
+						};
+					}
+				}
+
+				return null;
 			},
 			catch: (error) =>
 				new ModelsFetchError({

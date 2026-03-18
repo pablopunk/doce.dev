@@ -1,15 +1,5 @@
 ---
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { BaseUrlSettings } from "@/components/settings/BaseUrlSettings";
-import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
-import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
 
@@ -31,33 +21,6 @@ const projectCount = projects.length;
 			</div>
 		</div>
 
-		<div class="grid grid-cols-1 gap-8 xl:grid-cols-3">
-			<div class="xl:col-span-2">
-				<ProvidersSettings client:load />
-			</div>
-
-			<div class="xl:col-span-1 flex flex-col gap-8 xl:self-stretch">
-				<div>
-					<BaseUrlSettings client:load />
-				</div>
-				<div class="xl:flex-1">
-					<Card class="h-full">
-						<CardHeader>
-							<CardTitle>Account</CardTitle>
-							<CardDescription>
-								Manage your account settings.
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<LogoutButton client:load />
-						</CardContent>
-					</Card>
-				</div>
-			</div>
-
-			<div class="xl:col-span-3">
-				<DeleteAllProjectsSection projectCount={projectCount} client:load />
-			</div>
-		</div>
+		<SettingsWorkspace projectCount={projectCount} client:load />
 	</main>
 </AppLayout>

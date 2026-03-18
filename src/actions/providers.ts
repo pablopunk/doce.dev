@@ -4,16 +4,12 @@ import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
 import { validateApiKey } from "@/server/opencode/apiKeyValidation";
-import {
-	listConnectedProviderIds,
-	removeProvider,
-	setApiKey,
-} from "@/server/opencode/authFile";
+import { listConnectedProviderIds } from "@/server/opencode/authFile";
+import { getOpencodeClient } from "@/server/opencode/client";
 import {
 	getAvailableModels,
 	modelSupportsVision,
 } from "@/server/opencode/models";
-import { getProvidersIndex } from "@/server/opencode/modelsDev";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
@@ -27,21 +23,58 @@ interface AvailableModel {
 	supportsImages: boolean;
 }
 
+interface ProviderAuthMethod {
+	type: "api" | "oauth";
+	label: string;
+}
+
+function getProviderMethods(
+	provider: { env?: string[] },
+	methods: ProviderAuthMethod[] | undefined,
+): ProviderAuthMethod[] {
+	if (methods && methods.length > 0) {
+		return methods;
+	}
+
+	if ((provider.env || []).length > 0) {
+		return [{ type: "api", label: "Manually enter API Key" }];
+	}
+
+	return [];
+}
+
+function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
+	return providers.filter((provider) => provider.id !== "opencode");
+}
+
 export const providers = {
 	list: defineAction({
 		handler: cachedAction(
 			"providers.list",
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
 			async () => {
-				const providersList = await getProvidersIndex();
-				const connectedIds = await listConnectedProviderIds();
+				const client = getOpencodeClient();
+				const [providerResponse, authResponse] = await Promise.all([
+					client.provider.list(),
+					client.provider.auth(),
+				]);
 
-				const mapped = providersList.map((p) => ({
-					id: p.id,
-					name: p.name,
-					env: p.env,
-					connected: connectedIds.includes(p.id),
-				}));
+				const providerData = providerResponse.data;
+				const authData = authResponse.data || {};
+				const connectedIds = new Set(await listConnectedProviderIds());
+
+				const mapped = filterVisibleProviders(providerData?.all || []).map(
+					(provider) => ({
+						id: provider.id,
+						name: provider.name,
+						env: provider.env,
+						connected: connectedIds.has(provider.id),
+						methods: getProviderMethods(
+							provider,
+							(authData[provider.id] || []) as ProviderAuthMethod[],
+						),
+					}),
+				);
 
 				return { providers: mapped };
 			},
@@ -68,7 +101,22 @@ export const providers = {
 				});
 			}
 
-			await setApiKey(input.providerId, input.apiKey);
+			const client = getOpencodeClient();
+			const result = await client.auth.set({
+				providerID: input.providerId,
+				auth: {
+					type: "api",
+					key: input.apiKey,
+				},
+			});
+
+			if (result.error) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message: "Failed to save provider credentials in OpenCode.",
+				});
+			}
+
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			return { success: true };
 		},
@@ -79,7 +127,57 @@ export const providers = {
 			providerId: z.string().min(1, "Provider ID is required"),
 		}),
 		handler: async (input) => {
-			await removeProvider(input.providerId);
+			const client = getOpencodeClient();
+			await client.auth.remove({ providerID: input.providerId });
+			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
+			return { success: true };
+		},
+	}),
+
+	startOauth: defineAction({
+		input: z.object({
+			providerId: z.string().min(1, "Provider ID is required"),
+			methodIndex: z.number().int().min(0, "Method index is required"),
+		}),
+		handler: async (input) => {
+			const client = getOpencodeClient();
+			const result = await client.provider.oauth.authorize({
+				providerID: input.providerId,
+				method: input.methodIndex,
+			});
+
+			if (result.error || !result.data) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message: "Failed to start OAuth authorization.",
+				});
+			}
+
+			return { authorization: result.data };
+		},
+	}),
+
+	finishOauth: defineAction({
+		input: z.object({
+			providerId: z.string().min(1, "Provider ID is required"),
+			methodIndex: z.number().int().min(0, "Method index is required"),
+			code: z.string().optional(),
+		}),
+		handler: async (input) => {
+			const client = getOpencodeClient();
+			const result = await client.provider.oauth.callback({
+				providerID: input.providerId,
+				method: input.methodIndex,
+				...(input.code ? { code: input.code } : {}),
+			});
+
+			if (result.error) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message: "OAuth authorization did not complete successfully.",
+				});
+			}
+
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			return { success: true };
 		},

@@ -230,7 +230,7 @@ export async function handlePresenceHeartbeat(
 		// Check current health and periodically capture container logs
 		const [previewReady, opencodeReady] = await Promise.all([
 			checkPreviewReady(project.id),
-			checkOpencodeReady(project.id),
+			checkOpencodeReady(),
 		]);
 
 		// Reconcile status based on health checks

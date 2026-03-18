@@ -167,12 +167,14 @@ export function DeleteAllProjectsSection({
 						</p>
 					</div>
 					<Dialog open={isOpen} onOpenChange={handleOpenChange}>
-						<DialogTrigger asChild>
-							<Button variant="destructive">
-								<Trash2 className="h-4 w-4" />
-								Delete All
-							</Button>
-						</DialogTrigger>
+						<DialogTrigger
+							render={
+								<Button variant="destructive">
+									<Trash2 className="h-4 w-4" />
+									Delete All
+								</Button>
+							}
+						/>
 						<DialogContent>
 							<DialogHeader>
 								<DialogTitle className="flex items-center gap-2 text-destructive">
@@ -212,11 +214,13 @@ export function DeleteAllProjectsSection({
 							</div>
 
 							<DialogFooter>
-								<DialogClose asChild>
-									<Button variant="outline" disabled={isDeleting}>
-										Cancel
-									</Button>
-								</DialogClose>
+								<DialogClose
+									render={
+										<Button variant="outline" disabled={isDeleting}>
+											Cancel
+										</Button>
+									}
+								/>
 								<Button
 									variant="destructive"
 									onClick={handleDelete}

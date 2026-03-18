@@ -6,13 +6,14 @@ import {
 	normalizeEvent,
 	parseSSEData,
 } from "@/server/opencode/normalize";
+import { getOpencodeBaseUrl } from "@/server/opencode/runtime";
+import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
 import { enqueueDockerEnsureRunning } from "@/server/queue/enqueue";
-import { isRunningInDocker } from "@/server/utils/docker";
 
 const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
@@ -46,13 +47,10 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		return new Response("Not found", { status: 404 });
 	}
 
-	// Connect to upstream opencode SSE
-	// - In Docker: use container hostname for inter-container communication
-	// - On host (dev mode): use localhost with the project's opencode port
-	const baseUrl = isRunningInDocker()
-		? `http://doce_${projectId}-opencode-1:3000`
-		: `http://localhost:${project.opencodePort}`;
-	const upstreamUrl = `${baseUrl}/event`;
+	const baseUrl = getOpencodeBaseUrl();
+	const upstreamUrl = new URL(`${baseUrl}/event`);
+	const directory = getProjectPreviewPathFromRoot(project.pathOnDisk);
+	upstreamUrl.searchParams.set("directory", directory);
 
 	const ensureRuntimeRunning = () => {
 		enqueueDockerEnsureRunning({ projectId, reason: "presence" }).catch(
@@ -71,7 +69,10 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		const timeout = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
 
 		upstreamResponse = await fetch(upstreamUrl, {
-			headers: { Accept: "text/event-stream" },
+			headers: {
+				Accept: "text/event-stream",
+				"x-opencode-directory": directory,
+			},
 			signal: controller.signal,
 		});
 
@@ -91,6 +92,11 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		ensureRuntimeRunning();
 		logger.warn({ error, projectId }, "Failed to connect to opencode SSE");
 		return new Response("Failed to connect to opencode", { status: 502 });
+	}
+
+	const upstreamBody = upstreamResponse.body;
+	if (!upstreamBody) {
+		return new Response("No response body", { status: 502 });
 	}
 
 	const encoder = new TextEncoder();
@@ -187,7 +193,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
 
 			// Read from upstream
-			const reader = upstreamResponse.body.getReader();
+			const reader = upstreamBody.getReader();
 
 			try {
 				while (!isClosed) {

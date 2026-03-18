@@ -6,7 +6,10 @@ import { OpenCodeError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
-import { normalizeProjectPath } from "@/server/projects/paths";
+import {
+	getProjectPreviewPathFromRoot,
+	normalizeProjectPath,
+} from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
@@ -93,18 +96,36 @@ export function handleOpencodeSendUserPrompt(
 					return null;
 				}
 			},
-			catch: () => null,
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "readProjectImages",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
 		});
 
 		if (imagesContent) {
 			images = yield* Effect.tryPromise({
 				try: () =>
 					Promise.resolve(JSON.parse(imagesContent) as ImageAttachment[]),
-				catch: () => [],
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "parseProjectImages",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
 			});
 			yield* Effect.tryPromise({
 				try: () => fs.unlink(imagesPath).catch(() => Promise.resolve()),
-				catch: () => null,
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "deleteProjectImages",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
 			});
 			logger.debug(
 				{ projectId: project.id, imageCount: images.length },
@@ -147,11 +168,15 @@ export function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		const client = createOpencodeClient(project.id, project.opencodePort);
+		const client = createOpencodeClient(
+			getProjectPreviewPathFromRoot(project.pathOnDisk),
+		);
+		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
 
 		const promptResponse = yield* Effect.tryPromise({
 			try: () =>
 				client.session.promptAsync({
+					directory: projectDirectory,
 					sessionID: sessionId,
 					model: {
 						providerID: modelInfo.providerID,
@@ -190,18 +215,27 @@ export function handleOpencodeSendUserPrompt(
 		}> = [];
 
 		const messagesResponse = yield* Effect.tryPromise({
-			try: () => client.session.messages({ sessionID: sessionId }),
-			catch: (error) => {
-				logger.warn(
-					{
-						projectId: project.id,
-						sessionId,
-						error: error instanceof Error ? error.message : String(error),
-					},
-					"Failed to fetch messages after prompt",
-				);
-				return null;
-			},
+			try: async () =>
+				client.session
+					.messages({ directory: projectDirectory, sessionID: sessionId })
+					.catch((error) => {
+						logger.warn(
+							{
+								projectId: project.id,
+								sessionId,
+								error: error instanceof Error ? error.message : String(error),
+							},
+							"Failed to fetch messages after prompt",
+						);
+						return null;
+					}),
+			catch: (error) =>
+				new OpenCodeError({
+					projectId: project.id,
+					operation: "messages",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
 		});
 
 		if (messagesResponse) {

@@ -317,9 +317,6 @@ export async function composeUp(
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
 	const logsDir = path.join(normalizedProjectPath, "logs");
 
-	// Ensure the project data volume exists before starting containers
-	await ensureProjectDataVolume(projectId);
-
 	// Don't use --remove-orphans when production might be running with a separate compose file
 	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
 	const args = preserveProduction

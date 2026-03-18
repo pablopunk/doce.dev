@@ -1,5 +1,4 @@
 import { Effect } from "effect";
-import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import {
 	ContainerTimeoutError,
 	type DockerOperationError,
@@ -92,16 +91,6 @@ const handleServicesReady = (
 	attempts: number,
 ): Effect.Effect<void, never> =>
 	Effect.gen(function* () {
-		yield* Effect.tryPromise({
-			try: () => pushAuthToContainer(project.id),
-			catch: () => {
-				logger.warn(
-					{ projectId: project.id },
-					"Failed to push auth.json to container (non-fatal)",
-				);
-			},
-		}).pipe(Effect.orElse(() => Effect.void));
-
 		yield* Effect.tryPromise({
 			try: () => updateProjectStatus(project.id, "running"),
 			catch: (error) => {

@@ -18,6 +18,10 @@ export function getOpencodePath(): string {
 	return path.join(getDataPath(), "opencode", "auth.json");
 }
 
+export function getGlobalOpencodeConfigPath(): string {
+	return path.join(getDataPath(), "opencode", "opencode.json");
+}
+
 export function getDataPath(): string {
 	return DATA_ROOT;
 }
@@ -48,6 +52,12 @@ export function getProjectPath(projectId: string): string {
  */
 export function getProjectPreviewPath(projectId: string): string {
 	return path.join(getProjectPath(projectId), "preview");
+}
+
+export function getProjectPreviewPathFromRoot(
+	projectPathOnDisk: string,
+): string {
+	return path.join(normalizeProjectPath(projectPathOnDisk), "preview");
 }
 
 export function getProjectPreviewOpencodePath(projectId: string): string {

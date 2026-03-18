@@ -2,11 +2,12 @@ import { Effect } from "effect";
 import { OpenCodeError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
+import { createOpencodeClient } from "@/server/opencode/client";
+import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	markInitialPromptSent,
 } from "@/server/projects/projects.model";
-import { isRunningInDocker } from "@/server/utils/docker";
 import { parsePayload } from "../types";
 
 export function handleOpencodeSendInitialPrompt(
@@ -65,41 +66,26 @@ export function handleOpencodeSendInitialPrompt(
 
 		yield* ctx.throwIfCancelRequested();
 
-		const baseUrl = isRunningInDocker()
-			? `http://doce_${project.id}-opencode-1:3000`
-			: `http://localhost:${project.opencodePort}`;
-		const url = `${baseUrl}/session/${sessionId}/prompt_async`;
+		const client = createOpencodeClient(
+			getProjectPreviewPathFromRoot(project.pathOnDisk),
+		);
+		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
 
-		const response = yield* Effect.tryPromise({
+		yield* Effect.tryPromise({
 			try: () =>
-				fetch(url, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						parts: [{ type: "text", text: project.prompt }],
-					}),
+				client.session.promptAsync({
+					directory: projectDirectory,
+					sessionID: sessionId,
+					parts: [{ type: "text", text: project.prompt }],
 				}),
 			catch: (error) =>
 				new OpenCodeError({
 					projectId: project.id,
-					operation: "fetch",
+					operation: "promptAsync",
 					message: error instanceof Error ? error.message : String(error),
 					cause: error,
 				}),
 		});
-
-		// prompt_async returns 204 No Content on success
-		if (!response.ok && response.status !== 204) {
-			const text = yield* Effect.tryPromise({
-				try: () => response.text().catch(() => ""),
-				catch: () => "",
-			});
-			return yield* new OpenCodeError({
-				projectId: project.id,
-				operation: "sendInitialPrompt",
-				message: `Failed to send initial prompt: ${response.status} ${text.slice(0, 200)}`,
-			});
-		}
 
 		logger.info({ projectId: project.id, sessionId }, "Sent initial prompt");
 

@@ -89,8 +89,6 @@ export const handleDockerComposeUp = (
 
 		yield* docker.ensureDoceSharedNetwork();
 		yield* setupGlobalPnpmVolume();
-		yield* docker.ensureProjectDataVolume(project.id);
-		yield* docker.ensureOpencodeStorageVolume(project.id);
 
 		const previewPath = getProjectPreviewPath(project.id);
 		const result = yield* docker.composeUp(project.id, previewPath);

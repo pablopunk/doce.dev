@@ -235,19 +235,17 @@ export async function allocateProjectProductionPort(
 }
 
 /**
- * Allocate two ports for a project: devPort (preview) and opencodePort.
+ * Allocate ports for a project.
+ * The central OpenCode runtime uses a global port, so projects only need a dev port.
  */
 export async function allocateProjectPorts(): Promise<{
 	devPort: number;
-	opencodePort: number;
 }> {
 	const devPort = await allocatePort();
-	const opencodePort = await allocatePort();
 
 	allocatedDevPorts.add(devPort);
-	allocatedDevPorts.add(opencodePort);
 
-	logger.info({ devPort, opencodePort }, "Allocated project ports");
+	logger.info({ devPort }, "Allocated project ports");
 
-	return { devPort, opencodePort };
+	return { devPort };
 }

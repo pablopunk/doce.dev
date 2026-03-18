@@ -3,23 +3,23 @@ import {
 	composeUp,
 	ensureDoceSharedNetwork,
 	ensureGlobalPnpmVolume,
-	ensureOpencodeStorageVolume,
-	ensureProjectDataVolume,
 } from "@/server/docker/compose";
-import { pushAuthToContainer } from "@/server/docker/pushAuth";
 import { ProjectError, type RescheduleError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
+import { createOpencodeClient } from "@/server/opencode/client";
 import {
 	checkOpencodeReady,
 	checkPreviewReady,
 } from "@/server/projects/health";
-import { getProjectPreviewPath } from "@/server/projects/paths";
+import {
+	getProjectPreviewPath,
+	getProjectPreviewPathFromRoot,
+} from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import { isRunningInDocker } from "@/server/utils/docker";
 import { enqueueOpencodeSessionCreate } from "../enqueue";
 import { parsePayload } from "../types";
 
@@ -85,28 +85,6 @@ export function handleDockerEnsureRunning(
 				}),
 		});
 
-		yield* Effect.tryPromise({
-			try: () => ensureProjectDataVolume(project.id),
-			catch: (error) =>
-				new ProjectError({
-					projectId: project.id,
-					operation: "ensureProjectDataVolume",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		yield* Effect.tryPromise({
-			try: () => ensureOpencodeStorageVolume(project.id),
-			catch: (error) =>
-				new ProjectError({
-					projectId: project.id,
-					operation: "ensureOpencodeStorageVolume",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
 		const previewPath = getProjectPreviewPath(project.id);
 		const result = yield* Effect.tryPromise({
 			try: () => composeUp(project.id, previewPath),
@@ -144,10 +122,7 @@ export function handleDockerEnsureRunning(
 
 			const [previewReady, opencodeReady] = yield* Effect.tryPromise({
 				try: () =>
-					Promise.all([
-						checkPreviewReady(project.id),
-						checkOpencodeReady(project.id),
-					]),
+					Promise.all([checkPreviewReady(project.id), checkOpencodeReady()]),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,
@@ -158,17 +133,6 @@ export function handleDockerEnsureRunning(
 			});
 
 			if (previewReady && opencodeReady) {
-				yield* Effect.tryPromise({
-					try: () => pushAuthToContainer(project.id),
-					catch: (error) => {
-						logger.warn(
-							{ error, projectId: project.id },
-							"Failed to push auth to container (non-fatal)",
-						);
-						return null;
-					},
-				});
-
 				yield* Effect.tryPromise({
 					try: () => updateProjectStatus(project.id, "running"),
 					catch: (error) =>
@@ -181,21 +145,28 @@ export function handleDockerEnsureRunning(
 				});
 
 				try {
-					const baseUrl = isRunningInDocker()
-						? `http://doce_${project.id}-opencode-1:3000`
-						: `http://localhost:${project.opencodePort}`;
-					const sessionUrl = `${baseUrl}/session`;
+					const projectDirectory = getProjectPreviewPathFromRoot(
+						project.pathOnDisk,
+					);
+					const client = createOpencodeClient(projectDirectory);
 					const sessionsRes = yield* Effect.tryPromise({
-						try: () => fetch(sessionUrl),
-						catch: () => null,
+						try: async () =>
+							client.session
+								.list({ directory: projectDirectory })
+								.catch(() => null),
+						catch: (error) =>
+							new ProjectError({
+								projectId: project.id,
+								operation: "sessionList",
+								message: error instanceof Error ? error.message : String(error),
+								cause: error,
+							}),
 					});
 
-					if (sessionsRes?.ok) {
-						const sessions = yield* Effect.tryPromise({
-							try: () => sessionsRes.json() as Promise<unknown[]>,
-							catch: () => [],
-						});
-						const sessionsArray = Array.isArray(sessions) ? sessions : [];
+					if (sessionsRes?.data) {
+						const sessionsArray = Array.isArray(sessionsRes.data)
+							? sessionsRes.data
+							: [];
 
 						if (sessionsArray.length === 0) {
 							logger.info(
@@ -203,16 +174,26 @@ export function handleDockerEnsureRunning(
 								"Sessions lost after restart, creating new session...",
 							);
 							yield* Effect.tryPromise({
-								try: () =>
+								try: async () =>
 									enqueueOpencodeSessionCreate({ projectId: project.id }),
-								catch: (error) => {
-									logger.warn(
-										{ error, projectId: project.id },
-										"Failed to enqueue session create",
-									);
-									return null;
-								},
-							});
+								catch: (error) =>
+									new ProjectError({
+										projectId: project.id,
+										operation: "enqueueOpencodeSessionCreate",
+										message:
+											error instanceof Error ? error.message : String(error),
+										cause: error,
+									}),
+							}).pipe(
+								Effect.catchAll((error) =>
+									Effect.sync(() => {
+										logger.warn(
+											{ error, projectId: project.id },
+											"Failed to enqueue session create",
+										);
+									}),
+								),
+							);
 						}
 					}
 				} catch (error) {
