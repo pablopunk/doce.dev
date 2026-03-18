@@ -25,6 +25,8 @@ export async function validateApiKey(
 			openrouter: validateOpenRouterKeyEffect,
 			anthropic: validateAnthropicKeyEffect,
 			openai: validateOpenAIKeyEffect,
+			opencode: validateOpencodeKeyEffect,
+			"opencode-go": validateOpencodeKeyEffect,
 			zai: validateOpenAICompatibleKeyEffect("https://api.z.ai/api/paas/v4"),
 			zenmux: validateOpenAICompatibleKeyEffect(
 				"https://zenmux.ai/api/anthropic/v1",
@@ -343,4 +345,16 @@ export async function validateOpenAIKey(
 	apiKey: string,
 ): Promise<ValidationResult> {
 	return Effect.runPromise(validateOpenAIKeyEffect(apiKey));
+}
+
+function validateOpencodeKeyEffect(
+	apiKey: string,
+): Effect.Effect<ValidationResult, ApiKeyValidationError> {
+	if (!apiKey.startsWith("sk-")) {
+		return Effect.succeed({
+			valid: false,
+			error: "Invalid OpenCode API key format. Keys should start with 'sk-'.",
+		});
+	}
+	return Effect.succeed({ valid: true });
 }
