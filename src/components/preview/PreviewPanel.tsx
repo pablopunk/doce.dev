@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { RestartAgentButton } from "@/components/chat/RestartAgentButton";
 import { FilesTab } from "@/components/files/FilesTab";
 import { DeployButton } from "@/components/preview/DeployButton";
 import type { ProductionVersion } from "@/components/preview/DeploymentVersionHistory";
@@ -80,7 +81,12 @@ interface PreviewPanelProps {
 	) => void;
 }
 
-type PreviewState = "initializing" | "starting" | "ready" | "error";
+type PreviewState =
+	| "initializing"
+	| "starting"
+	| "ready"
+	| "error"
+	| "opencode-unresponsive";
 type TabType = "chat" | "preview" | "files" | "assets";
 
 export function PreviewPanel({
@@ -220,7 +226,11 @@ export function PreviewPanel({
 			onStatusChange?.(data);
 
 			// State machine
-			if (data.previewReady && data.status === "running") {
+			if (
+				data.previewReady &&
+				data.opencodeReady &&
+				data.status === "running"
+			) {
 				setState("ready");
 			} else if (data.status === "error" || data.status === "deleting") {
 				setState("error");
@@ -230,6 +240,14 @@ export function PreviewPanel({
 				data.status === "stopped"
 			) {
 				setState("starting");
+			} else if (
+				data.status === "running" &&
+				data.previewReady &&
+				!data.opencodeReady
+			) {
+				// Preview is ready but OpenCode is not responding
+				setState("opencode-unresponsive");
+				setMessage("AI agent is not responding");
 			} else if (data.status === "running" && !data.previewReady) {
 				// Container is running but preview health check hasn't passed yet
 				setState("starting");
@@ -649,6 +667,20 @@ export function PreviewPanel({
 									<Loader2 className="h-8 w-8 animate-spin" />
 									<p>{message || "Starting preview server..."}</p>
 								</div>
+							) : state === "opencode-unresponsive" ? (
+								<div className="flex flex-col items-center gap-4 text-center p-4">
+									<AlertTriangle className="h-8 w-8 text-status-warning" />
+									<div>
+										<p className="font-medium text-status-warning">
+											AI Agent Not Responding
+										</p>
+										<p className="text-sm text-muted-foreground mt-1 max-w-md">
+											{message ||
+												"The AI agent appears to be stuck. Try restarting it."}
+										</p>
+									</div>
+									<RestartAgentButton projectId={projectId} />
+								</div>
 							) : state === "error" ? (
 								<div className="flex flex-col items-center gap-4 text-center p-4">
 									<AlertTriangle className="h-8 w-8 text-status-error" />
@@ -669,14 +701,17 @@ export function PreviewPanel({
 					)}
 
 					{/* Overlay when initial prompt is processing (only one user message and streaming) */}
-					{userMessageCount === 1 && isStreaming && (
-						<div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
-							<div className="flex flex-col items-center gap-4 text-muted-foreground">
-								<Loader2 className="h-8 w-8 animate-spin" />
-								<p>Building {projectSlug}...</p>
+					{userMessageCount === 1 &&
+						isStreaming &&
+						state !== "opencode-unresponsive" && (
+							<div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+								<div className="flex flex-col items-center gap-4 text-muted-foreground">
+									<Loader2 className="h-8 w-8 animate-spin" />
+									<p>Building {projectSlug}...</p>
+									<p className="text-sm opacity-70">This may take a minute</p>
+								</div>
 							</div>
-						</div>
-					)}
+						)}
 				</div>
 
 				{/* Terminal docks */}

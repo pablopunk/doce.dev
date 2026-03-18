@@ -1,5 +1,9 @@
 import { Loader2 } from "lucide-react";
+import { useMemo } from "react";
 import { useChatPanel } from "@/hooks/useChatPanel";
+import type { Message } from "@/types/message";
+import { AgentThinkingIndicator } from "./AgentThinkingIndicator";
+import { AgentUnreachableBanner } from "./AgentUnreachableBanner";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
@@ -55,6 +59,26 @@ export function ChatPanel({
 
 	const isBlocked = Boolean(pendingPermission || pendingQuestion);
 
+	// Determine if we're waiting for an agent response:
+	// Last item is a user message and we have no assistant response following it
+	const isWaitingForAgent = useMemo(() => {
+		if (items.length === 0) return false;
+		const lastItem = items[items.length - 1];
+		if (!lastItem) return false;
+
+		if (lastItem.type === "message") {
+			const msg = lastItem.data as Message;
+			if (msg.role === "user" && msg.localStatus !== "failed") {
+				return true;
+			}
+		}
+
+		return false;
+	}, [items]);
+
+	// Show unreachable banner when opencode went down after chat was active
+	const showUnreachableBanner = !opencodeReady && items.length > 0;
+
 	return (
 		<div className="flex flex-col h-full">
 			<div
@@ -74,12 +98,22 @@ export function ChatPanel({
 						)}
 					</div>
 				) : (
-					<ChatMessages
-						items={items}
-						expandedTools={expandedTools}
-						onToggleTool={toggleToolExpanded}
-						onOpenFile={onOpenFile}
-					/>
+					<>
+						<ChatMessages
+							items={items}
+							expandedTools={expandedTools}
+							onToggleTool={toggleToolExpanded}
+							onOpenFile={onOpenFile}
+						/>
+						<AgentThinkingIndicator
+							projectId={projectId}
+							isWaiting={isWaitingForAgent}
+							opencodeReady={opencodeReady}
+						/>
+					</>
+				)}
+				{showUnreachableBanner && !isWaitingForAgent && (
+					<AgentUnreachableBanner projectId={projectId} />
 				)}
 				{latestDiagnostic && (
 					<ChatDiagnostic

@@ -149,4 +149,39 @@ export async function isGlobalOpencodeHealthy(): Promise<boolean> {
 	return checkOpencodeServerReady(getOpencodePort(), 1_000);
 }
 
+/**
+ * Kill the existing OpenCode process and start a new one
+ */
+export async function restartGlobalOpencode(): Promise<void> {
+	const existing = globalThis.__DOCE_OPENCODE_PROCESS__;
+
+	// Kill existing process if it exists
+	if (existing && existing.exitCode === null && !existing.killed) {
+		logger.info("Killing existing OpenCode process for restart");
+		existing.kill("SIGTERM");
+
+		// Wait for process to exit (max 5 seconds)
+		await new Promise<void>((resolve) => {
+			const timeout = setTimeout(() => {
+				logger.warn("OpenCode process did not exit gracefully, forcing kill");
+				existing.kill("SIGKILL");
+				resolve();
+			}, 5_000);
+
+			existing.once("exit", () => {
+				clearTimeout(timeout);
+				resolve();
+			});
+		});
+	}
+
+	// Clear the global reference
+	globalThis.__DOCE_OPENCODE_PROCESS__ = undefined;
+	globalThis.__DOCE_OPENCODE_START_PROMISE__ = undefined;
+
+	// Start new process
+	logger.info("Starting new OpenCode process");
+	await ensureGlobalOpencodeStarted();
+}
+
 export { getOpencodeBaseUrl, getOpencodePort };

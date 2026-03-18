@@ -170,10 +170,16 @@ export function handleOpencodeSessionCreate(
 			"Received session creation response",
 		);
 
-		if (result.error) {
+		// biome-ignore lint/suspicious/noExplicitAny: SDK types don't include error field but it exists at runtime
+		const resultWithError = result as any;
+		if (resultWithError.error) {
+			const errorDetails =
+				typeof resultWithError.error === "object"
+					? JSON.stringify(resultWithError.error, null, 2)
+					: String(resultWithError.error);
 			return yield* new OpenCodeSessionError({
 				projectId: project.id,
-				message: `Session creation failed: ${String(result.error)}`,
+				message: `Session creation failed: ${errorDetails}`,
 			});
 		}
 
