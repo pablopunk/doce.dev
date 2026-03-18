@@ -137,3 +137,34 @@ export function normalizeProjectPath(projectPathOnDisk: string): string {
 
 	return path.join(getDataPath(), trimmed);
 }
+
+/**
+ * Get the Docker Compose project name for a project.
+ * Used as prefix for all containers in the project.
+ */
+export function getDockerProjectName(projectId: string): string {
+	return `doce_${projectId}`;
+}
+
+/**
+ * Get the container name for the preview service.
+ * Docker compose creates containers with underscores, not hyphens.
+ */
+export function getPreviewContainerName(projectId: string): string {
+	return `${getDockerProjectName(projectId)}_preview_1`;
+}
+
+/**
+ * Get the container name for the OpenCode agent service.
+ */
+export function getOpencodeContainerName(projectId: string): string {
+	return `${getDockerProjectName(projectId)}_opencode_1`;
+}
+
+/**
+ * Get the hostname for the preview service within the Docker network.
+ * Same as container name since Docker DNS uses container names.
+ */
+export function getPreviewHostname(projectId: string): string {
+	return getPreviewContainerName(projectId);
+}

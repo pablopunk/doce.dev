@@ -4,21 +4,7 @@ import {
 	checkOpencodeServerReady,
 } from "@/server/health/checkHealthEndpoint";
 import { getOpencodePort } from "@/server/opencode/runtime";
-
-/**
- * Get the Docker Compose project name for a project (must match compose.ts)
- */
-function getProjectName(projectId: string): string {
-	return `doce_${projectId}`;
-}
-
-/**
- * Get the container hostname for the preview service.
- * Uses the docker-compose service name which is accessible within the shared network.
- */
-function getPreviewHostname(projectId: string): string {
-	return `${getProjectName(projectId)}_preview_1`;
-}
+import { getPreviewContainerName } from "@/server/projects/paths";
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
@@ -29,7 +15,7 @@ const HEALTH_CHECK_TIMEOUT_MS = 5_000;
  */
 export async function checkPreviewReady(projectId: string): Promise<boolean> {
 	// Try HTTP check via container hostname on the shared network
-	const hostname = `${getPreviewHostname(projectId)}:4321`;
+	const hostname = `${getPreviewContainerName(projectId)}:4321`;
 	const httpReady = await checkHttpServerReady(
 		hostname,
 		HEALTH_CHECK_TIMEOUT_MS,
@@ -39,7 +25,7 @@ export async function checkPreviewReady(projectId: string): Promise<boolean> {
 	}
 
 	// Fall back to checking Docker container status directly
-	const containerName = getPreviewHostname(projectId);
+	const containerName = getPreviewContainerName(projectId);
 	return checkDockerContainerReady(containerName);
 }
 

@@ -7,15 +7,14 @@ import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { hashDistFolder } from "@/server/productions/hash";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { getProjectProductionPath } from "@/server/projects/paths";
+import {
+	getPreviewContainerName,
+	getProjectProductionPath,
+} from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { enqueueProductionStart } from "../enqueue";
 import { parsePayload } from "../types";
-
-function getPreviewContainerName(projectId: string): string {
-	return `doce_${projectId}-preview-1`;
-}
 
 export function handleProductionBuild(
 	ctx: QueueJobContext,

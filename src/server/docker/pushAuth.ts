@@ -1,6 +1,9 @@
 import * as fs from "node:fs/promises";
 import { logger } from "@/server/logger";
-import { getOpencodePath } from "@/server/projects/paths";
+import {
+	getOpencodeContainerName,
+	getOpencodePath,
+} from "@/server/projects/paths";
 import { runCommand } from "@/server/utils/execAsync";
 
 /**
@@ -11,7 +14,7 @@ import { runCommand } from "@/server/utils/execAsync";
  * @returns true if auth.json was pushed successfully, false otherwise
  */
 export async function pushAuthToContainer(projectId: string): Promise<boolean> {
-	const containerName = `doce_${projectId}-opencode-1`;
+	const containerName = getOpencodeContainerName(projectId);
 	const authPath = getOpencodePath(); // /app/data/opencode/auth.json
 
 	try {
