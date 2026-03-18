@@ -2,7 +2,7 @@ import { ActionError, defineAction } from "astro:actions";
 import { randomBytes } from "node:crypto";
 import { z } from "astro/zod";
 import { logger } from "@/server/logger";
-import { listConnectedProviderIds } from "@/server/opencode/authFile";
+import { getAvailableModels } from "@/server/opencode/models";
 import { restartGlobalOpencode } from "@/server/opencode/runtime";
 
 import {
@@ -42,11 +42,11 @@ export const projects = {
 				});
 			}
 
-			const connectedProviderIds = await listConnectedProviderIds();
-			if (connectedProviderIds.length === 0) {
+			const availableModels = await getAvailableModels([]);
+			if (availableModels.length === 0) {
 				throw new ActionError({
 					code: "BAD_REQUEST",
-					message: "Please connect at least one provider in Settings",
+					message: "No models available. Please check your provider settings.",
 				});
 			}
 
