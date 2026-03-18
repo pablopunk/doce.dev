@@ -17,7 +17,7 @@ function getProjectName(projectId: string): string {
  * Uses the docker-compose service name which is accessible within the shared network.
  */
 function getPreviewHostname(projectId: string): string {
-	return `${getProjectName(projectId)}-preview-1`;
+	return `${getProjectName(projectId)}_preview_1`;
 }
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
