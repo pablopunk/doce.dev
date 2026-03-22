@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { ensureGlobalPnpmVolume } from "@/server/docker/compose";
+import { classifyComposeFailure } from "@/server/docker/composeFailure";
 import { ProjectNotFoundError } from "@/server/effect/errors";
 import { DockerService } from "@/server/effect/layers";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
@@ -97,7 +98,8 @@ export const handleDockerComposeUp = (
 			const dockerLogPath = `${previewPath}/logs/docker.log`;
 			const errorDetails =
 				result.stderr || result.stdout || "Unknown docker error";
-			const errorMsg = `compose up failed: ${errorDetails.slice(0, 2000)} (full logs: ${dockerLogPath})`;
+			const diagnostic = classifyComposeFailure(errorDetails);
+			const errorMsg = `compose up failed: ${diagnostic.summary} (full logs: ${dockerLogPath})`;
 			yield* setProjectStatus(project.id, "error");
 			yield* Effect.fail(new Error(errorMsg));
 			return;

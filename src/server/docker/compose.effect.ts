@@ -14,12 +14,15 @@ import {
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
 import { runCommand } from "@/server/utils/execAsync";
+import { classifyComposeFailure } from "./composeFailure";
 import {
 	appendDockerLog,
 	stopStreamingContainerLogs,
 	streamContainerLogs,
 	writeHostMarker,
 } from "./logs";
+
+const BASE_IMAGE_PULL_TIMEOUT_MS = 90_000;
 
 export interface ComposeResult {
 	success: boolean;
@@ -146,6 +149,167 @@ function buildComposeArgsProduction(
 		"--ansi",
 		"never",
 	];
+}
+
+function getDockerfileBaseImage(content: string): string | null {
+	for (const rawLine of content.split("\n")) {
+		const line = rawLine.trim();
+		if (
+			!line ||
+			line.startsWith("#") ||
+			!line.toUpperCase().startsWith("FROM ")
+		) {
+			continue;
+		}
+
+		const fromInstruction = line.slice(5).trim();
+		const tokens = fromInstruction.split(/\s+/).filter(Boolean);
+		for (let i = 0; i < tokens.length; i += 1) {
+			const token = tokens[i];
+			if (!token || token.startsWith("--")) {
+				continue;
+			}
+
+			if (token.toUpperCase() === "AS") {
+				break;
+			}
+
+			return token;
+		}
+	}
+
+	return null;
+}
+
+function resolveArgDefault(
+	content: string,
+	variableName: string,
+): string | null {
+	const argPattern = new RegExp(
+		`^\\s*ARG\\s+${variableName}=([^\\s#]+)\\s*$`,
+		"mi",
+	);
+	const match = content.match(argPattern);
+	return match?.[1]?.trim() ?? null;
+}
+
+function resolveBaseImageToken(token: string, content: string): string {
+	if (!token.startsWith("${") || !token.endsWith("}")) {
+		return token;
+	}
+
+	const body = token.slice(2, -1);
+	const [variablePart, defaultValue] = body.split(":-");
+	const variableName = variablePart?.trim();
+
+	if (!variableName) {
+		return token;
+	}
+
+	const envValue = process.env[variableName];
+	if (envValue && envValue.trim().length > 0) {
+		return envValue.trim();
+	}
+
+	if (defaultValue && defaultValue.trim().length > 0) {
+		return defaultValue.trim();
+	}
+
+	const argDefault = resolveArgDefault(content, variableName);
+	if (argDefault) {
+		return argDefault;
+	}
+
+	return token;
+}
+
+function ensurePreviewBaseImage(
+	projectPath: string,
+	logsDir: string,
+): Effect.Effect<ComposeResult | null, never> {
+	return Effect.gen(function* () {
+		const dockerfilePath = path.join(projectPath, "Dockerfile.preview");
+		const dockerfileContent = yield* Effect.tryPromise({
+			try: () => fs.readFile(dockerfilePath, "utf-8"),
+			catch: () => null,
+		}).pipe(Effect.orElse(() => Effect.succeed(null)));
+
+		if (!dockerfileContent) {
+			return null;
+		}
+
+		const baseImageToken = getDockerfileBaseImage(dockerfileContent);
+		const baseImage = baseImageToken
+			? resolveBaseImageToken(baseImageToken, dockerfileContent)
+			: null;
+		if (!baseImage) {
+			return null;
+		}
+
+		if (baseImage.includes("${")) {
+			return null;
+		}
+
+		const inspectResult = yield* Effect.tryPromise({
+			try: () =>
+				runCommand(`docker image inspect ${baseImage}`, { timeout: 5000 }),
+			catch: () => ({ success: false, stdout: "", stderr: "", exitCode: 1 }),
+		}).pipe(
+			Effect.orElse(() =>
+				Effect.succeed({ success: false, stdout: "", stderr: "", exitCode: 1 }),
+			),
+		);
+
+		if (inspectResult.success) {
+			return null;
+		}
+
+		yield* Effect.tryPromise({
+			try: () =>
+				writeHostMarker(logsDir, `preflight: docker pull ${baseImage}`),
+			catch: () => undefined,
+		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		const pullResult = yield* Effect.tryPromise({
+			try: () =>
+				runCommand(`docker pull ${baseImage}`, {
+					timeout: BASE_IMAGE_PULL_TIMEOUT_MS,
+				}),
+			catch: () => ({ success: false, stdout: "", stderr: "", exitCode: 1 }),
+		}).pipe(
+			Effect.orElse(() =>
+				Effect.succeed({ success: false, stdout: "", stderr: "", exitCode: 1 }),
+			),
+		);
+
+		if (pullResult.stdout) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, pullResult.stdout, false),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+
+		if (pullResult.stderr) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, pullResult.stderr, true),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+
+		if (pullResult.success) {
+			return null;
+		}
+
+		const failureText = `${pullResult.stderr}\n${pullResult.stdout}`;
+		const diagnostic = classifyComposeFailure(failureText);
+
+		return {
+			success: false,
+			exitCode: pullResult.exitCode ?? 1,
+			stdout: pullResult.stdout,
+			stderr: `Preflight failed while pulling ${baseImage}: ${diagnostic.summary}`,
+		};
+	});
 }
 
 interface ProcessResources {
@@ -371,6 +535,18 @@ export function composeUp(
 				),
 			catch: () => undefined,
 		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		const preflightResult = yield* ensurePreviewBaseImage(
+			normalizedProjectPath,
+			logsDir,
+		);
+		if (preflightResult) {
+			yield* Effect.tryPromise({
+				try: () => writeHostMarker(logsDir, "exit=1 (preflight)"),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+			return preflightResult;
+		}
 
 		const result = yield* runComposeCommand(
 			projectId,

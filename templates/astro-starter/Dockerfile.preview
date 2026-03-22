@@ -1,4 +1,5 @@
-FROM node:22-alpine
+ARG PREVIEW_BASE_IMAGE=node:22-alpine
+FROM ${PREVIEW_BASE_IMAGE}
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 

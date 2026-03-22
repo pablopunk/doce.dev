@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
+      args:
+        PRODUCTION_BASE_IMAGE: ${DOCE_PRODUCTION_BASE_IMAGE:-node:22-alpine}
     volumes:
       - doce-global-pnpm-store:/root/.local/share/pnpm/store
     ports:

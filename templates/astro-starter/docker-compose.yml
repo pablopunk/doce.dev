@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.preview
+      args:
+        PREVIEW_BASE_IMAGE: ${DOCE_PREVIEW_BASE_IMAGE:-node:22-alpine}
     volumes:
       - type: bind
         source: ${PROJECT_PREVIEW_BIND_MOUNT}
