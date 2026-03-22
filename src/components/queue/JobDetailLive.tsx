@@ -155,13 +155,25 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 		};
 	}, [initialJob.id]);
 
+	const isExhaustedQueueJob =
+		job.state === "queued" &&
+		job.attempts >= job.maxAttempts &&
+		job.lockedBy === null;
+	const displayedState = isExhaustedQueueJob ? "exhausted" : job.state;
+	const effectiveError =
+		job.lastError ||
+		(isExhaustedQueueJob
+			? "Job exhausted all retry attempts before it could be marked failed."
+			: null);
+
 	const canCancel = job.state === "queued" || job.state === "running";
 	const canRunNow = job.state === "queued";
 	const canForceUnlock = job.state === "running";
 	const canRetry =
 		job.state === "failed" ||
 		job.state === "cancelled" ||
-		job.state === "succeeded";
+		job.state === "succeeded" ||
+		isExhaustedQueueJob;
 
 	const handleActionClick = (action: "cancel" | "forceUnlock") => {
 		setPendingAction(action);
@@ -294,7 +306,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 							</div>
 							<div className="flex justify-between gap-4">
 								<dt className="text-muted-foreground">State</dt>
-								<dd>{job.state}</dd>
+								<dd>{displayedState}</dd>
 							</div>
 							<div className="flex justify-between gap-4">
 								<dt className="text-muted-foreground">Attempts</dt>
@@ -392,7 +404,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 				</div>
 
 				<QueueDiagnostic
-					error={job.lastError}
+					error={effectiveError}
 					onRetry={() => handleAction("retry")}
 				/>
 

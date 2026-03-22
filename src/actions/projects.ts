@@ -24,6 +24,10 @@ import {
 	enqueueProjectCreate,
 	enqueueProjectDelete,
 } from "@/server/queue/enqueue";
+import {
+	getQueueJobDerivedError,
+	getQueueJobDerivedState,
+} from "@/server/queue/job-state";
 
 export const projects = {
 	create: defineAction({
@@ -672,7 +676,7 @@ export const projects = {
 
 			type SetupJob = {
 				type: string;
-				state: "pending" | (typeof jobs)[number]["state"];
+				state: "pending" | (typeof jobs)[number]["state"] | "exhausted";
 				error?: string;
 				completedAt?: number;
 				createdAt?: number;
@@ -713,20 +717,29 @@ export const projects = {
 					setupJobs[jobType] = { type: jobType, state: "pending" };
 					isSetupComplete = false;
 				} else {
+					const derivedState = getQueueJobDerivedState(job);
+					const derivedError = getQueueJobDerivedError(job);
+					const isTerminalErrorState =
+						derivedState === "failed" || derivedState === "exhausted";
+
 					setupJobs[jobType] = {
 						type: jobType,
-						state: job.state,
-						...(job.lastError ? { error: job.lastError } : {}),
+						state: derivedState,
+						...(derivedError ? { error: derivedError } : {}),
 						completedAt: job.updatedAt.getTime(),
 						createdAt: job.createdAt.getTime(),
 					};
-					if (job.state === "failed") {
+					if (isTerminalErrorState) {
 						const isRecoveredDockerJob =
 							jobType === "docker.composeUp" &&
 							dockerEnsureRunningJob?.state === "succeeded";
 						if (!isRecoveredDockerJob) {
 							hasError = true;
-							errorMessage = job.lastError || `${jobType} failed`;
+							errorMessage =
+								derivedError ||
+								(derivedState === "exhausted"
+									? `${jobType} exhausted all retry attempts`
+									: `${jobType} failed`);
 							isSetupComplete = false;
 						}
 					}

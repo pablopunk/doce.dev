@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro";
 import { validateSession } from "@/server/auth/sessions";
 import { canUserAccessQueueJob } from "@/server/queue/access";
+import {
+	getQueueJobDerivedError,
+	getQueueJobDerivedState,
+} from "@/server/queue/job-state";
 import { getJobById } from "@/server/queue/queue.model";
 
 const SESSION_COOKIE_NAME = "doce_session";
@@ -51,14 +55,14 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 			job: {
 				id: job.id,
 				type: job.type,
-				state: job.state,
+				state: getQueueJobDerivedState(job),
 				attempts: job.attempts,
 				maxAttempts: job.maxAttempts,
 				projectId: job.projectId,
 				runAt: job.runAt.toISOString(),
 				createdAt: job.createdAt.toISOString(),
 				updatedAt: job.updatedAt.toISOString(),
-				lastError: job.lastError,
+				lastError: getQueueJobDerivedError(job),
 			},
 		}),
 		{
