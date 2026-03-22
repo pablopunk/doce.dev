@@ -1,8 +1,14 @@
 import { Cause, Duration, Effect, Fiber, type Layer } from "effect";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
-import { JobCancelledError, RescheduleError } from "./errors";
+import {
+	JobCancelledError,
+	JobLeaseLostError,
+	RescheduleError,
+} from "./errors";
 import { QueueService } from "./layers";
+
+const HEARTBEAT_INTERVAL_MS = 5_000;
 
 export interface QueueWorkerOptions {
 	concurrency: number;
@@ -38,10 +44,47 @@ export const registerHandler = (type: string, handler: JobHandler) => {
 const runJob = (
 	job: QueueJob,
 	workerId: string,
+	leaseMs: number,
 	layer: Layer.Layer<unknown, never, never>,
 ): Effect.Effect<void, never, QueueService> =>
 	Effect.gen(function* () {
 		const queue = yield* QueueService;
+
+		const heartbeatLoop = Effect.gen(function* () {
+			while (true) {
+				yield* Effect.sleep(Duration.millis(HEARTBEAT_INTERVAL_MS));
+				yield* queue.heartbeatLease(job.id, workerId, leaseMs);
+			}
+		});
+
+		const toMessage = (error: unknown) =>
+			error instanceof Error ? error.message : JSON.stringify(error);
+
+		const ignoreLeaseLoss = <A>(
+			effect: Effect.Effect<A, unknown, QueueService>,
+			operation: string,
+		) =>
+			effect.pipe(
+				Effect.catchAll((error) => {
+					if (error instanceof JobLeaseLostError) {
+						return Effect.sync(() => {
+							logger.warn(
+								{
+									jobId: error.jobId,
+									workerId: error.workerId,
+									operation: error.operation,
+									during: operation,
+									type: job.type,
+								},
+								"Queue job lost lease before state transition",
+							);
+							return true as A;
+						});
+					}
+
+					return Effect.fail(error);
+				}),
+			);
 
 		const throwIfCancelRequested = () =>
 			Effect.gen(function* () {
@@ -77,14 +120,14 @@ const runJob = (
 			return;
 		}
 
-		// Provide handler dependencies and a Scope for resource-safe effects
-		const handledEffect = Effect.scoped(
-			handler(ctx).pipe(Effect.provide(layer)),
+		const handledEffect = Effect.raceFirst(
+			Effect.scoped(handler(ctx).pipe(Effect.provide(layer))),
+			heartbeatLoop,
 		);
 		const result = yield* Effect.exit(handledEffect);
 
 		if (result._tag === "Success") {
-			yield* queue.completeJob(job.id, workerId);
+			yield* ignoreLeaseLoss(queue.completeJob(job.id, workerId), "complete");
 			logger.info({ jobId: job.id, type: job.type }, "Queue job succeeded");
 			return;
 		}
@@ -100,7 +143,10 @@ const runJob = (
 						: new Error(Cause.pretty(cause));
 
 		if (error instanceof RescheduleError) {
-			yield* queue.rescheduleJob(job.id, workerId, error.delayMs);
+			yield* ignoreLeaseLoss(
+				queue.rescheduleJob(job.id, workerId, error.delayMs),
+				"reschedule",
+			);
 			logger.info(
 				{ jobId: job.id, delayMs: error.delayMs },
 				"Queue job rescheduled",
@@ -108,18 +154,38 @@ const runJob = (
 			return;
 		}
 
-		const errorMsg =
-			error instanceof Error ? error.message : JSON.stringify(error);
+		const errorMsg = toMessage(error);
+
+		if (error instanceof JobLeaseLostError) {
+			yield* Effect.sync(() => {
+				logger.warn(
+					{
+						jobId: error.jobId,
+						workerId: error.workerId,
+						operation: error.operation,
+						type: job.type,
+					},
+					"Queue job stopped after losing lease",
+				);
+			});
+			return;
+		}
 
 		if (error instanceof JobCancelledError || errorMsg === "cancel_requested") {
-			yield* queue.cancelRunningJob(job.id, workerId);
+			yield* ignoreLeaseLoss(
+				queue.cancelRunningJob(job.id, workerId),
+				"cancel",
+			);
 			logger.info({ jobId: job.id }, "Queue job cancelled");
 			return;
 		}
 
 		if (job.attempts < job.maxAttempts) {
 			const delay = Math.min(60000, 2000 * 2 ** Math.max(0, job.attempts - 1));
-			yield* queue.scheduleRetry(job.id, workerId, delay, errorMsg);
+			yield* ignoreLeaseLoss(
+				queue.scheduleRetry(job.id, workerId, delay, errorMsg),
+				"scheduleRetry",
+			);
 			logger.warn(
 				{ jobId: job.id, attempts: job.attempts, delay },
 				"Queue job retry scheduled",
@@ -127,7 +193,7 @@ const runJob = (
 			return;
 		}
 
-		yield* queue.failJob(job.id, workerId, errorMsg);
+		yield* ignoreLeaseLoss(queue.failJob(job.id, workerId, errorMsg), "fail");
 		logger.error({ jobId: job.id, error: errorMsg }, "Queue job failed");
 	}).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
 
@@ -175,7 +241,9 @@ const workerLoop = (
 				});
 				if (!job) break;
 
-				const fiber = yield* Effect.fork(runJob(job, workerId, options.layer));
+				const fiber = yield* Effect.fork(
+					runJob(job, workerId, options.leaseMs, options.layer),
+				);
 				fibers.push(fiber);
 			}
 

@@ -77,6 +77,15 @@ export class JobClaimError extends Data.TaggedError("JobClaimError")<{
 	readonly reason: string;
 }> {}
 
+/**
+ * Job lease or ownership was lost while running.
+ */
+export class JobLeaseLostError extends Data.TaggedError("JobLeaseLostError")<{
+	readonly jobId: string;
+	readonly workerId: string;
+	readonly operation: string;
+}> {}
+
 // ============================================================================
 // Docker Errors
 // ============================================================================
@@ -333,7 +342,8 @@ export type QueueJobError =
 	| JobTimeoutError
 	| RescheduleError
 	| JobMaxAttemptsError
-	| JobClaimError;
+	| JobClaimError
+	| JobLeaseLostError;
 
 /**
  * All possible Docker errors

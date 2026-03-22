@@ -39,7 +39,7 @@ export class QueueService extends Context.Tag("QueueService")<
 		completeJob: (
 			jobId: string,
 			workerId: string,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Mark a job as failed with an error message
@@ -48,7 +48,7 @@ export class QueueService extends Context.Tag("QueueService")<
 			jobId: string,
 			workerId: string,
 			errorMessage: string,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Send a heartbeat to extend the job lease
@@ -57,7 +57,7 @@ export class QueueService extends Context.Tag("QueueService")<
 			jobId: string,
 			workerId: string,
 			leaseMs: number,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Schedule a retry for a failed job
@@ -67,7 +67,7 @@ export class QueueService extends Context.Tag("QueueService")<
 			workerId: string,
 			delayMs: number,
 			errorMessage: string,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Reschedule a job without incrementing attempts
@@ -76,7 +76,7 @@ export class QueueService extends Context.Tag("QueueService")<
 			jobId: string,
 			workerId: string,
 			delayMs: number,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Cancel a running job
@@ -84,7 +84,7 @@ export class QueueService extends Context.Tag("QueueService")<
 		cancelRunningJob: (
 			jobId: string,
 			workerId: string,
-		) => Effect.Effect<void, QueueJobError>;
+		) => Effect.Effect<boolean, QueueJobError>;
 
 		/**
 		 * Check if cancellation was requested for a job

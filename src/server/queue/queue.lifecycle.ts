@@ -5,10 +5,10 @@ import { queueJobs } from "@/server/db/schema";
 export async function completeJob(
 	jobId: string,
 	workerId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "succeeded",
@@ -18,16 +18,19 @@ export async function completeJob(
 			lockedBy: null,
 			updatedAt: now,
 		})
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function cancelRunningJob(
 	jobId: string,
 	workerId: string,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "cancelled",
@@ -38,7 +41,10 @@ export async function cancelRunningJob(
 			lockedBy: null,
 			updatedAt: now,
 		})
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function scheduleRetry(
@@ -46,10 +52,10 @@ export async function scheduleRetry(
 	workerId: string,
 	delayMs: number,
 	lastError: string,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "queued",
@@ -60,17 +66,20 @@ export async function scheduleRetry(
 			lockedBy: null,
 			updatedAt: now,
 		})
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function rescheduleJob(
 	jobId: string,
 	workerId: string,
 	delayMs: number,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "queued",
@@ -81,17 +90,20 @@ export async function rescheduleJob(
 			updatedAt: now,
 			attempts: sql`attempts - 1`,
 		})
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function failJob(
 	jobId: string,
 	workerId: string,
 	lastError: string,
-): Promise<void> {
+): Promise<boolean> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "failed",
@@ -102,7 +114,10 @@ export async function failJob(
 			lockedBy: null,
 			updatedAt: now,
 		})
-		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)));
+		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
+		.returning({ id: queueJobs.id });
+
+	return result.length > 0;
 }
 
 export async function requestCancel(jobId: string): Promise<void> {

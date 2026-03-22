@@ -16,7 +16,7 @@ import {
 	rescheduleJob as rescheduleJobDb,
 	scheduleRetry as scheduleRetryDb,
 } from "@/server/queue/queue.lifecycle";
-import { QueueError } from "./errors";
+import { JobLeaseLostError, QueueError } from "./errors";
 import { QueueService } from "./layers";
 
 const toQueueError = (error: unknown, context?: Record<string, unknown>) =>
@@ -25,6 +25,25 @@ const toQueueError = (error: unknown, context?: Record<string, unknown>) =>
 		cause: error,
 		...context,
 	});
+
+const ensureOwnership = (
+	updated: boolean,
+	jobId: string,
+	workerId: string,
+	operation: string,
+) => {
+	if (updated) {
+		return Effect.succeed(true as const);
+	}
+
+	return Effect.fail(
+		new JobLeaseLostError({
+			jobId,
+			workerId,
+			operation,
+		}),
+	);
+};
 
 export const QueueServiceLive = Layer.succeed(
 	QueueService,
@@ -40,6 +59,9 @@ export const QueueServiceLive = Layer.succeed(
 				try: () => completeJobDb(jobId, workerId),
 				catch: (e) => toQueueError(e, { jobId, workerId }),
 			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "complete"),
+				),
 				Effect.tap(() =>
 					Effect.sync(() =>
 						logger.info({ jobId, workerId }, "Job completed successfully"),
@@ -52,6 +74,9 @@ export const QueueServiceLive = Layer.succeed(
 				try: () => failJobDb(jobId, workerId, errorMessage),
 				catch: (e) => toQueueError(e, { jobId, workerId }),
 			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "fail"),
+				),
 				Effect.tap(() =>
 					Effect.sync(() =>
 						logger.error(
@@ -66,25 +91,41 @@ export const QueueServiceLive = Layer.succeed(
 			Effect.tryPromise({
 				try: () => heartbeatLeaseDb(jobId, workerId, leaseMs),
 				catch: () => new QueueError({ message: "Heartbeat failed", jobId }),
-			}).pipe(Effect.orElse(() => Effect.succeed(undefined))),
+			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "heartbeat"),
+				),
+			),
 
 		scheduleRetry: (jobId, workerId, delayMs, errorMessage) =>
 			Effect.tryPromise({
 				try: () => scheduleRetryDb(jobId, workerId, delayMs, errorMessage),
 				catch: (e) => toQueueError(e, { jobId, workerId }),
-			}),
+			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "scheduleRetry"),
+				),
+			),
 
 		rescheduleJob: (jobId, workerId, delayMs) =>
 			Effect.tryPromise({
 				try: () => rescheduleJobDb(jobId, workerId, delayMs),
 				catch: (e) => toQueueError(e, { jobId, workerId }),
-			}),
+			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "reschedule"),
+				),
+			),
 
 		cancelRunningJob: (jobId, workerId) =>
 			Effect.tryPromise({
 				try: () => cancelRunningJobDb(jobId, workerId),
 				catch: (e) => toQueueError(e, { jobId, workerId }),
-			}),
+			}).pipe(
+				Effect.flatMap((updated) =>
+					ensureOwnership(updated, jobId, workerId, "cancel"),
+				),
+			),
 
 		getJobCancelRequestedAt: (jobId) =>
 			Effect.tryPromise({
