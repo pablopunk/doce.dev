@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, LayoutGrid, Menu, Settings } from "lucide-react";
+import { LayoutGrid, Menu, Settings } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -28,14 +28,6 @@ export const MobileMenu = () => {
 					>
 						<LayoutGrid className="w-4 h-4" />
 						Projects
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						onClick={() => {
-							window.location.href = "/queue";
-						}}
-					>
-						<Clock className="w-4 h-4" />
-						Queue
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {

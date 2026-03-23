@@ -254,7 +254,10 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<a href="/queue" className="rounded-md border px-3 py-2 text-sm">
+						<a
+							href="/settings?tab=status"
+							className="rounded-md border px-3 py-2 text-sm"
+						>
 							Back
 						</a>
 						{canCancel && (

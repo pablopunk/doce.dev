@@ -2,6 +2,10 @@
 import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getProjectsByUserId } from "@/server/projects/projects.model";
+import {
+	getQueueStatusPageData,
+	getSettingsStatusDiagnostics,
+} from "@/server/settings/status";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -10,6 +14,30 @@ if (!user) {
 
 const projects = await getProjectsByUserId(user.id);
 const projectCount = projects.length;
+const tabParam = Astro.url.searchParams.get("tab");
+const initialTab =
+	tabParam === "status" ||
+	tabParam === "base-url" ||
+	tabParam === "account" ||
+	tabParam === "danger"
+		? tabParam
+		: "providers";
+
+const queueFilters: import("@/server/settings/status").QueueStatusFilters = {};
+const stateParam = Astro.url.searchParams.get("state");
+const typeParam = Astro.url.searchParams.get("type");
+const projectIdParam = Astro.url.searchParams.get("projectId");
+const qParam = Astro.url.searchParams.get("q");
+const pageParam = Astro.url.searchParams.get("page");
+
+if (stateParam) queueFilters.state = stateParam;
+if (typeParam) queueFilters.type = typeParam;
+if (projectIdParam) queueFilters.projectId = projectIdParam;
+if (qParam) queueFilters.q = qParam;
+if (pageParam) queueFilters.page = pageParam;
+
+const statusData = await getQueueStatusPageData(queueFilters);
+const diagnostics = await getSettingsStatusDiagnostics();
 ---
 
 <AppLayout title="Settings">
@@ -21,6 +49,11 @@ const projectCount = projects.length;
 			</div>
 		</div>
 
-		<SettingsWorkspace projectCount={projectCount} client:load />
+		<SettingsWorkspace
+			projectCount={projectCount}
+			initialTab={initialTab}
+			statusData={{ ...statusData, diagnostics }}
+			client:load
+		/>
 	</main>
 </AppLayout>

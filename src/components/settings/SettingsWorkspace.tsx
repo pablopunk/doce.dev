@@ -1,9 +1,16 @@
-import { Globe, LogOut, ShieldAlert, WandSparkles } from "lucide-react";
+import {
+	Activity,
+	Globe,
+	LogOut,
+	ShieldAlert,
+	WandSparkles,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { BaseUrlSettings } from "@/components/settings/BaseUrlSettings";
 import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
+import { StatusSettings } from "@/components/settings/StatusSettings";
 import {
 	Card,
 	CardContent,
@@ -12,11 +19,37 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { QueueJob } from "@/server/db/schema";
+import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
-type SettingsSectionId = "providers" | "base-url" | "account" | "danger";
+type SettingsSectionId =
+	| "providers"
+	| "status"
+	| "base-url"
+	| "account"
+	| "danger";
 
 interface SettingsWorkspaceProps {
 	projectCount: number;
+	initialTab?: SettingsSectionId;
+	statusData: {
+		jobs: QueueJob[];
+		paused: boolean;
+		concurrency: number;
+		pagination: {
+			page: number;
+			pageSize: number;
+			totalCount: number;
+			totalPages: number;
+		};
+		filters: {
+			state?: string;
+			type?: string;
+			projectId?: string;
+			q?: string;
+		};
+		diagnostics: SettingsStatusDiagnostics;
+	};
 }
 
 const sections = [
@@ -25,6 +58,12 @@ const sections = [
 		label: "Providers",
 		description: "Models, API keys, and subscriptions",
 		icon: WandSparkles,
+	},
+	{
+		id: "status",
+		label: "Status",
+		description: "Queue, health, and runtime diagnostics",
+		icon: Activity,
 	},
 	{
 		id: "base-url",
@@ -65,14 +104,36 @@ function AccountSettingsCard() {
 	);
 }
 
-export function SettingsWorkspace({ projectCount }: SettingsWorkspaceProps) {
+export function SettingsWorkspace({
+	projectCount,
+	initialTab = "providers",
+	statusData,
+}: SettingsWorkspaceProps) {
 	const [activeSection, setActiveSection] =
-		useState<SettingsSectionId>("providers");
+		useState<SettingsSectionId>(initialTab);
+
+	const selectSection = (sectionId: SettingsSectionId) => {
+		setActiveSection(sectionId);
+		const url = new URL(window.location.href);
+		url.searchParams.set("tab", sectionId);
+		window.history.replaceState({}, "", url);
+	};
 
 	const activeContent = useMemo(() => {
 		switch (activeSection) {
 			case "providers":
 				return <ProvidersSettings />;
+			case "status":
+				return (
+					<StatusSettings
+						initialJobs={statusData.jobs}
+						initialPaused={statusData.paused}
+						initialConcurrency={statusData.concurrency}
+						initialPagination={statusData.pagination}
+						filters={statusData.filters}
+						diagnostics={statusData.diagnostics}
+					/>
+				);
 			case "base-url":
 				return <BaseUrlSettings />;
 			case "account":
@@ -80,7 +141,7 @@ export function SettingsWorkspace({ projectCount }: SettingsWorkspaceProps) {
 			case "danger":
 				return <DeleteAllProjectsSection projectCount={projectCount} />;
 		}
-	}, [activeSection, projectCount]);
+	}, [activeSection, projectCount, statusData]);
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
@@ -95,7 +156,7 @@ export function SettingsWorkspace({ projectCount }: SettingsWorkspaceProps) {
 								<button
 									key={section.id}
 									type="button"
-									onClick={() => setActiveSection(section.id)}
+									onClick={() => selectSection(section.id)}
 									className={cn(
 										"flex items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors",
 										isActive

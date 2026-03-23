@@ -1,4 +1,4 @@
-import { Clock, LayoutGrid, Settings } from "lucide-react";
+import { LayoutGrid, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinkClasses = cn(
@@ -14,10 +14,6 @@ export const NavLinks = () => {
 			<a href="/" className={navLinkClasses}>
 				<LayoutGrid className="w-4 h-4" />
 				Projects
-			</a>
-			<a href="/queue" className={navLinkClasses}>
-				<Clock className="w-4 h-4" />
-				Queue
 			</a>
 			<a href="/settings" className={navLinkClasses}>
 				<Settings className="w-4 h-4" />

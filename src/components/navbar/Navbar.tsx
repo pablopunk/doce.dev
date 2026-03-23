@@ -49,11 +49,9 @@ function NavbarInner() {
 					</Badge>
 				</a>
 
-				{/* Desktop Navigation */}
-				<NavLinks />
-
-				{/* Right side - Desktop theme toggle + Mobile menu */}
+				{/* Right side - Desktop navigation, theme toggle + Mobile menu */}
 				<div className="flex items-center gap-2">
+					<NavLinks />
 					<div className="hidden md:block">
 						<ThemeToggle />
 					</div>

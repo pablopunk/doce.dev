@@ -65,7 +65,7 @@ export function DeleteAllProjectsSection({
 
 				setDeleteJobId(jobId);
 				toast.success(
-					`Deletion scheduled (job ${jobId}). Monitor progress in /queue.`,
+					`Deletion scheduled (job ${jobId}). Monitor progress in Settings > Status.`,
 				);
 			} else {
 				throw new Error("Failed to delete projects");
