@@ -55,6 +55,7 @@ export interface SettingsStatusDiagnostics {
 		queuedJobs: number;
 		runningJobs: number;
 		failedJobs: number;
+		lastJobState: QueueJob["state"] | null;
 	};
 	checks: StatusDiagnosticItem[];
 }
@@ -166,6 +167,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 		queuedJobs,
 		runningJobs,
 		failedJobs,
+		lastJob,
 		opencodeHealthy,
 		dockerHealthy,
 		networkHealthy,
@@ -176,6 +178,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 		countJobs({ state: "queued" }),
 		countJobs({ state: "running" }),
 		countJobs({ state: "failed" }),
+		listJobs({ limit: 1 }),
 		isGlobalOpencodeHealthy(),
 		checkDockerResource("docker version"),
 		checkDockerResource(`docker network inspect ${DOCE_SHARED_NETWORK}`),
@@ -190,6 +193,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 			queuedJobs,
 			runningJobs,
 			failedJobs,
+			lastJobState: lastJob[0]?.state ?? null,
 		},
 		checks: [
 			{

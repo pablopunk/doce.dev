@@ -61,7 +61,7 @@ export function StatusSettings({
 			description: `Concurrency ${diagnostics.queue.concurrency} - Queued ${diagnostics.queue.queuedJobs} - Running ${diagnostics.queue.runningJobs} - Failed ${diagnostics.queue.failedJobs}`,
 			icon: Activity,
 			status:
-				diagnostics.queue.failedJobs > 0
+				diagnostics.queue.lastJobState === "failed"
 					? ("warning" as const)
 					: ("healthy" as const),
 		},
