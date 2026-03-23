@@ -47,65 +47,74 @@ export function StatusSettings({
 	filters,
 	diagnostics,
 }: StatusSettingsProps) {
+	const checklistItems = [
+		{
+			label: "App version",
+			value: diagnostics.version,
+			description: "Current deployed build running on this instance.",
+			icon: GitBranch,
+			status: "healthy" as const,
+		},
+		{
+			label: "Queue",
+			value: diagnostics.queue.paused ? "Paused" : "Running",
+			description: `Concurrency ${diagnostics.queue.concurrency} - Queued ${diagnostics.queue.queuedJobs} - Running ${diagnostics.queue.runningJobs} - Failed ${diagnostics.queue.failedJobs}`,
+			icon: Activity,
+			status:
+				diagnostics.queue.failedJobs > 0
+					? ("warning" as const)
+					: ("healthy" as const),
+		},
+		...diagnostics.checks.map((check, index) => ({
+			...check,
+			icon: checkIcons[index] ?? Activity,
+		})),
+	];
+
 	return (
 		<div className="space-y-6">
-			<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<Card>
-					<CardHeader className="pb-3">
-						<CardDescription>App version</CardDescription>
-						<CardTitle className="flex items-center gap-2 text-base">
-							<GitBranch className="size-4" />
-							{diagnostics.version}
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="text-sm text-muted-foreground">
-						Current deployed build running on this instance.
-					</CardContent>
-				</Card>
+			<Card>
+				<CardHeader className="pb-4">
+					<CardTitle>Instance health</CardTitle>
+					<CardDescription>
+						Quick status checklist for the app, queue, and runtime dependencies.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{checklistItems.map((item) => {
+							const Icon = item.icon;
+							const StatusIcon =
+								item.status === "healthy" ? CheckCircle2 : AlertTriangle;
 
-				<Card>
-					<CardHeader className="pb-3">
-						<CardDescription>Queue</CardDescription>
-						<CardTitle className="text-base">
-							{diagnostics.queue.paused ? "Paused" : "Running"}
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-1 text-sm text-muted-foreground">
-						<p>Concurrency: {diagnostics.queue.concurrency}</p>
-						<p>Queued jobs: {diagnostics.queue.queuedJobs}</p>
-						<p>Running jobs: {diagnostics.queue.runningJobs}</p>
-						<p>Failed jobs: {diagnostics.queue.failedJobs}</p>
-					</CardContent>
-				</Card>
-
-				{diagnostics.checks.map((check, index) => {
-					const Icon = checkIcons[index] ?? Activity;
-					const StatusIcon =
-						check.status === "healthy" ? CheckCircle2 : AlertTriangle;
-
-					return (
-						<Card key={check.label}>
-							<CardHeader className="pb-3">
-								<CardDescription>{check.label}</CardDescription>
-								<CardTitle className="flex items-center gap-2 text-base">
-									<Icon className="size-4" />
-									<span>{check.value}</span>
-									<StatusIcon
-										className={
-											check.status === "healthy"
-												? "size-4 text-status-success"
-												: "size-4 text-status-warning"
-										}
-									/>
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="text-sm text-muted-foreground">
-								{check.description}
-							</CardContent>
-						</Card>
-					);
-				})}
-			</div>
+							return (
+								<div
+									key={item.label}
+									className="flex items-start gap-3 border-b border-border/60 pb-3 last:border-b-0 last:pb-0"
+								>
+									<Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<p className="text-sm font-medium">{item.label}</p>
+											<p className="text-sm text-foreground/90">{item.value}</p>
+											<StatusIcon
+												className={
+													item.status === "healthy"
+														? "size-4 text-status-success"
+														: "size-4 text-status-warning"
+												}
+											/>
+										</div>
+										<p className="mt-1 text-sm text-muted-foreground">
+											{item.description}
+										</p>
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				</CardContent>
+			</Card>
 
 			<div className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm">
 				<QueueTableLive

@@ -8,6 +8,7 @@ import {
 } from "@/server/queue/queue.model";
 import type { QueueJobType } from "@/server/queue/types";
 import { runCommand } from "@/server/utils/execAsync";
+import { VERSION } from "@/server/version";
 
 const PAGE_SIZE = 25;
 const DOCE_SHARED_NETWORK = process.env.DOCE_NETWORK || "doce-shared";
@@ -182,7 +183,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 	]);
 
 	return {
-		version: process.env.VERSION || "unknown",
+		version: VERSION,
 		queue: {
 			paused,
 			concurrency,
