@@ -36,73 +36,87 @@ export const userSettings = sqliteTable("user_settings", {
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const modelFavorites = sqliteTable("model_favorites", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	provider: text("provider").notNull(),
-	modelId: text("model_id").notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+export const modelFavorites = sqliteTable(
+	"model_favorites",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		provider: text("provider").notNull(),
+		modelId: text("model_id").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("model_favorites_user_id_idx").on(table.userId),
+	}),
+);
 
 // Projects table
-export const projects = sqliteTable("projects", {
-	id: text("id").primaryKey(),
-	ownerUserId: text("owner_user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-	deletedAt: integer("deleted_at", { mode: "timestamp" }),
-	name: text("name").notNull(),
-	slug: text("slug").notNull().unique(),
-	prompt: text("prompt").notNull(),
-	devPort: integer("dev_port").notNull(),
-	status: text("status", {
-		enum: [
-			"created",
-			"starting",
-			"running",
-			"stopping",
-			"stopped",
-			"error",
-			"deleting",
-		],
-	})
-		.notNull()
-		.default("created"),
-	pathOnDisk: text("path_on_disk").notNull(),
-	initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
-		.notNull()
-		.default(false),
-	initialPromptCompleted: integer("initial_prompt_completed", {
-		mode: "boolean",
-	})
-		.notNull()
-		.default(false),
-	bootstrapSessionId: text("bootstrap_session_id"),
-	// User prompt tracking - session.init is now pre-initialized in template
-	userPromptMessageId: text("user_prompt_message_id"),
-	userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
-		.notNull()
-		.default(false),
-	// Production deployment fields
-	productionPort: integer("production_port").notNull(),
-	productionUrl: text("production_url"),
-	productionStatus: text("production_status", {
-		enum: ["queued", "building", "running", "failed", "stopped"],
-	})
-		.notNull()
-		.default("stopped"),
-	productionStartedAt: integer("production_started_at", { mode: "timestamp" }),
-	productionError: text("production_error"),
-	productionHash: text("production_hash"),
-	opencodeErrorCategory: text("opencode_error_category"),
-	opencodeErrorCode: text("opencode_error_code"),
-	opencodeErrorMessage: text("opencode_error_message"),
-	opencodeErrorSource: text("opencode_error_source"),
-	opencodeErrorAt: integer("opencode_error_at", { mode: "timestamp" }),
-});
+export const projects = sqliteTable(
+	"projects",
+	{
+		id: text("id").primaryKey(),
+		ownerUserId: text("owner_user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+		deletedAt: integer("deleted_at", { mode: "timestamp" }),
+		name: text("name").notNull(),
+		slug: text("slug").notNull().unique(),
+		prompt: text("prompt").notNull(),
+		devPort: integer("dev_port").notNull(),
+		status: text("status", {
+			enum: [
+				"created",
+				"starting",
+				"running",
+				"stopping",
+				"stopped",
+				"error",
+				"deleting",
+			],
+		})
+			.notNull()
+			.default("created"),
+		pathOnDisk: text("path_on_disk").notNull(),
+		initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		initialPromptCompleted: integer("initial_prompt_completed", {
+			mode: "boolean",
+		})
+			.notNull()
+			.default(false),
+		bootstrapSessionId: text("bootstrap_session_id"),
+		// User prompt tracking - session.init is now pre-initialized in template
+		userPromptMessageId: text("user_prompt_message_id"),
+		userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		// Production deployment fields
+		productionPort: integer("production_port").notNull(),
+		productionUrl: text("production_url"),
+		productionStatus: text("production_status", {
+			enum: ["queued", "building", "running", "failed", "stopped"],
+		})
+			.notNull()
+			.default("stopped"),
+		productionStartedAt: integer("production_started_at", {
+			mode: "timestamp",
+		}),
+		productionError: text("production_error"),
+		productionHash: text("production_hash"),
+		opencodeErrorCategory: text("opencode_error_category"),
+		opencodeErrorCode: text("opencode_error_code"),
+		opencodeErrorMessage: text("opencode_error_message"),
+		opencodeErrorSource: text("opencode_error_source"),
+		opencodeErrorAt: integer("opencode_error_at", { mode: "timestamp" }),
+	},
+	(table) => ({
+		ownerUserIdIdx: index("projects_owner_user_id_idx").on(table.ownerUserId),
+	}),
+);
 
 // Queue jobs table (durable background tasks)
 export const queueJobs = sqliteTable(

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
+import { requireAuth } from "@/server/auth/requireAuth";
 import { logger } from "@/server/logger";
 import {
 	createNormalizationState,
@@ -15,21 +15,12 @@ import {
 } from "@/server/projects/projects.model";
 import { enqueueDockerEnsureRunning } from "@/server/queue/enqueue";
 
-const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 10_000;
 
 export const GET: APIRoute = async ({ params, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response("Unauthorized", { status: 401 });
-	}
-
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response("Unauthorized", { status: 401 });
-	}
+	const auth = await requireAuth(cookies);
+	if (!auth.ok) return auth.response;
 
 	const projectId = params.id;
 	if (!projectId) {
@@ -37,7 +28,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 	}
 
 	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
+	const isOwner = await isProjectOwnedByUser(projectId, auth.user.id);
 	if (!isOwner) {
 		return new Response("Not found", { status: 404 });
 	}

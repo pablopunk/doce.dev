@@ -27,6 +27,8 @@ function validateJobType(typeParam: string): QueueJobType | undefined {
 		"production.start",
 		"production.waitReady",
 		"production.stop",
+		"app.update",
+		"app.restart",
 	] as const;
 	return allowedTypes.includes(
 		typeParam as unknown as (typeof allowedTypes)[number],

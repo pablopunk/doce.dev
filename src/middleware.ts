@@ -1,4 +1,5 @@
 import { defineMiddleware, sequence } from "astro:middleware";
+import { SESSION_COOKIE_NAME } from "@/server/auth/constants";
 import {
 	cleanupExpiredSessions,
 	validateSession,
@@ -29,11 +30,21 @@ async function ensureInitialized() {
 	}
 }
 
+// Cleanup expired sessions on startup and every hour
 cleanupExpiredSessions().catch((error) => {
 	logger.error({ error }, "Failed to cleanup expired sessions");
 });
+setInterval(
+	() => {
+		cleanupExpiredSessions().catch((error) => {
+			logger.error({ error }, "Failed to cleanup expired sessions");
+		});
+	},
+	60 * 60 * 1000,
+);
 
-const SETUP_CHECK_INTERVAL_MS = 1_000;
+const SETUP_CHECK_INTERVAL_PENDING_MS = 1_000;
+const SETUP_CHECK_INTERVAL_DONE_MS = 60_000;
 let setupCheckCache: { needsSetup: boolean; timestamp: number } | null = null;
 
 async function getSetupNeeded(): Promise<boolean> {
@@ -41,11 +52,13 @@ async function getSetupNeeded(): Promise<boolean> {
 	await ensureInitialized();
 
 	const now = Date.now();
-	if (
-		setupCheckCache &&
-		now - setupCheckCache.timestamp < SETUP_CHECK_INTERVAL_MS
-	) {
-		return setupCheckCache.needsSetup;
+	if (setupCheckCache) {
+		const ttl = setupCheckCache.needsSetup
+			? SETUP_CHECK_INTERVAL_PENDING_MS
+			: SETUP_CHECK_INTERVAL_DONE_MS;
+		if (now - setupCheckCache.timestamp < ttl) {
+			return setupCheckCache.needsSetup;
+		}
 	}
 
 	try {
@@ -59,8 +72,6 @@ async function getSetupNeeded(): Promise<boolean> {
 		return true;
 	}
 }
-
-const SESSION_COOKIE_NAME = "doce_session";
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ["/setup", "/login"];

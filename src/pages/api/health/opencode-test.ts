@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { requireAuth } from "@/server/auth/requireAuth";
 import { logger } from "@/server/logger";
 import { getOpencodeClient } from "@/server/opencode/client";
 import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
@@ -10,7 +11,10 @@ import { getProjectById } from "@/server/projects/projects.model";
  *
  * Usage: GET /api/health/opencode-test?projectId=<id>
  */
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, cookies }) => {
+	const auth = await requireAuth(cookies);
+	if (!auth.ok) return auth.response;
+
 	const projectId = url.searchParams.get("projectId");
 
 	if (!projectId) {

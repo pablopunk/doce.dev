@@ -8,6 +8,13 @@
       "when": 1773775341666,
       "tag": "0000_striped_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774807304485,
+      "tag": "0001_red_namor",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
+import { requireAuth } from "@/server/auth/requireAuth";
 import {
 	ensureLogStreaming,
 	readLogFromOffset,
@@ -12,21 +12,12 @@ import {
 	isProjectOwnedByUser,
 } from "@/server/projects/projects.model";
 
-const SESSION_COOKIE_NAME = "doce_session";
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const POLL_INTERVAL_MS = 1_000;
 
 export const GET: APIRoute = async ({ params, url, cookies }) => {
-	// Validate session
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response("Unauthorized", { status: 401 });
-	}
-
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response("Unauthorized", { status: 401 });
-	}
+	const auth = await requireAuth(cookies);
+	if (!auth.ok) return auth.response;
 
 	const projectId = params.id;
 	if (!projectId) {
@@ -34,7 +25,7 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 	}
 
 	// Verify project ownership
-	const isOwner = await isProjectOwnedByUser(projectId, session.user.id);
+	const isOwner = await isProjectOwnedByUser(projectId, auth.user.id);
 	if (!isOwner) {
 		return new Response("Not found", { status: 404 });
 	}

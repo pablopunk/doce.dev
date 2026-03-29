@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { validateSession } from "@/server/auth/sessions";
+import { requireAuth } from "@/server/auth/requireAuth";
 import { canUserAccessQueueJob } from "@/server/queue/access";
 import {
 	getQueueJobDerivedError,
@@ -7,24 +7,9 @@ import {
 } from "@/server/queue/job-state";
 import { getJobById } from "@/server/queue/queue.model";
 
-const SESSION_COOKIE_NAME = "doce_session";
-
 export const GET: APIRoute = async ({ params, cookies }) => {
-	const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!sessionToken) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
-
-	const session = await validateSession(sessionToken);
-	if (!session) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
+	const auth = await requireAuth(cookies);
+	if (!auth.ok) return auth.response;
 
 	const jobId = params.id;
 	if (!jobId) {
@@ -42,7 +27,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		});
 	}
 
-	const canAccessJob = await canUserAccessQueueJob(session.user.id, job);
+	const canAccessJob = await canUserAccessQueueJob(auth.user.id, job);
 	if (!canAccessJob) {
 		return new Response(JSON.stringify({ error: "Not found" }), {
 			status: 404,

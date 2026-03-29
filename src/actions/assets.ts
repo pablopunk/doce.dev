@@ -165,9 +165,10 @@ export const assets = {
 			}
 
 			try {
+				const sanitizedOldName = sanitizeFilename(input.oldName);
 				const sanitizedNewName = sanitizeFilename(input.newName);
 
-				const oldExt = getFileExtension(input.oldName);
+				const oldExt = getFileExtension(sanitizedOldName);
 				const newExt = getFileExtension(sanitizedNewName);
 
 				if (oldExt.toLowerCase() !== newExt.toLowerCase()) {
@@ -184,12 +185,13 @@ export const assets = {
 					input.projectId,
 				);
 				const publicPath = path.join(projectPath, "public");
-				const oldPath = path.join(publicPath, input.oldName);
+				const resolvedPublicPath = path.resolve(publicPath) + path.sep;
+				const oldPath = path.join(publicPath, sanitizedOldName);
 				const newPath = path.join(publicPath, sanitizedNewName);
 
 				if (
-					!oldPath.startsWith(publicPath) ||
-					!newPath.startsWith(publicPath)
+					!path.resolve(oldPath).startsWith(resolvedPublicPath) ||
+					!path.resolve(newPath).startsWith(resolvedPublicPath)
 				) {
 					throw new ActionError({
 						code: "FORBIDDEN",
