@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useSkills } from "@/hooks/useSkills";
+import { getRequiredGlobalSkillReason } from "@/lib/skills";
 
 function SkillsEmptyState() {
 	return (
@@ -45,25 +46,39 @@ function InstalledSkillRow({
 	onRemove: () => void;
 	isRemoving: boolean;
 }) {
+	const requiredSkillReason = getRequiredGlobalSkillReason(name);
+
 	return (
 		<div className="flex items-center justify-between gap-3 py-2">
 			<div className="min-w-0">
-				<p className="text-sm font-medium truncate">{name}</p>
+				<div className="flex items-center gap-2">
+					<p className="text-sm font-medium truncate">{name}</p>
+					{requiredSkillReason ? (
+						<Badge variant="secondary" className="text-xs shrink-0">
+							Required
+						</Badge>
+					) : null}
+				</div>
 				<p className="text-xs text-muted-foreground truncate">{path}</p>
+				{requiredSkillReason ? (
+					<p className="text-xs text-muted-foreground">{requiredSkillReason}</p>
+				) : null}
 			</div>
-			<Button
-				variant="ghost"
-				size="icon"
-				onClick={onRemove}
-				disabled={isRemoving}
-				className="shrink-0 text-destructive hover:text-destructive"
-			>
-				{isRemoving ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<Trash2 className="size-4" />
-				)}
-			</Button>
+			{requiredSkillReason ? null : (
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={onRemove}
+					disabled={isRemoving}
+					className="shrink-0 text-destructive hover:text-destructive"
+				>
+					{isRemoving ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<Trash2 className="size-4" />
+					)}
+				</Button>
+			)}
 		</div>
 	);
 }

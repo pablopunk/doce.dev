@@ -1,17 +1,28 @@
-import { Cable, Settings, Sparkles, WandSparkles } from "lucide-react";
+import {
+	Activity,
+	Cable,
+	Settings,
+	Sparkles,
+	WandSparkles,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import { McpSettings } from "@/components/settings/McpSettings";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
 import { SkillsSettings } from "@/components/settings/SkillsSettings";
+import { StatusSettings } from "@/components/settings/StatusSettings";
 import { cn } from "@/lib/utils";
 import type { QueueJob } from "@/server/db/schema";
 import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
-export type SettingsTabId = "providers" | "mcps" | "skills" | "general";
+export type SettingsTabId =
+	| "general"
+	| "providers"
+	| "mcps"
+	| "skills"
+	| "status";
 
 interface SettingsWorkspaceProps {
-	projectCount: number;
 	initialTab?: SettingsTabId;
 	statusData: {
 		jobs: QueueJob[];
@@ -35,6 +46,12 @@ interface SettingsWorkspaceProps {
 
 const tabs = [
 	{
+		id: "general",
+		label: "General",
+		description: "Base URL and account",
+		icon: Settings,
+	},
+	{
 		id: "providers",
 		label: "Providers",
 		description: "Models, API keys, and subscriptions",
@@ -53,10 +70,10 @@ const tabs = [
 		icon: Sparkles,
 	},
 	{
-		id: "general",
-		label: "General",
-		description: "Base URL, account, status, and more",
-		icon: Settings,
+		id: "status",
+		label: "Status",
+		description: "Instance health and queue",
+		icon: Activity,
 	},
 ] as const satisfies Array<{
 	id: SettingsTabId;
@@ -66,7 +83,6 @@ const tabs = [
 }>;
 
 export function SettingsWorkspace({
-	projectCount,
 	initialTab = "providers",
 	statusData,
 }: SettingsWorkspaceProps) {
@@ -81,21 +97,27 @@ export function SettingsWorkspace({
 
 	const activeContent = useMemo(() => {
 		switch (activeTab) {
+			case "general":
+				return <GeneralSettings />;
 			case "providers":
 				return <ProvidersSettings />;
 			case "mcps":
 				return <McpSettings />;
 			case "skills":
 				return <SkillsSettings />;
-			case "general":
+			case "status":
 				return (
-					<GeneralSettings
-						projectCount={projectCount}
-						statusData={statusData}
+					<StatusSettings
+						initialJobs={statusData.jobs}
+						initialPaused={statusData.paused}
+						initialConcurrency={statusData.concurrency}
+						initialPagination={statusData.pagination}
+						filters={statusData.filters}
+						diagnostics={statusData.diagnostics}
 					/>
 				);
 		}
-	}, [activeTab, projectCount, statusData]);
+	}, [activeTab, statusData]);
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">

@@ -1,7 +1,6 @@
 ---
 import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getProjectsByUserId } from "@/server/projects/projects.model";
 import {
 	getQueueStatusPageData,
 	getSettingsStatusDiagnostics,
@@ -12,15 +11,17 @@ if (!user) {
 	return Astro.redirect("/login");
 }
 
-const projects = await getProjectsByUserId(user.id);
-const projectCount = projects.length;
 const tabParam = Astro.url.searchParams.get("tab");
 // Legacy tab IDs redirect to "general"
-const legacyTabs = ["status", "base-url", "account", "danger"];
+const legacyGeneralTabs = ["base-url", "account", "danger"];
 const initialTab =
-	tabParam === "mcps" || tabParam === "skills" || tabParam === "general"
+	tabParam === "general" ||
+	tabParam === "providers" ||
+	tabParam === "mcps" ||
+	tabParam === "skills" ||
+	tabParam === "status"
 		? tabParam
-		: legacyTabs.includes(tabParam ?? "")
+		: legacyGeneralTabs.includes(tabParam ?? "")
 			? "general"
 			: "providers";
 
@@ -51,7 +52,6 @@ const diagnostics = await getSettingsStatusDiagnostics();
 		</div>
 
 		<SettingsWorkspace
-			projectCount={projectCount}
 			initialTab={initialTab}
 			statusData={{ ...statusData, diagnostics }}
 			client:load

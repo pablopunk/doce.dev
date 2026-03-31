@@ -3,6 +3,7 @@
  * OpenCode's filesystem is the source of truth (no DB).
  */
 
+import { getRequiredGlobalSkillReason } from "@/lib/skills";
 import { logger } from "@/server/logger";
 import { getDataPath } from "@/server/projects/paths";
 import { runCommand } from "@/server/utils/execAsync";
@@ -42,13 +43,6 @@ function getSkillsEnv(): NodeJS.ProcessEnv {
 		XDG_STATE_HOME: dataPath,
 		XDG_CACHE_HOME: `${dataPath}/cache`,
 	};
-}
-
-function buildEnvString(env: NodeJS.ProcessEnv): string {
-	return Object.entries(env)
-		.filter(([, v]) => v !== undefined)
-		.map(([k, v]) => `${k}=${v}`)
-		.join(" ");
 }
 
 export async function searchSkills(
@@ -130,6 +124,18 @@ export async function installSkill(
 export async function removeSkill(
 	skillName: string,
 ): Promise<{ success: boolean; error?: string }> {
+	const requiredSkillReason = getRequiredGlobalSkillReason(skillName);
+	if (requiredSkillReason) {
+		logger.warn(
+			{ skillName },
+			"[Skills] Attempted to remove a required global skill",
+		);
+		return {
+			success: false,
+			error: `${skillName} cannot be removed: ${requiredSkillReason.toLowerCase()}`,
+		};
+	}
+
 	const env = getSkillsEnv();
 	const command = `env HOME=${env.HOME} XDG_CONFIG_HOME=${env.XDG_CONFIG_HOME} npx skills remove ${skillName} -g -a opencode -y`;
 
