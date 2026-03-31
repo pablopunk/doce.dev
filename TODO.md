@@ -64,9 +64,9 @@
   - [x] Non-blocking behavior on partial failure with warning status
 
 ## Phase 6 - Product Polish
-- [ ] Add project menu action: Export preview source (.zip)
-- [ ] Export only preview source code
-- [ ] Exclude production/runtime artifacts
+- [x] Add project menu action: Export preview source (.zip)
+- [x] Export only preview source code
+- [x] Exclude production/runtime artifacts
 - [ ] Add "Fix with doce" action to runtime error boundary
 - [ ] Add guardrails to avoid conflicts during active agent operations
 

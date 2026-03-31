@@ -1,8 +1,21 @@
 import { actions } from "astro:actions";
-import { ExternalLink, Loader2, Trash2 } from "lucide-react";
+import {
+	Download,
+	Ellipsis,
+	ExternalLink,
+	Loader2,
+	Trash2,
+} from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { mapPortUrlToPreferredHost } from "@/lib/base-url";
 import type { Project } from "@/server/db/schema";
@@ -71,6 +84,7 @@ function getStatusStyle(status: string): StatusStyle {
 export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isExporting, setIsExporting] = useState(false);
 	const { baseUrl } = useBaseUrlSetting();
 
 	const previewUrl =
@@ -97,15 +111,50 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 			const result = await actions.projects.delete({ projectId });
 			if (result.error) {
 				setIsDeleting(false);
-				console.error("Failed to delete project:", result.error.message);
 				throw new Error(result.error.message);
 			}
-			// Optimistic update: notify parent to remove from list
 			onDeleted?.(projectId);
 		} catch (error) {
 			setIsDeleting(false);
-			console.error("Failed to delete project:", error);
 			throw error;
+		}
+	};
+
+	const handleExportClick = async () => {
+		setIsExporting(true);
+		try {
+			const response = await fetch(`/api/projects/${project.id}/export`);
+			if (!response.ok) {
+				const payload = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(payload?.error ?? "Failed to export project source");
+			}
+
+			const blob = await response.blob();
+			const downloadUrl = URL.createObjectURL(blob);
+			const contentDisposition = response.headers.get("Content-Disposition");
+			const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+			const fileName =
+				fileNameMatch?.[1] ?? `${project.slug}-preview-source.zip`;
+
+			const link = document.createElement("a");
+			link.href = downloadUrl;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(downloadUrl);
+
+			toast.success(`Exported ${project.name}`);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to export project source",
+			);
+		} finally {
+			setIsExporting(false);
 		}
 	};
 
@@ -157,19 +206,36 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 								</Button>
 							</a>
 						</div>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="text-muted-foreground hover:text-destructive"
-							onClick={handleDeleteClick}
-							disabled={isDeleting || project.status === "deleting"}
-						>
-							{isDeleting ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<Trash2 className="h-4 w-4" />
-							)}
-						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									disabled={
+										isDeleting || isExporting || project.status === "deleting"
+									}
+								>
+									{isDeleting || isExporting ? (
+										<Loader2 className="h-4 w-4 animate-spin" />
+									) : (
+										<Ellipsis className="h-4 w-4" />
+									)}
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem onClick={handleExportClick}>
+									<Download className="h-4 w-4" />
+									Export source (.zip)
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={handleDeleteClick}
+									className="text-destructive focus:text-destructive"
+								>
+									<Trash2 className="h-4 w-4" />
+									Delete project
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 					<div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
 						<span>Port: {project.devPort}</span>
