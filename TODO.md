@@ -63,15 +63,6 @@
   - [x] Apply MCP defaults
   - [x] Non-blocking behavior on partial failure with warning status
 
-## Phase 5 - Propagation to Existing Projects
-- [ ] Add settings propagation controls
-  - [ ] "Apply to existing projects" toggle
-  - [ ] "Sync now" action
-- [ ] Implement sync job to patch each project's preview opencode config
-  - [ ] Add
-  - [ ] Update
-  - [ ] Remove
-
 ## Phase 6 - Product Polish
 - [ ] Add project menu action: Export preview source (.zip)
 - [ ] Export only preview source code
