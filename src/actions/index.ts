@@ -1,10 +1,12 @@
 import { assets } from "./assets";
 import { auth } from "./auth";
+import { mcps } from "./mcps";
 import { projects } from "./projects";
 import { providers } from "./providers";
 import { queue } from "./queue";
 import { settings } from "./settings";
 import { setup } from "./setup";
+import { skills } from "./skills";
 import { update } from "./update";
 
 export const server = {
@@ -16,4 +18,6 @@ export const server = {
 	queue,
 	assets,
 	update,
+	skills,
+	mcps,
 };
