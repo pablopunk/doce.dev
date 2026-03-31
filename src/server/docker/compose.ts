@@ -7,6 +7,7 @@ import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
 import { isRunningInDocker } from "@/server/utils/docker";
 import { runCommand } from "@/server/utils/execAsync";
+import { setComposeV1 } from "./composeVersion";
 import {
 	appendDockerLog,
 	stopStreamingContainerLogs,
@@ -59,7 +60,8 @@ export async function detectComposeCommand(): Promise<string[]> {
 	let result = await runCommand("docker compose version", { timeout: 5000 });
 	if (result.success) {
 		composeCommand = ["docker", "compose"];
-		logger.info("Using 'docker compose' command");
+		setComposeV1(false);
+		logger.info("Using 'docker compose' command (v2)");
 		return composeCommand;
 	}
 
@@ -67,7 +69,8 @@ export async function detectComposeCommand(): Promise<string[]> {
 	result = await runCommand("docker-compose version", { timeout: 5000 });
 	if (result.success) {
 		composeCommand = ["docker-compose"];
-		logger.info("Using 'docker-compose' command");
+		setComposeV1(true);
+		logger.info("Using 'docker-compose' command (v1)");
 		return composeCommand;
 	}
 

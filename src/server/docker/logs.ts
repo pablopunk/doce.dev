@@ -4,6 +4,15 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { runCommand } from "@/server/utils/execAsync";
+import { isComposeV1 } from "./composeVersion";
+
+/**
+ * Get the compose command parts based on detected version.
+ * Returns ["docker-compose"] for v1 or ["docker", "compose"] for v2.
+ */
+function getComposeCmd(): string[] {
+	return isComposeV1() ? ["docker-compose"] : ["docker", "compose"];
+}
 
 const LOG_FILE_NAME = "docker.log";
 
@@ -121,7 +130,8 @@ export async function captureContainerLogs(
 
 		// Get logs from docker compose preview service only
 		const projectName = `doce_${projectId}`;
-		const cmd = `docker compose --project-name ${projectName} logs --no-log-prefix preview`;
+		const composeCmd = getComposeCmd().join(" ");
+		const cmd = `${composeCmd} --project-name ${projectName} logs --no-log-prefix preview`;
 
 		const result = await runCommand(cmd, {
 			cwd: projectPath,
@@ -166,10 +176,12 @@ export function streamContainerLogs(
 
 		// Spawn: docker compose logs -f --tail=100 preview
 		// --tail=100 means start from last 100 lines (captures recent history)
+		const composeCmd = getComposeCmd();
+		const command = composeCmd[0] ?? "docker";
 		const proc = spawn(
-			"docker",
+			command,
 			[
-				"compose",
+				...composeCmd.slice(1),
 				"--project-name",
 				projectName,
 				"logs",
@@ -486,8 +498,9 @@ async function checkContainersRunning(
 ): Promise<boolean> {
 	try {
 		const projectName = `doce_${projectId}`;
+		const composeCmd = getComposeCmd().join(" ");
 		const result = await runCommand(
-			`docker compose --project-name ${projectName} ps --format json`,
+			`${composeCmd} --project-name ${projectName} ps --format json`,
 			{
 				cwd: projectPath,
 				timeout: 10_000,

@@ -33,7 +33,14 @@ FROM node:22-slim
 
 ARG VERSION=unknown
 
-RUN apt-get update && apt-get install -y dumb-init curl ca-certificates docker.io docker-compose && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y dumb-init curl ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
+
+# Install Docker Compose v2 plugin (v1 docker-compose uses wrong container naming)
+RUN mkdir -p /usr/lib/docker/cli-plugins \
+    && ARCH=$(uname -m) \
+    && curl -fsSL "https://github.com/docker/compose/releases/download/v2.36.1/docker-compose-linux-${ARCH}" \
+       -o /usr/lib/docker/cli-plugins/docker-compose \
+    && chmod +x /usr/lib/docker/cli-plugins/docker-compose
 
 ENV VERSION=${VERSION}
 

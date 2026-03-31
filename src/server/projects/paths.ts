@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { isComposeV1 } from "@/server/docker/composeVersion";
 
 // Paths relative to project root
 const DATA_DIR = "data";
@@ -147,20 +148,29 @@ export function getDockerProjectName(projectId: string): string {
 }
 
 /**
+ * Get the separator used in container names.
+ * Docker Compose v1 uses underscores, v2 uses hyphens.
+ */
+function composeSeparator(): string {
+	return isComposeV1() ? "_" : "-";
+}
+
+/**
  * Get the container name for the preview service.
- * Docker Compose v2 creates containers as {project}-{service}-{instance}.
+ * Docker Compose v1: {project}_{service}_{instance}
+ * Docker Compose v2: {project}-{service}-{instance}
  */
 export function getPreviewContainerName(projectId: string): string {
-	// Docker Compose v2 uses hyphens as separators: {project}-{service}-{instance}
-	return `${getDockerProjectName(projectId)}-preview-1`;
+	const sep = composeSeparator();
+	return `${getDockerProjectName(projectId)}${sep}preview${sep}1`;
 }
 
 /**
  * Get the container name for the OpenCode agent service.
  */
 export function getOpencodeContainerName(projectId: string): string {
-	// Docker Compose v2 uses hyphens as separators: {project}-{service}-{instance}
-	return `${getDockerProjectName(projectId)}-opencode-1`;
+	const sep = composeSeparator();
+	return `${getDockerProjectName(projectId)}${sep}opencode${sep}1`;
 }
 
 /**
