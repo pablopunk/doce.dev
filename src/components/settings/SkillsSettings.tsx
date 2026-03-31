@@ -1,4 +1,11 @@
-import { Download, ExternalLink, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
+import {
+	Download,
+	ExternalLink,
+	Loader2,
+	Search,
+	Sparkles,
+	Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,11 +98,7 @@ function SearchResultRow({
 				<p className="text-xs text-muted-foreground truncate">{source}</p>
 			</div>
 			<div className="flex items-center gap-2 shrink-0">
-				<Button
-					variant="ghost"
-					size="sm"
-					asChild
-				>
+				<Button variant="ghost" size="sm" asChild>
 					<a href={skillUrl} target="_blank" rel="noopener noreferrer">
 						<ExternalLink className="size-3.5" />
 					</a>

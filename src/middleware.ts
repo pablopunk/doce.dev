@@ -7,6 +7,7 @@ import {
 import { db } from "@/server/db/client";
 import { ensureDatabaseReady } from "@/server/db/ensure-db";
 import { users } from "@/server/db/schema";
+import { startDefaultsBootstrap } from "@/server/defaults/bootstrap";
 import {
 	ensureDoceSharedNetwork,
 	ensureGlobalPnpmVolume,
@@ -26,6 +27,7 @@ async function ensureInitialized() {
 		await ensureGlobalPnpmVolume();
 		await ensureGlobalOpencodeStarted();
 		startImagePrewarm();
+		startDefaultsBootstrap();
 		startupInitialized = true;
 	} catch (error) {
 		logger.error({ error }, "[Middleware] Initial startup failed");
