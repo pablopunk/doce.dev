@@ -38,7 +38,7 @@
 ## Phase 3 - MCP Core
 - [x] Add MCP settings management for default servers
   - [x] context7
-  - [ ] exa
+  - [x] exa
   - [x] gh_grep
 - [x] Implement OpenCode-native MCP actions in UI
   - [ ] Authenticate

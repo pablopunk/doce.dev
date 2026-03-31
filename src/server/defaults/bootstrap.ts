@@ -25,6 +25,7 @@ interface DefaultSkill {
 
 const DEFAULT_MCPS: DefaultMcp[] = [
 	{ name: "context7", type: "remote", url: "https://mcp.context7.com/mcp" },
+	{ name: "exa", type: "remote", url: "https://mcp.exa.ai/mcp" },
 	{ name: "gh_grep", type: "remote", url: "https://mcp.grep.app" },
 ];
 
