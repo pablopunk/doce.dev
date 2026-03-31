@@ -16,8 +16,8 @@
   - [ ] Skill install/remove/update
   - [ ] MCP status refresh/test
   - [ ] Global defaults sync to existing projects
-- [ ] Keep settings as normal UI with lightweight inline status
-- [ ] Link to /queue for full details and retries
+- [x] Keep settings as normal UI with lightweight inline status
+- [x] Link to /queue for full details and retries
 
 ## Phase 2 - skills.sh Core
 - [ ] Add backend skills service for skills.sh operations
