@@ -1,6 +1,7 @@
 import { actions } from "astro:actions";
 import {
 	AlertTriangle,
+	Download,
 	ExternalLink,
 	FileCode2,
 	Image,
@@ -10,6 +11,7 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { AssetsTab } from "@/components/assets/AssetsTab";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { RestartAgentButton } from "@/components/chat/RestartAgentButton";
@@ -461,6 +463,41 @@ export function PreviewPanel({
 		}
 	};
 
+	const handleExportPreviewSource = async () => {
+		try {
+			const response = await fetch(`/api/projects/${projectId}/export`);
+			if (!response.ok) {
+				const payload = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(payload?.error ?? "Failed to export project source");
+			}
+
+			const blob = await response.blob();
+			const downloadUrl = URL.createObjectURL(blob);
+			const contentDisposition = response.headers.get("Content-Disposition");
+			const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+			const fileName =
+				fileNameMatch?.[1] ?? `${projectSlug ?? projectId}-preview-source.zip`;
+
+			const link = document.createElement("a");
+			link.href = downloadUrl;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			URL.revokeObjectURL(downloadUrl);
+
+			toast.success("Preview source exported");
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to export preview source",
+			);
+		}
+	};
+
 	const handleRollback = async (hash: string) => {
 		try {
 			const { error } = await actions.projects.rollback({
@@ -601,6 +638,14 @@ export function PreviewPanel({
 							Retry
 						</Button>
 					)}
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleExportPreviewSource}
+					>
+						<Download className="mr-1.5 h-4 w-4" />
+						Export
+					</Button>
 					{productionStatus && (
 						<DeployButton
 							state={{
