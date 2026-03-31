@@ -11,11 +11,6 @@
   - [x] Pre-pull/pre-build what `templates/astro-starter/docker-compose.yml` needs
   - [x] Pre-pull/pre-build what `templates/astro-starter/docker-compose.production.yml` needs
   - [x] Surface status so users know warmup is in progress/completed
-- [ ] Run integration operations through existing queue
-  - [ ] Skills discovery sync
-  - [ ] Skill install/remove/update
-  - [ ] MCP status refresh/test
-  - [ ] Global defaults sync to existing projects
 - [x] Keep settings as normal UI with lightweight inline status
 - [x] Link to /queue for full details and retries
 
@@ -24,12 +19,10 @@
   - [x] Discover/search
   - [x] Install
   - [x] Remove
-  - [ ] Update
 - [x] Build Skills tab UI
   - [x] Search/discovery list
   - [x] Installed skills list
   - [x] Install/remove/update actions
-  - [ ] Global enable/disable state (all projects)
 - [x] Show skill metadata before install
   - [x] owner/repo
   - [x] skill name
