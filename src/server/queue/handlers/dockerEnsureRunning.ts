@@ -7,23 +7,13 @@ import {
 import { ProjectError, type RescheduleError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
-import { createOpencodeClient } from "@/server/opencode/client";
-import {
-	checkOpencodeReady,
-	checkPreviewReady,
-} from "@/server/projects/health";
-import {
-	getProjectPreviewPath,
-	getProjectPreviewPathFromRoot,
-} from "@/server/projects/paths";
+import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import { enqueueOpencodeSessionCreate } from "../enqueue";
+import { enqueueDockerWaitReady } from "../enqueue";
 import { parsePayload } from "../types";
-
-const START_MAX_WAIT_MS = 30_000;
 
 export function handleDockerEnsureRunning(
 	ctx: QueueJobContext,
@@ -115,120 +105,27 @@ export function handleDockerEnsureRunning(
 			});
 		}
 
-		const startedAt = Date.now();
-
-		while (Date.now() - startedAt < START_MAX_WAIT_MS) {
-			yield* ctx.throwIfCancelRequested();
-
-			const [previewReady, opencodeReady] = yield* Effect.tryPromise({
-				try: () =>
-					Promise.all([checkPreviewReady(project.id), checkOpencodeReady()]),
-				catch: (error) =>
-					new ProjectError({
-						projectId: project.id,
-						operation: "healthCheck",
-						message: error instanceof Error ? error.message : String(error),
-						cause: error,
-					}),
-			});
-
-			if (previewReady && opencodeReady) {
-				yield* Effect.tryPromise({
-					try: () => updateProjectStatus(project.id, "running"),
-					catch: (error) =>
-						new ProjectError({
-							projectId: project.id,
-							operation: "updateProjectStatus",
-							message: error instanceof Error ? error.message : String(error),
-							cause: error,
-						}),
-				});
-
-				try {
-					const projectDirectory = getProjectPreviewPathFromRoot(
-						project.pathOnDisk,
-					);
-					const client = createOpencodeClient(projectDirectory);
-					const sessionsRes = yield* Effect.tryPromise({
-						try: async () =>
-							client.session
-								.list({ directory: projectDirectory })
-								.catch(() => null),
-						catch: (error) =>
-							new ProjectError({
-								projectId: project.id,
-								operation: "sessionList",
-								message: error instanceof Error ? error.message : String(error),
-								cause: error,
-							}),
-					});
-
-					if (sessionsRes?.data) {
-						const sessionsArray = Array.isArray(sessionsRes.data)
-							? sessionsRes.data
-							: [];
-
-						if (sessionsArray.length === 0) {
-							logger.info(
-								{ projectId: project.id },
-								"Sessions lost after restart, creating new session...",
-							);
-							yield* Effect.tryPromise({
-								try: async () =>
-									enqueueOpencodeSessionCreate({ projectId: project.id }),
-								catch: (error) =>
-									new ProjectError({
-										projectId: project.id,
-										operation: "enqueueOpencodeSessionCreate",
-										message:
-											error instanceof Error ? error.message : String(error),
-										cause: error,
-									}),
-							}).pipe(
-								Effect.catchAll((error) =>
-									Effect.sync(() => {
-										logger.warn(
-											{ error, projectId: project.id },
-											"Failed to enqueue session create",
-										);
-									}),
-								),
-							);
-						}
-					}
-				} catch (error) {
-					logger.warn(
-						{ error, projectId: project.id },
-						"Failed to check/restore sessions after restart",
-					);
-				}
-
-				return;
-			}
-
-			yield* Effect.sleep(1000);
-		}
-
+		// Delegate health-check polling to docker.waitReady (up to 5 min)
+		// which will then enqueue sessionCreate -> sendUserPrompt as needed
 		yield* Effect.tryPromise({
-			try: () => updateProjectStatus(project.id, "error"),
+			try: () =>
+				enqueueDockerWaitReady({
+					projectId: project.id,
+					startedAt: Date.now(),
+					rescheduleCount: 0,
+				}),
 			catch: (error) =>
 				new ProjectError({
 					projectId: project.id,
-					operation: "updateProjectStatus",
+					operation: "enqueueDockerWaitReady",
 					message: error instanceof Error ? error.message : String(error),
 					cause: error,
 				}),
 		});
 
-		logger.warn(
+		logger.info(
 			{ projectId: project.id },
-			"Timed out waiting for project readiness",
+			"Enqueued docker.waitReady after ensureRunning compose-up",
 		);
-
-		return yield* new ProjectError({
-			projectId: project.id,
-			operation: "waitReady",
-			message: "timed out waiting for preview/opencode readiness",
-		});
 	});
 }

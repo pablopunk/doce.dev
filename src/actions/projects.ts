@@ -503,7 +503,9 @@ export const projects = {
 
 			// Build Docker image for rollback version
 			const productionPath = getProductionPath(project.id, input.toHash);
-			const imageName = `doce-prod-${project.id}-${input.toHash}`;
+			const { getProductionContainerName, getProductionImageName } =
+				await import("@/server/projects/paths");
+			const imageName = getProductionImageName(project.id, input.toHash);
 
 			const { spawnCommand } = await import("@/server/utils/execAsync");
 			const buildResult = await spawnCommand(
@@ -520,7 +522,7 @@ export const projects = {
 			}
 
 			// Stop and remove old container
-			const containerName = `doce-prod-${project.id}`;
+			const containerName = getProductionContainerName(project.id);
 			const stopResult = await spawnCommand("docker", ["stop", containerName]);
 			const removeResult = await spawnCommand("docker", ["rm", containerName]);
 
@@ -730,10 +732,18 @@ export const projects = {
 						createdAt: job.createdAt.getTime(),
 					};
 					if (isTerminalErrorState) {
-						const isRecoveredDockerJob =
-							jobType === "docker.composeUp" &&
-							dockerEnsureRunningJob?.state === "succeeded";
-						if (!isRecoveredDockerJob) {
+						// docker.ensureRunning replaces docker.composeUp + docker.waitReady,
+						// so suppress their errors when ensureRunning is active or succeeded
+						const ensureRunningState = dockerEnsureRunningJob?.state;
+						const ensureRunningActive =
+							ensureRunningState === "queued" ||
+							ensureRunningState === "running" ||
+							ensureRunningState === "succeeded";
+						const isRecoveredByEnsureRunning =
+							(jobType === "docker.composeUp" ||
+								jobType === "docker.waitReady") &&
+							ensureRunningActive;
+						if (!isRecoveredByEnsureRunning) {
 							hasError = true;
 							errorMessage =
 								derivedError ||
@@ -756,11 +766,17 @@ export const projects = {
 						? dockerEnsureRunningJob
 						: dockerComposeUpJob || dockerEnsureRunningJob;
 
+			// docker.ensureRunning does its own health checking internally,
+			// so treat docker.waitReady as implicitly done when ensureRunning succeeded
+			const dockerWaitDone =
+				dockerWaitReadyJob?.state === "succeeded" ||
+				dockerEnsureRunningJob?.state === "succeeded";
+
 			let currentStep = 0;
 			if (
 				projectCreateJob?.state === "succeeded" &&
 				dockerJob?.state === "succeeded" &&
-				dockerWaitReadyJob?.state === "succeeded" &&
+				dockerWaitDone &&
 				sessionCreateJob?.state === "succeeded" &&
 				sendPromptJob?.state === "succeeded"
 			) {
@@ -768,7 +784,7 @@ export const projects = {
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
 				dockerJob?.state === "succeeded" &&
-				dockerWaitReadyJob?.state === "succeeded" &&
+				dockerWaitDone &&
 				sessionCreateJob?.state === "succeeded"
 			) {
 				currentStep = 3;
@@ -776,7 +792,7 @@ export const projects = {
 			} else if (
 				projectCreateJob?.state === "succeeded" &&
 				dockerJob?.state === "succeeded" &&
-				dockerWaitReadyJob?.state === "succeeded"
+				dockerWaitDone
 			) {
 				currentStep = 2;
 				isSetupComplete = false;

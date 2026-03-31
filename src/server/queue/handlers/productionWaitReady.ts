@@ -14,6 +14,7 @@ import {
 	updateProductionStatus,
 } from "@/server/productions/productions.model";
 import {
+	getProductionContainerName,
 	getProductionCurrentSymlink,
 	getProductionPath,
 } from "@/server/projects/paths";
@@ -83,7 +84,7 @@ export function handleProductionWaitReady(
 			catch: () => false,
 		}).pipe(Effect.orElse(() => Effect.succeed(false)));
 
-		const containerName = `doce-prod-${project.id}`;
+		const containerName = getProductionContainerName(project.id);
 		const dockerReady = yield* Effect.tryPromise({
 			try: () => checkDockerContainerReady(containerName),
 			catch: () => false,

@@ -4,7 +4,10 @@ import { ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { getProductionPath } from "@/server/projects/paths";
+import {
+	getProductionContainerName,
+	getProductionPath,
+} from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { parsePayload } from "../types";
@@ -34,7 +37,7 @@ export function handleProductionStop(
 			return;
 		}
 
-		const containerName = `doce-prod-${project.id}`;
+		const containerName = getProductionContainerName(project.id);
 
 		logger.info(
 			{ projectId: project.id, containerName },
@@ -115,7 +118,7 @@ function removeContainer(
 
 function removeDockerImages(projectId: string): Effect.Effect<void, never> {
 	return Effect.gen(function* () {
-		const imagePrefix = `doce-prod-${projectId}-`;
+		const imagePrefix = `${getProductionContainerName(projectId)}-`;
 
 		const listResult = yield* Effect.tryPromise({
 			try: () =>

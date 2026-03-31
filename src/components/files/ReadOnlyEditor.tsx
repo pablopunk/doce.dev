@@ -1,11 +1,12 @@
 import Editor from "@monaco-editor/react";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface ReadOnlyEditorProps {
 	filePath: string;
 	content: string;
 	isLoading?: boolean;
+	error?: string | null;
 }
 
 /**
@@ -52,6 +53,7 @@ export function ReadOnlyEditor({
 	filePath,
 	content,
 	isLoading = false,
+	error = null,
 }: ReadOnlyEditorProps) {
 	const [isMounted, setIsMounted] = useState(false);
 	const [isDark, setIsDark] = useState(true);
@@ -110,26 +112,35 @@ export function ReadOnlyEditor({
 
 			{/* Monaco Editor */}
 			<div className="flex-1 overflow-hidden">
-				<Editor
-					height="100%"
-					language={language}
-					value={content}
-					theme={monacoTheme}
-					options={{
-						readOnly: true,
-						minimap: { enabled: false },
-						fontSize: 13,
-						fontFamily: "Monaco, Courier, monospace",
-						scrollBeyondLastLine: false,
-						wordWrap: "on",
-						automaticLayout: true,
-					}}
-					loading={
-						<div className="flex items-center justify-center h-full">
-							<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+				{error ? (
+					<div className="flex items-center justify-center h-full">
+						<div className="flex flex-col items-center gap-2 text-center p-4">
+							<AlertTriangle className="h-6 w-6 text-status-error" />
+							<p className="text-xs text-muted-foreground max-w-xs">{error}</p>
 						</div>
-					}
-				/>
+					</div>
+				) : (
+					<Editor
+						height="100%"
+						language={language}
+						value={content}
+						theme={monacoTheme}
+						options={{
+							readOnly: true,
+							minimap: { enabled: false },
+							fontSize: 13,
+							fontFamily: "Monaco, Courier, monospace",
+							scrollBeyondLastLine: false,
+							wordWrap: "on",
+							automaticLayout: true,
+						}}
+						loading={
+							<div className="flex items-center justify-center h-full">
+								<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+							</div>
+						}
+					/>
+				)}
 			</div>
 		</div>
 	);

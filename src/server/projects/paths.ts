@@ -148,17 +148,19 @@ export function getDockerProjectName(projectId: string): string {
 
 /**
  * Get the container name for the preview service.
- * Docker compose creates containers with underscores, not hyphens.
+ * Docker Compose v2 creates containers as {project}-{service}-{instance}.
  */
 export function getPreviewContainerName(projectId: string): string {
-	return `${getDockerProjectName(projectId)}_preview_1`;
+	// Docker Compose v2 uses hyphens as separators: {project}-{service}-{instance}
+	return `${getDockerProjectName(projectId)}-preview-1`;
 }
 
 /**
  * Get the container name for the OpenCode agent service.
  */
 export function getOpencodeContainerName(projectId: string): string {
-	return `${getDockerProjectName(projectId)}_opencode_1`;
+	// Docker Compose v2 uses hyphens as separators: {project}-{service}-{instance}
+	return `${getDockerProjectName(projectId)}-opencode-1`;
 }
 
 /**
@@ -167,4 +169,22 @@ export function getOpencodeContainerName(projectId: string): string {
  */
 export function getPreviewHostname(projectId: string): string {
 	return getPreviewContainerName(projectId);
+}
+
+/**
+ * Get the container name for the production service.
+ * Uses explicit naming via `docker run --name`.
+ */
+export function getProductionContainerName(projectId: string): string {
+	return `doce-prod-${projectId}`;
+}
+
+/**
+ * Get the Docker image name for a production build.
+ */
+export function getProductionImageName(
+	projectId: string,
+	hash: string,
+): string {
+	return `doce-prod-${projectId}-${hash}`;
 }

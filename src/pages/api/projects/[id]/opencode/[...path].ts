@@ -57,11 +57,21 @@ function stripHeaders(headers: Headers): Headers {
 	return newHeaders;
 }
 
+// Headers that must be stripped from proxied responses.
+// Node.js fetch auto-decompresses gzip/br bodies but keeps the
+// content-encoding header, which would make the browser try to
+// decompress an already-decompressed body ("Decoding failed").
+const STRIP_RESPONSE_HEADERS = new Set([
+	...HOP_BY_HOP_HEADERS,
+	"set-cookie",
+	"content-encoding",
+	"content-length",
+]);
+
 function stripResponseHeaders(headers: Headers): Headers {
 	const newHeaders = new Headers();
 	for (const [key, value] of headers.entries()) {
-		const lower = key.toLowerCase();
-		if (!HOP_BY_HOP_HEADERS.includes(lower) && lower !== "set-cookie") {
+		if (!STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) {
 			newHeaders.set(key, value);
 		}
 	}

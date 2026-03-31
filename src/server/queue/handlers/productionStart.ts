@@ -3,7 +3,11 @@ import { ProductionDeployError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { getProductionPath } from "@/server/projects/paths";
+import {
+	getProductionContainerName,
+	getProductionImageName,
+	getProductionPath,
+} from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { enqueueProductionWaitReady } from "../enqueue";
@@ -60,7 +64,10 @@ export function handleProductionStart(
 
 		yield* stopProductionContainer(project.id);
 
-		const imageName = `doce-prod-${project.id}-${payload.productionHash}`;
+		const imageName = getProductionImageName(
+			project.id,
+			payload.productionHash,
+		);
 		logger.info(
 			{ projectId: project.id, imageName },
 			"Building production Docker image",
@@ -115,7 +122,7 @@ export function handleProductionStart(
 
 		yield* ctx.throwIfCancelRequested();
 
-		const containerName = `doce-prod-${project.id}`;
+		const containerName = getProductionContainerName(project.id);
 		logger.info(
 			{ projectId: project.id, containerName, productionPort },
 			"Starting production container",
@@ -242,7 +249,7 @@ function stopProductionContainer(
 	projectId: string,
 ): Effect.Effect<void, never> {
 	return Effect.gen(function* () {
-		const containerName = `doce-prod-${projectId}`;
+		const containerName = getProductionContainerName(projectId);
 
 		yield* Effect.tryPromise({
 			try: () => spawnCommand("docker", ["stop", containerName]),

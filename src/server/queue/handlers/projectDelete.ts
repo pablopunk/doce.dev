@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
 import {
+	getProductionContainerName,
 	getProjectPreviewPath,
 	normalizeProjectPath,
 } from "@/server/projects/paths";
@@ -70,7 +71,7 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 			);
 
 			// Stop production container
-			const containerName = `doce-prod-${project.id}`;
+			const containerName = getProductionContainerName(project.id);
 			const stopResult = await spawnCommand("docker", ["stop", containerName]);
 			const removeResult = await spawnCommand("docker", ["rm", containerName]);
 
@@ -82,7 +83,7 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 			}
 
 			// Clean up Docker images (best-effort)
-			const imagePrefix = `doce-prod-${project.id}-`;
+			const imagePrefix = `${getProductionContainerName(project.id)}-`;
 			const listResult = await spawnCommand("docker", [
 				"images",
 				imagePrefix,

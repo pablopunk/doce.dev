@@ -64,7 +64,8 @@ export function FilesTab({
 	const [fileContent, setFileContent] = useState<string>("");
 	const [isLoadingTree, setIsLoadingTree] = useState(true);
 	const [isLoadingContent, setIsLoadingContent] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const [contentError, setContentError] = useState<string | null>(null);
+	const [treeError, setTreeError] = useState<string | null>(null);
 	const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 	const [mobilePane, setMobilePane] = useState<MobilePane>("tree");
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -96,6 +97,34 @@ export function FilesTab({
 		setExpandedPaths(paths);
 	}, []);
 
+	/**
+	 * Check if a path corresponds to a directory in the loaded file tree.
+	 */
+	const isDirectoryPath = useCallback(
+		(targetPath: string, nodes: FileTreeNode[]): boolean => {
+			for (const node of nodes) {
+				if (node.path === targetPath && node.type === "directory") return true;
+				if (node.children && isDirectoryPath(targetPath, node.children))
+					return true;
+			}
+			return false;
+		},
+		[],
+	);
+
+	/**
+	 * Expand a directory path (and its ancestors) in the tree without fetching content.
+	 */
+	const expandDirectory = useCallback((dirPath: string) => {
+		const ancestors = getAncestorPaths(`${dirPath}/dummy`);
+		setExpandedPaths((prev) => {
+			const next = new Set(prev);
+			next.add(dirPath);
+			for (const a of ancestors) next.add(a);
+			return next;
+		});
+	}, []);
+
 	const handleFileSelect = useCallback(
 		async (path: string, notifyParent: boolean = true) => {
 			const requestId = latestFileRequestRef.current + 1;
@@ -104,7 +133,7 @@ export function FilesTab({
 			try {
 				setSelectedPath(path);
 				setIsLoadingContent(true);
-				setError(null);
+				setContentError(null);
 
 				const response = await fetch(
 					`/api/projects/${projectId}/files?path=${encodeURIComponent(path)}`,
@@ -121,7 +150,7 @@ export function FilesTab({
 				}
 
 				if (data.error) {
-					setError(data.error);
+					setContentError(data.error);
 					setFileContent("");
 				} else {
 					setFileContent(data.content);
@@ -130,7 +159,9 @@ export function FilesTab({
 					}
 				}
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to load file");
+				setContentError(
+					err instanceof Error ? err.message : "Failed to load file",
+				);
 				setFileContent("");
 			} finally {
 				if (requestId === latestFileRequestRef.current) {
@@ -153,7 +184,7 @@ export function FilesTab({
 		const fetchFileTree = async () => {
 			try {
 				setIsLoadingTree(true);
-				setError(null);
+				setTreeError(null);
 
 				const response = await fetch(`/api/projects/${projectId}/files`);
 				if (!response.ok) {
@@ -163,13 +194,15 @@ export function FilesTab({
 				const data = (await response.json()) as FilesTreeResponse;
 
 				if (data.error) {
-					setError(data.error);
+					setTreeError(data.error);
 					setFiles([]);
 				} else {
 					setFiles(data.tree || []);
 				}
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to fetch files");
+				setTreeError(
+					err instanceof Error ? err.message : "Failed to fetch files",
+				);
 				setFiles([]);
 			} finally {
 				setIsLoadingTree(false);
@@ -189,6 +222,13 @@ export function FilesTab({
 			return;
 		}
 
+		// If the path is a directory, just expand it in the tree
+		if (isDirectoryPath(lastSelectedFile, files)) {
+			expandDirectory(lastSelectedFile);
+			setSelectedPath(lastSelectedFile);
+			return;
+		}
+
 		const ancestors = getAncestorPaths(lastSelectedFile);
 		setExpandedPaths((prev) => {
 			const next = new Set(prev);
@@ -204,10 +244,12 @@ export function FilesTab({
 		}
 	}, [
 		lastSelectedFile,
-		files.length,
+		files,
 		selectedPath,
 		isLoadingContent,
 		handleFileSelect,
+		isDirectoryPath,
+		expandDirectory,
 		isMobile,
 	]);
 
@@ -222,13 +264,13 @@ export function FilesTab({
 		);
 	}
 
-	if (error) {
+	if (treeError) {
 		return (
 			<div className="flex items-center justify-center h-full">
 				<div className="flex flex-col items-center gap-2 text-center p-4">
 					<AlertTriangle className="h-8 w-8 text-status-error" />
 					<p className="text-sm text-status-error font-medium">Error</p>
-					<p className="text-xs text-muted-foreground max-w-xs">{error}</p>
+					<p className="text-xs text-muted-foreground max-w-xs">{treeError}</p>
 				</div>
 			</div>
 		);
@@ -285,6 +327,7 @@ export function FilesTab({
 										filePath={selectedPath}
 										content={fileContent}
 										isLoading={isLoadingContent}
+										error={contentError}
 									/>
 								) : (
 									<div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
@@ -330,6 +373,7 @@ export function FilesTab({
 									filePath={selectedPath}
 									content={fileContent}
 									isLoading={isLoadingContent}
+									error={contentError}
 								/>
 							) : (
 								<div className="flex items-center justify-center h-full text-muted-foreground">

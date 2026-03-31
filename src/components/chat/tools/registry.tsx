@@ -121,16 +121,28 @@ function getFullFilePath(input: unknown): string | null {
 
 	if (!filePath) return null;
 
-	// Normalize path from container absolute to relative
-	// OpenCode returns paths like /app/src/layouts/Layout.astro
-	// Files API expects paths relative to src/ like layouts/Layout.astro
-	if (filePath.startsWith("/app/src/")) {
-		return filePath.replace("/app/src/", "");
+	// Normalize path to be relative to the project's src/ directory.
+	// OpenCode may return:
+	//   - Docker absolute: /app/src/layouts/Layout.astro
+	//   - Local absolute:  /Users/.../preview/src/pages/index.astro
+	//   - Relative:        src/pages/index.astro
+	// Files API expects paths relative to src/ like pages/index.astro
+	// Handle paths ending exactly with "/src" (no trailing slash)
+	if (filePath.endsWith("/src") || filePath === "src") return null;
+
+	const srcMarker = "/src/";
+	const srcIndex = filePath.lastIndexOf(srcMarker);
+	if (srcIndex !== -1) {
+		const relative = filePath.slice(srcIndex + srcMarker.length);
+		return relative || null;
 	}
-	// Handle case where path is already relative
 	if (filePath.startsWith("src/")) {
-		return filePath.replace("src/", "");
+		const relative = filePath.slice(4);
+		return relative || null;
 	}
+
+	// Paths outside src/ (e.g. "/app", "package.json") can't be opened
+	if (filePath.startsWith("/")) return null;
 
 	return filePath;
 }
