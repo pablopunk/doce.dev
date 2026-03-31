@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
+import { deleteProjectBootstrapSession } from "@/server/opencode/projectSessions";
 import { getProductionPath, getProjectPath } from "./paths";
 import {
 	getProjectById,
@@ -17,10 +18,11 @@ export interface DeleteProjectResult {
 /**
  * Delete a project completely.
  * This handles:
- * 1. Stop and remove Docker containers + volumes
- * 2. Delete project directory
- * 3. Delete production directory
- * 4. Remove DB record (final, atomic step)
+ * 1. Delete the project's OpenCode session from the central runtime
+ * 2. Stop and remove Docker containers + volumes
+ * 3. Delete project directory
+ * 4. Delete production directory
+ * 5. Remove DB record (final, atomic step)
  *
  * Note: This function does synchronous deletion. For long-running deletions,
  * use the queue system (enqueueProjectDelete) instead, which handles the
@@ -39,7 +41,19 @@ export async function deleteProject(
 
 	const projectPath = getProjectPath(projectId);
 
-	// Step 1: Stop and remove Docker containers
+	// Step 1: Delete OpenCode session from the central runtime
+	// This is best-effort since the session may already be gone
+	try {
+		await deleteProjectBootstrapSession(project);
+	} catch (err) {
+		logger.warn(
+			{ error: err, projectId, sessionId: project.bootstrapSessionId },
+			"Failed to delete project OpenCode session",
+		);
+		// Continue - OpenCode cleanup failure doesn't block deletion
+	}
+
+	// Step 2: Stop and remove Docker containers
 	// This is best-effort since Docker might not be available
 	try {
 		await composeDownWithVolumes(projectId, projectPath);
@@ -52,7 +66,7 @@ export async function deleteProject(
 		// Continue - Docker failure doesn't block deletion
 	}
 
-	// Step 2: Delete project directory
+	// Step 3: Delete project directory
 	// This is best-effort since the directory might have permission issues
 	try {
 		await fs.rm(projectPath, { recursive: true, force: true });
@@ -65,7 +79,7 @@ export async function deleteProject(
 		// Continue - file deletion doesn't block database deletion
 	}
 
-	// Step 3: Delete entire production directory tree
+	// Step 4: Delete entire production directory tree
 	// This is best-effort since production might not exist
 	try {
 		// Get the project-level production directory (contains all version hashes and symlink)
@@ -83,7 +97,7 @@ export async function deleteProject(
 		// Continue - file deletion doesn't block database deletion
 	}
 
-	// Step 4: Remove from database (critical step - must succeed)
+	// Step 5: Remove from database (critical step - must succeed)
 	// This is the final, atomic operation. If this fails, abort the deletion.
 	try {
 		await hardDeleteProject(projectId);

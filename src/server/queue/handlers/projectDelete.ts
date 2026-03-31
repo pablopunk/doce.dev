@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
 import { logger } from "@/server/logger";
+import { deleteProjectBootstrapSession } from "@/server/opencode/projectSessions";
 import {
 	getProductionContainerName,
 	getProjectPreviewPath,
@@ -20,9 +21,10 @@ import { parsePayload } from "../types";
  *
  * Deletion steps (in order):
  * 1. Mark status as "deleting" to prevent new operations
- * 2. Stop and remove Docker containers + volumes (best-effort)
- * 3. Delete project files from disk (best-effort)
- * 4. Hard-delete from database (critical, must succeed)
+ * 2. Delete the project's OpenCode session from the central runtime (best-effort)
+ * 3. Stop and remove Docker containers + volumes (best-effort)
+ * 4. Delete project files from disk (best-effort)
+ * 5. Hard-delete from database (critical, must succeed)
  *
  * Each step can be cancelled via ctx.throwIfCancelRequested().
  * Best-effort steps continue on failure. The DB deletion is critical
@@ -60,15 +62,27 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 
 		await ctx.throwIfCancelRequested();
 
-		// Step 2: Stop and remove Docker containers (best-effort)
+		// Step 2: Delete OpenCode session from the central runtime (best-effort)
 		try {
-			// Stop dev containers (preview + opencode)
+			await deleteProjectBootstrapSession(project);
+		} catch (error) {
+			logger.warn(
+				{
+					error,
+					projectId: project.id,
+					sessionId: project.bootstrapSessionId,
+				},
+				"Failed to delete project OpenCode session",
+			);
+		}
+
+		await ctx.throwIfCancelRequested();
+
+		// Step 3: Stop and remove Docker containers (best-effort)
+		try {
 			const previewPath = getProjectPreviewPath(project.id);
 			await composeDownWithVolumes(project.id, previewPath);
-			logger.debug(
-				{ projectId: project.id },
-				"Dev containers stopped (preview + opencode)",
-			);
+			logger.debug({ projectId: project.id }, "Preview containers stopped");
 
 			// Stop production container
 			const containerName = getProductionContainerName(project.id);
@@ -111,7 +125,7 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 
 		await ctx.throwIfCancelRequested();
 
-		// Step 3: Delete project files from disk (best-effort)
+		// Step 4: Delete project files from disk (best-effort)
 		try {
 			await fs.rm(projectDir, { recursive: true, force: true });
 			logger.debug({ projectId: project.id }, "Deleted project directory");
@@ -124,7 +138,7 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 
 		await ctx.throwIfCancelRequested();
 
-		// Step 4: Hard-delete from database (CRITICAL - must succeed)
+		// Step 5: Hard-delete from database (CRITICAL - must succeed)
 		await hardDeleteProject(project.id);
 		logger.info(
 			{ projectId: project.id },
