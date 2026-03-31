@@ -4,7 +4,10 @@ import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
 import { validateApiKey } from "@/server/opencode/apiKeyValidation";
-import { listConnectedProviderIds } from "@/server/opencode/authFile";
+import {
+	listConnectedProviderIds,
+	removeProvider,
+} from "@/server/opencode/authFile";
 import { getOpencodeClient } from "@/server/opencode/client";
 import {
 	getAvailableModels,
@@ -14,6 +17,8 @@ import {
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
 const AVAILABLE_MODELS_TTL_MS = 5 * 60_000;
+const AVAILABLE_MODELS_CACHE_PREFIX =
+	"cache:v1:action:providers.getAvailableModelsForUser:";
 
 interface AvailableModel {
 	id: string;
@@ -118,6 +123,7 @@ export const providers = {
 			}
 
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
+			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
 			return { success: true };
 		},
 	}),
@@ -128,8 +134,18 @@ export const providers = {
 		}),
 		handler: async (input) => {
 			const client = getOpencodeClient();
-			await client.auth.remove({ providerID: input.providerId });
+			const result = await client.auth.remove({ providerID: input.providerId });
+
+			if (result.error) {
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message: "Failed to remove provider credentials from OpenCode.",
+				});
+			}
+
+			await removeProvider(input.providerId);
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
+			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
 			return { success: true };
 		},
 	}),
@@ -179,6 +195,7 @@ export const providers = {
 			}
 
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
+			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
 			return { success: true };
 		},
 	}),

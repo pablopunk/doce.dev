@@ -1,0 +1,52 @@
+{
+  "version": 3,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "skillFolderHash": "928950704df8a8b885c03de5da626331e6f29cf8",
+      "pluginName": "example-skills",
+      "installedAt": "2026-03-31T18:08:39.739Z",
+      "updatedAt": "2026-03-31T18:08:39.739Z"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "3013fdeb8a11b10b1eb795ec3ae8bfca38f7c26d",
+      "installedAt": "2026-03-31T18:08:42.517Z",
+      "updatedAt": "2026-03-31T18:08:42.517Z"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills.git",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "skillFolderHash": "3116f3e62dbd02b44a598b1aa690d2a8938e8f89",
+      "installedAt": "2026-03-31T18:08:45.231Z",
+      "updatedAt": "2026-03-31T18:08:45.231Z"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills.git",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "skillFolderHash": "190395c0dca241d4edfe36e585373e68ae7fbfa6",
+      "installedAt": "2026-03-31T18:08:47.665Z",
+      "updatedAt": "2026-03-31T18:08:47.665Z"
+    },
+    "astro": {
+      "source": "astrolicious/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/astrolicious/agent-skills.git",
+      "skillPath": "skills/astro/SKILL.md",
+      "skillFolderHash": "81d96cec5008970ed8fbecb23f7fb48536102b84",
+      "installedAt": "2026-03-31T18:08:50.792Z",
+      "updatedAt": "2026-03-31T18:08:50.792Z"
+    }
+  },
+  "dismissed": {}
+}

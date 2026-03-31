@@ -116,7 +116,7 @@ interface OpencodeProvider {
  * Get all available models from connected providers via OpenCode, sorted by input cost (cheapest first)
  */
 export async function getAvailableModels(
-	_connectedProviderIds: string[],
+	connectedProviderIds: string[],
 ): Promise<
 	Array<{
 		id: string;
@@ -131,6 +131,7 @@ export async function getAvailableModels(
 			try: async () => {
 				const client = getOpencodeClient();
 				const response = await client.config.providers();
+				const connectedProviderIdSet = new Set(connectedProviderIds);
 
 				if (!response.data?.providers) {
 					logger.warn("No providers returned from OpenCode");
@@ -148,6 +149,10 @@ export async function getAvailableModels(
 
 				for (const provider of response.data.providers as OpencodeProvider[]) {
 					if (!provider?.models) {
+						continue;
+					}
+
+					if (!connectedProviderIdSet.has(provider.id)) {
 						continue;
 					}
 
