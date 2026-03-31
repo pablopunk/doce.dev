@@ -37,9 +37,9 @@
 
 ## Phase 3 - MCP Core
 - [x] Add MCP settings management for default servers
-  - [ ] context7
+  - [x] context7
   - [ ] exa
-  - [ ] gh_grep
+  - [x] gh_grep
 - [x] Implement OpenCode-native MCP actions in UI
   - [ ] Authenticate
   - [ ] Logout
@@ -51,17 +51,17 @@
 - [ ] Add capability probe to set initial effective state from real status
 
 ## Phase 4 - Defaults and Bootstrap
-- [ ] Ensure these skills are installed and enabled globally
-  - [ ] anthropics/skills/frontend-design
-  - [ ] vercel-labs/skills/find-skills
-  - [ ] vercel-labs/agent-skills/web-design-guidelines
-  - [ ] vercel-labs/agent-skills/vercel-react-best-practices
-  - [ ] astrolicious/agent-skills/astro
-- [ ] Add post-setup background bootstrap job for defaults
-  - [ ] Idempotent execution
-  - [ ] Install/enable default skills
-  - [ ] Apply MCP defaults
-  - [ ] Non-blocking behavior on partial failure with warning status
+- [x] Ensure these skills are installed and enabled globally
+  - [x] anthropics/skills/frontend-design
+  - [x] vercel-labs/skills/find-skills
+  - [x] vercel-labs/agent-skills/web-design-guidelines
+  - [x] vercel-labs/agent-skills/vercel-react-best-practices
+  - [x] astrolicious/agent-skills/astro
+- [x] Add post-setup background bootstrap job for defaults
+  - [x] Idempotent execution
+  - [x] Install/enable default skills
+  - [x] Apply MCP defaults
+  - [x] Non-blocking behavior on partial failure with warning status
 
 ## Phase 5 - Propagation to Existing Projects
 - [ ] Add settings propagation controls
