@@ -1,4 +1,4 @@
-import { Download, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
+import { Download, ExternalLink, Loader2, Search, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ function SearchResultRow({
 	name,
 	source,
 	installs,
+	skillId,
 	onInstall,
 	isInstalling,
 	isInstalled,
@@ -72,10 +73,12 @@ function SearchResultRow({
 	name: string;
 	source: string;
 	installs: number;
+	skillId: string;
 	onInstall: () => void;
 	isInstalling: boolean;
 	isInstalled: boolean;
 }) {
+	const skillUrl = `https://skills.sh/${source}/${skillId}`;
 	return (
 		<div className="flex items-center justify-between gap-3 py-2">
 			<div className="min-w-0">
@@ -87,20 +90,30 @@ function SearchResultRow({
 				</div>
 				<p className="text-xs text-muted-foreground truncate">{source}</p>
 			</div>
-			<Button
-				variant="outline"
-				size="sm"
-				onClick={onInstall}
-				disabled={isInstalling || isInstalled}
-				className="shrink-0"
-			>
-				{isInstalling ? (
-					<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-				) : (
-					<Download className="mr-1.5 size-3.5" />
-				)}
-				{isInstalled ? "Installed" : "Install"}
-			</Button>
+			<div className="flex items-center gap-2 shrink-0">
+				<Button
+					variant="ghost"
+					size="sm"
+					asChild
+				>
+					<a href={skillUrl} target="_blank" rel="noopener noreferrer">
+						<ExternalLink className="size-3.5" />
+					</a>
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={onInstall}
+					disabled={isInstalling || isInstalled}
+				>
+					{isInstalling ? (
+						<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+					) : (
+						<Download className="mr-1.5 size-3.5" />
+					)}
+					{isInstalled ? "Installed" : "Install"}
+				</Button>
+			</div>
 		</div>
 	);
 }
@@ -195,6 +208,7 @@ export function SkillsSettings() {
 										name={skill.name}
 										source={skill.source}
 										installs={skill.installs}
+										skillId={skill.skillId}
 										onInstall={() => install(skill.source, skill.skillId)}
 										isInstalling={
 											pendingAction === `${skill.source}/${skill.skillId}`
