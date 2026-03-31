@@ -39,10 +39,11 @@ export function useMcps() {
 		}
 	}, []);
 
-	const addServer = useCallback(
+	const saveServer = useCallback(
 		async (
 			name: string,
 			config: Omit<McpServerConfig, "enabled"> & { enabled?: boolean },
+			successMessage: string,
 		) => {
 			setPendingAction(name);
 			try {
@@ -56,17 +57,37 @@ export function useMcps() {
 					headers: config.headers,
 				});
 				if (error) throw new Error(error.message);
-				toast.success(`Added "${name}"`);
+				toast.success(successMessage);
 				await refresh();
 			} catch (err) {
 				toast.error(
-					err instanceof Error ? err.message : "Failed to add MCP server",
+					err instanceof Error ? err.message : "Failed to save MCP server",
 				);
 			} finally {
 				setPendingAction(null);
 			}
 		},
 		[refresh],
+	);
+
+	const addServer = useCallback(
+		async (
+			name: string,
+			config: Omit<McpServerConfig, "enabled"> & { enabled?: boolean },
+		) => {
+			await saveServer(name, config, `Added "${name}"`);
+		},
+		[saveServer],
+	);
+
+	const updateServer = useCallback(
+		async (
+			name: string,
+			config: Omit<McpServerConfig, "enabled"> & { enabled?: boolean },
+		) => {
+			await saveServer(name, config, `Updated "${name}"`);
+		},
+		[saveServer],
 	);
 
 	const removeServer = useCallback(
@@ -116,6 +137,7 @@ export function useMcps() {
 		isLoading,
 		pendingAction,
 		addServer,
+		updateServer,
 		removeServer,
 		toggleServer,
 		refresh,
