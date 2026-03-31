@@ -1,4 +1,5 @@
 import type { QueueJob } from "@/server/db/schema";
+import { getPrewarmStatus } from "@/server/docker/prewarm";
 import { isGlobalOpencodeHealthy } from "@/server/opencode/runtime";
 import {
 	countJobs,
@@ -58,6 +59,10 @@ export interface SettingsStatusDiagnostics {
 		lastJobState: QueueJob["state"] | null;
 	};
 	checks: StatusDiagnosticItem[];
+	prewarm: {
+		phase: string;
+		error: string | null;
+	};
 }
 
 function validateJobState(stateParam: string): QueueJob["state"] | undefined {
@@ -160,7 +165,25 @@ export async function getQueueStatusPageData(
 	};
 }
 
+function prewarmStatusLabel(phase: string): string {
+	switch (phase) {
+		case "idle":
+			return "Pending";
+		case "pulling":
+			return "Pulling images…";
+		case "building":
+			return "Building layers…";
+		case "done":
+			return "Ready";
+		case "failed":
+			return "Failed";
+		default:
+			return phase;
+	}
+}
+
 export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiagnostics> {
+	const prewarm = getPrewarmStatus();
 	const [
 		paused,
 		concurrency,
@@ -222,6 +245,22 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 				description:
 					"Shared dependency cache volume for preview and production builds.",
 			},
+			{
+				label: "Image prewarm",
+				status:
+					prewarm.phase === "done"
+						? "healthy"
+						: prewarm.phase === "failed"
+							? "warning"
+							: "healthy",
+				value: prewarmStatusLabel(prewarm.phase),
+				description:
+					"Pre-pulls base Docker images at startup so first project creation is fast.",
+			},
 		],
+		prewarm: {
+			phase: prewarm.phase,
+			error: prewarm.error,
+		},
 	};
 }

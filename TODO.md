@@ -6,11 +6,11 @@
   - [ ] MCPs tab
   - [ ] Skills tab
   - [ ] General tab
-- [ ] Add first-boot image prewarm for Astro template runtime
-  - [ ] Run on app startup checks (non-blocking)
-  - [ ] Pre-pull/pre-build what `templates/astro-starter/docker-compose.yml` needs
-  - [ ] Pre-pull/pre-build what `templates/astro-starter/docker-compose.production.yml` needs
-  - [ ] Surface status so users know warmup is in progress/completed
+- [x] Add first-boot image prewarm for Astro template runtime
+  - [x] Run on app startup checks (non-blocking)
+  - [x] Pre-pull/pre-build what `templates/astro-starter/docker-compose.yml` needs
+  - [x] Pre-pull/pre-build what `templates/astro-starter/docker-compose.production.yml` needs
+  - [x] Surface status so users know warmup is in progress/completed
 - [ ] Run integration operations through existing queue
   - [ ] Skills discovery sync
   - [ ] Skill install/remove/update

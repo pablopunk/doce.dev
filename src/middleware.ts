@@ -11,6 +11,7 @@ import {
 	ensureDoceSharedNetwork,
 	ensureGlobalPnpmVolume,
 } from "@/server/docker/compose";
+import { startImagePrewarm } from "@/server/docker/prewarm";
 import { ensureEffectQueueWorkerStarted } from "@/server/effect";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
@@ -24,6 +25,7 @@ async function ensureInitialized() {
 		await ensureDoceSharedNetwork();
 		await ensureGlobalPnpmVolume();
 		await ensureGlobalOpencodeStarted();
+		startImagePrewarm();
 		startupInitialized = true;
 	} catch (error) {
 		logger.error({ error }, "[Middleware] Initial startup failed");
