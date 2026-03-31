@@ -112,8 +112,55 @@ interface OpencodeProvider {
 	models: Record<string, OpencodeModel>;
 }
 
+export function collectAvailableModelsFromProviders(
+	providers: OpencodeProvider[],
+): Array<{
+	id: string;
+	name: string;
+	provider: string;
+	vendor: string;
+	supportsImages?: boolean;
+}> {
+	const available: Array<{
+		id: string;
+		name: string;
+		provider: string;
+		vendor: string;
+		supportsImages: boolean;
+		cost: number;
+	}> = [];
+
+	for (const provider of providers) {
+		if (!provider?.models) {
+			continue;
+		}
+
+		for (const [modelId, model] of Object.entries(provider.models)) {
+			const vendor = resolveModelVendor(provider.id, modelId);
+			available.push({
+				id: modelId,
+				name: model.name || modelId,
+				provider: provider.id,
+				vendor,
+				supportsImages: model.capabilities?.input?.image ?? false,
+				cost: model.cost?.input ?? 0,
+			});
+		}
+	}
+
+	available.sort((a, b) => a.cost - b.cost);
+
+	return available.map(({ id, name, provider, vendor, supportsImages }) => ({
+		id,
+		name,
+		provider,
+		vendor,
+		supportsImages,
+	}));
+}
+
 /**
- * Get all available models from connected providers via OpenCode, sorted by input cost (cheapest first)
+ * Get all available models from the central OpenCode runtime, sorted by input cost (cheapest first)
  */
 export async function getAvailableModels(): Promise<
 	Array<{
@@ -135,43 +182,8 @@ export async function getAvailableModels(): Promise<
 					return [];
 				}
 
-				const available: Array<{
-					id: string;
-					name: string;
-					provider: string;
-					vendor: string;
-					supportsImages: boolean;
-					cost: number;
-				}> = [];
-
-				for (const provider of response.data.providers as OpencodeProvider[]) {
-					if (!provider?.models) {
-						continue;
-					}
-
-					for (const [modelId, model] of Object.entries(provider.models)) {
-						const vendor = resolveModelVendor(provider.id, modelId);
-						available.push({
-							id: modelId,
-							name: model.name || modelId,
-							provider: provider.id,
-							vendor,
-							supportsImages: model.capabilities?.input?.image ?? false,
-							cost: model.cost?.input ?? 0,
-						});
-					}
-				}
-
-				available.sort((a, b) => a.cost - b.cost);
-
-				return available.map(
-					({ id, name, provider, vendor, supportsImages }) => ({
-						id,
-						name,
-						provider,
-						vendor,
-						supportsImages,
-					}),
+				return collectAvailableModelsFromProviders(
+					response.data.providers as OpencodeProvider[],
 				);
 			},
 			catch: (error) =>

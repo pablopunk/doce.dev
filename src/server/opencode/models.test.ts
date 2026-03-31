@@ -1,5 +1,8 @@
 import { toVendorSlug } from "@/lib/modelVendor";
-import { resolveModelVendor } from "./models";
+import {
+	collectAvailableModelsFromProviders,
+	resolveModelVendor,
+} from "./models";
 
 interface TestResult {
 	test: string;
@@ -73,6 +76,61 @@ test("x-ai provider alias normalizes to xai", () => {
 
 test("OpenCode unknown model falls back to opencode provider slug", () => {
 	assertEqual(resolveModelVendor("opencode", "custom-model"), "opencode");
+});
+
+test("collectAvailableModelsFromProviders includes built-in opencode models without auth filtering", () => {
+	const models = collectAvailableModelsFromProviders([
+		{
+			id: "opencode",
+			name: "OpenCode",
+			models: {
+				"qwen3.6-plus-free": {
+					id: "qwen3.6-plus-free",
+					providerID: "opencode",
+					name: "Qwen3.6 Plus Free",
+					capabilities: {
+						temperature: true,
+						reasoning: true,
+						attachment: false,
+						toolcall: true,
+						input: {
+							text: true,
+							audio: false,
+							image: false,
+							video: false,
+							pdf: false,
+						},
+						output: {
+							text: true,
+							audio: false,
+							image: false,
+							video: false,
+							pdf: false,
+						},
+						interleaved: false,
+					},
+					cost: {
+						input: 0,
+						output: 0,
+						cache: {
+							read: 0,
+							write: 0,
+						},
+					},
+					limit: {
+						context: 262144,
+						output: 64000,
+					},
+					status: "active",
+				},
+			},
+		},
+	]);
+
+	assertEqual(models.length, 1);
+	assertEqual(models[0]?.provider, "opencode");
+	assertEqual(models[0]?.id, "qwen3.6-plus-free");
+	assertEqual(models[0]?.vendor, "opencode");
 });
 
 test("vendor slug strips punctuation for z.ai", () => {
