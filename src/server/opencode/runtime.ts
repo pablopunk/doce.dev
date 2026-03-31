@@ -42,10 +42,48 @@ async function ensureOpencodeDirectories(): Promise<void> {
 	await ensureGlobalOpencodeConfig();
 }
 
+function pickEnvironmentVariables(
+	keys: string[],
+	environment: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+	const picked: NodeJS.ProcessEnv = {};
+
+	for (const key of keys) {
+		const value = environment[key];
+		if (value !== undefined) {
+			picked[key] = value;
+		}
+	}
+
+	return picked;
+}
+
 function getOpencodeEnvironment(): NodeJS.ProcessEnv {
 	const dataPath = getDataPath();
+	const safeEnvironment = pickEnvironmentVariables(
+		[
+			"PATH",
+			"SHELL",
+			"LANG",
+			"LC_ALL",
+			"LC_CTYPE",
+			"TERM",
+			"TERM_PROGRAM",
+			"TERM_PROGRAM_VERSION",
+			"COLORTERM",
+			"TMPDIR",
+			"TMP",
+			"TEMP",
+			"TZ",
+			"USER",
+			"LOGNAME",
+			"SSH_AUTH_SOCK",
+		],
+		process.env,
+	);
+
 	return {
-		...process.env,
+		...safeEnvironment,
 		HOME: dataPath,
 		XDG_CONFIG_HOME: dataPath,
 		XDG_DATA_HOME: dataPath,
@@ -72,8 +110,9 @@ async function waitForOpencodeReady(): Promise<void> {
 
 async function startOpencodeProcess(): Promise<void> {
 	if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
-		logger.debug("Central OpenCode runtime already healthy");
-		return;
+		throw new Error(
+			`OpenCode port ${getOpencodePort()} is already in use by another process. Set DOCE_OPENCODE_PORT to a dedicated port for doce.dev.`,
+		);
 	}
 
 	await ensureOpencodeDirectories();

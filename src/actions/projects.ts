@@ -46,7 +46,7 @@ export const projects = {
 				});
 			}
 
-			const availableModels = await getAvailableModels([]);
+			const availableModels = await getAvailableModels();
 			if (availableModels.length === 0) {
 				throw new ActionError({
 					code: "BAD_REQUEST",

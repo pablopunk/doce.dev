@@ -115,9 +115,7 @@ interface OpencodeProvider {
 /**
  * Get all available models from connected providers via OpenCode, sorted by input cost (cheapest first)
  */
-export async function getAvailableModels(
-	connectedProviderIds: string[],
-): Promise<
+export async function getAvailableModels(): Promise<
 	Array<{
 		id: string;
 		name: string;
@@ -131,7 +129,6 @@ export async function getAvailableModels(
 			try: async () => {
 				const client = getOpencodeClient();
 				const response = await client.config.providers();
-				const connectedProviderIdSet = new Set(connectedProviderIds);
 
 				if (!response.data?.providers) {
 					logger.warn("No providers returned from OpenCode");
@@ -149,10 +146,6 @@ export async function getAvailableModels(
 
 				for (const provider of response.data.providers as OpencodeProvider[]) {
 					if (!provider?.models) {
-						continue;
-					}
-
-					if (!connectedProviderIdSet.has(provider.id)) {
 						continue;
 					}
 
@@ -194,19 +187,14 @@ export async function getAvailableModels(
 /**
  * Get the fastest/cheapest model suitable for auto-naming from available providers
  */
-export async function getAutonameModel(
-	connectedProviderIds: string[],
-): Promise<string | null> {
+export async function getAutonameModel(): Promise<string | null> {
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const available = await getAvailableModels(connectedProviderIds);
+				const available = await getAvailableModels();
 
 				if (available.length === 0) {
-					logger.warn(
-						{ connectedProviderIds },
-						"No available models for autoname selection",
-					);
+					logger.warn("No available models for autoname selection");
 					return null;
 				}
 

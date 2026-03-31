@@ -33,6 +33,8 @@ interface ProviderAuthMethod {
 	label: string;
 }
 
+type ProviderSource = "env" | "config" | "custom" | "api";
+
 function getProviderMethods(
 	provider: { env?: string[] },
 	methods: ProviderAuthMethod[] | undefined,
@@ -59,21 +61,26 @@ export const providers = {
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
 			async () => {
 				const client = getOpencodeClient();
-				const [providerResponse, authResponse] = await Promise.all([
-					client.provider.list(),
-					client.provider.auth(),
-				]);
+				const [providerResponse, authResponse, authBackedIds] =
+					await Promise.all([
+						client.provider.list(),
+						client.provider.auth(),
+						listConnectedProviderIds(),
+					]);
 
 				const providerData = providerResponse.data;
 				const authData = authResponse.data || {};
-				const connectedIds = new Set(await listConnectedProviderIds());
+				const connectedIds = new Set(providerData?.connected || []);
+				const disconnectableIds = new Set(authBackedIds);
 
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
 					(provider) => ({
 						id: provider.id,
 						name: provider.name,
 						env: provider.env,
+						source: (provider.source || "custom") as ProviderSource,
 						connected: connectedIds.has(provider.id),
+						disconnectable: disconnectableIds.has(provider.id),
 						methods: getProviderMethods(
 							provider,
 							(authData[provider.id] || []) as ProviderAuthMethod[],
@@ -206,15 +213,7 @@ export const providers = {
 			{ ttlMs: AVAILABLE_MODELS_TTL_MS },
 			async (): Promise<{ models: AvailableModel[] }> => {
 				try {
-					const connectedProviderIds = await listConnectedProviderIds();
-
-					if (connectedProviderIds.length === 0) {
-						return { models: [] };
-					}
-
-					// Get all available models from connected providers
-					const availableModels =
-						await getAvailableModels(connectedProviderIds);
+					const availableModels = await getAvailableModels();
 
 					// Enrich with vision support data
 					const enrichedModels: AvailableModel[] = [];

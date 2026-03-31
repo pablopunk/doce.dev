@@ -35,7 +35,9 @@ interface Provider {
 	id: string;
 	name: string;
 	env: string[];
+	source: "env" | "config" | "custom" | "api";
 	connected: boolean;
+	disconnectable: boolean;
 	methods: ProviderMethod[];
 }
 
@@ -232,11 +234,19 @@ export function ProvidersSettings() {
 	}
 
 	async function handleDisconnect(providerId: string) {
+		const provider = providers.find((item) => item.id === providerId);
+		if (!provider?.disconnectable) {
+			toast.info(
+				provider?.source === "env"
+					? "This provider comes from environment variables and cannot be disconnected here."
+					: "This provider cannot be disconnected here.",
+			);
+			return;
+		}
+
 		try {
 			await actions.providers.disconnect({ providerId });
-			toast.success(
-				`Disconnected ${providers.find((provider) => provider.id === providerId)?.name || providerId}`,
-			);
+			toast.success(`Disconnected ${provider.name}`);
 			await reloadProviders();
 		} catch {
 			toast.error("Failed to disconnect provider");
@@ -250,8 +260,9 @@ export function ProvidersSettings() {
 					<CardHeader>
 						<CardTitle>Providers</CardTitle>
 						<CardDescription>
-							Manage AI provider credentials. Credentials are stored in the
-							central OpenCode runtime and shared across projects.
+							Connect provider credentials for this doce.dev instance. Runtime
+							providers discovered from environment variables or OpenCode config
+							appear below too, but can&apos;t always be disconnected here.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -267,8 +278,9 @@ export function ProvidersSettings() {
 			<CardHeader>
 				<CardTitle>Providers</CardTitle>
 				<CardDescription>
-					Manage AI provider credentials. Credentials are stored in the central
-					OpenCode runtime and shared across projects.
+					Connect provider credentials for this doce.dev instance. Runtime
+					providers discovered from environment variables or OpenCode config
+					appear below too, but can&apos;t always be disconnected here.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex h-full flex-col space-y-6">
@@ -453,19 +465,30 @@ export function ProvidersSettings() {
 										key={provider.id}
 										className="flex items-center justify-between rounded border p-3"
 									>
-										<div className="flex items-center gap-1">
-											<span className="font-medium">{provider.name}</span>
-											<span className="text-muted-foreground text-sm">
-												({provider.id})
-											</span>
+										<div className="flex flex-col gap-1">
+											<div className="flex items-center gap-1">
+												<span className="font-medium">{provider.name}</span>
+												<span className="text-muted-foreground text-sm">
+													({provider.id})
+												</span>
+											</div>
+											{!provider.disconnectable && (
+												<p className="text-muted-foreground text-sm">
+													{provider.source === "env"
+														? "Available through an environment variable on the server"
+														: "Available through OpenCode runtime configuration"}
+												</p>
+											)}
 										</div>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => handleDisconnect(provider.id)}
-										>
-											Disconnect
-										</Button>
+										{provider.disconnectable ? (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => handleDisconnect(provider.id)}
+											>
+												Disconnect
+											</Button>
+										) : null}
 									</div>
 								))}
 						</div>

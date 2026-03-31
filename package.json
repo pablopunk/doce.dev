@@ -7,7 +7,7 @@
 	"scripts": {
 		"bootstrap": "sh scripts/bootstrap.sh",
 		"postinstall": "command -v git >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
-		"dev": "astro dev",
+		"dev": "DOCE_OPENCODE_PORT=4097 astro dev",
 		"build": "astro build",
 		"preview": "astro preview",
 		"start": "node ./dist/server/entry.mjs",
