@@ -70,7 +70,8 @@ export const providers = {
 
 				const providerData = providerResponse.data;
 				const authData = authResponse.data || {};
-				const connectedIds = new Set(providerData?.connected || []);
+				const runtimeConnectedIds = new Set(providerData?.connected || []);
+				const authConnectedIds = new Set(authBackedIds);
 				const disconnectableIds = new Set(authBackedIds);
 
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
@@ -79,7 +80,9 @@ export const providers = {
 						name: provider.name,
 						env: provider.env,
 						source: (provider.source || "custom") as ProviderSource,
-						connected: connectedIds.has(provider.id),
+						connected:
+							runtimeConnectedIds.has(provider.id) ||
+							authConnectedIds.has(provider.id),
 						disconnectable: disconnectableIds.has(provider.id),
 						methods: getProviderMethods(
 							provider,
