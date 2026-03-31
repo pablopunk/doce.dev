@@ -37,6 +37,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run project previews
 ```
 
+You can optionally change the internal OpenCode runtime port with `DOCE_OPENCODE_PORT` if `4096` is already taken on the host or inside your environment (true if you already run opencoe on your docker host):
+
+```yaml
+services:
+  doce:
+    environment:
+      - DOCE_OPENCODE_PORT=4097
+```
+
+This does **not** change the web UI port exposed by doce.dev (`4321` in the example above). It only changes the internal central OpenCode runtime port used by the app.
+
 That's still the whole deployment story. Internally, `doce` now runs:
 
 - the Astro app
