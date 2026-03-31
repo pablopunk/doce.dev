@@ -1,11 +1,11 @@
 # Before Release TODO
 
 ## Phase 1 - Foundation
-- [ ] Refactor settings page to tabs
-  - [ ] Providers tab
-  - [ ] MCPs tab
-  - [ ] Skills tab
-  - [ ] General tab
+- [x] Refactor settings page to tabs
+  - [x] Providers tab
+  - [x] MCPs tab
+  - [x] Skills tab
+  - [x] General tab
 - [x] Add first-boot image prewarm for Astro template runtime
   - [x] Run on app startup checks (non-blocking)
   - [x] Pre-pull/pre-build what `templates/astro-starter/docker-compose.yml` needs
