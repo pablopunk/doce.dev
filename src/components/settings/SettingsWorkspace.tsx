@@ -1,37 +1,18 @@
-import {
-	Activity,
-	Globe,
-	LogOut,
-	ShieldAlert,
-	WandSparkles,
-} from "lucide-react";
+import { Cable, Settings, Sparkles, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { BaseUrlSettings } from "@/components/settings/BaseUrlSettings";
-import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
+import { GeneralSettings } from "@/components/settings/GeneralSettings";
+import { McpSettings } from "@/components/settings/McpSettings";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
-import { StatusSettings } from "@/components/settings/StatusSettings";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { SkillsSettings } from "@/components/settings/SkillsSettings";
 import { cn } from "@/lib/utils";
 import type { QueueJob } from "@/server/db/schema";
 import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
-type SettingsSectionId =
-	| "providers"
-	| "status"
-	| "base-url"
-	| "account"
-	| "danger";
+export type SettingsTabId = "providers" | "mcps" | "skills" | "general";
 
 interface SettingsWorkspaceProps {
 	projectCount: number;
-	initialTab?: SettingsSectionId;
+	initialTab?: SettingsTabId;
 	statusData: {
 		jobs: QueueJob[];
 		paused: boolean;
@@ -52,7 +33,7 @@ interface SettingsWorkspaceProps {
 	};
 }
 
-const sections = [
+const tabs = [
 	{
 		id: "providers",
 		label: "Providers",
@@ -60,103 +41,76 @@ const sections = [
 		icon: WandSparkles,
 	},
 	{
-		id: "status",
-		label: "Status",
-		description: "Queue, health, and runtime diagnostics",
-		icon: Activity,
+		id: "mcps",
+		label: "MCPs",
+		description: "Model Context Protocol servers",
+		icon: Cable,
 	},
 	{
-		id: "base-url",
-		label: "Base URL",
-		description: "Generated links and host defaults",
-		icon: Globe,
+		id: "skills",
+		label: "Skills",
+		description: "Agent skills from skills.sh",
+		icon: Sparkles,
 	},
 	{
-		id: "account",
-		label: "Account",
-		description: "Session and account actions",
-		icon: LogOut,
-	},
-	{
-		id: "danger",
-		label: "Danger Zone",
-		description: "Destructive instance-wide actions",
-		icon: ShieldAlert,
+		id: "general",
+		label: "General",
+		description: "Base URL, account, status, and more",
+		icon: Settings,
 	},
 ] as const satisfies Array<{
-	id: SettingsSectionId;
+	id: SettingsTabId;
 	label: string;
 	description: string;
 	icon: typeof WandSparkles;
 }>;
-
-function AccountSettingsCard() {
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Account</CardTitle>
-				<CardDescription>Manage your account settings.</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<LogoutButton />
-			</CardContent>
-		</Card>
-	);
-}
 
 export function SettingsWorkspace({
 	projectCount,
 	initialTab = "providers",
 	statusData,
 }: SettingsWorkspaceProps) {
-	const [activeSection, setActiveSection] =
-		useState<SettingsSectionId>(initialTab);
+	const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab);
 
-	const selectSection = (sectionId: SettingsSectionId) => {
-		setActiveSection(sectionId);
+	const selectTab = (tabId: SettingsTabId) => {
+		setActiveTab(tabId);
 		const url = new URL(window.location.href);
-		url.searchParams.set("tab", sectionId);
+		url.searchParams.set("tab", tabId);
 		window.history.replaceState({}, "", url);
 	};
 
 	const activeContent = useMemo(() => {
-		switch (activeSection) {
+		switch (activeTab) {
 			case "providers":
 				return <ProvidersSettings />;
-			case "status":
+			case "mcps":
+				return <McpSettings />;
+			case "skills":
+				return <SkillsSettings />;
+			case "general":
 				return (
-					<StatusSettings
-						initialJobs={statusData.jobs}
-						initialPaused={statusData.paused}
-						initialConcurrency={statusData.concurrency}
-						initialPagination={statusData.pagination}
-						filters={statusData.filters}
-						diagnostics={statusData.diagnostics}
+					<GeneralSettings
+						projectCount={projectCount}
+						statusData={statusData}
 					/>
 				);
-			case "base-url":
-				return <BaseUrlSettings />;
-			case "account":
-				return <AccountSettingsCard />;
-			case "danger":
-				return <DeleteAllProjectsSection projectCount={projectCount} />;
 		}
-	}, [activeSection, projectCount, statusData]);
+	}, [activeTab, projectCount, statusData]);
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
 			<aside className="lg:sticky lg:top-6">
 				<div className="rounded-2xl border border-border/60 bg-card/80 p-2 backdrop-blur-sm">
 					<nav className="grid gap-1">
-						{sections.map((section) => {
-							const Icon = section.icon;
-							const isActive = activeSection === section.id;
+						{tabs.map((tab) => {
+							const Icon = tab.icon;
+							const isActive = activeTab === tab.id;
 
 							return (
 								<button
-									key={section.id}
+									key={tab.id}
 									type="button"
-									onClick={() => selectSection(section.id)}
+									onClick={() => selectTab(tab.id)}
 									className={cn(
 										"flex items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors",
 										isActive
@@ -167,7 +121,7 @@ export function SettingsWorkspace({
 									<Icon className="mt-0.5 size-4 shrink-0" />
 									<span className="min-w-0">
 										<span className="block text-sm font-medium">
-											{section.label}
+											{tab.label}
 										</span>
 										<span
 											className={cn(
@@ -177,7 +131,7 @@ export function SettingsWorkspace({
 													: "text-muted-foreground",
 											)}
 										>
-											{section.description}
+											{tab.description}
 										</span>
 									</span>
 								</button>

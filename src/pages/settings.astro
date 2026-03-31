@@ -15,13 +15,14 @@ if (!user) {
 const projects = await getProjectsByUserId(user.id);
 const projectCount = projects.length;
 const tabParam = Astro.url.searchParams.get("tab");
+// Legacy tab IDs redirect to "general"
+const legacyTabs = ["status", "base-url", "account", "danger"];
 const initialTab =
-	tabParam === "status" ||
-	tabParam === "base-url" ||
-	tabParam === "account" ||
-	tabParam === "danger"
+	tabParam === "mcps" || tabParam === "skills" || tabParam === "general"
 		? tabParam
-		: "providers";
+		: legacyTabs.includes(tabParam ?? "")
+			? "general"
+			: "providers";
 
 const queueFilters: import("@/server/settings/status").QueueStatusFilters = {};
 const stateParam = Astro.url.searchParams.get("state");
