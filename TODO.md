@@ -20,31 +20,31 @@
 - [x] Link to /queue for full details and retries
 
 ## Phase 2 - skills.sh Core
-- [ ] Add backend skills service for skills.sh operations
-  - [ ] Discover/search
-  - [ ] Install
-  - [ ] Remove
+- [x] Add backend skills service for skills.sh operations
+  - [x] Discover/search
+  - [x] Install
+  - [x] Remove
   - [ ] Update
-- [ ] Build Skills tab UI
-  - [ ] Search/discovery list
-  - [ ] Installed skills list
-  - [ ] Install/remove/update actions
+- [x] Build Skills tab UI
+  - [x] Search/discovery list
+  - [x] Installed skills list
+  - [x] Install/remove/update actions
   - [ ] Global enable/disable state (all projects)
-- [ ] Show skill metadata before install
-  - [ ] owner/repo
-  - [ ] skill name
-  - [ ] install count
+- [x] Show skill metadata before install
+  - [x] owner/repo
+  - [x] skill name
+  - [x] install count
 
 ## Phase 3 - MCP Core
-- [ ] Add MCP settings management for default servers
+- [x] Add MCP settings management for default servers
   - [ ] context7
   - [ ] exa
   - [ ] gh_grep
-- [ ] Implement OpenCode-native MCP actions in UI
+- [x] Implement OpenCode-native MCP actions in UI
   - [ ] Authenticate
   - [ ] Logout
   - [ ] Test connection
-  - [ ] Enable/Disable
+  - [x] Enable/Disable
 - [ ] Apply initial MCP default-state rules
   - [ ] Auth-required MCPs start disabled
   - [ ] Free/no-auth MCPs start enabled
