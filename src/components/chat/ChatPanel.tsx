@@ -4,6 +4,7 @@ import { useChatPanel } from "@/hooks/useChatPanel";
 import type { Message } from "@/types/message";
 import { AgentThinkingIndicator } from "./AgentThinkingIndicator";
 import { AgentUnreachableBanner } from "./AgentUnreachableBanner";
+import { ChatDetachToggle } from "./ChatDetachToggle";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
@@ -24,6 +25,8 @@ interface ChatPanelProps {
 	onStreamingStateChange?:
 		| ((userMessageCount: number, isStreaming: boolean) => void)
 		| undefined;
+	/** Hide the detach toggle (e.g. when already floating) */
+	hideDetachToggle?: boolean;
 }
 
 export function ChatPanel({
@@ -31,6 +34,7 @@ export function ChatPanel({
 	models = [],
 	onOpenFile,
 	onStreamingStateChange,
+	hideDetachToggle = false,
 }: ChatPanelProps) {
 	const {
 		items,
@@ -81,6 +85,11 @@ export function ChatPanel({
 
 	return (
 		<div className="flex flex-col h-full">
+			{!hideDetachToggle && (
+				<div className="flex items-center justify-end px-2 py-1 border-b bg-muted/30 shrink-0">
+					<ChatDetachToggle />
+				</div>
+			)}
 			<div
 				className="flex-1 overflow-y-auto"
 				ref={scrollRef}

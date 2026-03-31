@@ -19,6 +19,7 @@ export default defineConfig({
 	output: "server",
 	security: {
 		checkOrigin: false,
+		actionBodySizeLimit: 10 * 1024 * 1024, // 10MB for file uploads
 	},
 	adapter: node({
 		mode: "standalone",

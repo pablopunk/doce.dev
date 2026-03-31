@@ -242,14 +242,19 @@ export function ChatInput({
 	};
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key !== "Enter") return;
+
+		const hasModifier = e.ctrlKey || e.metaKey || e.shiftKey;
+
+		if (hasModifier) {
+			// Modifier+Enter inserts a newline (default textarea behavior)
+			return;
+		}
+
+		// Plain Enter sends the message
+		e.preventDefault();
 		const hasContent = message.trim() || selectedImages.length > 0;
-		if (
-			(e.ctrlKey || e.metaKey) &&
-			e.key === "Enter" &&
-			hasContent &&
-			!disabled
-		) {
-			e.preventDefault();
+		if (hasContent && !disabled) {
 			handleSubmit(e);
 		}
 	};
@@ -277,7 +282,7 @@ export function ChatInput({
 						onKeyDown={handleKeyDown}
 						onPaste={handlePaste}
 						placeholder={placeholder}
-						title="Use Ctrl+Enter (or Cmd+Enter on Mac) to send a message"
+						title="Press Enter to send, Shift+Enter for new line"
 						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
 						rows={1}
 						style={{ minHeight: "80px" }}
@@ -343,7 +348,7 @@ export function ChatInput({
 									handleSubmit(e);
 								}}
 								disabled={disabled || !hasContent}
-								title="Send message (or press Ctrl+Enter in textarea)"
+								title="Send message (Enter)"
 								type="button"
 							>
 								{disabled ? (

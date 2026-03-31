@@ -1,11 +1,14 @@
 import { actions } from "astro:actions";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { FloatingChatPanel } from "@/components/chat/FloatingChatPanel";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
+import { useChatLayout } from "@/stores/useChatLayout";
 
 interface ProjectContentWrapperProps {
 	projectId: string;
@@ -29,6 +32,8 @@ export function ProjectContentWrapper({
 	const [userMessageCount, setUserMessageCount] = useState(0);
 	const [isStreaming, setIsStreaming] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
+
+	const { isDetached } = useChatLayout();
 
 	const {
 		leftPercent,
@@ -109,30 +114,68 @@ export function ProjectContentWrapper({
 						</div>
 					) : (
 						<>
-							<div
-								className="flex flex-col h-full border-r overflow-hidden"
-								style={{ width: `${leftPercent}%` }}
-							>
-								<ErrorBoundary componentName="ChatPanel">
-									<ChatPanel
-										projectId={projectId}
-										models={models}
-										onOpenFile={setFileToOpen}
-										onStreamingStateChange={(count, streaming) => {
-											setUserMessageCount(count);
-											setIsStreaming(streaming);
+							<AnimatePresence initial={false}>
+								{!isDetached && (
+									<motion.div
+										key="docked-chat"
+										className="flex flex-col h-full border-r overflow-hidden"
+										initial={{ width: 0, opacity: 0 }}
+										animate={{
+											width: `${leftPercent}%`,
+											opacity: 1,
+											transition: {
+												width: { type: "spring", stiffness: 300, damping: 30 },
+												opacity: { duration: 0.2 },
+											},
 										}}
-									/>
-								</ErrorBoundary>
-							</div>
+										exit={{
+											width: 0,
+											opacity: 0,
+											transition: {
+												width: { type: "spring", stiffness: 300, damping: 30 },
+												opacity: { duration: 0.15 },
+											},
+										}}
+									>
+										<ErrorBoundary componentName="ChatPanel">
+											<ChatPanel
+												projectId={projectId}
+												models={models}
+												onOpenFile={setFileToOpen}
+												onStreamingStateChange={(count, streaming) => {
+													setUserMessageCount(count);
+													setIsStreaming(streaming);
+												}}
+											/>
+										</ErrorBoundary>
+									</motion.div>
+								)}
+							</AnimatePresence>
 
-							{isResizable && (
-								<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
-							)}
+							<AnimatePresence initial={false}>
+								{!isDetached && isResizable && (
+									<motion.div
+										key="separator"
+										initial={{ opacity: 0 }}
+										animate={{ opacity: 1 }}
+										exit={{ opacity: 0 }}
+										transition={{ duration: 0.15 }}
+									>
+										<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
+									</motion.div>
+								)}
+							</AnimatePresence>
 
-							<div
+							<motion.div
 								className="flex flex-col h-full overflow-hidden"
-								style={{ width: `${rightPercent}%` }}
+								animate={{
+									width: isDetached ? "100%" : `${rightPercent}%`,
+								}}
+								transition={{
+									type: "spring",
+									stiffness: 300,
+									damping: 30,
+								}}
 							>
 								<ErrorBoundary componentName="PreviewPanel">
 									<PreviewPanel
@@ -144,7 +187,18 @@ export function ProjectContentWrapper({
 										isStreaming={isStreaming}
 									/>
 								</ErrorBoundary>
-							</div>
+							</motion.div>
+
+							{/* Floating chat overlay when detached */}
+							<FloatingChatPanel
+								projectId={projectId}
+								models={models}
+								onOpenFile={setFileToOpen}
+								onStreamingStateChange={(count, streaming) => {
+									setUserMessageCount(count);
+									setIsStreaming(streaming);
+								}}
+							/>
 						</>
 					)}
 

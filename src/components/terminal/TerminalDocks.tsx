@@ -232,35 +232,33 @@ export function TerminalDocks({
 
 			{/* Content */}
 			{isOpen && (
-				<div
-					ref={terminalRef}
-					className="h-[calc(100%-40px)] overflow-y-auto p-4 font-mono text-xs bg-black"
-				>
-					{dockerLines.length === 0 && appLines.length === 0 ? (
-						<div className="text-gray-500">Waiting for logs...</div>
-					) : (
-						<>
-							{/* Docker Section */}
-							<div className="text-xs font-semibold text-muted-foreground mb-2">
-								Docker
-							</div>
+				<div className="h-[calc(100%-40px)] grid grid-cols-2 font-mono text-xs bg-black">
+					{/* Docker column */}
+					<div className="flex flex-col border-r border-muted/30 overflow-hidden">
+						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-black border-b border-muted/30 shrink-0">
+							Docker
+						</div>
+						<div className="flex-1 overflow-y-auto p-4">
 							{dockerLines.length === 0 ? (
-								<div className="text-gray-500 mb-4">No docker logs yet...</div>
+								<div className="text-gray-500">No docker logs yet...</div>
 							) : (
-								<div className="mb-4">{renderLogLines(dockerLines)}</div>
+								renderLogLines(dockerLines)
 							)}
-
-							{/* App Section */}
-							<div className="text-xs font-semibold text-muted-foreground mb-2 pt-2 border-t border-muted">
-								App
-							</div>
+						</div>
+					</div>
+					{/* App column */}
+					<div className="flex flex-col overflow-hidden">
+						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-black border-b border-muted/30 shrink-0">
+							App
+						</div>
+						<div ref={terminalRef} className="flex-1 overflow-y-auto p-4">
 							{appLines.length === 0 ? (
 								<div className="text-gray-500">No app logs yet...</div>
 							) : (
 								renderLogLines(appLines)
 							)}
-						</>
-					)}
+						</div>
+					</div>
 				</div>
 			)}
 		</div>

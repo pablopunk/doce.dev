@@ -101,8 +101,8 @@ export const assets = {
 						continue;
 					}
 
-					if (file.size > 50 * 1024 * 1024) {
-						errors.push(`${file.name}: File too large (max 50MB)`);
+					if (file.size > 10 * 1024 * 1024) {
+						errors.push(`${file.name}: File too large (max 10MB)`);
 						continue;
 					}
 

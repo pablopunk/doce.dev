@@ -7,6 +7,7 @@ import {
 	readLogTail,
 } from "@/server/docker/logs";
 import { logger } from "@/server/logger";
+import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -35,9 +36,11 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 		return new Response("Not found", { status: 404 });
 	}
 
+	const previewPath = getProjectPreviewPathFromRoot(project.pathOnDisk);
+
 	// Ensure log streaming is active if containers are running
 	// This handles the case where the server was restarted and lost the streaming process
-	void ensureLogStreaming(projectId, project.pathOnDisk).catch((error) => {
+	void ensureLogStreaming(projectId, previewPath).catch((error) => {
 		// Non-critical error - log but don't fail the request
 		logger.error({ error }, "Failed to ensure log streaming");
 	});
@@ -46,7 +49,7 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 	const offsetParam = url.searchParams.get("offset");
 	const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : null;
 
-	const logsDir = path.join(project.pathOnDisk, "logs");
+	const logsDir = path.join(previewPath, "logs");
 
 	// Create a streaming response
 	const encoder = new TextEncoder();

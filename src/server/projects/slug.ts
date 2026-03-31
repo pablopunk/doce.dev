@@ -5,15 +5,24 @@ import { projects } from "@/server/db/schema";
 /**
  * Convert a name to a URL-safe slug.
  */
+const MAX_SLUG_WORDS = 4;
+const MAX_SLUG_LENGTH = 40;
+
 export function nameToSlug(name: string): string {
-	return name
+	const words = name
 		.toLowerCase()
 		.trim()
 		.replace(/[^a-z0-9\s-]/g, "")
-		.replace(/\s+/g, "-")
+		.replace(/\s+/g, " ")
+		.split(" ")
+		.filter(Boolean)
+		.slice(0, MAX_SLUG_WORDS);
+
+	return words
+		.join("-")
 		.replace(/-+/g, "-")
 		.replace(/^-+|-+$/g, "")
-		.slice(0, 50);
+		.slice(0, MAX_SLUG_LENGTH);
 }
 
 /**

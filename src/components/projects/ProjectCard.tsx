@@ -113,11 +113,11 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group relative overflow-hidden">
 				<CardHeader className="pb-2">
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-						<div className="flex-1 min-w-0">
+					<div className="flex items-center gap-2 overflow-hidden">
+						<div className="min-w-0 flex-1">
 							<CardTitle className="text-lg truncate">{project.name}</CardTitle>
 						</div>
-						<div className="flex items-center gap-2 sm:ml-2 self-start">
+						<div className="shrink-0">
 							{(() => {
 								const style = getStatusStyle(project.status);
 								return (
