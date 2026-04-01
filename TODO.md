@@ -60,6 +60,8 @@
 - [x] Add project menu action: Export preview source (.zip)
 - [x] Export only preview source code
 - [x] Exclude production/runtime artifacts
+- [x] Expose Astro template recovery tools for restarting the dev server
+- [x] Expose Astro template recovery tools for reading preview server logs
 - [ ] Add "Fix with doce" action to runtime error boundary
 - [ ] Add guardrails to avoid conflicts during active agent operations
 
