@@ -2,10 +2,33 @@ import pino, { type LoggerOptions } from "pino";
 import { getQueueJobLogContext } from "@/server/queue/job-log-context";
 import { appendJobLogLine } from "@/server/queue/job-logs";
 
-const isDev = process.env.NODE_ENV !== "production";
+// Use config system if available, otherwise fall back to env
+function getLogLevel(): string {
+	try {
+		const { getConfigValue } = require("@/server/config");
+		const logLevel = getConfigValue("LOG_LEVEL");
+		if (logLevel) return logLevel;
+	} catch {
+		// Config not available, fall back to env
+	}
+	
+	const isDev = process.env.NODE_ENV !== "production";
+	return process.env.LOG_LEVEL ?? (isDev ? "debug" : "info");
+}
+
+function getNodeEnv(): string {
+	try {
+		const { getConfigValue } = require("@/server/config");
+		return getConfigValue("NODE_ENV");
+	} catch {
+		return process.env.NODE_ENV ?? "development";
+	}
+}
+
+const isDev = getNodeEnv() !== "production";
 
 const options: LoggerOptions = {
-	level: process.env.LOG_LEVEL ?? (isDev ? "debug" : "info"),
+	level: getLogLevel(),
 	hooks: {
 		logMethod(inputArgs, method, level) {
 			const context = getQueueJobLogContext();
