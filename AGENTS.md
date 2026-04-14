@@ -18,6 +18,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Use `defineAction` with Zod `input` schemas for all server actions.
 * Use `@/server/logger` (Pino) instead of `console.*` in server code.
 * API routes handle their own auth via cookies; don't assume middleware auth for `/_actions` and `/api`.
+* When changing database models, we should consider if we need to create a migration.
 
 ## Clean code
 
