@@ -8,6 +8,7 @@ import {
 	listConnectedProviderIds,
 	removeProvider,
 } from "@/server/opencode/authFile";
+import type { OpencodeClient } from "@/server/opencode/client";
 import { getOpencodeClient } from "@/server/opencode/client";
 import {
 	getAvailableModels,
@@ -50,8 +51,43 @@ function getProviderMethods(
 	return [];
 }
 
+/** opencode-go shares credentials with opencode; hide it and sync keys automatically */
+const OPENCODE_PROVIDER_ID = "opencode";
+const OPENCODE_SIBLING_ID = "opencode-go";
+const HIDDEN_PROVIDER_IDS = new Set([OPENCODE_SIBLING_ID]);
+
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+	[OPENCODE_PROVIDER_ID]: "OpenCode Zen/Go",
+};
+
+async function syncOpencodeCredentials(
+	client: OpencodeClient,
+	providerId: string,
+	auth: { type: "api"; key: string },
+): Promise<void> {
+	if (providerId !== OPENCODE_PROVIDER_ID) return;
+	try {
+		await client.auth.set({ providerID: OPENCODE_SIBLING_ID, auth });
+	} catch (error) {
+		logger.warn({ error }, "Failed to sync credentials to opencode-go");
+	}
+}
+
+async function syncOpencodeDisconnect(
+	client: OpencodeClient,
+	providerId: string,
+): Promise<void> {
+	if (providerId !== OPENCODE_PROVIDER_ID) return;
+	try {
+		await client.auth.remove({ providerID: OPENCODE_SIBLING_ID });
+		await removeProvider(OPENCODE_SIBLING_ID);
+	} catch (error) {
+		logger.warn({ error }, "Failed to sync disconnect to opencode-go");
+	}
+}
+
 function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
-	return providers.filter((provider) => provider.id !== "opencode");
+	return providers.filter((provider) => !HIDDEN_PROVIDER_IDS.has(provider.id));
 }
 
 export const providers = {
@@ -77,7 +113,7 @@ export const providers = {
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
 					(provider) => ({
 						id: provider.id,
-						name: provider.name,
+						name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
 						env: provider.env,
 						source: (provider.source || "custom") as ProviderSource,
 						connected:
@@ -117,12 +153,11 @@ export const providers = {
 			}
 
 			const client = getOpencodeClient();
+			const authPayload = { type: "api" as const, key: input.apiKey };
+
 			const result = await client.auth.set({
 				providerID: input.providerId,
-				auth: {
-					type: "api",
-					key: input.apiKey,
-				},
+				auth: authPayload,
 			});
 
 			if (result.error) {
@@ -131,6 +166,8 @@ export const providers = {
 					message: "Failed to save provider credentials in OpenCode.",
 				});
 			}
+
+			await syncOpencodeCredentials(client, input.providerId, authPayload);
 
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
@@ -153,6 +190,7 @@ export const providers = {
 				});
 			}
 
+			await syncOpencodeDisconnect(client, input.providerId);
 			await removeProvider(input.providerId);
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);

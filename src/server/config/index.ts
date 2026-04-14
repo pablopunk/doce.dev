@@ -52,7 +52,7 @@ export const DoceConfigSchema = Schema.Struct({
 	),
 
 	// OpenCode Runtime
-	DOCE_OPENCODE_PORT: Schema.Number.pipe(
+	DOCE_OPENCODE_PORT: Schema.NumberFromString.pipe(
 		Schema.optionalWith({ default: () => 4096 }),
 	),
 	OPENCODE_BIN: Schema.String.pipe(
