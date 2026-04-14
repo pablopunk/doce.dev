@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { isComposeV1 } from "@/server/docker/composeVersion";
+import { getConfigValue } from "@/server/config";
 
 // Paths relative to project root
 const DATA_DIR = "data";
@@ -7,10 +8,22 @@ const PROJECTS_DIR = "projects";
 const PRODUCTIONS_DIR = "productions";
 const TEMPLATE_DIR = "templates/astro-starter";
 
-const DEFAULT_DATA_PATH = path.join(process.cwd(), DATA_DIR);
-const DATA_ROOT = process.env.DOCE_DATA_DIR
-	? path.resolve(process.env.DOCE_DATA_DIR)
-	: DEFAULT_DATA_PATH;
+function getDataRoot(): string {
+	// Use config system, fallback to env for backwards compatibility
+	try {
+		const configValue = getConfigValue("DOCE_DATA_DIR");
+		if (configValue) {
+			return path.resolve(configValue);
+		}
+	} catch {
+		// Config not initialized yet, fall through to env
+	}
+
+	const DEFAULT_DATA_PATH = path.join(process.cwd(), DATA_DIR);
+	return process.env.DOCE_DATA_DIR
+		? path.resolve(process.env.DOCE_DATA_DIR)
+		: DEFAULT_DATA_PATH;
+}
 
 /**
  * Get the absolute path to the data directory.
@@ -24,7 +37,7 @@ export function getGlobalOpencodeConfigPath(): string {
 }
 
 export function getDataPath(): string {
-	return DATA_ROOT;
+	return getDataRoot();
 }
 
 /**

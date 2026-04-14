@@ -1,6 +1,8 @@
 import { Cause, Duration, Effect, Fiber, type Layer } from "effect";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
+import { getConfigValue } from "@/server/config";
+import { errorToSanitizedMessage } from "@/server/utils/sanitize";
 import {
 	JobCancelledError,
 	JobLeaseLostError,
@@ -9,6 +11,27 @@ import {
 import { QueueService } from "./layers";
 
 const HEARTBEAT_INTERVAL_MS = 5_000;
+
+/**
+ * Calculate retry delay with exponential backoff and jitter
+ * 
+ * Uses full jitter: random value between 0 and the calculated exponential delay
+ * This prevents thundering herd when many jobs fail simultaneously
+ */
+function calculateRetryDelay(attempts: number): number {
+	const baseMs = getConfigValue("QUEUE_RETRY_BASE_MS");
+	const maxDelayMs = getConfigValue("QUEUE_RETRY_MAX_DELAY_MS");
+	
+	// Calculate exponential delay: base * 2^(attempts-1)
+	const exponentialDelay = baseMs * 2 ** Math.max(0, attempts - 1);
+	const cappedDelay = Math.min(maxDelayMs, exponentialDelay);
+	
+	// Apply full jitter: random value between 0 and cappedDelay
+	// This distributes retries across the interval and prevents thundering herd
+	const jitter = Math.random() * cappedDelay;
+	
+	return Math.floor(jitter);
+}
 
 export interface QueueWorkerOptions {
 	concurrency: number;
@@ -58,7 +81,7 @@ const runJob = (
 		});
 
 		const toMessage = (error: unknown) =>
-			error instanceof Error ? error.message : JSON.stringify(error);
+			errorToSanitizedMessage(error);
 
 		const ignoreLeaseLoss = <A>(
 			effect: Effect.Effect<A, unknown, QueueService>,
@@ -181,7 +204,7 @@ const runJob = (
 		}
 
 		if (job.attempts < job.maxAttempts) {
-			const delay = Math.min(60000, 2000 * 2 ** Math.max(0, job.attempts - 1));
+			const delay = calculateRetryDelay(job.attempts);
 			yield* ignoreLeaseLoss(
 				queue.scheduleRetry(job.id, workerId, delay, errorMsg),
 				"scheduleRetry",

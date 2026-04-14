@@ -4,8 +4,8 @@ import { checkOpencodeServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeConfig } from "@/server/opencode/config";
 import { getDataPath } from "@/server/projects/paths";
+import { getConfigValue } from "@/server/config";
 
-const DEFAULT_OPENCODE_PORT = 4096;
 const START_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_INTERVAL_MS = 250;
 
@@ -17,13 +17,18 @@ declare global {
 }
 
 function getOpencodePort(): number {
-	const configured = process.env.DOCE_OPENCODE_PORT;
-	if (!configured) {
-		return DEFAULT_OPENCODE_PORT;
+	// Use config system, fallback to env for backwards compatibility
+	try {
+		return getConfigValue("DOCE_OPENCODE_PORT");
+	} catch {
+		// Config not initialized yet, use env directly
+		const configured = process.env.DOCE_OPENCODE_PORT;
+		if (!configured) {
+			return 4096;
+		}
+		const parsed = Number.parseInt(configured, 10);
+		return Number.isFinite(parsed) ? parsed : 4096;
 	}
-
-	const parsed = Number.parseInt(configured, 10);
-	return Number.isFinite(parsed) ? parsed : DEFAULT_OPENCODE_PORT;
 }
 
 function getOpencodeBaseUrl(): string {
@@ -31,7 +36,13 @@ function getOpencodeBaseUrl(): string {
 }
 
 function getOpencodeCommand(): string {
-	return process.env.OPENCODE_BIN || "opencode";
+	// Use config system, fallback to env for backwards compatibility
+	try {
+		return getConfigValue("OPENCODE_BIN");
+	} catch {
+		// Config not initialized yet, use env directly
+		return process.env.OPENCODE_BIN || "opencode";
+	}
 }
 
 async function ensureOpencodeDirectories(): Promise<void> {

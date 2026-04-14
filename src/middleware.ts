@@ -16,6 +16,20 @@ import { startImagePrewarm } from "@/server/docker/prewarm";
 import { ensureEffectQueueWorkerStarted } from "@/server/effect";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
+import { initConfig } from "@/server/config";
+import { installShutdownHandlers, registerOpencodeRuntimeForShutdown, registerDatabaseForShutdown } from "@/server/shutdown";
+
+// Initialize config system early (sync, no dependencies)
+initConfig();
+
+// Install shutdown handlers once
+let shutdownHandlersInstalled = false;
+if (!shutdownHandlersInstalled) {
+	installShutdownHandlers();
+	registerOpencodeRuntimeForShutdown();
+	registerDatabaseForShutdown();
+	shutdownHandlersInstalled = true;
+}
 
 let startupInitialized = false;
 async function ensureInitialized() {

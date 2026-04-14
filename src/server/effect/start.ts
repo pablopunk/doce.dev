@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { Effect, Layer } from "effect";
 import { logger } from "@/server/logger";
+import { getConfigValue } from "@/server/config";
+import { registerQueueWorkerForShutdown } from "@/server/shutdown";
 import { AppLayer, registerAllHandlers } from "./index";
 import { type QueueWorkerHandle, startQueueWorkerEffect } from "./queue.worker";
 import { BaseLayer } from "./runtime";
@@ -21,17 +23,27 @@ const startWorker = async () => {
 		never,
 		never
 	>;
+	
+	// Get configuration values
+	const concurrency = getConfigValue("QUEUE_CONCURRENCY");
+	const leaseMs = getConfigValue("QUEUE_LEASE_MS");
+	const pollMs = getConfigValue("QUEUE_POLL_MS");
+	
 	const handle = await Effect.runPromise(
 		startQueueWorkerEffect(workerId, {
-			concurrency: 2,
-			leaseMs: 60_000,
-			pollMs: 250,
+			concurrency,
+			leaseMs,
+			pollMs,
 			layer,
 		}).pipe(Effect.provide(layer)),
 	);
 
 	globalThis.__DOCE_EFFECT_QUEUE_WORKER__ = handle;
-	logger.info({ workerId }, "Effect queue worker started");
+	
+	// Register for graceful shutdown
+	registerQueueWorkerForShutdown(() => handle.stop());
+	
+	logger.info({ workerId, concurrency, leaseMs, pollMs }, "Effect queue worker started");
 };
 
 export function ensureEffectQueueWorkerStarted(): void {
