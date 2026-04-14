@@ -37,11 +37,15 @@ interface ProviderAuthMethod {
 type ProviderSource = "env" | "config" | "custom" | "api";
 
 function getProviderMethods(
-	provider: { env?: string[] },
+	provider: { id?: string; env?: string[] },
 	methods: ProviderAuthMethod[] | undefined,
 ): ProviderAuthMethod[] {
 	if (methods && methods.length > 0) {
 		return methods;
+	}
+
+	if (provider.id === OPENCODE_PROVIDER_ID) {
+		return [{ type: "api", label: "Enter OpenCode Zen/Go API Key" }];
 	}
 
 	if ((provider.env || []).length > 0) {
@@ -86,6 +90,20 @@ async function syncOpencodeDisconnect(
 	}
 }
 
+/** OpenCode is always runtime-connected (free models). Only mark it connected if the user added an API key. */
+function isProviderConnected(
+	providerId: string,
+	runtimeConnectedIds: Set<string>,
+	authConnectedIds: Set<string>,
+): boolean {
+	if (providerId === OPENCODE_PROVIDER_ID) {
+		return authConnectedIds.has(providerId);
+	}
+	return (
+		runtimeConnectedIds.has(providerId) || authConnectedIds.has(providerId)
+	);
+}
+
 function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
 	return providers.filter((provider) => !HIDDEN_PROVIDER_IDS.has(provider.id));
 }
@@ -116,9 +134,11 @@ export const providers = {
 						name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
 						env: provider.env,
 						source: (provider.source || "custom") as ProviderSource,
-						connected:
-							runtimeConnectedIds.has(provider.id) ||
-							authConnectedIds.has(provider.id),
+						connected: isProviderConnected(
+							provider.id,
+							runtimeConnectedIds,
+							authConnectedIds,
+						),
 						disconnectable: disconnectableIds.has(provider.id),
 						methods: getProviderMethods(
 							provider,
