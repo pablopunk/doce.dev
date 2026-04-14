@@ -11,7 +11,7 @@ function getLogLevel(): string {
 	} catch {
 		// Config not available, fall back to env
 	}
-	
+
 	const isDev = process.env.NODE_ENV !== "production";
 	return process.env.LOG_LEVEL ?? (isDev ? "debug" : "info");
 }

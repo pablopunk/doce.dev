@@ -1,6 +1,6 @@
 /**
  * Graceful shutdown handling for doce.dev
- * 
+ *
  * Handles SIGTERM/SIGINT to cleanly shutdown:
  * - Queue worker
  * - OpenCode runtime
@@ -8,9 +8,9 @@
  */
 
 import { Effect, Fiber } from "effect";
+import { getConfigValue } from "@/server/config";
 import { db, sqlite } from "@/server/db/client";
 import { logger } from "@/server/logger";
-import { getConfigValue } from "@/server/config";
 
 type CleanupFn = () => Promise<void> | void;
 type EffectCleanupFn = () => Effect.Effect<void, unknown>;
@@ -71,7 +71,7 @@ export function registerOpencodeRuntimeForShutdown(): void {
 		if (process && process.exitCode === null && !process.killed) {
 			logger.info("Shutting down OpenCode runtime...");
 			process.kill("SIGTERM");
-			
+
 			// Return a promise that resolves when process exits or times out
 			return new Promise<void>((resolve) => {
 				const timeout = setTimeout(() => {
@@ -116,7 +116,7 @@ async function performShutdown(signal: string): Promise<void> {
 
 	isShuttingDown = true;
 	const timeoutMs = getConfigValue("SHUTDOWN_TIMEOUT_MS");
-	
+
 	logger.info({ signal, timeoutMs }, "Starting graceful shutdown...");
 
 	const shutdownPromise = (async () => {
@@ -136,7 +136,10 @@ async function performShutdown(signal: string): Promise<void> {
 				logger.debug({ handler: name }, "Running Effect shutdown handler");
 				await Effect.runPromise(cleanup().pipe(Effect.timeout(timeoutMs)));
 			} catch (error) {
-				logger.error({ error, handler: name }, "Effect shutdown handler failed");
+				logger.error(
+					{ error, handler: name },
+					"Effect shutdown handler failed",
+				);
 			}
 		}
 
@@ -154,7 +157,10 @@ async function performShutdown(signal: string): Promise<void> {
 		await Promise.race([shutdownPromise, timeoutPromise]);
 		process.exit(0);
 	} catch (error) {
-		logger.error({ error }, "Graceful shutdown failed or timed out, forcing exit");
+		logger.error(
+			{ error },
+			"Graceful shutdown failed or timed out, forcing exit",
+		);
 		process.exit(1);
 	}
 }

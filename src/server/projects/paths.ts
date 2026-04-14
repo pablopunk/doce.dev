@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { isComposeV1 } from "@/server/docker/composeVersion";
 import { getConfigValue } from "@/server/config";
+import { isComposeV1 } from "@/server/docker/composeVersion";
 
 // Paths relative to project root
 const DATA_DIR = "data";

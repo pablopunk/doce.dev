@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeMessage, errorToSanitizedMessage } from "./sanitize";
+import { errorToSanitizedMessage, sanitizeMessage } from "./sanitize";
 
 describe("sanitizeMessage", () => {
 	it("should redact API keys", () => {
@@ -8,7 +8,8 @@ describe("sanitizeMessage", () => {
 	});
 
 	it("should redact bearer tokens", () => {
-		const message = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+		const message =
+			"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
 		expect(sanitizeMessage(message)).toBe("Authorization: Bearer [REDACTED]");
 	});
 
@@ -19,11 +20,14 @@ describe("sanitizeMessage", () => {
 
 	it("should redact private keys", () => {
 		const message = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...";
-		expect(sanitizeMessage(message)).toBe("[REDACTED PRIVATE KEY]\nMIIEpAIBAAKCAQEA...");
+		expect(sanitizeMessage(message)).toBe(
+			"[REDACTED PRIVATE KEY]\nMIIEpAIBAAKCAQEA...",
+		);
 	});
 
 	it("should redact multiple sensitive values in one message", () => {
-		const message = "api_key:sk-1234567890 and password: secret123 and token: abc1234567890123456";
+		const message =
+			"api_key:sk-1234567890 and password: secret123 and token: abc1234567890123456";
 		const result = sanitizeMessage(message);
 		expect(result).toContain("api_key:[REDACTED]");
 		expect(result).toContain("password:[REDACTED]");
@@ -43,7 +47,9 @@ describe("sanitizeMessage", () => {
 describe("errorToSanitizedMessage", () => {
 	it("should sanitize error messages", () => {
 		const error = new Error("Failed with api_key:sk-secret123456");
-		expect(errorToSanitizedMessage(error)).toBe("Failed with api_key:[REDACTED]");
+		expect(errorToSanitizedMessage(error)).toBe(
+			"Failed with api_key:[REDACTED]",
+		);
 	});
 
 	it("should handle plain strings", () => {

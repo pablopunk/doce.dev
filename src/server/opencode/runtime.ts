@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
+import { getConfigValue } from "@/server/config";
 import { checkOpencodeServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeConfig } from "@/server/opencode/config";
 import { getDataPath } from "@/server/projects/paths";
-import { getConfigValue } from "@/server/config";
 
 const START_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_INTERVAL_MS = 250;

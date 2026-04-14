@@ -4,6 +4,7 @@ import {
 	cleanupExpiredSessions,
 	validateSession,
 } from "@/server/auth/sessions";
+import { initConfig } from "@/server/config";
 import { db } from "@/server/db/client";
 import { ensureDatabaseReady } from "@/server/db/ensure-db";
 import { users } from "@/server/db/schema";
@@ -16,8 +17,11 @@ import { startImagePrewarm } from "@/server/docker/prewarm";
 import { ensureEffectQueueWorkerStarted } from "@/server/effect";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
-import { initConfig } from "@/server/config";
-import { installShutdownHandlers, registerOpencodeRuntimeForShutdown, registerDatabaseForShutdown } from "@/server/shutdown";
+import {
+	installShutdownHandlers,
+	registerDatabaseForShutdown,
+	registerOpencodeRuntimeForShutdown,
+} from "@/server/shutdown";
 
 // Initialize config system early (sync, no dependencies)
 initConfig();

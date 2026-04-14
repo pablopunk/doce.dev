@@ -333,7 +333,10 @@ export function PreviewPanel({
 		if (state === "ready" && !wasReady && previewUrl) {
 			const t1 = setTimeout(() => setIframeKey((k) => k + 1), 3_000);
 			const t2 = setTimeout(() => setIframeKey((k) => k + 1), 8_000);
-			return () => { clearTimeout(t1); clearTimeout(t2); };
+			return () => {
+				clearTimeout(t1);
+				clearTimeout(t2);
+			};
 		}
 		return undefined;
 	}, [state, previewUrl]);

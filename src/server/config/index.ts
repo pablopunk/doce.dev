@@ -1,6 +1,6 @@
 /**
  * Centralized configuration for doce.dev
- * 
+ *
  * All environment variables with sensible defaults.
  * No extra configuration required - works out of the box.
  */
@@ -11,36 +11,24 @@ import { Context, Effect, Layer, Schema } from "effect";
 // Config Schema
 // ============================================================================
 
-const StringFromEnv = Schema.transform(
-	Schema.String,
-	Schema.String,
-	{
-		decode: (input) => input ?? "",
-		encode: (output) => output,
-	},
-);
+const StringFromEnv = Schema.transform(Schema.String, Schema.String, {
+	decode: (input) => input ?? "",
+	encode: (output) => output,
+});
 
-const NumberFromEnv = Schema.transform(
-	Schema.String,
-	Schema.Number,
-	{
-		decode: (input) => {
-			if (input === undefined) return 0;
-			const parsed = Number.parseInt(input, 10);
-			return Number.isFinite(parsed) ? parsed : 0;
-		},
-		encode: (output) => String(output),
+const NumberFromEnv = Schema.transform(Schema.String, Schema.Number, {
+	decode: (input) => {
+		if (input === undefined) return 0;
+		const parsed = Number.parseInt(input, 10);
+		return Number.isFinite(parsed) ? parsed : 0;
 	},
-);
+	encode: (output) => String(output),
+});
 
-const BooleanFromEnv = Schema.transform(
-	Schema.String,
-	Schema.Boolean,
-	{
-		decode: (input) => input === "true" || input === "1",
-		encode: (output) => String(output),
-	},
-);
+const BooleanFromEnv = Schema.transform(Schema.String, Schema.Boolean, {
+	decode: (input) => input === "true" || input === "1",
+	encode: (output) => String(output),
+});
 
 /**
  * Application configuration schema with defaults
@@ -76,18 +64,10 @@ export const DoceConfigSchema = Schema.Struct({
 	NODE_ENV: Schema.String.pipe(
 		Schema.optionalWith({ default: () => "development" }),
 	),
-	LOG_LEVEL: Schema.String.pipe(
-		Schema.optionalWith({ default: () => "" }),
-	),
-	HOSTNAME: Schema.String.pipe(
-		Schema.optionalWith({ default: () => "" }),
-	),
-	HOST: Schema.String.pipe(
-		Schema.optionalWith({ default: () => "" }),
-	),
-	VERSION: Schema.String.pipe(
-		Schema.optionalWith({ default: () => "dev" }),
-	),
+	LOG_LEVEL: Schema.String.pipe(Schema.optionalWith({ default: () => "" })),
+	HOSTNAME: Schema.String.pipe(Schema.optionalWith({ default: () => "" })),
+	HOST: Schema.String.pipe(Schema.optionalWith({ default: () => "" })),
+	VERSION: Schema.String.pipe(Schema.optionalWith({ default: () => "dev" })),
 
 	// Queue Worker
 	QUEUE_CONCURRENCY: Schema.Number.pipe(
@@ -208,7 +188,9 @@ export function getConfigSync(): DoceConfig {
 /**
  * Helper to get a specific config value synchronously
  */
-export function getConfigValue<K extends keyof DoceConfig>(key: K): DoceConfig[K] {
+export function getConfigValue<K extends keyof DoceConfig>(
+	key: K,
+): DoceConfig[K] {
 	return getConfigSync()[key];
 }
 
