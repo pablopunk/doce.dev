@@ -316,15 +316,21 @@ export async function composeUp(
 	projectId: string,
 	projectPath: string,
 	preserveProduction: boolean = true,
+	/** Skip --build for restarts. Source is bind-mounted and node_modules is a named volume,
+	 *  so the image layers are shadowed at runtime anyway. Compose will still auto-build
+	 *  if the image is missing (e.g. after `docker image prune`). */
+	skipBuild: boolean = false,
 ): Promise<ComposeResult> {
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
 	const logsDir = path.join(normalizedProjectPath, "logs");
 
 	// Don't use --remove-orphans when production might be running with a separate compose file
-	// Always rebuild to ensure Dockerfile changes are applied (layer caching still applies)
+	// --build forces a full image rebuild; skip it for restarts since bind mount + named volume
+	// overlay everything the Dockerfile copies in. Compose auto-builds if the image is missing.
+	const buildFlag = skipBuild ? [] : ["--build"];
 	const args = preserveProduction
-		? ["up", "-d", "--build"]
-		: ["up", "-d", "--remove-orphans", "--build"];
+		? ["up", "-d", ...buildFlag]
+		: ["up", "-d", "--remove-orphans", ...buildFlag];
 
 	await writeHostMarker(
 		logsDir,

@@ -77,7 +77,7 @@ export function handleDockerEnsureRunning(
 
 		const previewPath = getProjectPreviewPath(project.id);
 		const result = yield* Effect.tryPromise({
-			try: () => composeUp(project.id, previewPath),
+			try: () => composeUp(project.id, previewPath, true, true),
 			catch: (error) =>
 				new ProjectError({
 					projectId: project.id,

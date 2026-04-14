@@ -323,6 +323,21 @@ export function PreviewPanel({
 		setIframeKey((k) => k + 1);
 	};
 
+	// Auto-refresh preview iframe when state first becomes "ready".
+	// The container health check can pass before Astro finishes its initial compile,
+	// causing a 404 on first load. A couple of delayed refreshes covers this window.
+	const prevStateRef = useRef<PreviewState>("initializing");
+	useEffect(() => {
+		const wasReady = prevStateRef.current === "ready";
+		prevStateRef.current = state;
+		if (state === "ready" && !wasReady && previewUrl) {
+			const t1 = setTimeout(() => setIframeKey((k) => k + 1), 3_000);
+			const t2 = setTimeout(() => setIframeKey((k) => k + 1), 8_000);
+			return () => { clearTimeout(t1); clearTimeout(t2); };
+		}
+		return undefined;
+	}, [state, previewUrl]);
+
 	const handleRetry = async () => {
 		setState("starting");
 		setMessage("Retrying...");

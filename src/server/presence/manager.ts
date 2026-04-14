@@ -18,7 +18,7 @@ import { listJobs } from "@/server/queue/queue.model";
 const PRESENCE_HEARTBEAT_MS = 15_000;
 const REAPER_INTERVAL_MS = 30_000;
 const START_MAX_WAIT_MS = 30_000;
-const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 60_000; // 60 seconds - auto-stop containers if no heartbeat received
+const CONTAINER_KEEP_ALIVE_TIMEOUT_MS = 300_000; // 5 minutes - auto-stop containers if no heartbeat received
 
 // Internal only - not exported
 interface ProjectPresence {
