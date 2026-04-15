@@ -5,6 +5,8 @@ import {
 	composeDownProduction,
 	composeDownWithVolumes,
 	composePs,
+	composeStart,
+	composeStop,
 	composeUp,
 	composeUpProduction,
 	ensureDoceSharedNetwork,
@@ -84,6 +86,18 @@ export const DockerServiceLive = Layer.succeed(
 					),
 				),
 			),
+
+		composeStart: (projectId, projectPath) =>
+			Effect.tryPromise({
+				try: () => composeStart(projectId, projectPath),
+				catch: (e) => toDockerError(e, { projectId }),
+			}),
+
+		composeStop: (projectId, projectPath) =>
+			Effect.tryPromise({
+				try: () => composeStop(projectId, projectPath),
+				catch: (e) => toDockerError(e, { projectId }),
+			}),
 
 		composeDown: (projectId, projectPath) =>
 			Effect.tryPromise({

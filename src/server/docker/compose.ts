@@ -415,6 +415,65 @@ export async function composeUpProduction(
 }
 
 /**
+ * Soft-start containers for a project without recreating them.
+ */
+export async function composeStart(
+	projectId: string,
+	projectPath: string,
+): Promise<ComposeResult> {
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
+	await writeHostMarker(logsDir, "docker compose start");
+
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
+		"start",
+	]);
+
+	if (result.stdout) {
+		await appendDockerLog(logsDir, result.stdout, false);
+	}
+	if (result.stderr) {
+		await appendDockerLog(logsDir, result.stderr, true);
+	}
+	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+
+	if (result.success) {
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+		streamContainerLogs(projectId, normalizedProjectPath);
+	}
+
+	return result;
+}
+
+/**
+ * Soft-stop containers for a project while preserving them for fast resume.
+ */
+export async function composeStop(
+	projectId: string,
+	projectPath: string,
+): Promise<ComposeResult> {
+	const normalizedProjectPath = normalizeProjectPath(projectPath);
+	const logsDir = path.join(normalizedProjectPath, "logs");
+	await writeHostMarker(logsDir, "docker compose stop");
+
+	stopStreamingContainerLogs(projectId);
+
+	const result = await runComposeCommand(projectId, normalizedProjectPath, [
+		"stop",
+	]);
+
+	if (result.stdout) {
+		await appendDockerLog(logsDir, result.stdout, false);
+	}
+	if (result.stderr) {
+		await appendDockerLog(logsDir, result.stderr, true);
+	}
+	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+
+	return result;
+}
+
+/**
  * Stop containers for a project (preserves volumes).
  */
 export async function composeDown(
@@ -517,6 +576,7 @@ export async function composePs(
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
 	return runComposeCommand(projectId, normalizedProjectPath, [
 		"ps",
+		"--all",
 		"--format",
 		"json",
 	]);

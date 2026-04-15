@@ -641,6 +641,97 @@ export function composeUpProduction(
 	});
 }
 
+export function composeStart(
+	projectId: string,
+	projectPath: string,
+): Effect.Effect<
+	ComposeResult,
+	DockerComposeError | DockerNotAvailableError,
+	Scope
+> {
+	return Effect.gen(function* () {
+		const normalizedProjectPath = normalizeProjectPath(projectPath);
+		const logsDir = path.join(normalizedProjectPath, "logs");
+
+		yield* Effect.tryPromise({
+			try: () => writeHostMarker(logsDir, "docker compose start"),
+			catch: () => undefined,
+		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		const result = yield* runComposeCommand(projectId, normalizedProjectPath, [
+			"start",
+		]);
+
+		if (result.stdout) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, result.stdout, false),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+		if (result.stderr) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, result.stderr, true),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+		yield* Effect.tryPromise({
+			try: () => writeHostMarker(logsDir, `exit=${result.exitCode}`),
+			catch: () => undefined,
+		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		if (result.success) {
+			yield* Effect.sleep("2 seconds");
+			streamContainerLogs(projectId, normalizedProjectPath);
+		}
+
+		return result;
+	});
+}
+
+export function composeStop(
+	projectId: string,
+	projectPath: string,
+): Effect.Effect<
+	ComposeResult,
+	DockerComposeError | DockerNotAvailableError,
+	Scope
+> {
+	return Effect.gen(function* () {
+		const normalizedProjectPath = normalizeProjectPath(projectPath);
+		const logsDir = path.join(normalizedProjectPath, "logs");
+
+		yield* Effect.tryPromise({
+			try: () => writeHostMarker(logsDir, "docker compose stop"),
+			catch: () => undefined,
+		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		stopStreamingContainerLogs(projectId);
+
+		const result = yield* runComposeCommand(projectId, normalizedProjectPath, [
+			"stop",
+		]);
+
+		if (result.stdout) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, result.stdout, false),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+		if (result.stderr) {
+			yield* Effect.tryPromise({
+				try: () => appendDockerLog(logsDir, result.stderr, true),
+				catch: () => undefined,
+			}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+		}
+		yield* Effect.tryPromise({
+			try: () => writeHostMarker(logsDir, `exit=${result.exitCode}`),
+			catch: () => undefined,
+		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
+
+		return result;
+	});
+}
+
 export function composeDown(
 	projectId: string,
 	projectPath: string,
@@ -782,6 +873,7 @@ export function composePs(
 		const normalizedProjectPath = normalizeProjectPath(projectPath);
 		const result = yield* runComposeCommand(projectId, normalizedProjectPath, [
 			"ps",
+			"--all",
 			"--format",
 			"json",
 		]);

@@ -166,9 +166,8 @@ export async function stopProject(
 	try {
 		await updateProjectStatus(projectId, "stopping");
 
-		// Import composeDown to avoid circular dependency
-		const { composeDown } = await import("@/server/docker/compose");
-		const result = await composeDown(projectId, projectPath);
+		const { composeStop } = await import("@/server/docker/compose");
+		const result = await composeStop(projectId, projectPath);
 
 		if (result.success) {
 			await updateProjectStatus(projectId, "stopped");
@@ -178,7 +177,7 @@ export async function stopProject(
 			await updateProjectStatus(projectId, "error");
 			return {
 				success: false,
-				error: `Docker compose down failed: ${result.stderr.slice(0, 200)}`,
+				error: `Docker compose stop failed: ${result.stderr.slice(0, 200)}`,
 			};
 		}
 	} catch (err) {

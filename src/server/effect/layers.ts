@@ -150,6 +150,22 @@ export class DockerService extends Context.Tag("DockerService")<
 		) => Effect.Effect<ComposeResult, DockerOperationError>;
 
 		/**
+		 * Soft-start existing containers for a project
+		 */
+		composeStart: (
+			projectId: string,
+			projectPath: string,
+		) => Effect.Effect<ComposeResult, DockerOperationError>;
+
+		/**
+		 * Soft-stop containers for a project without removing them
+		 */
+		composeStop: (
+			projectId: string,
+			projectPath: string,
+		) => Effect.Effect<ComposeResult, DockerOperationError>;
+
+		/**
 		 * Stop containers for a project
 		 */
 		composeDown: (
