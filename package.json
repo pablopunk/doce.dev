@@ -14,6 +14,8 @@
 		"astro": "astro",
 		"shadcn:update": "bash scripts/shadcn-update.sh",
 		"icons:generate": "node scripts/generate-icons.js",
+		"opencode:check": "node scripts/opencode-version.mjs check",
+		"opencode:sync": "node scripts/opencode-version.mjs sync",
 		"format": "pnpm exec biome check --write src/",
 		"drizzle:push": "drizzle-kit push",
 		"drizzle:generate": "drizzle-kit generate",
