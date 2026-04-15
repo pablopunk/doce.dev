@@ -47,7 +47,7 @@ ENV VERSION=${VERSION}
 RUN npm install -g pnpm@10.20.0
 
 # Install OpenCode CLI for the central runtime
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.2.5
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.4.6
 
 WORKDIR /app
 
