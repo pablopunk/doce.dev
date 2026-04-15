@@ -28,12 +28,7 @@ const EXPECTED = readFileSync(SOURCE_FILE, "utf8").trim();
 const TARGETS = [
 	{
 		path: join(ROOT, "Dockerfile"),
-		label: "Dockerfile (opencode CLI install)",
-		pattern: /(opencode\.ai\/install \| bash -s -- --version )(\S+)/,
-	},
-	{
-		path: join(ROOT, "templates/astro-starter/Dockerfile.opencode"),
-		label: "templates/astro-starter/Dockerfile.opencode",
+		label: "Dockerfile (central opencode CLI)",
 		pattern: /(opencode\.ai\/install \| bash -s -- --version )(\S+)/,
 	},
 	{
