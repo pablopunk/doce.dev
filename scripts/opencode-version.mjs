@@ -2,14 +2,12 @@
 /**
  * Single source of truth for the OpenCode version used across doce.dev.
  *
- * The OpenCode server version is tightly coupled to the SDK/plugin code paths
+ * The OpenCode server version is tightly coupled to the SDK code paths
  * (e.g. the sync `session.prompt` endpoint only exists in certain versions),
- * so all four locations below MUST stay in sync:
+ * so both locations below MUST stay in sync:
  *
  *   - Dockerfile (central runtime, installs `opencode` CLI)
- *   - templates/astro-starter/Dockerfile.opencode (per-project runtime)
  *   - package.json (@opencode-ai/sdk)
- *   - templates/astro-starter/package.json (@opencode-ai/plugin)
  *
  * Usage:
  *   node scripts/opencode-version.mjs check   # verify all locations match
@@ -35,12 +33,6 @@ const TARGETS = [
 		path: join(ROOT, "package.json"),
 		label: "package.json (@opencode-ai/sdk)",
 		pattern: /("@opencode-ai\/sdk":\s*")\^?([^"]+)(")/,
-		replaceWithCaret: true,
-	},
-	{
-		path: join(ROOT, "templates/astro-starter/package.json"),
-		label: "templates/astro-starter/package.json (@opencode-ai/plugin)",
-		pattern: /("@opencode-ai\/plugin":\s*")\^?([^"]+)(")/,
 		replaceWithCaret: true,
 	},
 ];
