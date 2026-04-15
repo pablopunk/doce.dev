@@ -262,10 +262,10 @@ export function ChatInput({
 	const hasContent = message.trim() || selectedImages.length > 0;
 
 	return (
-		<div className="w-full p-4">
-			<div className="flex flex-col gap-4">
+		<div className="w-full px-2 pb-2 pt-1">
+			<div className="flex flex-col gap-2">
 				<form
-					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
+					className={`flex flex-col gap-2 rounded-lg border bg-card p-2 transition-colors ${
 						isDragging && supportsImages
 							? "border-primary bg-primary/5"
 							: "border-input"
@@ -285,7 +285,7 @@ export function ChatInput({
 						title="Press Enter to send, Shift+Enter for new line"
 						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
 						rows={1}
-						style={{ minHeight: "80px" }}
+						style={{ minHeight: "56px" }}
 						disabled={disabled}
 					/>
 					{/* Image Preview */}
@@ -300,7 +300,7 @@ export function ChatInput({
 					{imageError && (
 						<p className="text-sm text-destructive">{imageError}</p>
 					)}
-					<div className="flex items-center justify-between gap-3">
+					<div className="flex items-center justify-between gap-2">
 						{models.length > 0 && onModelChange && (
 							<ModelSelector
 								models={models}
