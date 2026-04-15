@@ -157,9 +157,9 @@ export function CreateProjectFormContent({
 								{isLoading ? (
 									<Loader2 className="w-5 h-5 animate-spin" />
 								) : (
-									<Sparkles className="w-5 h-5 text-chart-1" />
+									<Sparkles className="w-5 h-5 text-cta-accent-start" />
 								)}
-								<span className="hidden min-[380px]:inline bg-gradient-to-r from-chart-1 via-chart-4 to-chart-5 bg-clip-text text-transparent font-semibold">
+								<span className="hidden min-[380px]:inline bg-gradient-to-r from-cta-accent-start via-cta-accent-mid to-cta-accent-end bg-clip-text text-transparent font-semibold">
 									Create
 								</span>
 							</Button>
