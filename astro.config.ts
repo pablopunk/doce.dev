@@ -23,10 +23,10 @@ export default defineConfig({
 	},
 	adapter: node({
 		mode: "standalone",
-		entrypointResolution: "auto",
 	}),
 	server: {
 		host: true,
+		allowedHosts: true,
 	},
 	integrations: [react()],
 	vite: {
