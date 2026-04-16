@@ -1,7 +1,6 @@
 import { actions } from "astro:actions";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import {
 	createImagePartFromFile,
 	type ImagePart,
@@ -149,27 +148,33 @@ export function useCreateProject({
 		setImageError(null);
 	};
 
-	const addCreatingDraft = useProjectOptimisticState(
-		(s) => s.addCreatingDraft,
-	);
-	const removeCreatingDraft = useProjectOptimisticState(
-		(s) => s.removeCreatingDraft,
-	);
+	const waitForProjectToExist = async (
+		projectId: string,
+		maxAttempts = 40,
+	) => {
+		const delayMs = 500;
+
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			try {
+				const result = await actions.projects.get({ projectId });
+				if (result.data?.project) {
+					return result.data.project;
+				}
+			} catch {
+				// Not ready yet
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+
+		return null;
+	};
 
 	const handleCreate = async () => {
 		if (!prompt.trim()) return;
 
 		setIsLoading(true);
 		setError("");
-
-		// Optimistic draft — visible in dashboard instantly
-		const draftId = `draft_${Date.now()}`;
-		addCreatingDraft({
-			id: draftId,
-			prompt: prompt.trim(),
-			name: "Creating project...",
-			createdAt: Date.now(),
-		});
 
 		try {
 			const result = await actions.projects.create({
@@ -188,24 +193,27 @@ export function useCreateProject({
 			});
 
 			if (result.error) {
-				removeCreatingDraft(draftId);
 				setError(result.error.message);
 				setIsLoading(false);
 				return;
 			}
 
 			if (!result.data?.projectId) {
-				removeCreatingDraft(draftId);
 				setError("Failed to create project");
 				setIsLoading(false);
 				return;
 			}
 
 			const projectId = result.data.projectId;
+			const project = await waitForProjectToExist(projectId);
 
-			// Navigate immediately — project page handles startup state
-			removeCreatingDraft(draftId);
-			window.location.replace(`/projects/${projectId}`);
+			if (!project) {
+				setError("Project creation is taking longer than expected");
+				setIsLoading(false);
+				return;
+			}
+
+			window.location.replace(`/projects/${project.id}/${project.slug}`);
 		} catch (err) {
 			const errorMessage =
 				err instanceof Error ? err.message : "Failed to create project";
