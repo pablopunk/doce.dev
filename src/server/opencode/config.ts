@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
+import { DOCE_COMPACTION_PLUGIN_SOURCE } from "@/server/opencode/doceCompactionPluginSource";
 import {
 	getDataPath,
 	getGlobalOpencodeConfigPath,
@@ -15,18 +16,7 @@ interface OpencodeConfig {
 	[key: string]: unknown;
 }
 
-const DOCE_COMPACTION_PLUGIN_SOURCE_FILENAME = "doceCompactionPlugin.ts";
 const DOCE_COMPACTION_PLUGIN_TARGET_FILENAME = "doce-compaction.ts";
-
-function getDoceCompactionPluginSourcePath(): string {
-	return path.join(
-		process.cwd(),
-		"src",
-		"server",
-		"opencode",
-		DOCE_COMPACTION_PLUGIN_SOURCE_FILENAME,
-	);
-}
 
 const PERMISSIVE_PERMISSION_CONFIG: Record<string, PermissionRule> = {
 	read: { "*": "allow" },
@@ -108,7 +98,7 @@ async function ensureGlobalDoceCompactionPlugin(): Promise<void> {
 		DOCE_COMPACTION_PLUGIN_TARGET_FILENAME,
 	);
 	await fs.mkdir(pluginDirectory, { recursive: true });
-	await fs.copyFile(getDoceCompactionPluginSourcePath(), pluginPath);
+	await fs.writeFile(pluginPath, DOCE_COMPACTION_PLUGIN_SOURCE);
 	logger.debug(
 		{ pluginPath },
 		"Ensured global doce.dev OpenCode compaction plugin",
