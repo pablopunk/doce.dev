@@ -120,7 +120,8 @@ export function sanitizeError(error: Error): Error {
 	for (const key of Object.keys(error)) {
 		const value = (error as unknown as Record<string, unknown>)[key];
 		if (typeof value === "string") {
-			(sanitized as unknown as Record<string, unknown>)[key] = sanitizeMessage(value);
+			(sanitized as unknown as Record<string, unknown>)[key] =
+				sanitizeMessage(value);
 		} else {
 			(sanitized as unknown as Record<string, unknown>)[key] = value;
 		}

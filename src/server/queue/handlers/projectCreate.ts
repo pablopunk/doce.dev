@@ -6,6 +6,7 @@ import {
 	ProjectError,
 	QueueError,
 } from "@/server/effect/errors";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { ensureAuthDirectory } from "@/server/opencode/authFile";
@@ -16,7 +17,6 @@ import {
 } from "@/server/projects/projects.model";
 import { setupProjectFilesystem } from "@/server/projects/setup";
 import { enqueueDockerComposeUp } from "../enqueue";
-import type { QueueJobContext } from "@/server/effect/queue.worker";
 import type { ImageAttachment } from "../types";
 import { parsePayload } from "../types";
 

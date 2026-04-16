@@ -19,83 +19,39 @@ import { parsePayload } from "../types";
 export function handleProductionBuild(
 	ctx: QueueJobContext,
 ): Effect.Effect<void, ProjectError | ProductionBuildError> {
-	return Effect.scoped(Effect.gen(function* () {
-		const payload = parsePayload("production.build", ctx.job.payloadJson);
+	return Effect.scoped(
+		Effect.gen(function* () {
+			const payload = parsePayload("production.build", ctx.job.payloadJson);
 
-		const project = yield* Effect.tryPromise({
-			try: () => getProjectByIdIncludeDeleted(payload.projectId),
-			catch: (error) =>
-				new ProjectError({
-					projectId: payload.projectId,
-					operation: "getProjectByIdIncludeDeleted",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		if (!project) {
-			logger.warn(
-				{ projectId: payload.projectId },
-				"Project not found for production.build",
-			);
-			return undefined as void;
-		}
-
-		if (project.status === "deleting") {
-			logger.info(
-				{ projectId: project.id },
-				"Skipping production.build for deleting project",
-			);
-			return;
-		}
-
-		yield* Effect.tryPromise({
-			try: () => updateProductionStatus(project.id, "building"),
-			catch: (error) =>
-				new ProjectError({
-					projectId: project.id,
-					operation: "updateProductionStatus",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		yield* ctx.throwIfCancelRequested();
-
-		const containerName = getPreviewContainerName(project.id);
-		logger.info(
-			{ projectId: project.id, containerName },
-			"Starting production build inside preview container",
-		);
-
-		const result = yield* Effect.tryPromise({
-			try: () =>
-				spawnCommand(
-					"docker",
-					["exec", containerName, "pnpm", "run", "build"],
-					{
-						timeout: 5 * 60 * 1000,
-					},
-				),
-			catch: (error) =>
-				new ProductionBuildError({
-					projectId: project.id,
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		if (!result.success) {
-			const errorMsg = result.stderr || result.stdout || "Build failed";
-			logger.error(
-				{ projectId: project.id, error: errorMsg.slice(0, 500) },
-				"Production build failed",
-			);
-			yield* Effect.tryPromise({
-				try: () =>
-					updateProductionStatus(project.id, "failed", {
-						productionError: errorMsg.slice(0, 500),
+			const project = yield* Effect.tryPromise({
+				try: () => getProjectByIdIncludeDeleted(payload.projectId),
+				catch: (error) =>
+					new ProjectError({
+						projectId: payload.projectId,
+						operation: "getProjectByIdIncludeDeleted",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
 					}),
+			});
+
+			if (!project) {
+				logger.warn(
+					{ projectId: payload.projectId },
+					"Project not found for production.build",
+				);
+				return undefined as void;
+			}
+
+			if (project.status === "deleting") {
+				logger.info(
+					{ projectId: project.id },
+					"Skipping production.build for deleting project",
+				);
+				return;
+			}
+
+			yield* Effect.tryPromise({
+				try: () => updateProductionStatus(project.id, "building"),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,
@@ -104,83 +60,136 @@ export function handleProductionBuild(
 						cause: error,
 					}),
 			});
-			return yield* new ProductionBuildError({
-				projectId: project.id,
-				message: `Build failed: ${errorMsg.slice(0, 200)}`,
+
+			yield* ctx.throwIfCancelRequested();
+
+			const containerName = getPreviewContainerName(project.id);
+			logger.info(
+				{ projectId: project.id, containerName },
+				"Starting production build inside preview container",
+			);
+
+			const result = yield* Effect.tryPromise({
+				try: () =>
+					spawnCommand(
+						"docker",
+						["exec", containerName, "pnpm", "run", "build"],
+						{
+							timeout: 5 * 60 * 1000,
+						},
+					),
+				catch: (error) =>
+					new ProductionBuildError({
+						projectId: project.id,
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
 			});
-		}
 
-		logger.info({ projectId: project.id }, "Production build succeeded");
-
-		const tempDistPath = path.join(
-			os.tmpdir(),
-			`doce-dist-${project.id}-${Date.now()}`,
-		);
-
-		yield* Effect.acquireRelease(Effect.succeed(tempDistPath), (tempPath) =>
-			Effect.promise(() =>
-				fs.rm(tempPath, { recursive: true, force: true }).catch(() => {}),
-			),
-		);
-
-		const productionHash = yield* extractAndHashDist(
-			containerName,
-			tempDistPath,
-			project.id,
-		);
-
-		yield* ctx.throwIfCancelRequested();
-
-		const productionPath = getProjectProductionPath(project.id, productionHash);
-		yield* Effect.tryPromise({
-			try: () => fs.mkdir(productionPath, { recursive: true }),
-			catch: (error) =>
-				new ProductionBuildError({
-					projectId: project.id,
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		yield* extractFilesFromContainer(containerName, productionPath, project.id);
-
-		logger.debug(
-			{ projectId: project.id, productionHash, productionPath },
-			"Production version files copied",
-		);
-
-		yield* Effect.tryPromise({
-			try: () =>
-				enqueueProductionStart({
-					projectId: project.id,
-					productionHash,
-				}),
-			catch: (error) =>
-				new ProjectError({
-					projectId: project.id,
-					operation: "enqueueProductionStart",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		logger.debug(
-			{ projectId: project.id, productionHash },
-			"Enqueued production.start",
-		);
-	}).pipe(
-		Effect.tapError((error) =>
-			Effect.sync(() => {
+			if (!result.success) {
+				const errorMsg = result.stderr || result.stdout || "Build failed";
 				logger.error(
-					{
-						projectId: error.projectId,
-						error: error.message,
-					},
-					"production.build handler failed",
+					{ projectId: project.id, error: errorMsg.slice(0, 500) },
+					"Production build failed",
 				);
-			}),
+				yield* Effect.tryPromise({
+					try: () =>
+						updateProductionStatus(project.id, "failed", {
+							productionError: errorMsg.slice(0, 500),
+						}),
+					catch: (error) =>
+						new ProjectError({
+							projectId: project.id,
+							operation: "updateProductionStatus",
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+						}),
+				});
+				return yield* new ProductionBuildError({
+					projectId: project.id,
+					message: `Build failed: ${errorMsg.slice(0, 200)}`,
+				});
+			}
+
+			logger.info({ projectId: project.id }, "Production build succeeded");
+
+			const tempDistPath = path.join(
+				os.tmpdir(),
+				`doce-dist-${project.id}-${Date.now()}`,
+			);
+
+			yield* Effect.acquireRelease(Effect.succeed(tempDistPath), (tempPath) =>
+				Effect.promise(() =>
+					fs.rm(tempPath, { recursive: true, force: true }).catch(() => {}),
+				),
+			);
+
+			const productionHash = yield* extractAndHashDist(
+				containerName,
+				tempDistPath,
+				project.id,
+			);
+
+			yield* ctx.throwIfCancelRequested();
+
+			const productionPath = getProjectProductionPath(
+				project.id,
+				productionHash,
+			);
+			yield* Effect.tryPromise({
+				try: () => fs.mkdir(productionPath, { recursive: true }),
+				catch: (error) =>
+					new ProductionBuildError({
+						projectId: project.id,
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
+
+			yield* extractFilesFromContainer(
+				containerName,
+				productionPath,
+				project.id,
+			);
+
+			logger.debug(
+				{ projectId: project.id, productionHash, productionPath },
+				"Production version files copied",
+			);
+
+			yield* Effect.tryPromise({
+				try: () =>
+					enqueueProductionStart({
+						projectId: project.id,
+						productionHash,
+					}),
+				catch: (error) =>
+					new ProjectError({
+						projectId: project.id,
+						operation: "enqueueProductionStart",
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
+			});
+
+			logger.debug(
+				{ projectId: project.id, productionHash },
+				"Enqueued production.start",
+			);
+		}).pipe(
+			Effect.tapError((error) =>
+				Effect.sync(() => {
+					logger.error(
+						{
+							projectId: error.projectId,
+							error: error.message,
+						},
+						"production.build handler failed",
+					);
+				}),
+			),
 		),
-	));
+	);
 }
 
 function extractAndHashDist(

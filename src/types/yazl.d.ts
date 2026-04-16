@@ -16,15 +16,8 @@ declare module "yazl" {
 			metadataPath: string,
 			options?: Options,
 		): void;
-		addBuffer(
-			buffer: Buffer,
-			metadataPath: string,
-			options?: Options,
-		): void;
-		addEmptyDirectory(
-			metadataPath: string,
-			options?: Options,
-		): void;
+		addBuffer(buffer: Buffer, metadataPath: string, options?: Options): void;
+		addEmptyDirectory(metadataPath: string, options?: Options): void;
 		end(options?: Options, finalSizeCallback?: () => void): void;
 	}
 

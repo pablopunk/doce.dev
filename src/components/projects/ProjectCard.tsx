@@ -241,9 +241,13 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					<div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
 						<span>Port: {project.devPort}</span>
 						{"defaultModel" in project &&
-							typeof (project as Record<string, unknown>).defaultModel === "string" && (
-							<span className="ml-3">Model: {(project as Record<string, unknown>).defaultModel as string}</span>
-						)}
+							typeof (project as Record<string, unknown>).defaultModel ===
+								"string" && (
+								<span className="ml-3">
+									Model:{" "}
+									{(project as Record<string, unknown>).defaultModel as string}
+								</span>
+							)}
 					</div>
 				</CardContent>
 			</Card>

@@ -11,8 +11,6 @@ import { Context, Effect, Layer, Schema } from "effect";
 // Config Schema
 // ============================================================================
 
-
-
 /**
  * Application configuration schema with defaults
  */

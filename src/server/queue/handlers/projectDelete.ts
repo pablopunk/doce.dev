@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
 import { deleteProjectBootstrapSession } from "@/server/opencode/projectSessions";
 import {
@@ -13,7 +14,6 @@ import {
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
-import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { parsePayload } from "../types";
 
 /**
