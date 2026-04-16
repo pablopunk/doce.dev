@@ -26,18 +26,22 @@ async function getCachedConfig() {
 
 /**
  * Build the Tailscale HTTPS URL for a project.
+ * Includes a 5-char hash from projectId to avoid hostname collisions.
  * Returns null if Tailscale is not enabled.
  */
 export async function getTailscaleProjectUrl(
 	slug: string,
 	variant: "preview" | "production",
+	projectId: string,
 ): Promise<string | null> {
 	const config = await getCachedConfig();
 	if (!config.enabled || !config.tailnetName) {
 		return null;
 	}
 
-	const hostname = variant === "preview" ? `${slug}-preview` : slug;
+	const shortId = projectId.slice(0, 5);
+	const hostname =
+		variant === "preview" ? `${slug}-${shortId}-preview` : `${slug}-${shortId}`;
 
 	return `https://${hostname}.${config.tailnetName}`;
 }

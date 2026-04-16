@@ -113,7 +113,7 @@ export function handleProductionWaitReady(
 					const { getTailscaleProjectUrl } = await import(
 						"@/server/tailscale/urls"
 					);
-					return getTailscaleProjectUrl(project.slug, "production");
+					return getTailscaleProjectUrl(project.slug, "production", project.id);
 				},
 				catch: () => null as null,
 			}).pipe(Effect.catchAll(() => Effect.succeed(null as string | null)));

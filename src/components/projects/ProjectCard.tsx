@@ -27,31 +27,30 @@ interface ProjectCardProps {
 	onDeleted?: (projectId: string) => void;
 }
 
-interface StatusStyle {
+interface PillStyle {
 	bg: string;
 	text: string;
 }
 
-const statusStyles: Record<string, StatusStyle> = {
-	created: {
-		bg: "bg-muted",
-		text: "text-muted-foreground",
+const environmentPillStyles: Record<"preview" | "production", PillStyle> = {
+	preview: {
+		bg: "bg-primary/10",
+		text: "text-primary",
 	},
+	production: {
+		bg: "bg-accent",
+		text: "text-accent-foreground",
+	},
+};
+
+const transientStatusStyles: Record<string, PillStyle> = {
 	starting: {
 		bg: "bg-accent",
 		text: "text-accent-foreground",
 	},
-	running: {
-		bg: "bg-primary",
-		text: "text-primary-foreground",
-	},
 	stopping: {
 		bg: "bg-accent",
 		text: "text-accent-foreground",
-	},
-	stopped: {
-		bg: "bg-muted",
-		text: "text-muted-foreground",
 	},
 	deleting: {
 		bg: "bg-destructive",
@@ -61,21 +60,33 @@ const statusStyles: Record<string, StatusStyle> = {
 		bg: "bg-destructive",
 		text: "text-destructive-foreground",
 	},
+	building: {
+		bg: "bg-accent",
+		text: "text-accent-foreground",
+	},
+	queued: {
+		bg: "bg-muted",
+		text: "text-muted-foreground",
+	},
+	failed: {
+		bg: "bg-destructive",
+		text: "text-destructive-foreground",
+	},
 };
 
-const statusLabels: Record<string, string> = {
-	created: "Created",
+const transientStatusLabels: Record<string, string> = {
 	starting: "Starting...",
-	running: "Running",
 	stopping: "Stopping...",
-	stopped: "Stopped",
 	deleting: "Deleting...",
 	error: "Error",
+	building: "Deploying...",
+	queued: "Queued",
+	failed: "Deploy failed",
 };
 
-function getStatusStyle(status: string): StatusStyle {
+function getTransientStatusStyle(status: string): PillStyle {
 	return (
-		statusStyles[status] || {
+		transientStatusStyles[status] || {
 			bg: "bg-muted",
 			text: "text-muted-foreground",
 		}
@@ -101,11 +112,26 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					baseUrl,
 					window.location.origin,
 				) ?? `http://localhost:${project.devPort}`);
-	const isRunning = project.status === "running";
-	const isLoading =
+	const isPreviewRunning = project.status === "running";
+	const isProductionRunning = project.productionStatus === "running";
+	const transientProjectStatus =
 		project.status === "starting" ||
 		project.status === "stopping" ||
-		project.status === "deleting";
+		project.status === "deleting" ||
+		project.status === "error"
+			? project.status
+			: null;
+	const transientProductionStatus =
+		project.productionStatus === "queued" ||
+		project.productionStatus === "building" ||
+		project.productionStatus === "failed"
+			? project.productionStatus
+			: null;
+	const isLoading =
+		transientProjectStatus === "starting" ||
+		transientProjectStatus === "stopping" ||
+		transientProjectStatus === "deleting" ||
+		transientProductionStatus === "building";
 
 	const handleDeleteClick = () => {
 		setIsDeleteDialogOpen(true);
@@ -170,22 +196,41 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group relative overflow-hidden">
 				<CardHeader className="pb-2">
-					<div className="flex items-center gap-2 overflow-hidden">
+					<div className="flex items-start gap-2 overflow-hidden">
 						<div className="min-w-0 flex-1">
 							<CardTitle className="text-lg truncate">{project.name}</CardTitle>
 						</div>
-						<div className="shrink-0">
-							{(() => {
-								const style = getStatusStyle(project.status);
-								return (
-									<span
-										className={`inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${style.bg} ${style.text}`}
-									>
-										{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-										{statusLabels[project.status]}
-									</span>
-								);
-							})()}
+						<div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+							{isPreviewRunning && (
+								<span
+									className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${environmentPillStyles.preview.bg} ${environmentPillStyles.preview.text}`}
+								>
+									Preview
+								</span>
+							)}
+							{isProductionRunning && (
+								<span
+									className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${environmentPillStyles.production.bg} ${environmentPillStyles.production.text}`}
+								>
+									Production
+								</span>
+							)}
+							{transientProjectStatus && (
+								<span
+									className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${getTransientStatusStyle(transientProjectStatus).bg} ${getTransientStatusStyle(transientProjectStatus).text}`}
+								>
+									{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+									{transientStatusLabels[transientProjectStatus]}
+								</span>
+							)}
+							{!transientProjectStatus && transientProductionStatus && (
+								<span
+									className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${getTransientStatusStyle(transientProductionStatus).bg} ${getTransientStatusStyle(transientProductionStatus).text}`}
+								>
+									{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+									{transientStatusLabels[transientProductionStatus]}
+								</span>
+							)}
 						</div>
 					</div>
 				</CardHeader>
@@ -195,7 +240,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					</p>
 					<div className="flex items-center justify-between gap-2 flex-wrap">
 						<div className="flex gap-2 flex-wrap min-w-0">
-							{isRunning && (
+							{isPreviewRunning && (
 								<a
 									href={previewUrl}
 									target="_blank"

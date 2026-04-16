@@ -49,8 +49,11 @@ export async function injectTailscaleSidecar(
 		return null;
 	}
 
+	const shortId = options.projectId.slice(0, 5);
 	const hostname =
-		options.variant === "preview" ? `${options.slug}-preview` : options.slug;
+		options.variant === "preview"
+			? `${options.slug}-${shortId}-preview`
+			: `${options.slug}-${shortId}`;
 
 	const localPort = options.variant === "preview" ? 4321 : 3000;
 

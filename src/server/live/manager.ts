@@ -343,7 +343,7 @@ async function buildState(
 		previewReady,
 		opencodeReady,
 		previewUrl:
-			(await getTailscaleProjectUrl(project.slug, "preview")) ??
+			(await getTailscaleProjectUrl(project.slug, "preview", project.id)) ??
 			`http://127.0.0.1:${project.devPort}`,
 		message,
 		viewerCount: state.clients.size,
