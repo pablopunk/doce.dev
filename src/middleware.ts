@@ -35,21 +35,60 @@ if (!shutdownHandlersInstalled) {
 	shutdownHandlersInstalled = true;
 }
 
+const STARTUP_RETRY_COOLDOWN_MS = 5_000;
+
 let startupInitialized = false;
+let startupPromise: Promise<void> | null = null;
+let lastStartupFailureAt = 0;
+
+function getStartupErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
+}
+
+async function runInitialization(): Promise<void> {
+	await ensureDatabaseReady();
+	ensureEffectQueueWorkerStarted();
+	await ensureDoceSharedNetwork();
+	await ensureGlobalPnpmVolume();
+	await ensureGlobalOpencodeStarted();
+	startImagePrewarm();
+	startDefaultsBootstrap();
+	startupInitialized = true;
+}
+
 async function ensureInitialized() {
 	if (startupInitialized) return;
-	try {
-		await ensureDatabaseReady();
-		ensureEffectQueueWorkerStarted();
-		await ensureDoceSharedNetwork();
-		await ensureGlobalPnpmVolume();
-		await ensureGlobalOpencodeStarted();
-		startImagePrewarm();
-		startDefaultsBootstrap();
-		startupInitialized = true;
-	} catch (error) {
-		logger.error({ error }, "[Middleware] Initial startup failed");
+	if (startupPromise) {
+		return startupPromise;
 	}
+
+	const now = Date.now();
+	if (now - lastStartupFailureAt < STARTUP_RETRY_COOLDOWN_MS) {
+		return;
+	}
+
+	startupPromise = runInitialization()
+		.catch((error) => {
+			lastStartupFailureAt = Date.now();
+			logger.error(
+				{ error, message: getStartupErrorMessage(error) },
+				"[Middleware] Initial startup failed",
+			);
+			throw error;
+		})
+		.finally(() => {
+			startupPromise = null;
+		});
+
+	return startupPromise;
 }
 
 // Cleanup expired sessions on startup and every hour

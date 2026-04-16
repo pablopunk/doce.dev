@@ -512,6 +512,37 @@ export function classifyOpencodeError(
  * @param projectId - Optional project ID for context
  * @returns A complete OpencodeDiagnostic object
  */
+function getStructuredErrorMessage(
+	error: Record<string, unknown>,
+): string | null {
+	if (typeof error.message === "string" && error.message.trim()) {
+		return error.message;
+	}
+
+	const data = error.data;
+	if (typeof data === "object" && data !== null) {
+		const dataMessage = (data as { message?: unknown }).message;
+		if (typeof dataMessage === "string" && dataMessage.trim()) {
+			return dataMessage;
+		}
+
+		const responseBody = (data as { responseBody?: unknown }).responseBody;
+		if (typeof responseBody === "string" && responseBody.trim()) {
+			return responseBody;
+		}
+	}
+
+	if (typeof error.error === "string" && error.error.trim()) {
+		return error.error;
+	}
+
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
+}
+
 export function createOpencodeDiagnostic(
 	source: OpencodeErrorSource,
 	_projectId?: string,
@@ -549,10 +580,10 @@ export function createOpencodeDiagnostic(
 			metadata: undefined,
 		};
 	} else if (originalError && typeof originalError === "object") {
-		const err = originalError as { name?: string; message?: string };
+		const err = originalError as Record<string, unknown> & { name?: string };
 		technicalDetails = {
 			errorName: err.name ?? "UnknownError",
-			errorMessage: err.message ?? String(originalError),
+			errorMessage: getStructuredErrorMessage(err) ?? "Unknown error",
 			stack: undefined,
 			metadata: originalError as Record<string, unknown>,
 		};

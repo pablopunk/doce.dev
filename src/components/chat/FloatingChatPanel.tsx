@@ -184,7 +184,7 @@ export function FloatingChatPanel({
 					}}
 					initial={{ opacity: 0, scale: 0.92, y: 20 }}
 					animate={{
-						opacity: 1,
+						opacity: 0.85,
 						scale: 1,
 						y: 0,
 						transition: {

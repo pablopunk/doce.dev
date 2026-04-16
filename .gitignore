@@ -71,3 +71,5 @@ coverage/
 .pi/
 skills-lock.json
 /skills
+
+/.opencode

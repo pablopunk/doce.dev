@@ -1,10 +1,12 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { getConfigValue } from "@/server/config";
 import { checkOpencodeServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeConfig } from "@/server/opencode/config";
 import { getDataPath } from "@/server/projects/paths";
+import { spawnCommand } from "@/server/utils/execAsync";
 
 const START_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_INTERVAL_MS = 250;
@@ -42,6 +44,66 @@ function getOpencodeCommand(): string {
 	} catch {
 		// Config not initialized yet, use env directly
 		return process.env.OPENCODE_BIN || "opencode";
+	}
+}
+
+function getRequiredOpencodeVersionFilePath(): string {
+	return path.join(process.cwd(), ".opencode-version");
+}
+
+async function readRequiredOpencodeVersion(): Promise<string | null> {
+	try {
+		const content = await fs.readFile(
+			getRequiredOpencodeVersionFilePath(),
+			"utf-8",
+		);
+		const version = content.trim();
+		return version || null;
+	} catch (error) {
+		const isMissingFile =
+			error instanceof Error && "code" in error && error.code === "ENOENT";
+		if (isMissingFile) {
+			logger.warn(
+				{ path: getRequiredOpencodeVersionFilePath() },
+				"OpenCode version file not found; skipping runtime version check",
+			);
+			return null;
+		}
+
+		throw error;
+	}
+}
+
+async function getInstalledOpencodeVersion(): Promise<string> {
+	const command = getOpencodeCommand();
+	const result = await spawnCommand(command, ["--version"], { timeout: 5_000 });
+	if (!result.success) {
+		throw new Error(
+			`Failed to read OpenCode version from ${command}: ${result.stderr || result.stdout || "unknown error"}`,
+		);
+	}
+
+	const version = result.stdout.trim() || result.stderr.trim();
+	if (!version) {
+		throw new Error(
+			`OpenCode version command returned empty output for ${command}`,
+		);
+	}
+
+	return version;
+}
+
+async function ensureRequiredOpencodeVersion(): Promise<void> {
+	const requiredVersion = await readRequiredOpencodeVersion();
+	if (!requiredVersion) {
+		return;
+	}
+
+	const installedVersion = await getInstalledOpencodeVersion();
+	if (installedVersion !== requiredVersion) {
+		throw new Error(
+			`OpenCode version mismatch: required ${requiredVersion} from ${getRequiredOpencodeVersionFilePath()}, but ${getOpencodeCommand()} reports ${installedVersion}`,
+		);
 	}
 }
 
@@ -120,10 +182,17 @@ async function waitForOpencodeReady(): Promise<void> {
 }
 
 async function startOpencodeProcess(): Promise<void> {
+	await ensureRequiredOpencodeVersion();
+
 	if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
-		throw new Error(
-			`OpenCode port ${getOpencodePort()} is already in use by another process. Set DOCE_OPENCODE_PORT to a dedicated port for doce.dev.`,
+		logger.info(
+			{
+				baseUrl: getOpencodeBaseUrl(),
+				version: await getInstalledOpencodeVersion(),
+			},
+			"Central OpenCode runtime already available; reusing existing process",
 		);
+		return;
 	}
 
 	await ensureOpencodeDirectories();
