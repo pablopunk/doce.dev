@@ -15,7 +15,8 @@ if (!user) {
 const tabParam = Astro.url.searchParams.get("tab");
 // Legacy tab IDs redirect to "general"
 const legacyGeneralTabs = ["base-url", "account", "danger"];
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction =
+	import.meta.env.PROD || process.env.NODE_ENV === "production";
 const initialTab =
 	tabParam === "general" ||
 	tabParam === "providers" ||
