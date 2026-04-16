@@ -7,7 +7,7 @@ import {
 	readLogTail,
 } from "@/server/docker/logs";
 import { logger } from "@/server/logger";
-import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
+import { getProjectProductionPath } from "@/server/projects/paths";
 import {
 	getProjectById,
 	isProjectOwnedByUser,
@@ -25,7 +25,6 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 		return new Response("Project ID required", { status: 400 });
 	}
 
-	// Verify project ownership
 	const isOwner = await isProjectOwnedByUser(projectId, auth.user.id);
 	if (!isOwner) {
 		return new Response("Not found", { status: 404 });
@@ -36,26 +35,29 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 		return new Response("Not found", { status: 404 });
 	}
 
-	const previewPath = getProjectPreviewPathFromRoot(project.pathOnDisk);
+	if (!project.productionHash) {
+		return new Response("No production deployment found", { status: 404 });
+	}
 
-	// Ensure log streaming is active if containers are running
-	// This handles the case where the server was restarted and lost the streaming process
 	void ensureLogStreaming({
-		kind: "preview",
+		kind: "production",
 		projectId,
-		projectPath: previewPath,
+		projectPath: getProjectProductionPath(projectId, project.productionHash),
+		productionHash: project.productionHash,
 	}).catch((error) => {
-		// Non-critical error - log but don't fail the request
-		logger.error({ error }, "Failed to ensure log streaming");
+		logger.error(
+			{ error, projectId },
+			"Failed to ensure production log streaming",
+		);
 	});
 
-	// Get offset from query params
 	const offsetParam = url.searchParams.get("offset");
-	const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : null;
+	const requestedOffset = offsetParam ? Number.parseInt(offsetParam, 10) : null;
+	const logsDir = path.join(
+		getProjectProductionPath(projectId, project.productionHash),
+		"logs",
+	);
 
-	const logsDir = path.join(previewPath, "logs");
-
-	// Create a streaming response
 	const encoder = new TextEncoder();
 	let lastOffset = requestedOffset ?? 0;
 	let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
@@ -86,9 +88,7 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 				}
 			};
 
-			// Initial read
 			if (requestedOffset === null) {
-				// No offset - read tail
 				const { content, offset, truncated } = await readLogTail(logsDir);
 				lastOffset = offset;
 				sendEvent({
@@ -99,7 +99,6 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 					truncated,
 				});
 			} else if (requestedOffset >= 0) {
-				// Read from offset
 				const { content, nextOffset } = await readLogFromOffset(
 					logsDir,
 					requestedOffset,
@@ -116,7 +115,6 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 				}
 			}
 
-			// Start polling for new content
 			pollTimer = setInterval(async () => {
 				if (isClosed) return;
 
@@ -140,7 +138,6 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 				}
 			}, POLL_INTERVAL_MS);
 
-			// Start keep-alive timer
 			keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
 		},
 

@@ -1,6 +1,7 @@
 ---
 import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { getSettingsLogsPageData } from "@/server/settings/logs";
 import {
 	getQueueStatusPageData,
 	getSettingsStatusDiagnostics,
@@ -14,12 +15,14 @@ if (!user) {
 const tabParam = Astro.url.searchParams.get("tab");
 // Legacy tab IDs redirect to "general"
 const legacyGeneralTabs = ["base-url", "account", "danger"];
+const isProduction = process.env.NODE_ENV === "production";
 const initialTab =
 	tabParam === "general" ||
 	tabParam === "providers" ||
 	tabParam === "mcps" ||
 	tabParam === "skills" ||
-	tabParam === "status"
+	tabParam === "status" ||
+	(tabParam === "logs" && isProduction)
 		? tabParam
 		: legacyGeneralTabs.includes(tabParam ?? "")
 			? "general"
@@ -40,6 +43,7 @@ if (pageParam) queueFilters.page = pageParam;
 
 const statusData = await getQueueStatusPageData(queueFilters);
 const diagnostics = await getSettingsStatusDiagnostics();
+const logsData = isProduction ? await getSettingsLogsPageData() : undefined;
 ---
 
 <AppLayout title="Settings">
@@ -53,7 +57,9 @@ const diagnostics = await getSettingsStatusDiagnostics();
 
 		<SettingsWorkspace
 			initialTab={initialTab}
+			isProduction={isProduction}
 			statusData={{ ...statusData, diagnostics }}
+			logsData={logsData}
 			client:load
 		/>
 	</main>

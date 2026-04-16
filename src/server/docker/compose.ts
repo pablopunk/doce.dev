@@ -356,7 +356,11 @@ export async function composeUp(
 	if (result.success) {
 		// Wait a bit for containers to start outputting logs
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, normalizedProjectPath);
+		streamContainerLogs({
+			kind: "preview",
+			projectId,
+			projectPath: normalizedProjectPath,
+		});
 	}
 
 	return result;
@@ -408,7 +412,12 @@ export async function composeUpProduction(
 	// Start streaming container logs after containers start
 	if (result.success) {
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, productionPath);
+		streamContainerLogs({
+			kind: "production",
+			projectId,
+			projectPath: productionPath,
+			productionHash,
+		});
 	}
 
 	return result;
@@ -439,7 +448,11 @@ export async function composeStart(
 
 	if (result.success) {
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		streamContainerLogs(projectId, normalizedProjectPath);
+		streamContainerLogs({
+			kind: "preview",
+			projectId,
+			projectPath: normalizedProjectPath,
+		});
 	}
 
 	return result;
@@ -456,7 +469,11 @@ export async function composeStop(
 	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(logsDir, "docker compose stop");
 
-	stopStreamingContainerLogs(projectId);
+	stopStreamingContainerLogs({
+		kind: "preview",
+		projectId,
+		projectPath: normalizedProjectPath,
+	});
 
 	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"stop",
@@ -485,7 +502,11 @@ export async function composeDown(
 	await writeHostMarker(logsDir, "docker compose down --remove-orphans");
 
 	// Stop streaming container logs before stopping containers
-	stopStreamingContainerLogs(projectId);
+	stopStreamingContainerLogs({
+		kind: "preview",
+		projectId,
+		projectPath: normalizedProjectPath,
+	});
 
 	const result = await runComposeCommand(projectId, normalizedProjectPath, [
 		"down",
@@ -522,7 +543,12 @@ export async function composeDownProduction(
 	);
 
 	// Stop streaming container logs before stopping containers
-	stopStreamingContainerLogs(projectId);
+	stopStreamingContainerLogs({
+		kind: "production",
+		projectId,
+		projectPath: productionPath,
+		productionHash,
+	});
 
 	const result = await runComposeCommandProduction(
 		projectId,

@@ -20,9 +20,43 @@ interface ChildProcessWithCleanup extends ChildProcess {
 	_cleanup?: () => void;
 }
 
+export interface ContainerLogSource {
+	kind: "preview" | "production";
+	projectId: string;
+	projectPath: string;
+	productionHash?: string;
+}
+
 // Map to track running container log streaming processes
-// Key: projectId, Value: ChildProcess
+// Key: source key, Value: ChildProcess
 const streamingProcesses = new Map<string, ChildProcessWithCleanup>();
+
+function getPreviewProjectName(projectId: string): string {
+	return `doce_${projectId}`;
+}
+
+function getProductionProjectName(projectId: string, hash?: string): string {
+	if (hash) {
+		return `doce_prod_${projectId.slice(0, 8)}_${hash}`;
+	}
+	return `doce_prod_${projectId}`;
+}
+
+function getStreamingKey(source: ContainerLogSource): string {
+	return source.kind === "production"
+		? `production:${source.projectId}:${source.productionHash ?? "current"}`
+		: `preview:${source.projectId}`;
+}
+
+function getComposeProjectName(source: ContainerLogSource): string {
+	return source.kind === "production"
+		? getProductionProjectName(source.projectId, source.productionHash)
+		: getPreviewProjectName(source.projectId);
+}
+
+function getComposeServiceName(source: ContainerLogSource): string {
+	return source.kind === "production" ? "production" : "preview";
+}
 
 /**
  * Ensure the logs directory exists.
@@ -121,20 +155,19 @@ export async function appendAppLog(
  * This captures logs from the app container (e.g., pnpm dev output).
  */
 export async function captureContainerLogs(
-	projectId: string,
-	projectPath: string,
+	source: ContainerLogSource,
 ): Promise<void> {
 	try {
-		const logsDir = path.join(projectPath, "logs");
+		const logsDir = path.join(source.projectPath, "logs");
 		await ensureLogsDir(logsDir);
 
-		// Get logs from docker compose preview service only
-		const projectName = `doce_${projectId}`;
+		const projectName = getComposeProjectName(source);
+		const serviceName = getComposeServiceName(source);
 		const composeCmd = getComposeCmd().join(" ");
-		const cmd = `${composeCmd} --project-name ${projectName} logs --no-log-prefix preview`;
+		const cmd = `${composeCmd} --project-name ${projectName} logs --no-log-prefix ${serviceName}`;
 
 		const result = await runCommand(cmd, {
-			cwd: projectPath,
+			cwd: source.projectPath,
 			timeout: 30_000,
 		});
 
@@ -142,7 +175,10 @@ export async function captureContainerLogs(
 			await appendAppLog(logsDir, result.stdout, false);
 		}
 	} catch (err) {
-		logger.debug({ error: err, projectId }, "Failed to capture container logs");
+		logger.debug(
+			{ error: err, projectId: source.projectId, kind: source.kind },
+			"Failed to capture container logs",
+		);
 	}
 }
 
@@ -161,21 +197,24 @@ function stripLogPrefix(line: string): string {
  * Spawns a long-running `docker compose logs -f` process that pipes output
  * to the log file as it's generated.
  */
-export function streamContainerLogs(
-	projectId: string,
-	projectPath: string,
-): void {
+export function streamContainerLogs(source: ContainerLogSource): void {
 	try {
-		// Stop any existing streaming process for this project
-		stopStreamingContainerLogs(projectId);
+		const streamingKey = getStreamingKey(source);
+		stopStreamingContainerLogs(source);
 
-		const logsDir = path.join(projectPath, "logs");
-		const projectName = `doce_${projectId}`;
+		const logsDir = path.join(source.projectPath, "logs");
+		const projectName = getComposeProjectName(source);
+		const serviceName = getComposeServiceName(source);
 
-		logger.debug({ projectId }, "Starting container log streaming");
+		logger.debug(
+			{
+				projectId: source.projectId,
+				kind: source.kind,
+				productionHash: source.productionHash,
+			},
+			"Starting container log streaming",
+		);
 
-		// Spawn: docker compose logs -f --tail=100 preview
-		// --tail=100 means start from last 100 lines (captures recent history)
 		const composeCmd = getComposeCmd();
 		const command = composeCmd[0] ?? "docker";
 		const proc = spawn(
@@ -187,16 +226,15 @@ export function streamContainerLogs(
 				"logs",
 				"-f",
 				"--tail=100",
-				"preview",
+				serviceName,
 			],
 			{
-				cwd: projectPath,
+				cwd: source.projectPath,
 				stdio: ["ignore", "pipe", "pipe"],
 			},
 		);
 
-		// Store process reference for later cleanup
-		streamingProcesses.set(projectId, proc);
+		streamingProcesses.set(streamingKey, proc);
 
 		// Handle stdout and stderr (combined, no distinction)
 		const setupStreamHandler = (
@@ -222,7 +260,7 @@ export function streamContainerLogs(
 						await appendAppLog(logsDir, processedLines, false);
 					} catch (err) {
 						logger.warn(
-							{ error: err, projectId },
+							{ error: err, projectId: source.projectId, kind: source.kind },
 							"Failed to append streamed app log",
 						);
 					}
@@ -244,9 +282,9 @@ export function streamContainerLogs(
 		const onExit = (code: number | null) => {
 			cleanupStdout();
 			cleanupStderr();
-			streamingProcesses.delete(projectId);
+			streamingProcesses.delete(streamingKey);
 			logger.info(
-				{ projectId, exitCode: code },
+				{ projectId: source.projectId, kind: source.kind, exitCode: code },
 				"Container log streaming process exited",
 			);
 		};
@@ -255,9 +293,9 @@ export function streamContainerLogs(
 		const onError = (err: Error) => {
 			cleanupStdout();
 			cleanupStderr();
-			streamingProcesses.delete(projectId);
+			streamingProcesses.delete(streamingKey);
 			logger.warn(
-				{ error: err, projectId },
+				{ error: err, projectId: source.projectId, kind: source.kind },
 				"Container log streaming process error",
 			);
 		};
@@ -273,10 +311,22 @@ export function streamContainerLogs(
 			cleanupStderr();
 		};
 
-		logger.info({ projectId }, "Container log streaming started successfully");
+		logger.info(
+			{
+				projectId: source.projectId,
+				kind: source.kind,
+				productionHash: source.productionHash,
+			},
+			"Container log streaming started successfully",
+		);
 	} catch (err) {
 		logger.error(
-			{ error: err, projectId },
+			{
+				error: err,
+				projectId: source.projectId,
+				kind: source.kind,
+				productionHash: source.productionHash,
+			},
 			"Failed to start container log streaming",
 		);
 	}
@@ -285,8 +335,9 @@ export function streamContainerLogs(
 /**
  * Stop streaming container logs for a project.
  */
-export function stopStreamingContainerLogs(projectId: string): void {
-	const proc = streamingProcesses.get(projectId);
+export function stopStreamingContainerLogs(source: ContainerLogSource): void {
+	const streamingKey = getStreamingKey(source);
+	const proc = streamingProcesses.get(streamingKey);
 	if (proc) {
 		try {
 			// Call cleanup functions to remove event listeners
@@ -298,11 +349,23 @@ export function stopStreamingContainerLogs(projectId: string): void {
 			}
 
 			proc.kill("SIGTERM");
-			streamingProcesses.delete(projectId);
-			logger.debug({ projectId }, "Stopped container log streaming");
+			streamingProcesses.delete(streamingKey);
+			logger.debug(
+				{
+					projectId: source.projectId,
+					kind: source.kind,
+					productionHash: source.productionHash,
+				},
+				"Stopped container log streaming",
+			);
 		} catch (err) {
 			logger.warn(
-				{ error: err, projectId },
+				{
+					error: err,
+					projectId: source.projectId,
+					kind: source.kind,
+					productionHash: source.productionHash,
+				},
 				"Failed to stop container log streaming",
 			);
 		}
@@ -312,8 +375,8 @@ export function stopStreamingContainerLogs(projectId: string): void {
 /**
  * Check if log streaming is currently active for a project.
  */
-export function isStreamingActive(projectId: string): boolean {
-	const proc = streamingProcesses.get(projectId);
+export function isStreamingActive(source: ContainerLogSource): boolean {
+	const proc = streamingProcesses.get(getStreamingKey(source));
 	if (!proc) return false;
 	// Check if process is still running (not killed)
 	return proc.exitCode === null && proc.signalCode === null;
@@ -493,16 +556,15 @@ function truncateLine(line: string): string {
  * Check if containers are running for a project by running docker compose ps.
  */
 async function checkContainersRunning(
-	projectId: string,
-	projectPath: string,
+	source: ContainerLogSource,
 ): Promise<boolean> {
 	try {
-		const projectName = `doce_${projectId}`;
+		const projectName = getComposeProjectName(source);
 		const composeCmd = getComposeCmd().join(" ");
 		const result = await runCommand(
 			`${composeCmd} --project-name ${projectName} ps --format json`,
 			{
-				cwd: projectPath,
+				cwd: source.projectPath,
 				timeout: 10_000,
 			},
 		);
@@ -529,7 +591,12 @@ async function checkContainersRunning(
 		return false;
 	} catch (err) {
 		logger.debug(
-			{ error: err, projectId },
+			{
+				error: err,
+				projectId: source.projectId,
+				kind: source.kind,
+				productionHash: source.productionHash,
+			},
 			"Failed to check if containers are running",
 		);
 		return false;
@@ -544,34 +611,34 @@ async function checkContainersRunning(
  * @returns Object indicating whether streaming was started and if containers are running
  */
 export async function ensureLogStreaming(
-	projectId: string,
-	projectPath: string,
+	source: ContainerLogSource,
 ): Promise<{ streamingStarted: boolean; containersRunning: boolean }> {
-	const logsDir = path.join(projectPath, "logs");
+	const logsDir = path.join(source.projectPath, "logs");
 
 	// Ensure logs directory exists
 	await ensureLogsDir(logsDir);
 
 	// Check if streaming is already active
-	if (isStreamingActive(projectId)) {
+	if (isStreamingActive(source)) {
 		return { streamingStarted: false, containersRunning: true };
 	}
 
 	// Check if containers are running
-	const containersRunning = await checkContainersRunning(
-		projectId,
-		projectPath,
-	);
+	const containersRunning = await checkContainersRunning(source);
 	if (!containersRunning) {
 		return { streamingStarted: false, containersRunning: false };
 	}
 
 	// Containers are running but streaming is not active - start streaming
 	logger.info(
-		{ projectId },
+		{
+			projectId: source.projectId,
+			kind: source.kind,
+			productionHash: source.productionHash,
+		},
 		"Containers running but log streaming not active, starting streaming",
 	);
-	streamContainerLogs(projectId, projectPath);
+	streamContainerLogs(source);
 
 	return { streamingStarted: true, containersRunning: true };
 }

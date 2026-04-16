@@ -1,16 +1,16 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import pino, { type LoggerOptions } from "pino";
 import { getQueueJobLogContext } from "@/server/queue/job-log-context";
 import { appendJobLogLine } from "@/server/queue/job-logs";
+import { getHostLogFilePath } from "@/server/settings/logs";
 
-// Use config system if available, otherwise fall back to env
 function getLogLevel(): string {
 	try {
 		const { getConfigValue } = require("@/server/config");
 		const logLevel = getConfigValue("LOG_LEVEL");
 		if (logLevel) return logLevel;
-	} catch {
-		// Config not available, fall back to env
-	}
+	} catch {}
 
 	const isDev = process.env.NODE_ENV !== "production";
 	return process.env.LOG_LEVEL ?? (isDev ? "debug" : "info");
@@ -77,15 +77,38 @@ function serializeLogArgs(inputArgs: unknown[]): string {
 	return text || "[empty-log-message]";
 }
 
-if (isDev) {
-	options.transport = {
-		target: "pino-pretty",
-		options: {
-			colorize: true,
-		},
-	};
+async function ensureHostLogDestination(): Promise<void> {
+	const logFilePath = getHostLogFilePath();
+	await fs.mkdir(path.dirname(logFilePath), { recursive: true });
 }
 
-export const logger = pino(options);
+function createLogger() {
+	const streams = [] as Parameters<typeof pino.multistream>[0];
+
+	if (isDev) {
+		streams.push({
+			stream: pino.transport({
+				target: "pino-pretty",
+				options: { colorize: true },
+			}),
+		});
+	} else {
+		streams.push({ stream: pino.destination(1) });
+	}
+
+	const hostLogFilePath = getHostLogFilePath();
+	void ensureHostLogDestination().catch(() => {});
+	streams.push({
+		stream: pino.destination({
+			dest: hostLogFilePath,
+			sync: false,
+			mkdir: true,
+		}),
+	});
+
+	return pino(options, pino.multistream(streams));
+}
+
+export const logger = createLogger();
 
 export type Logger = typeof logger;

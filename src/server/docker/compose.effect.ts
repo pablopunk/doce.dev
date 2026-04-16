@@ -573,7 +573,11 @@ export function composeUp(
 
 		if (result.success) {
 			yield* Effect.sleep("2 seconds");
-			streamContainerLogs(projectId, normalizedProjectPath);
+			streamContainerLogs({
+				kind: "preview",
+				projectId,
+				projectPath: normalizedProjectPath,
+			});
 		}
 
 		return result;
@@ -634,7 +638,12 @@ export function composeUpProduction(
 
 		if (result.success) {
 			yield* Effect.sleep("2 seconds");
-			streamContainerLogs(projectId, productionPath);
+			streamContainerLogs({
+				kind: "production",
+				projectId,
+				projectPath: productionPath,
+				productionHash,
+			});
 		}
 
 		return result;
@@ -681,7 +690,11 @@ export function composeStart(
 
 		if (result.success) {
 			yield* Effect.sleep("2 seconds");
-			streamContainerLogs(projectId, normalizedProjectPath);
+			streamContainerLogs({
+				kind: "preview",
+				projectId,
+				projectPath: normalizedProjectPath,
+			});
 		}
 
 		return result;
@@ -705,7 +718,11 @@ export function composeStop(
 			catch: () => undefined,
 		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 
-		stopStreamingContainerLogs(projectId);
+		stopStreamingContainerLogs({
+			kind: "preview",
+			projectId,
+			projectPath: normalizedProjectPath,
+		});
 
 		const result = yield* runComposeCommand(projectId, normalizedProjectPath, [
 			"stop",
@@ -750,7 +767,11 @@ export function composeDown(
 			catch: () => undefined,
 		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 
-		stopStreamingContainerLogs(projectId);
+		stopStreamingContainerLogs({
+			kind: "preview",
+			projectId,
+			projectPath: normalizedProjectPath,
+		});
 
 		const result = yield* runComposeCommand(projectId, normalizedProjectPath, [
 			"down",
@@ -799,7 +820,12 @@ export function composeDownProduction(
 			catch: () => undefined,
 		}).pipe(Effect.orElse(() => Effect.succeed(undefined)));
 
-		stopStreamingContainerLogs(projectId);
+		stopStreamingContainerLogs({
+			kind: "production",
+			projectId,
+			projectPath: productionPath,
+			productionHash,
+		});
 
 		const result = yield* runComposeCommandProduction(
 			projectId,

@@ -165,12 +165,20 @@ export const DockerServiceLive = Layer.succeed(
 
 		streamContainerLogs: (projectId, projectPath) =>
 			Effect.sync(() => {
-				streamContainerLogs(projectId, projectPath);
+				streamContainerLogs({
+					kind: "preview",
+					projectId,
+					projectPath,
+				});
 			}),
 
 		stopStreamingContainerLogs: (projectId) =>
 			Effect.sync(() => {
-				stopStreamingContainerLogs(projectId);
+				stopStreamingContainerLogs({
+					kind: "preview",
+					projectId,
+					projectPath: "",
+				});
 			}),
 
 		waitForHealthy: (projectId, _projectPath, timeoutMs) =>

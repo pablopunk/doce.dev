@@ -1,18 +1,21 @@
 import {
 	Activity,
 	Cable,
+	FileText,
 	Settings,
 	Sparkles,
 	WandSparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
+import { LogsSettings } from "@/components/settings/LogsSettings";
 import { McpSettings } from "@/components/settings/McpSettings";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
 import { SkillsSettings } from "@/components/settings/SkillsSettings";
 import { StatusSettings } from "@/components/settings/StatusSettings";
 import { cn } from "@/lib/utils";
 import type { QueueJob } from "@/server/db/schema";
+import type { SettingsLogsPageData } from "@/server/settings/logs";
 import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
 export type SettingsTabId =
@@ -20,10 +23,12 @@ export type SettingsTabId =
 	| "providers"
 	| "mcps"
 	| "skills"
-	| "status";
+	| "status"
+	| "logs";
 
 interface SettingsWorkspaceProps {
 	initialTab?: SettingsTabId;
+	isProduction: boolean;
 	statusData: {
 		jobs: QueueJob[];
 		paused: boolean;
@@ -42,9 +47,10 @@ interface SettingsWorkspaceProps {
 		};
 		diagnostics: SettingsStatusDiagnostics;
 	};
+	logsData?: SettingsLogsPageData;
 }
 
-const tabs = [
+const baseTabs = [
 	{
 		id: "general",
 		label: "General",
@@ -76,7 +82,7 @@ const tabs = [
 		icon: Activity,
 	},
 ] as const satisfies Array<{
-	id: SettingsTabId;
+	id: Exclude<SettingsTabId, "logs">;
 	label: string;
 	description: string;
 	icon: typeof WandSparkles;
@@ -84,9 +90,28 @@ const tabs = [
 
 export function SettingsWorkspace({
 	initialTab = "providers",
+	isProduction,
 	statusData,
+	logsData,
 }: SettingsWorkspaceProps) {
-	const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab);
+	const tabs = useMemo(
+		() =>
+			isProduction
+				? [
+						...baseTabs,
+						{
+							id: "logs" as const,
+							label: "Logs",
+							description: "Host server logs",
+							icon: FileText,
+						},
+					]
+				: baseTabs,
+		[isProduction],
+	);
+	const resolvedInitialTab =
+		initialTab === "logs" && !isProduction ? "providers" : initialTab;
+	const [activeTab, setActiveTab] = useState<SettingsTabId>(resolvedInitialTab);
 
 	const selectTab = (tabId: SettingsTabId) => {
 		setActiveTab(tabId);
@@ -116,8 +141,10 @@ export function SettingsWorkspace({
 						diagnostics={statusData.diagnostics}
 					/>
 				);
+			case "logs":
+				return <LogsSettings logFilePath={logsData?.logFilePath ?? ""} />;
 		}
-	}, [activeTab, statusData]);
+	}, [activeTab, logsData?.logFilePath, statusData]);
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
