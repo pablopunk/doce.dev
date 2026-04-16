@@ -409,35 +409,6 @@ export const projects = {
 		},
 	}),
 
-	presence: defineAction({
-		input: z.object({
-			projectId: z.string(),
-			viewerId: z.string(),
-		}),
-		handler: async (input, context) => {
-			const user = context.locals.user;
-			if (!user) {
-				throw new ActionError({
-					code: "UNAUTHORIZED",
-					message: "You must be logged in",
-				});
-			}
-
-			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
-			if (!isOwner) {
-				throw new ActionError({
-					code: "NOT_FOUND",
-					message: "Project not found",
-				});
-			}
-
-			const { handlePresenceHeartbeat } = await import(
-				"@/server/presence/manager"
-			);
-			return await handlePresenceHeartbeat(input.projectId, input.viewerId);
-		},
-	}),
-
 	rollback: defineAction({
 		input: z.object({
 			projectId: z.string(),
@@ -831,61 +802,6 @@ export const projects = {
 				isSetupComplete,
 				promptSentAt,
 				jobTimeoutWarning,
-			};
-		},
-	}),
-
-	getProductionStatus: defineAction({
-		input: z.object({
-			projectId: z.string(),
-		}),
-		handler: async (input, context) => {
-			const user = context.locals.user;
-			if (!user) {
-				throw new ActionError({
-					code: "UNAUTHORIZED",
-					message: "You must be logged in",
-				});
-			}
-
-			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
-			if (!isOwner) {
-				throw new ActionError({
-					code: "FORBIDDEN",
-					message: "You don't have access to this project",
-				});
-			}
-
-			const project = await getProjectById(input.projectId);
-			if (!project) {
-				throw new ActionError({
-					code: "NOT_FOUND",
-					message: "Project not found",
-				});
-			}
-
-			const { getProductionStatus, getActiveProductionJob } = await import(
-				"@/server/productions/productions.model"
-			);
-
-			const status = getProductionStatus(project);
-			const activeJob = await getActiveProductionJob(input.projectId);
-			const productionPort = project.productionPort;
-			const url = productionPort ? `http://localhost:${productionPort}` : null;
-
-			return {
-				status: status.status,
-				url,
-				productionPort,
-				port: status.port,
-				error: status.error,
-				startedAt: status.startedAt?.toISOString() || null,
-				activeJob: activeJob
-					? {
-							type: activeJob.type,
-							state: activeJob.state,
-						}
-					: null,
 			};
 		},
 	}),

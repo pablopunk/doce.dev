@@ -1,6 +1,7 @@
 import { actions } from "astro:actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLiveState } from "@/hooks/useLiveState";
 import { type ChatItem, useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
@@ -125,7 +126,8 @@ export function useChatPanel({
 		null,
 	);
 	const reconnectAttemptsRef = useRef(0);
-	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	// Live state from SSE — replaces presence heartbeat polling
+	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
 	const loadingHistoryRef = useRef(false);
 	const configLoadedRef = useRef(false);
 	const streamDegradedRef = useRef(false);
@@ -486,34 +488,20 @@ export function useChatPanel({
 		showRequestError,
 	]);
 
-	// Poll for readiness
+	// React to live state for readiness
 	useEffect(() => {
-		if (opencodeReady) return;
-		const checkReady = async () => {
-			try {
-				const viewerId =
-					sessionStorage.getItem(`viewer_${projectId}`) || `chat_${Date.now()}`;
-				const { data, error } = await actions.projects.presence({
-					projectId,
-					viewerId,
-				});
-				if (!error && data.opencodeReady) {
-					setOpenCodeReady(true);
-					setInitialPromptSent(data.initialPromptSent);
-					setUserPromptMessageId(data.userPromptMessageId);
-					setProjectPrompt(data.prompt);
-					if (data.bootstrapSessionId) setSessionId(data.bootstrapSessionId);
-					setPresenceLoaded(true);
-				}
-			} catch {}
-		};
-		checkReady();
-		pollIntervalRef.current = setInterval(checkReady, 2000);
-		return () => {
-			if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-		};
+		if (!liveData || opencodeReady) return;
+		if (liveData.opencodeReady) {
+			setOpenCodeReady(true);
+			setInitialPromptSent(liveData.initialPromptSent);
+			setUserPromptMessageId(liveData.userPromptMessageId);
+			setProjectPrompt(liveData.prompt ?? "");
+			if (liveData.bootstrapSessionId)
+				setSessionId(liveData.bootstrapSessionId);
+			setPresenceLoaded(true);
+		}
 	}, [
-		projectId,
+		liveData,
 		opencodeReady,
 		setOpenCodeReady,
 		setInitialPromptSent,
@@ -629,21 +617,7 @@ export function useChatPanel({
 
 				reconnectTimeoutRef.current = setTimeout(() => {
 					if (opencodeReady) {
-						void actions.projects
-							.presence({
-								projectId,
-								viewerId: `chat_reconnect_${Date.now()}`,
-							})
-							.then((result) => {
-								if (result.error || !result.data?.opencodeReady) {
-									setOpenCodeReady(false);
-									return;
-								}
-								connect();
-							})
-							.catch(() => {
-								setOpenCodeReady(false);
-							});
+						connect();
 					}
 				}, delay);
 			};
@@ -669,7 +643,6 @@ export function useChatPanel({
 		handleChatEvent,
 		opencodeReady,
 		projectId,
-		setOpenCodeReady,
 		setIsStreaming,
 		showRequestError,
 	]);

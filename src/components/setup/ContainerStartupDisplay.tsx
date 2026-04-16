@@ -1,234 +1,72 @@
-import { actions } from "astro:actions";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useLiveState } from "@/hooks/useLiveState";
 
 interface ContainerStartupDisplayProps {
 	projectId: string;
-	reason?: "initial" | "restart"; // "initial" for first startup, "restart" for comeback
-	onComplete?: () => void; // Called when startup/restart is complete
+	reason?: "initial" | "restart";
+	onComplete?: () => void;
 }
 
 const TOTAL_STEPS = 2;
-
-// Two steps only for container startup
-const STEPS: Array<{ step: number; label: string }> = [
+const STEPS = [
 	{ step: 1, label: "Docker" },
 	{ step: 2, label: "Agent" },
 ];
-
-// Descriptions for each step
-const STEP_DESCRIPTIONS: Record<number, string> = {
-	1: "Starting containers...",
-	2: "Leveraging agent...",
-};
 
 export function ContainerStartupDisplay({
 	projectId,
 	reason = "initial",
 	onComplete,
 }: ContainerStartupDisplayProps) {
-	const [isComplete, setIsComplete] = useState(false);
-	const [currentStep, setCurrentStep] = useState(1);
-	const [startupError, setStartupError] = useState<string | null>(null);
-	const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(
-		null,
-	);
-	const [sessionsLoaded] = useState(true);
-	const eventSourceRef = useRef<EventSource | null>(null);
-	const startTimeRef = useRef<number>(Date.now());
+	const { data } = useLiveState(`/api/projects/${projectId}/live`);
 	const completionScheduledRef = useRef(false);
-	const viewerIdRef = useRef(`startup_${projectId}_${Date.now()}`);
+	const [timedOut, setTimedOut] = useState(false);
 
-	const handleOpencodeEvent = useCallback(
-		(event: { type: string; payload: Record<string, unknown> }) => {
-			const { type } = event;
+	const status = data?.status ?? "starting";
+	const previewReady = data?.previewReady ?? false;
+	const opencodeReady = data?.opencodeReady ?? false;
+	const setupError = data?.setupError ?? null;
+	const message = data?.message;
 
-			switch (type) {
-				case "chat.message.delta":
-				case "chat.message.part.added": {
-					// Agent is working - advance to step 2
-					setCurrentStep(2);
-					break;
-				}
+	const isReady = status === "running" && previewReady && opencodeReady;
+	const hasError = status === "error" || timedOut || setupError !== null;
 
-				case "chat.message.final": {
-					// Message complete
-					break;
-				}
+	// Current step: both ready = step 2 done; preview ready = step 2; else step 1
+	const currentStep = opencodeReady ? 2 : previewReady ? 2 : 1;
 
-				case "chat.tool.start":
-				case "chat.tool.finish":
-				case "chat.tool.error": {
-					// Tool calls are happening but we don't show them
-					break;
-				}
-
-				case "setup.complete": {
-					// Event stream signals that initial prompt was completed
-					setIsComplete(true);
-					setCurrentStep(2);
-					onComplete?.();
-					break;
-				}
-			}
-		},
-		[onComplete],
-	);
-
-	// Connect to opencode event stream to show progress
+	// Timeout safety net — server already handles this but belt-and-suspenders
 	useEffect(() => {
-		if (isComplete) return;
-		completionScheduledRef.current = false;
+		const id = setTimeout(() => {
+			if (!isReady) setTimedOut(true);
+		}, 120_000);
+		return () => clearTimeout(id);
+	}, [isReady]);
 
-		// Open SSE connection to opencode events
-		const eventSource = new EventSource(
-			`/api/projects/${projectId}/opencode/event`,
-		);
-		eventSourceRef.current = eventSource;
-
-		eventSource.addEventListener("chat.event", (e) => {
-			try {
-				const event = JSON.parse(e.data);
-				handleOpencodeEvent(event);
-			} catch (error) {
-				// Log parsing errors for debugging, but don't crash
-				console.error(
-					"Failed to parse opencode event",
-					{ data: e.data, error },
-					error instanceof Error ? error.message : String(error),
-				);
-			}
-		});
-
-		eventSource.onerror = () => {
-			eventSource.close();
-		};
-
-		return () => {
-			if (eventSourceRef.current === eventSource) {
-				eventSource.close();
-				eventSourceRef.current = null;
-			}
-		};
-	}, [projectId, isComplete, handleOpencodeEvent]);
-
-	// Poll queue status for container startup progress
+	// Signal completion when ready
 	useEffect(() => {
-		if (isComplete) return;
+		if (!isReady || completionScheduledRef.current) return;
+		completionScheduledRef.current = true;
+		setTimeout(() => onComplete?.(), 500);
+	}, [isReady, onComplete]);
 
-		let intervalId: ReturnType<typeof setInterval> | null = null;
+	const displayMessage =
+		message ??
+		(opencodeReady
+			? "Leveraging agent..."
+			: previewReady
+				? "Waiting for opencode..."
+				: "Starting containers...");
 
-		const poll = async () => {
-			try {
-				const { data, error } = await actions.projects.getQueueStatus({
-					projectId,
-				});
-
-				const shouldWaitForSessions = reason === "restart";
-				const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
-
-				const presenceResult = await actions.projects.presence({
-					projectId,
-					viewerId: viewerIdRef.current,
-				});
-
-				const runtimeReady = Boolean(
-					!presenceResult.error &&
-						presenceResult.data.status === "running" &&
-						presenceResult.data.opencodeReady &&
-						presenceResult.data.previewReady,
-				);
-
-				if (reason === "restart" && runtimeReady && sessionConditionMet) {
-					if (completionScheduledRef.current) return;
-					completionScheduledRef.current = true;
-
-					setTimeout(() => {
-						setIsComplete(true);
-						onComplete?.();
-					}, 1000);
-					return;
-				}
-
-				if (error) {
-					setStartupError("Failed to check startup status");
-					return;
-				}
-
-				// For container startup, map the queue status steps:
-				// Step 1-2 = Docker (containers starting)
-				// Step 3+ = Agent (opencode initializing)
-				if (data.currentStep >= 3) {
-					setCurrentStep(2);
-				} else {
-					setCurrentStep(1);
-				}
-
-				// Check for queue job failures
-				if (data.hasError) {
-					setStartupError(data.errorMessage || "Startup failed");
-					return;
-				}
-
-				// Show queue job timeout warning
-				if (data.jobTimeoutWarning) {
-					setJobTimeoutWarning(data.jobTimeoutWarning);
-				}
-
-				const setupReady = data.currentStep >= 4 && data.isSetupComplete;
-				const restartReady = reason === "restart" && runtimeReady;
-
-				if (
-					(setupReady || restartReady) &&
-					sessionConditionMet &&
-					runtimeReady
-				) {
-					if (completionScheduledRef.current) return;
-					completionScheduledRef.current = true;
-
-					// Wait a moment for the UI to show final state, then signal completion
-					setTimeout(() => {
-						setIsComplete(true);
-						onComplete?.();
-					}, 1000);
-				} else {
-					completionScheduledRef.current = false;
-				}
-			} catch (error) {
-				console.error("Failed to poll queue status:", error);
-			}
-		};
-
-		const elapsed = Date.now() - startTimeRef.current;
-		const pollInterval = 2000;
-
-		// Check for timeout (30 seconds)
-		if (elapsed > 30_000 && !startupError) {
-			setStartupError("Timeout waiting for containers to start");
-			return;
-		}
-
-		intervalId = setInterval(poll, pollInterval);
-		// Run first poll immediately
-		poll();
-
-		return () => {
-			if (intervalId) clearInterval(intervalId);
-		};
-	}, [projectId, isComplete, startupError, sessionsLoaded, reason, onComplete]);
-
-	const displayMessage = jobTimeoutWarning
-		? jobTimeoutWarning
-		: reason === "restart" && !sessionsLoaded && currentStep >= 2
-			? "Loading your chat history..."
-			: (STEP_DESCRIPTIONS[currentStep] ?? "Starting your environment...");
-
-	const hasError = startupError !== null;
 	const heading =
 		reason === "restart"
 			? "Your environment was stopped. Restarting..."
 			: "Starting your environment...";
+
+	const errorMessage = timedOut
+		? "Timeout waiting for containers to start"
+		: (setupError ?? "Startup failed");
 
 	return (
 		<div className="flex-1 flex items-center justify-center px-4">
@@ -240,12 +78,10 @@ export function ContainerStartupDisplay({
 
 					{!hasError ? (
 						<div className="space-y-4">
-							{/* Timeline of steps */}
 							<div className="flex items-center justify-between gap-1 w-full">
 								{STEPS.map((step) => {
 									const isCompleted = currentStep > step.step;
 									const isCurrent = currentStep === step.step;
-
 									return (
 										<div
 											key={step.step}
@@ -274,7 +110,6 @@ export function ContainerStartupDisplay({
 								})}
 							</div>
 
-							{/* Progress bar */}
 							<div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
 								<div
 									className="h-full bg-primary transition-all duration-300 ease-out"
@@ -282,7 +117,6 @@ export function ContainerStartupDisplay({
 								/>
 							</div>
 
-							{/* Status message */}
 							<div className="flex items-center justify-center gap-2 min-h-6">
 								<Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
 								<p className="text-sm text-muted-foreground">
@@ -291,7 +125,6 @@ export function ContainerStartupDisplay({
 							</div>
 						</div>
 					) : (
-						// Error state
 						<div className="space-y-4">
 							<div className="flex justify-center">
 								<AlertTriangle className="h-12 w-12 text-status-error" />
@@ -299,7 +132,7 @@ export function ContainerStartupDisplay({
 							<div className="p-4 bg-status-error-light border border-status-error rounded-lg text-left">
 								<p className="text-sm text-status-error break-words">
 									<span className="font-semibold">Error: </span>
-									{startupError}
+									{errorMessage}
 								</p>
 							</div>
 							<Button

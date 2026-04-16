@@ -24,24 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
+import { useLiveState } from "@/hooks/useLiveState";
 import { mapPortUrlToPreferredHost } from "@/lib/base-url";
-
-interface PresenceResponse {
-	projectId: string;
-	status: string;
-	viewerCount: number;
-	previewUrl: string;
-	previewReady: boolean;
-	opencodeReady: boolean;
-	message: string | null;
-	nextPollMs: number;
-	initialPromptCompleted?: boolean;
-	opencodeDiagnostic?: {
-		category: string | null;
-		message: string | null;
-		remediation: string[] | null;
-	} | null;
-}
 
 interface ProductionStatus {
 	status: "queued" | "building" | "running" | "failed" | "stopped";
@@ -62,7 +46,11 @@ interface ProductionStatus {
 interface PreviewPanelProps {
 	projectId: string;
 	projectSlug?: string;
-	onStatusChange?: (status: PresenceResponse) => void;
+	onStatusChange?: (status: {
+		status: string;
+		previewReady: boolean;
+		opencodeReady: boolean;
+	}) => void;
 	fileToOpen?: string | null;
 	onFileOpened?: () => void;
 	initialResponseProcessing?: boolean;
@@ -134,32 +122,22 @@ export function PreviewPanel({
 			return null;
 		},
 	);
-	const [productionStatus, setProductionStatus] =
-		useState<ProductionStatus | null>(null);
 	const [productionVersions, setProductionVersions] = useState<
 		ProductionVersion[]
 	>([]);
-	const [opencodeDiagnostic, setOpencodeDiagnostic] = useState<{
-		category: string | null;
-		message: string | null;
-	} | null>(null);
-	const viewerIdRef = useRef<string | null>(null);
-	const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const productionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const productionHistoryPollRef = useRef<ReturnType<
 		typeof setInterval
 	> | null>(null);
 
-	// Generate viewer ID on mount
-	useEffect(() => {
-		let storedViewerId = sessionStorage.getItem(`viewer_${projectId}`);
-		if (!storedViewerId) {
-			storedViewerId = `viewer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-			sessionStorage.setItem(`viewer_${projectId}`, storedViewerId);
-		}
-		viewerIdRef.current = storedViewerId;
-	}, [projectId]);
+	// Live state from SSE — replaces all presence heartbeat polling
+	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
+
+	// Opencode diagnostic from live state
+	const opencodeDiagnostic = liveData?.opencodeDiagnostic ?? null;
+	const setOpencodeDiagnostic = (_: null) => {
+		// No-op — diagnostic is read-only from live state
+		// This is kept for API compatibility with existing banner dismiss handlers
+	};
 
 	// Update URL when active tab changes
 	useEffect(() => {
@@ -182,27 +160,6 @@ export function PreviewPanel({
 		}
 	}, [activeTab]);
 
-	const sendHeartbeat =
-		useCallback(async (): Promise<PresenceResponse | null> => {
-			if (!viewerIdRef.current) return null;
-
-			try {
-				const { data, error } = await actions.projects.presence({
-					projectId,
-					viewerId: viewerIdRef.current,
-				});
-
-				if (error) {
-					throw new Error(error.message);
-				}
-
-				return data as unknown as PresenceResponse;
-			} catch (error) {
-				console.error("Heartbeat failed:", error);
-				return null;
-			}
-		}, [projectId]);
-
 	const mapPortUrlToPreferredBase = useCallback(
 		(url: string | null) => {
 			if (!url || typeof window === "undefined") {
@@ -214,101 +171,36 @@ export function PreviewPanel({
 		[baseUrl],
 	);
 
-	const handlePresenceResponse = useCallback(
-		(data: PresenceResponse) => {
-			if (typeof window !== "undefined") {
-				const mappedPreviewUrl = mapPortUrlToPreferredBase(data.previewUrl);
-				setPreviewUrl(mappedPreviewUrl ?? data.previewUrl);
-			} else {
-				setPreviewUrl(data.previewUrl);
-			}
-
-			setMessage(data.message);
-			setOpencodeDiagnostic(data.opencodeDiagnostic ?? null);
-			onStatusChange?.(data);
-
-			// State machine
-			if (
-				data.previewReady &&
-				data.opencodeReady &&
-				data.status === "running"
-			) {
-				setState("ready");
-			} else if (data.status === "error" || data.status === "deleting") {
-				setState("error");
-			} else if (
-				data.status === "starting" ||
-				data.status === "created" ||
-				data.status === "stopped"
-			) {
-				setState("starting");
-			} else if (
-				data.status === "running" &&
-				data.previewReady &&
-				!data.opencodeReady
-			) {
-				// Preview is ready but OpenCode is not responding
-				setState("opencode-unresponsive");
-				setMessage("AI agent is not responding");
-			} else if (data.status === "running" && !data.previewReady) {
-				// Container is running but preview health check hasn't passed yet
-				setState("starting");
-				setMessage("Waiting for preview server...");
-			}
-
-			return data;
-		},
-		[mapPortUrlToPreferredBase, onStatusChange],
-	);
-
-	// Initial heartbeat and polling
+	// React to live state changes
 	useEffect(() => {
-		let mounted = true;
+		if (!liveData) return;
 
-		const poll = async () => {
-			if (!mounted) return;
+		// Update preview URL with preferred host mapping
+		const mappedUrl =
+			typeof window !== "undefined"
+				? (mapPortUrlToPreferredBase(liveData.previewUrl) ??
+					liveData.previewUrl)
+				: liveData.previewUrl;
+		setPreviewUrl(mappedUrl);
+		setMessage(liveData.message);
+		onStatusChange?.(liveData);
 
-			const data = await sendHeartbeat();
-			if (!data || !mounted) return;
-
-			const result = handlePresenceResponse(data);
-
-			// Schedule next poll based on state
-			if (result.status === "starting" || result.status === "created") {
-				pollTimeoutRef.current = setTimeout(poll, result.nextPollMs);
-			} else if (result.status === "running" && !result.previewReady) {
-				// Keep polling until preview is ready
-				pollTimeoutRef.current = setTimeout(poll, 2000);
-			}
-		};
-
-		// Start polling after a short delay to ensure viewerId is set
-		const initTimeout = setTimeout(poll, 100);
-
-		return () => {
-			mounted = false;
-			clearTimeout(initTimeout);
-			if (pollTimeoutRef.current) {
-				clearTimeout(pollTimeoutRef.current);
-			}
-		};
-	}, [sendHeartbeat, handlePresenceResponse]);
-
-	// Regular heartbeat (every 15s)
-	useEffect(() => {
-		heartbeatRef.current = setInterval(async () => {
-			const data = await sendHeartbeat();
-			if (data) {
-				handlePresenceResponse(data);
-			}
-		}, 15_000);
-
-		return () => {
-			if (heartbeatRef.current) {
-				clearInterval(heartbeatRef.current);
-			}
-		};
-	}, [sendHeartbeat, handlePresenceResponse]);
+		// State machine
+		const { status, previewReady, opencodeReady } = liveData;
+		if (previewReady && opencodeReady && status === "running") {
+			setState("ready");
+		} else if (status === "error" || status === "deleting") {
+			setState("error");
+		} else if (status === "running" && previewReady && !opencodeReady) {
+			setState("opencode-unresponsive");
+			setMessage("AI agent is not responding");
+		} else if (status === "running" && !previewReady) {
+			setState("starting");
+			setMessage("Waiting for preview server...");
+		} else {
+			setState("starting");
+		}
+	}, [liveData, mapPortUrlToPreferredBase, onStatusChange]);
 
 	// Handle file opening from chat panel
 	useEffect(() => {
@@ -341,40 +233,32 @@ export function PreviewPanel({
 		return undefined;
 	}, [state, previewUrl]);
 
-	const handleRetry = async () => {
+	const handleRetry = () => {
+		// The SSE stream will push the current state — nothing to do but reset UI
 		setState("starting");
 		setMessage("Retrying...");
-		const data = await sendHeartbeat();
-		if (data) {
-			handlePresenceResponse(data);
-		}
 	};
 
-	const pollProductionStatus =
-		useCallback(async (): Promise<ProductionStatus | null> => {
-			try {
-				const { data, error } = await actions.projects.getProductionStatus({
-					projectId,
-				});
-				if (!error) {
-					const status = data as unknown as ProductionStatus;
-					const frontendUrl =
-						typeof window === "undefined"
-							? status.url
-							: mapPortUrlToPreferredBase(status.url);
-					const normalizedStatus = {
-						...status,
-						url: frontendUrl,
-					};
-
-					setProductionStatus(normalizedStatus);
-					return normalizedStatus;
-				}
-			} catch (error) {
-				console.error("Failed to fetch production status:", error);
+	// Production status comes from the live stream
+	const productionStatus: ProductionStatus | null = liveData
+		? {
+				status: liveData.production.status,
+				url:
+					typeof window !== "undefined"
+						? (mapPortUrlToPreferredBase(liveData.production.url) ??
+							liveData.production.url)
+						: liveData.production.url,
+				port: liveData.production.port,
+				error: liveData.production.error,
+				startedAt: liveData.production.startedAt,
+				activeJob: liveData.production.activeJobType
+					? {
+							type: liveData.production.activeJobType,
+							state: "running" as const,
+						}
+					: null,
 			}
-			return null;
-		}, [projectId, mapPortUrlToPreferredBase]);
+		: null;
 
 	const pollProductionHistory = useCallback(async () => {
 		try {
@@ -385,51 +269,10 @@ export function PreviewPanel({
 				const history = data as unknown as { versions: ProductionVersion[] };
 				setProductionVersions(history.versions);
 			}
-		} catch (error) {
-			console.error("Failed to fetch production history:", error);
+		} catch {
+			// Non-critical — versions will refresh next cycle
 		}
 	}, [projectId]);
-
-	// Adaptive polling for production status
-	useEffect(() => {
-		let mounted = true;
-
-		const poll = async () => {
-			if (!mounted) return;
-
-			// Fetch fresh status and use it directly (not stale state)
-			const freshStatus = await pollProductionStatus();
-
-			if (!mounted) return;
-
-			// Determine polling interval based on FRESH status (not state)
-			let pollInterval = 10_000; // Default: 10s when stable
-			if (freshStatus?.activeJob) {
-				// Job in progress - poll aggressively
-				pollInterval = 1_000; // 1s
-			} else if (
-				freshStatus?.status === "running" ||
-				freshStatus?.status === "building" ||
-				freshStatus?.status === "queued"
-			) {
-				// Transition state - poll moderately
-				pollInterval = 2_000; // 2s
-			}
-			// If stopped/failed and no active job, use default (10s or no polling)
-
-			productionPollRef.current = setTimeout(poll, pollInterval);
-		};
-
-		// Start polling immediately
-		poll();
-
-		return () => {
-			mounted = false;
-			if (productionPollRef.current) {
-				clearTimeout(productionPollRef.current);
-			}
-		};
-	}, [pollProductionStatus]);
 
 	// Poll production history when deployed
 	useEffect(() => {
@@ -439,7 +282,7 @@ export function PreviewPanel({
 			if (!mounted) return;
 			await pollProductionHistory();
 			if (mounted) {
-				productionHistoryPollRef.current = setTimeout(poll, 5_000); // Poll every 5s
+				productionHistoryPollRef.current = setTimeout(poll, 5_000);
 			}
 		};
 
@@ -458,27 +301,21 @@ export function PreviewPanel({
 	const handleDeploy = async () => {
 		try {
 			const { error } = await actions.projects.deploy({ projectId });
-			if (error) {
-				console.error("Deploy failed:", error.message);
-			}
-			// Polling will pick up the state change
-			await pollProductionStatus();
-		} catch (error) {
-			console.error("Deploy failed:", error);
+			if (error) toast.error(error.message);
+		} catch {
+			toast.error("Deploy failed");
 		}
+		// Live stream will push updated production status
 	};
 
 	const handleStop = async () => {
 		try {
 			const { error } = await actions.projects.stopProduction({ projectId });
-			if (error) {
-				console.error("Stop production failed:", error.message);
-			}
-			// Polling will pick up the state change
-			await pollProductionStatus();
-		} catch (error) {
-			console.error("Stop production failed:", error);
+			if (error) toast.error(error.message);
+		} catch {
+			toast.error("Failed to stop production");
 		}
+		// Live stream will push updated production status
 	};
 
 	const handleExportPreviewSource = async () => {
@@ -526,8 +363,6 @@ export function PreviewPanel({
 				console.error("Rollback failed:", error.message);
 				throw new Error(error.message);
 			}
-			// Polling will pick up the state change
-			await pollProductionStatus();
 			await pollProductionHistory();
 		} catch (error) {
 			console.error("Rollback failed:", error);

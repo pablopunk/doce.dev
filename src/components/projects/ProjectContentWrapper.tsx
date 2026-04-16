@@ -1,4 +1,3 @@
-import { actions } from "astro:actions";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
@@ -7,6 +6,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
+import { useLiveState } from "@/hooks/useLiveState";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { useChatLayout } from "@/stores/useChatLayout";
 
@@ -50,47 +50,23 @@ export function ProjectContentWrapper({
 		containerRef,
 	});
 
+	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
+
 	useEffect(() => {
-		if (!showStartupDisplay) {
-			return;
+		if (!showStartupDisplay) return;
+		if (
+			liveData?.previewReady &&
+			liveData?.opencodeReady &&
+			liveData?.status === "running"
+		) {
+			setShowStartupDisplay(false);
 		}
-
-		let intervalId: ReturnType<typeof setInterval> | null = null;
-		let cancelled = false;
-
-		const checkContainerStatus = async () => {
-			try {
-				const { data, error } = await actions.projects.presence({
-					projectId,
-					viewerId: `check_${Date.now()}`,
-				});
-
-				if (cancelled || error) return;
-
-				if (
-					data.previewReady &&
-					data.opencodeReady &&
-					data.status === "running"
-				) {
-					setShowStartupDisplay(false);
-				}
-			} catch {
-				// If we can't check, assume containers might be starting
-			}
-		};
-
-		void checkContainerStatus();
-		intervalId = setInterval(() => {
-			void checkContainerStatus();
-		}, 2000);
-
-		return () => {
-			cancelled = true;
-			if (intervalId) {
-				clearInterval(intervalId);
-			}
-		};
-	}, [projectId, showStartupDisplay]);
+	}, [
+		showStartupDisplay,
+		liveData?.previewReady,
+		liveData?.opencodeReady,
+		liveData?.status,
+	]);
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden relative">
