@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +26,27 @@ import { Label } from "@/components/ui/label";
 
 const CONFIRMATION_TEXT = "delete all projects";
 
-interface DeleteAllProjectsSectionProps {
-	projectCount: number;
-}
+export function DeleteAllProjectsSection() {
+	const [projectCount, setProjectCount] = useState<number | null>(null);
 
-export function DeleteAllProjectsSection({
-	projectCount,
-}: DeleteAllProjectsSectionProps) {
+	const fetchCount = useCallback(async () => {
+		try {
+			const res = await fetch("/_actions/projects.list", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			const data = await res.json();
+			const projects = Array.isArray(data) ? data[0] : data.data;
+			setProjectCount(Array.isArray(projects) ? projects.length : 0);
+		} catch {
+			setProjectCount(0);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchCount();
+	}, [fetchCount]);
 	const [isOpen, setIsOpen] = useState(false);
 	const [confirmText, setConfirmText] = useState("");
 	const [isDeleting, setIsDeleting] = useState(false);
@@ -129,6 +143,10 @@ export function DeleteAllProjectsSection({
 			}, 0);
 		}
 	};
+
+	if (projectCount === null) {
+		return null;
+	}
 
 	if (projectCount === 0) {
 		return (

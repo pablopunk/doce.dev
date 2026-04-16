@@ -53,7 +53,9 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 				} catch (error) {
 					send("error", {
 						message:
-							error instanceof Error ? error.message : "Failed to check project",
+							error instanceof Error
+								? error.message
+								: "Failed to check project",
 					});
 					cleanup();
 					controller.close();

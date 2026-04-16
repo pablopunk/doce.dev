@@ -76,7 +76,11 @@ When summarizing the journey so far:
 - ...`;
 }
 
-export const DoceCompactionPlugin = async ({ directory }: { directory: string }) => {
+export const DoceCompactionPlugin = async ({
+	directory,
+}: {
+	directory: string;
+}) => {
 	return {
 		"experimental.session.compacting": async (_input, output) => {
 			const originalPrompt = await readOriginalPrompt(directory);

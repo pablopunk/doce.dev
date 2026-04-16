@@ -1,5 +1,6 @@
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { BaseUrlSettings } from "@/components/settings/BaseUrlSettings";
+import { DeleteAllProjectsSection } from "@/components/settings/DeleteAllProjectsSection";
 import {
 	Card,
 	CardContent,
@@ -27,6 +28,7 @@ export function GeneralSettings() {
 		<div className="space-y-6">
 			<BaseUrlSettings />
 			<AccountCard />
+			<DeleteAllProjectsSection />
 		</div>
 	);
 }
