@@ -1,7 +1,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { getGlobalOpencodeConfigPath } from "@/server/projects/paths";
+import {
+	getDataPath,
+	getGlobalOpencodeConfigPath,
+} from "@/server/projects/paths";
 
 type PermissionAction = "allow" | "ask" | "deny";
 type PermissionRule = PermissionAction | Record<string, PermissionAction>;
@@ -10,6 +13,18 @@ interface OpencodeConfig {
 	$schema?: string;
 	permission?: Record<string, PermissionRule>;
 	[key: string]: unknown;
+}
+
+const DOCE_COMPACTION_PLUGIN_FILENAME = "doce-compaction.ts";
+
+function getDoceCompactionPluginSourcePath(): string {
+	return path.join(
+		process.cwd(),
+		"src",
+		"server",
+		"opencode",
+		DOCE_COMPACTION_PLUGIN_FILENAME,
+	);
 }
 
 const PERMISSIVE_PERMISSION_CONFIG: Record<string, PermissionRule> = {
@@ -85,6 +100,20 @@ async function readExistingConfig(
 	}
 }
 
+async function ensureGlobalDoceCompactionPlugin(): Promise<void> {
+	const pluginDirectory = path.join(getDataPath(), "opencode", "plugins");
+	const pluginPath = path.join(
+		pluginDirectory,
+		DOCE_COMPACTION_PLUGIN_FILENAME,
+	);
+	await fs.mkdir(pluginDirectory, { recursive: true });
+	await fs.copyFile(getDoceCompactionPluginSourcePath(), pluginPath);
+	logger.debug(
+		{ pluginPath },
+		"Ensured global doce.dev OpenCode compaction plugin",
+	);
+}
+
 export async function ensureGlobalOpencodeConfig(): Promise<void> {
 	const configPath = getGlobalOpencodeConfigPath();
 	await fs.mkdir(path.dirname(configPath), { recursive: true });
@@ -97,5 +126,6 @@ export async function ensureGlobalOpencodeConfig(): Promise<void> {
 	};
 
 	await fs.writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`);
+	await ensureGlobalDoceCompactionPlugin();
 	logger.debug({ configPath }, "Ensured permissive global OpenCode config");
 }

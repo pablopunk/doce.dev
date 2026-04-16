@@ -11,6 +11,7 @@ import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { ensureAuthDirectory } from "@/server/opencode/authFile";
 import { allocateProjectPorts } from "@/server/ports/allocate";
+import { ensureProjectPromptFile } from "@/server/projects/projectPrompt";
 import {
 	createProject,
 	updateOpencodeJsonModel,
@@ -193,6 +194,13 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 			);
 		}
 
+		yield* Effect.tryPromise({
+			try: () =>
+				ensureProjectPromptFile(path.join(projectPath, "preview"), prompt),
+			catch: (error) =>
+				toProjectError(error, "ensureProjectPromptFile", projectId),
+		});
+
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
 		const name = yield* generateNameEffect(prompt);
@@ -229,4 +237,4 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 	);
 
 	await Effect.runPromise(program);
-}
+};

@@ -497,12 +497,28 @@ export function normalizeEvent(
 			};
 		}
 
+		// Session compacted — emit as a synthetic tool update so the UI
+		// can render it like any other system operation.
+		case "session.compacted": {
+			const compactId = generateId("compact");
+			return {
+				type: "chat.tool.update",
+				projectId,
+				time,
+				payload: {
+					toolCallId: compactId,
+					name: "compact_context",
+					status: "success",
+					output: "Session context compacted to preserve project momentum.",
+				} satisfies ToolUpdatePayload,
+			};
+		}
+
 		// Session events we can ignore
 		case "session.updated":
 		case "session.created":
 		case "session.deleted":
 		case "session.idle":
-		case "session.compacted":
 		case "session.diff":
 			return null;
 

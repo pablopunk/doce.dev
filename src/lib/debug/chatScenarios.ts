@@ -27,6 +27,71 @@ export interface ChatScenario {
 }
 
 export const chatScenarios: Record<ChatDebugScenario, ChatScenario> = {
+	compaction: {
+		items: [
+			createMockTextMessage(
+				"user_1",
+				"user",
+				"Build me a full dashboard with charts, tables, auth, and dark mode",
+			),
+			createMockTextMessage(
+				"assistant_1",
+				"assistant",
+				"I'll set up the dashboard layout with a sidebar navigation and main content area.",
+			),
+			createMockToolCall(
+				"tool_1",
+				"write",
+				{ filePath: "/app/src/components/Dashboard.tsx" },
+				"success",
+				{ bytesWritten: 2400 },
+			),
+			createMockToolCall(
+				"tool_2",
+				"write",
+				{ filePath: "/app/src/components/Sidebar.tsx" },
+				"success",
+				{ bytesWritten: 1800 },
+			),
+			createMockTextMessage(
+				"assistant_2",
+				"assistant",
+				"Dashboard layout is ready. Now I'll add the charts and data tables.",
+			),
+			createMockToolCall(
+				"tool_3",
+				"write",
+				{ filePath: "/app/src/components/Charts.tsx" },
+				"success",
+				{ bytesWritten: 3200 },
+			),
+			createMockToolCall(
+				"compact_1",
+				"compact_context",
+				undefined,
+				"success",
+				"Session context compacted to preserve project momentum.",
+			),
+			createMockTextMessage(
+				"assistant_3",
+				"assistant",
+				"Continuing with the auth system and dark mode support. The dashboard structure is solid.",
+			),
+			createMockToolCall(
+				"tool_4",
+				"write",
+				{ filePath: "/app/src/components/AuthProvider.tsx" },
+				"success",
+				{ bytesWritten: 1600 },
+			),
+		],
+		opencodeReady: true,
+		isStreaming: false,
+		todos: [],
+		pendingPermission: null,
+		pendingQuestion: null,
+	},
+
 	empty: {
 		items: [],
 		opencodeReady: true,

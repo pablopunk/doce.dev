@@ -7,6 +7,7 @@ import {
 	ListTree,
 	type LucideIcon,
 	Pencil,
+	RefreshCw,
 	Search,
 	Terminal,
 	Trash2,
@@ -291,6 +292,13 @@ registerTool("todowrite", {
 registerTool("sequential-thinking_sequentialthinking", {
 	name: "Thinking",
 	icon: Brain,
+});
+
+// Compaction (system)
+registerTool("compact_context", {
+	name: "Compacting context",
+	icon: RefreshCw,
+	iconClass: "text-muted-foreground",
 });
 
 // Context7

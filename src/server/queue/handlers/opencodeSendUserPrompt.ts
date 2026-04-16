@@ -10,6 +10,7 @@ import {
 	getProjectPreviewPathFromRoot,
 	normalizeProjectPath,
 } from "@/server/projects/paths";
+import { ensureProjectPromptFile } from "@/server/projects/projectPrompt";
 import {
 	getProjectByIdIncludeDeleted,
 	loadOpencodeConfig,
@@ -85,6 +86,21 @@ export function handleOpencodeSendUserPrompt(
 		yield* ctx.throwIfCancelRequested();
 
 		const normalizedProjectPath = normalizeProjectPath(project.pathOnDisk);
+		const projectPreviewPath = getProjectPreviewPathFromRoot(
+			project.pathOnDisk,
+		);
+
+		yield* Effect.tryPromise({
+			try: () => ensureProjectPromptFile(projectPreviewPath, project.prompt),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "ensureProjectPromptFile",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
+
 		let images: ImageAttachment[] = [];
 		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
 
@@ -168,10 +184,8 @@ export function handleOpencodeSendUserPrompt(
 			});
 		}
 
-		const client = createOpencodeClient(
-			getProjectPreviewPathFromRoot(project.pathOnDisk),
-		);
-		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
+		const client = createOpencodeClient(projectPreviewPath);
+		const projectDirectory = projectPreviewPath;
 
 		const promptResponse = yield* Effect.tryPromise({
 			try: () =>

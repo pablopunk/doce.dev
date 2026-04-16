@@ -5,12 +5,14 @@ import {
 	Image,
 	ListTodo,
 	MessageSquare,
+	RefreshCw,
 	Terminal,
 	XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type ChatDebugScenario =
+	| "compaction"
 	| "empty"
 	| "simple-conversation"
 	| "tool-calls"
@@ -33,6 +35,12 @@ const scenarios: Array<{
 	icon: React.ReactNode;
 	description: string;
 }> = [
+	{
+		id: "compaction",
+		label: "Compaction",
+		icon: <RefreshCw className="h-4 w-4" />,
+		description: "Context compaction mid-conversation",
+	},
 	{
 		id: "empty",
 		label: "Empty",
