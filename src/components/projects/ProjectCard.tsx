@@ -19,6 +19,7 @@ import {
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { mapPortUrlToPreferredHost } from "@/lib/base-url";
 import type { Project } from "@/server/db/schema";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
 interface ProjectCardProps {
@@ -83,9 +84,12 @@ function getStatusStyle(status: string): StatusStyle {
 
 export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const [isDeleting, setIsDeleting] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
 	const { baseUrl } = useBaseUrlSetting();
+	const { markDeleting, clearPending, getPending } =
+		useProjectOptimisticState();
+	const pending = getPending(project.id);
+	const isDeleting = pending?.action === "deleting";
 
 	const previewUrl =
 		typeof window === "undefined"
@@ -106,17 +110,19 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	};
 
 	const handleDeleteConfirm = async (projectId: string) => {
-		setIsDeleting(true);
+		// Optimistic: mark deleting + hide immediately
+		markDeleting(projectId);
+		onDeleted?.(projectId);
+
 		try {
 			const result = await actions.projects.delete({ projectId });
 			if (result.error) {
-				setIsDeleting(false);
-				throw new Error(result.error.message);
+				clearPending(projectId);
+				toast.error(result.error.message);
 			}
-			onDeleted?.(projectId);
-		} catch (error) {
-			setIsDeleting(false);
-			throw error;
+		} catch {
+			clearPending(projectId);
+			toast.error("Failed to delete project");
 		}
 	};
 

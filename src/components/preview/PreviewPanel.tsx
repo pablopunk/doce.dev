@@ -26,6 +26,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { useLiveState } from "@/hooks/useLiveState";
 import { mapPortUrlToPreferredHost } from "@/lib/base-url";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface ProductionStatus {
 	status: "queued" | "building" | "running" | "failed" | "stopped";
@@ -131,6 +132,16 @@ export function PreviewPanel({
 
 	// Live state from SSE — replaces all presence heartbeat polling
 	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
+
+	// Optimistic action state
+	const {
+		markDeploying,
+		markStoppingProduction,
+		markRollingBack,
+		clearPending,
+		getPending,
+	} = useProjectOptimisticState();
+	const pendingAction = getPending(projectId);
 
 	// Opencode diagnostic from live state
 	const opencodeDiagnostic = liveData?.opencodeDiagnostic ?? null;
@@ -240,7 +251,32 @@ export function PreviewPanel({
 	};
 
 	// Production status comes from the live stream
-	const productionStatus: ProductionStatus | null = liveData
+	// Auto-clear optimistic state when SSE catches up
+	useEffect(() => {
+		if (!liveData || !pendingAction) return;
+		const { action } = pendingAction;
+		const ps = liveData.production.status;
+		const pj = liveData.production.activeJobType;
+
+		const shouldClear =
+			(action === "deploying" &&
+				(pj === "production.build" ||
+					ps === "building" ||
+					ps === "running" ||
+					ps === "failed")) ||
+			(action === "stopping-production" &&
+				(ps === "stopped" || ps === "failed")) ||
+			(action === "rolling-back" &&
+				(pj === "production.build" ||
+					ps === "building" ||
+					ps === "running" ||
+					ps === "failed"));
+
+		if (shouldClear) clearPending(projectId);
+	}, [liveData, pendingAction, projectId, clearPending]);
+
+	// Derive production status: optimistic first, then live
+	const liveProductionStatus: ProductionStatus | null = liveData
 		? {
 				status: liveData.production.status,
 				url:
@@ -259,6 +295,43 @@ export function PreviewPanel({
 					: null,
 			}
 		: null;
+
+	const productionStatus: ProductionStatus | null = (() => {
+		if (!liveProductionStatus) return null;
+		if (!pendingAction) return liveProductionStatus;
+
+		switch (pendingAction.action) {
+			case "deploying":
+				return {
+					...liveProductionStatus,
+					status: "building" as const,
+					activeJob: {
+						type: "production.build" as const,
+						state: "running" as const,
+					},
+				};
+			case "stopping-production":
+				return {
+					...liveProductionStatus,
+					status: "stopped" as const,
+					activeJob: {
+						type: "production.stop" as const,
+						state: "running" as const,
+					},
+				};
+			case "rolling-back":
+				return {
+					...liveProductionStatus,
+					status: "building" as const,
+					activeJob: {
+						type: "production.build" as const,
+						state: "running" as const,
+					},
+				};
+			default:
+				return liveProductionStatus;
+		}
+	})();
 
 	const pollProductionHistory = useCallback(async () => {
 		try {
@@ -299,23 +372,31 @@ export function PreviewPanel({
 	}, [productionStatus?.status, pollProductionHistory]);
 
 	const handleDeploy = async () => {
+		markDeploying(projectId);
 		try {
 			const { error } = await actions.projects.deploy({ projectId });
-			if (error) toast.error(error.message);
+			if (error) {
+				clearPending(projectId);
+				toast.error(error.message);
+			}
 		} catch {
+			clearPending(projectId);
 			toast.error("Deploy failed");
 		}
-		// Live stream will push updated production status
 	};
 
 	const handleStop = async () => {
+		markStoppingProduction(projectId);
 		try {
 			const { error } = await actions.projects.stopProduction({ projectId });
-			if (error) toast.error(error.message);
+			if (error) {
+				clearPending(projectId);
+				toast.error(error.message);
+			}
 		} catch {
+			clearPending(projectId);
 			toast.error("Failed to stop production");
 		}
-		// Live stream will push updated production status
 	};
 
 	const handleExportPreviewSource = async () => {
@@ -354,18 +435,19 @@ export function PreviewPanel({
 	};
 
 	const handleRollback = async (hash: string) => {
+		markRollingBack(projectId, hash);
 		try {
 			const { error } = await actions.projects.rollback({
 				projectId,
 				toHash: hash,
 			});
 			if (error) {
-				console.error("Rollback failed:", error.message);
+				clearPending(projectId);
 				throw new Error(error.message);
 			}
 			await pollProductionHistory();
 		} catch (error) {
-			console.error("Rollback failed:", error);
+			clearPending(projectId);
 			throw error;
 		}
 	};

@@ -1,8 +1,8 @@
 import { actions } from "astro:actions";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface RestartAgentButtonProps {
 	projectId: string;
@@ -23,11 +23,12 @@ export function RestartAgentButton({
 	variant = "outline",
 	disabled = false,
 }: RestartAgentButtonProps) {
-	const [isRestarting, setIsRestarting] = useState(false);
+	const { markRestartingAgent, clearPending, getPending } =
+		useProjectOptimisticState();
+	const isRestarting = getPending(projectId)?.action === "restarting-agent";
 
 	const handleRestart = async () => {
-		setIsRestarting(true);
-		const toastId = toast.loading("Restarting AI agent...");
+		markRestartingAgent(projectId);
 
 		try {
 			const result = await actions.projects.restartOpencode({
@@ -35,26 +36,21 @@ export function RestartAgentButton({
 			});
 
 			if (result.data?.success) {
-				toast.success("AI agent restarted successfully", {
-					id: toastId,
-					description: "The agent is now ready to process your requests",
+				toast.success("AI agent restarted", {
+					description: "The agent is ready",
 				});
 			} else {
-				toast.error("Failed to restart AI agent", {
-					id: toastId,
-					description: "Please try again or check the logs",
-				});
+				toast.error("Failed to restart AI agent");
 			}
 		} catch (error) {
 			toast.error("Failed to restart AI agent", {
-				id: toastId,
 				description:
 					error instanceof Error
 						? error.message
 						: "An unexpected error occurred",
 			});
 		} finally {
-			setIsRestarting(false);
+			clearPending(projectId);
 		}
 	};
 

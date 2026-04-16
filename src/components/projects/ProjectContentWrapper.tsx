@@ -9,6 +9,7 @@ import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisp
 import { useLiveState } from "@/hooks/useLiveState";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { useChatLayout } from "@/stores/useChatLayout";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface ProjectContentWrapperProps {
 	projectId: string;
@@ -51,6 +52,8 @@ export function ProjectContentWrapper({
 	});
 
 	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
+	const { clearPending, getPending } = useProjectOptimisticState();
+	const pendingAction = getPending(projectId);
 
 	useEffect(() => {
 		if (!showStartupDisplay) return;
@@ -67,6 +70,19 @@ export function ProjectContentWrapper({
 		liveData?.opencodeReady,
 		liveData?.status,
 	]);
+
+	// Auto-clear optimistic restart/start/stop when SSE catches up
+	useEffect(() => {
+		if (!liveData || !pendingAction) return;
+		const { action } = pendingAction;
+		const shouldClear =
+			(action === "restarting" && liveData.status === "running") ||
+			(action === "starting" && liveData.status === "running") ||
+			(action === "stopping" && liveData.status === "stopped") ||
+			(action === "restarting-agent" && liveData.opencodeReady);
+
+		if (shouldClear) clearPending(projectId);
+	}, [liveData, pendingAction, projectId, clearPending]);
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden relative">

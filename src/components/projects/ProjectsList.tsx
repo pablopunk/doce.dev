@@ -1,6 +1,9 @@
+import { Loader2 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Project } from "@/server/db/schema";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { ProjectCard } from "./ProjectCard";
 
 interface ProjectsListProps {
@@ -18,16 +21,27 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 		new Set(),
 	);
 
-	const displayProjects = fallback;
-	const filteredProjects = displayProjects.filter(
-		(project) => !deletedProjectIds.has(project.id),
+	const creatingDrafts = useProjectOptimisticState((s) =>
+		s.getCreatingDrafts(),
+	);
+	const pendingByProjectId = useProjectOptimisticState(
+		(s) => s.pendingByProjectId,
+	);
+
+	const filteredProjects = fallback.filter(
+		(project) =>
+			!deletedProjectIds.has(project.id) &&
+			pendingByProjectId.get(project.id)?.action !== "deleting",
 	);
 
 	const handleProjectDeleted = (projectId: string) => {
 		setDeletedProjectIds((prev) => new Set([...prev, projectId]));
 	};
 
-	if (!filteredProjects || filteredProjects.length === 0) {
+	const hasDrafts = creatingDrafts.length > 0;
+	const hasProjects = filteredProjects.length > 0;
+
+	if (!hasDrafts && !hasProjects) {
 		return null;
 	}
 
@@ -40,6 +54,20 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 					id="projects-grid"
 				>
 					<AnimatePresence>
+						{/* Optimistic draft cards for projects being created */}
+						{creatingDrafts.map((draft) => (
+							<motion.div
+								key={draft.id}
+								layout
+								initial={{ opacity: 0, scale: 0.9 }}
+								animate={{ opacity: 1, scale: 1 }}
+								exit={{ opacity: 0, scale: 0.8 }}
+								transition={{ duration: 0.2 }}
+							>
+								<CreatingDraftCard prompt={draft.prompt} />
+							</motion.div>
+						))}
+
 						{filteredProjects.map((project) => (
 							<motion.div
 								key={project.id}
@@ -58,5 +86,32 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 				</motion.div>
 			</LayoutGroup>
 		</section>
+	);
+}
+
+function CreatingDraftCard({ prompt }: { prompt: string }) {
+	return (
+		<Card className="relative overflow-hidden opacity-80">
+			<CardHeader className="pb-2">
+				<div className="flex items-center gap-2 overflow-hidden">
+					<div className="min-w-0 flex-1">
+						<CardTitle className="text-lg truncate">
+							Creating project...
+						</CardTitle>
+					</div>
+					<div className="shrink-0">
+						<span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap bg-accent text-accent-foreground">
+							<Loader2 className="h-3 w-3 animate-spin" />
+							Creating...
+						</span>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent>
+				<p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+					{prompt}
+				</p>
+			</CardContent>
+		</Card>
 	);
 }

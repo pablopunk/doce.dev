@@ -14,6 +14,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface LogLine {
 	id: number;
@@ -123,24 +124,25 @@ export function TerminalDocks({
 		setAppLines([]);
 	};
 
+	const { markRestarting, clearPending } = useProjectOptimisticState();
+
 	const handleRestartPreview = async () => {
+		markRestarting(projectId);
 		try {
 			const response = await fetch(
 				`/api/projects/${projectId}/restart-preview`,
-				{
-					method: "POST",
-				},
+				{ method: "POST" },
 			);
 
 			if (!response.ok) {
 				const data = await response.json();
+				clearPending(projectId);
 				throw new Error(data.error || "Failed to restart preview");
 			}
 
-			toast.success("Preview restarted", {
-				description: "The preview container is restarting...",
-			});
+			toast.success("Preview restarted");
 		} catch (error) {
+			clearPending(projectId);
 			toast.error("Failed to restart preview", {
 				description: error instanceof Error ? error.message : "Unknown error",
 			});
