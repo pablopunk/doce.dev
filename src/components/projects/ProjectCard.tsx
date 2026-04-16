@@ -27,72 +27,6 @@ interface ProjectCardProps {
 	onDeleted?: (projectId: string) => void;
 }
 
-interface PillStyle {
-	bg: string;
-	text: string;
-}
-
-const environmentPillStyles: Record<"preview" | "production", PillStyle> = {
-	preview: {
-		bg: "bg-primary/10",
-		text: "text-primary",
-	},
-	production: {
-		bg: "bg-accent",
-		text: "text-accent-foreground",
-	},
-};
-
-const transientStatusStyles: Record<string, PillStyle> = {
-	starting: {
-		bg: "bg-accent",
-		text: "text-accent-foreground",
-	},
-	stopping: {
-		bg: "bg-accent",
-		text: "text-accent-foreground",
-	},
-	deleting: {
-		bg: "bg-destructive",
-		text: "text-destructive-foreground",
-	},
-	error: {
-		bg: "bg-destructive",
-		text: "text-destructive-foreground",
-	},
-	building: {
-		bg: "bg-accent",
-		text: "text-accent-foreground",
-	},
-	queued: {
-		bg: "bg-muted",
-		text: "text-muted-foreground",
-	},
-	failed: {
-		bg: "bg-destructive",
-		text: "text-destructive-foreground",
-	},
-};
-
-const transientStatusLabels: Record<string, string> = {
-	starting: "Starting...",
-	stopping: "Stopping...",
-	deleting: "Deleting...",
-	error: "Error",
-	building: "Deploying...",
-	queued: "Queued",
-	failed: "Deploy failed",
-};
-
-function getTransientStatusStyle(status: string): PillStyle {
-	return (
-		transientStatusStyles[status] || {
-			bg: "bg-muted",
-			text: "text-muted-foreground",
-		}
-	);
-}
-
 export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
@@ -113,25 +47,8 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					window.location.origin,
 				) ?? `http://localhost:${project.devPort}`);
 	const isPreviewRunning = project.status === "running";
-	const isProductionRunning = project.productionStatus === "running";
-	const transientProjectStatus =
-		project.status === "starting" ||
-		project.status === "stopping" ||
-		project.status === "deleting" ||
-		project.status === "error"
-			? project.status
-			: null;
-	const transientProductionStatus =
-		project.productionStatus === "queued" ||
-		project.productionStatus === "building" ||
-		project.productionStatus === "failed"
-			? project.productionStatus
-			: null;
-	const isLoading =
-		transientProjectStatus === "starting" ||
-		transientProjectStatus === "stopping" ||
-		transientProjectStatus === "deleting" ||
-		transientProductionStatus === "building";
+	const isProductionRunning =
+		project.productionStatus === "running" && Boolean(project.productionUrl);
 
 	const handleDeleteClick = () => {
 		setIsDeleteDialogOpen(true);
@@ -196,43 +113,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group relative overflow-hidden">
 				<CardHeader className="pb-2">
-					<div className="flex items-start gap-2 overflow-hidden">
-						<div className="min-w-0 flex-1">
-							<CardTitle className="text-lg truncate">{project.name}</CardTitle>
-						</div>
-						<div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-							{isPreviewRunning && (
-								<span
-									className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${environmentPillStyles.preview.bg} ${environmentPillStyles.preview.text}`}
-								>
-									Preview
-								</span>
-							)}
-							{isProductionRunning && (
-								<span
-									className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${environmentPillStyles.production.bg} ${environmentPillStyles.production.text}`}
-								>
-									Production
-								</span>
-							)}
-							{transientProjectStatus && (
-								<span
-									className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${getTransientStatusStyle(transientProjectStatus).bg} ${getTransientStatusStyle(transientProjectStatus).text}`}
-								>
-									{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-									{transientStatusLabels[transientProjectStatus]}
-								</span>
-							)}
-							{!transientProjectStatus && transientProductionStatus && (
-								<span
-									className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${getTransientStatusStyle(transientProductionStatus).bg} ${getTransientStatusStyle(transientProductionStatus).text}`}
-								>
-									{isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-									{transientStatusLabels[transientProductionStatus]}
-								</span>
-							)}
-						</div>
-					</div>
+					<CardTitle className="text-lg truncate">{project.name}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<p className="text-sm text-muted-foreground line-clamp-2 mb-4">
@@ -240,6 +121,11 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					</p>
 					<div className="flex items-center justify-between gap-2 flex-wrap">
 						<div className="flex gap-2 flex-wrap min-w-0">
+							<a href={`/projects/${project.id}/${project.slug}`}>
+								<Button variant="default" size="sm">
+									Open
+								</Button>
+							</a>
 							{isPreviewRunning && (
 								<a
 									href={previewUrl}
@@ -248,16 +134,24 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 									className="inline-flex"
 								>
 									<Button variant="outline" size="sm">
-										<ExternalLink className="h-4 w-4 mr-1" />
+										<ExternalLink className="mr-1 h-4 w-4" />
 										Preview
 									</Button>
 								</a>
 							)}
-							<a href={`/projects/${project.id}/${project.slug}`}>
-								<Button variant="default" size="sm">
-									Open
-								</Button>
-							</a>
+							{isProductionRunning && project.productionUrl && (
+								<a
+									href={project.productionUrl}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex"
+								>
+									<Button variant="outline" size="sm">
+										<ExternalLink className="mr-1 h-4 w-4" />
+										Production
+									</Button>
+								</a>
+							)}
 						</div>
 						<DropdownMenu>
 							{/* @ts-expect-error asChild from radix not typed */}
