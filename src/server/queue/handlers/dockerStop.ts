@@ -4,7 +4,7 @@ import {
 	getProjectByIdIncludeDeleted,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
-import type { QueueJobContext } from "../queue.worker";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { parsePayload } from "../types";
 
 export async function handleDockerStop(ctx: QueueJobContext): Promise<void> {

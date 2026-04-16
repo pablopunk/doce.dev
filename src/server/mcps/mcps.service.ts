@@ -9,12 +9,12 @@ import { getGlobalOpencodeConfigPath } from "@/server/projects/paths";
 
 export interface McpServerConfig {
 	type: "remote" | "local";
-	url?: string;
-	command?: string[];
-	enabled?: boolean;
-	environment?: Record<string, string>;
-	headers?: Record<string, string>;
-	timeout?: number;
+	url?: string | undefined;
+	command?: string[] | undefined;
+	enabled?: boolean | undefined;
+	environment?: Record<string, string> | undefined;
+	headers?: Record<string, string> | undefined;
+	timeout?: number | undefined;
 }
 
 type OpencodeConfig = Record<string, unknown>;
@@ -100,7 +100,9 @@ export async function toggleMcpServer(
 		return;
 	}
 
-	mcpBlock[name].enabled = enabled;
+	const server = mcpBlock[name];
+	if (!server) return;
+	server.enabled = enabled;
 	config.mcp = mcpBlock;
 	await writeOpencodeConfig(config);
 	logger.info({ name, enabled }, "[MCPs] Toggled MCP server");

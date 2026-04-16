@@ -16,7 +16,7 @@ interface AssetsListProps {
 	onDelete: (path: string) => Promise<void>;
 	onUpload: (files: FileList) => Promise<void>;
 	isLoading?: boolean;
-	previewUrl?: string;
+	previewUrl?: string | undefined;
 }
 
 export function AssetsList({

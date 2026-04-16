@@ -207,6 +207,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 							</a>
 						</div>
 						<DropdownMenu>
+							{/* @ts-expect-error asChild from radix not typed */}
 							<DropdownMenuTrigger asChild>
 								<Button
 									variant="ghost"
@@ -239,8 +240,9 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					</div>
 					<div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
 						<span>Port: {project.devPort}</span>
-						{project.model && (
-							<span className="ml-3">Model: {project.model}</span>
+						{"defaultModel" in project &&
+							typeof (project as Record<string, unknown>).defaultModel === "string" && (
+							<span className="ml-3">Model: {(project as Record<string, unknown>).defaultModel as string}</span>
 						)}
 					</div>
 				</CardContent>

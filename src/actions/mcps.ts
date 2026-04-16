@@ -32,8 +32,8 @@ export const mcps = {
 			url: z.string().optional(),
 			command: z.array(z.string()).optional(),
 			enabled: z.boolean().default(true),
-			environment: z.record(z.string()).optional(),
-			headers: z.record(z.string()).optional(),
+			environment: z.record(z.string(), z.string()).optional(),
+			headers: z.record(z.string(), z.string()).optional(),
 		}),
 		handler: async (input, context) => {
 			ensureAuthenticated(context);

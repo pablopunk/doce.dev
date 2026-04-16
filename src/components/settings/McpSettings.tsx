@@ -89,7 +89,7 @@ function ExaApiKeyForm({
 	onCancel,
 	isSaving,
 }: {
-	currentUrl?: string;
+	currentUrl?: string | undefined;
 	onSave: (url: string) => void;
 	onCancel: () => void;
 	isSaving: boolean;

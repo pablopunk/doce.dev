@@ -13,7 +13,7 @@ import {
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
-import type { QueueJobContext } from "../queue.worker";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { parsePayload } from "../types";
 
 /**

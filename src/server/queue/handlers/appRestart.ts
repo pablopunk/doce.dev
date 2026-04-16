@@ -39,7 +39,7 @@ interface RestartResult {
 }
 
 async function restartContainer(containerName: string): Promise<RestartResult> {
-	logger.info("Restarting doce.dev container", { containerName });
+	logger.info({ containerName }, "Restarting doce.dev container");
 
 	const stopResult = await spawnCommand("docker", ["stop", containerName], {
 		timeout: 60_000,

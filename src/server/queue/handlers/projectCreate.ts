@@ -16,7 +16,7 @@ import {
 } from "@/server/projects/projects.model";
 import { setupProjectFilesystem } from "@/server/projects/setup";
 import { enqueueDockerComposeUp } from "../enqueue";
-import type { QueueJobContext } from "../queue.worker";
+import type { QueueJobContext } from "@/server/effect/queue.worker";
 import type { ImageAttachment } from "../types";
 import { parsePayload } from "../types";
 
@@ -149,10 +149,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 	logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
 	const program = Effect.gen(function* () {
-		yield* Effect.tryPromise({
-			try: () => ctx.throwIfCancelRequested(),
-			catch: (error) => toQueueError(error, ctx.job.id),
-		});
+		yield* ctx.throwIfCancelRequested();
 
 		const [{ devPort }] = yield* Effect.all(
 			[allocatePortsEffect(), ensureAuthDirectoryEffect()],
@@ -168,10 +165,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		logger.debug({ projectId, projectPath }, "Set up project filesystem");
 
-		yield* Effect.tryPromise({
-			try: () => ctx.throwIfCancelRequested(),
-			catch: (error) => toQueueError(error, ctx.job.id),
-		});
+		yield* ctx.throwIfCancelRequested();
 
 		if (model) {
 			yield* updateModelEffect(projectId, model);
@@ -181,10 +175,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			);
 		}
 
-		yield* Effect.tryPromise({
-			try: () => ctx.throwIfCancelRequested(),
-			catch: (error) => toQueueError(error, ctx.job.id),
-		});
+		yield* ctx.throwIfCancelRequested();
 
 		if (images && images.length > 0) {
 			yield* writeProjectImages(projectPath, images);
@@ -194,10 +185,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			);
 		}
 
-		yield* Effect.tryPromise({
-			try: () => ctx.throwIfCancelRequested(),
-			catch: (error) => toQueueError(error, ctx.job.id),
-		});
+		yield* ctx.throwIfCancelRequested();
 
 		const name = yield* generateNameEffect(prompt);
 		const slug = name;

@@ -11,24 +11,7 @@ import { Context, Effect, Layer, Schema } from "effect";
 // Config Schema
 // ============================================================================
 
-const StringFromEnv = Schema.transform(Schema.String, Schema.String, {
-	decode: (input) => input ?? "",
-	encode: (output) => output,
-});
 
-const NumberFromEnv = Schema.transform(Schema.String, Schema.Number, {
-	decode: (input) => {
-		if (input === undefined) return 0;
-		const parsed = Number.parseInt(input, 10);
-		return Number.isFinite(parsed) ? parsed : 0;
-	},
-	encode: (output) => String(output),
-});
-
-const BooleanFromEnv = Schema.transform(Schema.String, Schema.Boolean, {
-	decode: (input) => input === "true" || input === "1",
-	encode: (output) => String(output),
-});
 
 /**
  * Application configuration schema with defaults

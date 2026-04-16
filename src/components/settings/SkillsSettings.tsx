@@ -113,6 +113,7 @@ function SearchResultRow({
 				<p className="text-xs text-muted-foreground truncate">{source}</p>
 			</div>
 			<div className="flex items-center gap-2 shrink-0">
+				{/* @ts-expect-error asChild from radix not typed */}
 				<Button variant="ghost" size="sm" asChild>
 					<a href={skillUrl} target="_blank" rel="noopener noreferrer">
 						<ExternalLink className="size-3.5" />

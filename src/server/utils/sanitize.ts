@@ -112,15 +112,17 @@ export function sanitizeMessage(message: string): string {
 export function sanitizeError(error: Error): Error {
 	const sanitized = new Error(sanitizeMessage(error.message));
 	sanitized.name = error.name;
-	sanitized.stack = error.stack ? sanitizeMessage(error.stack) : undefined;
+	if (error.stack) {
+		sanitized.stack = sanitizeMessage(error.stack);
+	}
 
 	// Copy any custom properties
 	for (const key of Object.keys(error)) {
-		const value = (error as Record<string, unknown>)[key];
+		const value = (error as unknown as Record<string, unknown>)[key];
 		if (typeof value === "string") {
-			(sanitized as Record<string, unknown>)[key] = sanitizeMessage(value);
+			(sanitized as unknown as Record<string, unknown>)[key] = sanitizeMessage(value);
 		} else {
-			(sanitized as Record<string, unknown>)[key] = value;
+			(sanitized as unknown as Record<string, unknown>)[key] = value;
 		}
 	}
 

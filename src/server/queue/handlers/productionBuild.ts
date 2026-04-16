@@ -19,7 +19,7 @@ import { parsePayload } from "../types";
 export function handleProductionBuild(
 	ctx: QueueJobContext,
 ): Effect.Effect<void, ProjectError | ProductionBuildError> {
-	return Effect.gen(function* () {
+	return Effect.scoped(Effect.gen(function* () {
 		const payload = parsePayload("production.build", ctx.job.payloadJson);
 
 		const project = yield* Effect.tryPromise({
@@ -38,7 +38,7 @@ export function handleProductionBuild(
 				{ projectId: payload.projectId },
 				"Project not found for production.build",
 			);
-			return;
+			return undefined as void;
 		}
 
 		if (project.status === "deleting") {
@@ -118,11 +118,9 @@ export function handleProductionBuild(
 		);
 
 		yield* Effect.acquireRelease(Effect.succeed(tempDistPath), (tempPath) =>
-			Effect.tryPromise({
-				try: () =>
-					fs.rm(tempPath, { recursive: true, force: true }).catch(() => {}),
-				catch: () => null,
-			}),
+			Effect.promise(() =>
+				fs.rm(tempPath, { recursive: true, force: true }).catch(() => {}),
+			),
 		);
 
 		const productionHash = yield* extractAndHashDist(
@@ -182,7 +180,7 @@ export function handleProductionBuild(
 				);
 			}),
 		),
-	);
+	));
 }
 
 function extractAndHashDist(
@@ -191,10 +189,9 @@ function extractAndHashDist(
 	projectId: string,
 ): Effect.Effect<string, ProductionBuildError> {
 	return Effect.gen(function* () {
-		yield* Effect.tryPromise({
-			try: () => fs.rm(tempDistPath, { recursive: true, force: true }),
-			catch: () => null,
-		});
+		yield* Effect.promise(() =>
+			fs.rm(tempDistPath, { recursive: true, force: true }).catch(() => {}),
+		);
 
 		const cpResult = yield* Effect.tryPromise({
 			try: () =>

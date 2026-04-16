@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		}
 
 		const archive = await exportProjectPreviewSource(project);
-		return new Response(archive.buffer, {
+		return new Response(new Uint8Array(archive.buffer), {
 			status: 200,
 			headers: {
 				"Content-Type": "application/zip",

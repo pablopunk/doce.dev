@@ -7,9 +7,9 @@
  * - Database connections
  */
 
-import { Effect, Fiber } from "effect";
+import { Effect } from "effect";
 import { getConfigValue } from "@/server/config";
-import { db, sqlite } from "@/server/db/client";
+import { sqlite } from "@/server/db/client";
 import { logger } from "@/server/logger";
 
 type CleanupFn = () => Promise<void> | void;
@@ -66,7 +66,7 @@ export function registerQueueWorkerForShutdown(
  * Register the OpenCode runtime for graceful shutdown
  */
 export function registerOpencodeRuntimeForShutdown(): void {
-	registerShutdownHandler("opencode-runtime", () => {
+	registerShutdownHandler("opencode-runtime", (): Promise<void> | void => {
 		const process = globalThis.__DOCE_OPENCODE_PROCESS__;
 		if (process && process.exitCode === null && !process.killed) {
 			logger.info("Shutting down OpenCode runtime...");

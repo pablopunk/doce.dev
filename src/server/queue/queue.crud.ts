@@ -2,7 +2,7 @@ import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
 import { enqueueJob } from "./queue.model";
-import { queueJobTypeSchema } from "./types";
+import { type QueueJobType, queueJobTypeSchema } from "./types";
 
 export type QueueJobState = QueueJob["state"];
 
@@ -18,12 +18,12 @@ export interface EnqueueJobInput<TPayload extends object> {
 }
 
 export interface ListJobsFilters {
-	state?: QueueJobState;
-	type?: QueueJobType;
-	projectId?: string;
-	q?: string;
-	limit?: number;
-	offset?: number;
+	state?: QueueJobState | undefined;
+	type?: QueueJobType | string | undefined;
+	projectId?: string | undefined;
+	q?: string | undefined;
+	limit?: number | undefined;
+	offset?: number | undefined;
 }
 
 export async function getJobById(jobId: string): Promise<QueueJob | null> {
