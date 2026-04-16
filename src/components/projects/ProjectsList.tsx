@@ -2,12 +2,12 @@ import { Loader2 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Project } from "@/server/db/schema";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { ProjectCard } from "./ProjectCard";
+import type { ProjectListItem } from "./projects.types";
 
 interface ProjectsListProps {
-	fallback: Project[];
+	fallback: ProjectListItem[];
 }
 
 /**

@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { mapPortUrlToPreferredHost } from "@/lib/base-url";
-import type { Project } from "@/server/db/schema";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import type { ProjectListItem } from "./projects.types";
 
 interface ProjectCardProps {
-	project: Project;
+	project: ProjectListItem;
 	onDeleted?: (projectId: string) => void;
 }
 
@@ -38,14 +38,16 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	);
 	const isDeleting = pending?.action === "deleting";
 
+	const rawPreviewUrl =
+		project.previewUrl ?? `http://localhost:${project.devPort}`;
 	const previewUrl =
 		typeof window === "undefined"
-			? `http://localhost:${project.devPort}`
+			? rawPreviewUrl
 			: (mapPortUrlToPreferredHost(
-					`http://localhost:${project.devPort}`,
+					rawPreviewUrl,
 					baseUrl,
 					window.location.origin,
-				) ?? `http://localhost:${project.devPort}`);
+				) ?? rawPreviewUrl);
 	const isPreviewRunning = project.status === "running";
 	const isProductionRunning =
 		project.productionStatus === "running" && Boolean(project.productionUrl);
