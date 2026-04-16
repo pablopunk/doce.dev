@@ -50,8 +50,14 @@ export function ProjectContentWrapper({
 		containerRef,
 	});
 
-	// Check if containers are already ready on mount
 	useEffect(() => {
+		if (!showStartupDisplay) {
+			return;
+		}
+
+		let intervalId: ReturnType<typeof setInterval> | null = null;
+		let cancelled = false;
+
 		const checkContainerStatus = async () => {
 			try {
 				const { data, error } = await actions.projects.presence({
@@ -59,9 +65,8 @@ export function ProjectContentWrapper({
 					viewerId: `check_${Date.now()}`,
 				});
 
-				if (error) return;
+				if (cancelled || error) return;
 
-				// If both preview and opencode are ready, hide startup display
 				if (
 					data.previewReady &&
 					data.opencodeReady &&
@@ -74,8 +79,18 @@ export function ProjectContentWrapper({
 			}
 		};
 
-		checkContainerStatus();
-	}, [projectId]);
+		void checkContainerStatus();
+		intervalId = setInterval(() => {
+			void checkContainerStatus();
+		}, 2000);
+
+		return () => {
+			cancelled = true;
+			if (intervalId) {
+				clearInterval(intervalId);
+			}
+		};
+	}, [projectId, showStartupDisplay]);
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden relative">

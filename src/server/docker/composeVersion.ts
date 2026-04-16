@@ -17,8 +17,10 @@ export function setComposeV1(isV1: boolean): void {
 
 /**
  * Returns true if using Docker Compose v1 (underscores in container names).
- * Defaults to true (v1) before detection, since v1 is the legacy format.
+ * Defaults to false (v2) before detection, since modern Docker installations
+ * typically use `docker compose` and several health checks need the expected
+ * container name before compose detection has run.
  */
 export function isComposeV1(): boolean {
-	return detectedV1 ?? true;
+	return detectedV1 ?? false;
 }

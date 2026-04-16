@@ -125,6 +125,32 @@ export function ContainerStartupDisplay({
 					projectId,
 				});
 
+				const shouldWaitForSessions = reason === "restart";
+				const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
+
+				const presenceResult = await actions.projects.presence({
+					projectId,
+					viewerId: viewerIdRef.current,
+				});
+
+				const runtimeReady = Boolean(
+					!presenceResult.error &&
+						presenceResult.data.status === "running" &&
+						presenceResult.data.opencodeReady &&
+						presenceResult.data.previewReady,
+				);
+
+				if (reason === "restart" && runtimeReady && sessionConditionMet) {
+					if (completionScheduledRef.current) return;
+					completionScheduledRef.current = true;
+
+					setTimeout(() => {
+						setIsComplete(true);
+						onComplete?.();
+					}, 1000);
+					return;
+				}
+
 				if (error) {
 					setStartupError("Failed to check startup status");
 					return;
@@ -150,26 +176,11 @@ export function ContainerStartupDisplay({
 					setJobTimeoutWarning(data.jobTimeoutWarning);
 				}
 
-				// When we reach step 5, the container is fully ready
-				// But if restarting, also wait for sessions to load
-				const shouldWaitForSessions = reason === "restart";
-				const sessionConditionMet = !shouldWaitForSessions || sessionsLoaded;
-
-				const presenceResult = await actions.projects.presence({
-					projectId,
-					viewerId: viewerIdRef.current,
-				});
-
-				const runtimeReady = Boolean(
-					!presenceResult.error &&
-						presenceResult.data.status === "running" &&
-						presenceResult.data.opencodeReady &&
-						presenceResult.data.previewReady,
-				);
+				const setupReady = data.currentStep >= 4 && data.isSetupComplete;
+				const restartReady = reason === "restart" && runtimeReady;
 
 				if (
-					data.currentStep >= 4 &&
-					data.isSetupComplete &&
+					(setupReady || restartReady) &&
 					sessionConditionMet &&
 					runtimeReady
 				) {
