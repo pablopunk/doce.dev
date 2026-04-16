@@ -108,7 +108,17 @@ export function handleProductionWaitReady(
 		if (productionReady) {
 			yield* promoteRelease(project.id, payload.productionHash);
 
-			const productionUrl = `http://localhost:${payload.productionPort}`;
+			const tailscaleUrl = yield* Effect.tryPromise({
+				try: async () => {
+					const { getTailscaleProjectUrl } = await import(
+						"@/server/tailscale/urls"
+					);
+					return getTailscaleProjectUrl(project.slug, "production");
+				},
+				catch: () => null as null,
+			}).pipe(Effect.catchAll(() => Effect.succeed(null as string | null)));
+			const productionUrl =
+				tailscaleUrl ?? `http://localhost:${payload.productionPort}`;
 			yield* Effect.tryPromise({
 				try: () =>
 					updateProductionStatus(project.id, "running", {

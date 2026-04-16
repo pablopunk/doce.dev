@@ -171,6 +171,12 @@ export const queueSettings = sqliteTable("queue_settings", {
 export const instanceSettings = sqliteTable("instance_settings", {
 	id: integer("id").primaryKey(),
 	baseUrl: text("base_url"),
+	tailscaleEnabled: integer("tailscale_enabled", { mode: "boolean" })
+		.notNull()
+		.default(false),
+	tailscaleAuthKey: text("tailscale_auth_key"),
+	tailscaleHostname: text("tailscale_hostname"),
+	tailscaleTailnetName: text("tailscale_tailnet_name"),
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 

@@ -20,9 +20,26 @@ function ensureInstanceSettingsTableExists(): void {
 		CREATE TABLE IF NOT EXISTS instance_settings (
 			id integer PRIMARY KEY NOT NULL,
 			base_url text,
+			tailscale_enabled integer NOT NULL DEFAULT 0,
+			tailscale_auth_key text,
+			tailscale_hostname text,
+			tailscale_tailnet_name text,
 			updated_at integer NOT NULL
 		)
 	`);
+
+	// Add columns if they don't exist (for existing databases)
+	const addColumnIfMissing = (col: string, def: string) => {
+		try {
+			sqlite.exec(`ALTER TABLE instance_settings ADD COLUMN ${col} ${def}`);
+		} catch {
+			// Column already exists
+		}
+	};
+	addColumnIfMissing("tailscale_enabled", "integer NOT NULL DEFAULT 0");
+	addColumnIfMissing("tailscale_auth_key", "text");
+	addColumnIfMissing("tailscale_hostname", "text");
+	addColumnIfMissing("tailscale_tailnet_name", "text");
 }
 
 async function selectExistingSettingsRows(): Promise<Array<{ id: number }>> {

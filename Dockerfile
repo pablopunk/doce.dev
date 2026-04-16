@@ -35,6 +35,13 @@ ARG VERSION=unknown
 
 RUN apt-get update && apt-get install -y dumb-init curl ca-certificates docker.io && rm -rf /var/lib/apt/lists/*
 
+# Install Tailscale (static binaries, ~30MB)
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_1.82.5_${ARCH}.tgz" \
+       | tar xzf - --strip-components=1 -C /usr/local/bin/ \
+         tailscale_1.82.5_${ARCH}/tailscale \
+         tailscale_1.82.5_${ARCH}/tailscaled
+
 # Install Docker Compose v2 plugin (v1 docker-compose uses wrong container naming)
 RUN mkdir -p /usr/lib/docker/cli-plugins \
     && ARCH=$(uname -m) \
@@ -60,8 +67,8 @@ COPY drizzle.config.ts ./
 COPY scripts/start-preview.sh ./scripts/
 COPY scripts/bootstrap.sh ./scripts/
 
-# Create data directory for SQLite database
-RUN mkdir -p /app/data
+# Create data directory for SQLite database and Tailscale state
+RUN mkdir -p /app/data /app/data/tailscale
 
 # Make scripts executable
 RUN chmod +x /app/scripts/start-preview.sh /app/scripts/bootstrap.sh

@@ -15,6 +15,13 @@
       "when": 1774807304485,
       "tag": "0001_red_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776351606586,
+      "tag": "0002_nervous_harry_osborn",
+      "breakpoints": true
     }
   ]
 }

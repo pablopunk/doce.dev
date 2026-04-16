@@ -22,6 +22,7 @@ import {
 	registerDatabaseForShutdown,
 	registerOpencodeRuntimeForShutdown,
 } from "@/server/shutdown";
+import { ensureTailscaleStarted } from "@/server/tailscale/startup";
 
 // Initialize config system early (sync, no dependencies)
 initConfig();
@@ -61,6 +62,9 @@ async function runInitialization(): Promise<void> {
 	await ensureGlobalOpencodeStarted();
 	startImagePrewarm();
 	startDefaultsBootstrap();
+	ensureTailscaleStarted().catch((error) => {
+		logger.warn({ error }, "Tailscale auto-start failed");
+	});
 	startupInitialized = true;
 }
 

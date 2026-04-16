@@ -5,6 +5,8 @@ import { hostname } from "node:os";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { normalizeProjectPath } from "@/server/projects/paths";
+import { getProjectById } from "@/server/projects/projects.db";
+import { injectTailscaleSidecar } from "@/server/tailscale/compose";
 import { isRunningInDocker } from "@/server/utils/docker";
 import { runCommand } from "@/server/utils/execAsync";
 import { setComposeV1 } from "./composeVersion";
@@ -308,6 +310,31 @@ async function runComposeCommandProduction(
 }
 
 /**
+ * Look up project slug and inject Tailscale sidecar if enabled.
+ * Returns the compose filename to use, or null for the default.
+ */
+async function injectTailscaleSidecarForProject(
+	projectId: string,
+	composePath: string,
+	variant: "preview" | "production",
+): Promise<string | null> {
+	try {
+		const project = await getProjectById(projectId);
+		if (!project) return null;
+
+		return await injectTailscaleSidecar({
+			projectId,
+			slug: project.slug,
+			composePath,
+			variant,
+		});
+	} catch {
+		// Non-fatal: fall back to normal compose
+		return null;
+	}
+}
+
+/**
  * Start containers for a project.
  * Idempotent - safe to call when already running.
  * @param preserveProduction If true, don't remove orphan containers (preserves production if running separately)
@@ -323,6 +350,13 @@ export async function composeUp(
 ): Promise<ComposeResult> {
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
 	const logsDir = path.join(normalizedProjectPath, "logs");
+
+	// Inject Tailscale sidecar if enabled
+	const tailscaleFile = await injectTailscaleSidecarForProject(
+		projectId,
+		normalizedProjectPath,
+		"preview",
+	);
 
 	// Don't use --remove-orphans when production might be running with a separate compose file
 	// --build forces a full image rebuild; skip it for restarts since bind mount + named volume
@@ -341,6 +375,8 @@ export async function composeUp(
 		projectId,
 		normalizedProjectPath,
 		args,
+		undefined,
+		tailscaleFile ?? undefined,
 	);
 
 	// Log output with stream markers
@@ -383,16 +419,24 @@ export async function composeUpProduction(
 		fs.mkdir(logsDir, { recursive: true }),
 	);
 
+	// Inject Tailscale sidecar if enabled
+	const tailscaleFile = await injectTailscaleSidecarForProject(
+		projectId,
+		productionPath,
+		"production",
+	);
+	const composeFile = tailscaleFile ?? "docker-compose.production.yml";
+
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml up -d --build (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId, productionHash)})`,
+		`docker compose -f ${composeFile} up -d --build (PRODUCTION_PORT=${productionPort}, project=${getProductionProjectName(projectId, productionHash)})`,
 	);
 
 	const result = await runComposeCommandProduction(
 		projectId,
 		productionPath,
 		["up", "-d", "--build"],
-		"docker-compose.production.yml",
+		composeFile,
 		productionHash,
 	);
 

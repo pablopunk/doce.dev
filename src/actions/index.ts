@@ -7,6 +7,7 @@ import { queue } from "./queue";
 import { settings } from "./settings";
 import { setup } from "./setup";
 import { skills } from "./skills";
+import { tailscale } from "./tailscale";
 import { update } from "./update";
 
 export const server = {
@@ -20,4 +21,5 @@ export const server = {
 	update,
 	skills,
 	mcps,
+	tailscale,
 };

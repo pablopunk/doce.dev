@@ -27,6 +27,7 @@ import {
 	enqueueDockerStop,
 } from "@/server/queue/enqueue";
 import { listJobs } from "@/server/queue/queue.crud";
+import { getTailscaleProjectUrl } from "@/server/tailscale/urls";
 import type { ProductionLiveState, ProjectLiveState } from "@/types/live";
 
 const POLL_INTERVAL_MS = 3_000;
@@ -341,7 +342,9 @@ async function buildState(
 		status,
 		previewReady,
 		opencodeReady,
-		previewUrl: `http://127.0.0.1:${project.devPort}`,
+		previewUrl:
+			(await getTailscaleProjectUrl(project.slug, "preview")) ??
+			`http://127.0.0.1:${project.devPort}`,
 		message,
 		viewerCount: state.clients.size,
 		slug: project.slug,
