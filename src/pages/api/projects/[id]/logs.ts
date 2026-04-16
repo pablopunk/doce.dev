@@ -40,11 +40,7 @@ export const GET: APIRoute = async ({ params, url, cookies }) => {
 
 	// Ensure log streaming is active if containers are running
 	// This handles the case where the server was restarted and lost the streaming process
-	void ensureLogStreaming({
-		kind: "preview",
-		projectId,
-		projectPath: previewPath,
-	}).catch((error) => {
+	void ensureLogStreaming(projectId, previewPath).catch((error) => {
 		// Non-critical error - log but don't fail the request
 		logger.error({ error }, "Failed to ensure log streaming");
 	});

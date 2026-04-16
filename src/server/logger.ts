@@ -83,7 +83,7 @@ async function ensureHostLogDestination(): Promise<void> {
 }
 
 function createLogger() {
-	const streams = [] as Parameters<typeof pino.multistream>[0];
+	const streams: pino.StreamEntry[] = [];
 
 	if (isDev) {
 		streams.push({
