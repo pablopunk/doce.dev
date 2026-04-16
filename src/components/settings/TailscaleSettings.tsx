@@ -144,18 +144,41 @@ function ConnectForm({ onConnected }: { onConnected: () => void }) {
 					placeholder="tskey-auth-..."
 					disabled={isConnecting}
 				/>
-				<p className="text-xs text-muted-foreground">
-					Generate a reusable auth key in your{" "}
-					<a
-						href="https://login.tailscale.com/admin/settings/keys"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-primary underline-offset-4 hover:underline"
-					>
-						Tailscale admin console
-					</a>
-					. Use a reusable key so project containers can also join your tailnet.
-				</p>
+				<div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+					<p className="font-medium text-foreground">
+						Generate your key in the{" "}
+						<a
+							href="https://login.tailscale.com/admin/settings/keys"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-primary underline-offset-4 hover:underline"
+						>
+							Tailscale admin console
+						</a>{" "}
+						with these options:
+					</p>
+					<ul className="space-y-1 text-muted-foreground">
+						<li>
+							<span className="font-mono text-foreground">Reusable</span>{" "}
+							<span className="text-amber-600 dark:text-amber-400">
+								(required)
+							</span>{" "}
+							— each project creates its own tailnet node, so the key must be
+							usable more than once
+						</li>
+						<li>
+							<span className="font-mono text-foreground">Ephemeral</span>{" "}
+							<span className="text-muted-foreground">(recommended)</span> —
+							auto-removes project nodes from your tailnet when containers stop
+						</li>
+						<li>
+							<span className="font-mono text-foreground">Pre-approved</span>{" "}
+							<span className="text-muted-foreground">(recommended)</span> —
+							skips manual approval if device approval is enabled on your
+							tailnet
+						</li>
+					</ul>
+				</div>
 			</div>
 			<div className="space-y-2">
 				<Label htmlFor="ts-hostname">Hostname</Label>
