@@ -150,28 +150,24 @@ export function useCreateProject({
 
 	const waitForProjectToExist = async (
 		projectId: string,
-		maxAttempts = 100,
+		maxAttempts = 40,
 	) => {
-		const delayMs = 200; // Poll every 200ms
+		const delayMs = 500;
 
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			try {
-				const result = await actions.projects.list();
-				if (
-					result.data?.projects?.some((project) => project.id === projectId)
-				) {
-					// Project exists! We can redirect now
-					return;
+				const result = await actions.projects.get({ projectId });
+				if (result.data?.project) {
+					return result.data.project;
 				}
 			} catch {
-				// Action error, continue polling
+				// Not created yet, continue polling
 			}
 
-			// Wait before next attempt
 			await new Promise((resolve) => setTimeout(resolve, delayMs));
 		}
 
-		// Timeout after ~20 seconds - project should definitely exist by now
+		return null;
 	};
 
 	const handleCreate = async () => {
@@ -210,13 +206,14 @@ export function useCreateProject({
 			}
 
 			const projectId = result.data.projectId;
-			const url = `/projects/${projectId}`;
+			const project = await waitForProjectToExist(projectId);
+			if (!project) {
+				setError("Project creation is taking longer than expected");
+				setIsLoading(false);
+				return;
+			}
 
-			// Poll for project to exist in DB
-			await waitForProjectToExist(projectId);
-
-			// Redirect to project page
-			window.location.replace(url);
+			window.location.replace(`/projects/${project.id}/${project.slug}`);
 		} catch (err) {
 			const errorMessage =
 				err instanceof Error ? err.message : "Failed to create project";

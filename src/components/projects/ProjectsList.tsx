@@ -1,6 +1,5 @@
-import { actions } from "astro:actions";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Project } from "@/server/db/schema";
 import { ProjectCard } from "./ProjectCard";
 
@@ -9,52 +8,17 @@ interface ProjectsListProps {
 }
 
 /**
- * Projects list component with Astro Actions polling
- * Polls every 30 seconds for new projects
- * Animates list changes with Motion layout animations
+ * Projects list component.
+ *
+ * Intentionally does not poll. We prefer explicit navigation / optimistic UI
+ * over background list polling.
  */
 export function ProjectsList({ fallback }: ProjectsListProps) {
-	const [projects, setProjects] = useState<Project[]>(fallback);
-	const [error, setError] = useState<string | null>(null);
 	const [deletedProjectIds, setDeletedProjectIds] = useState<Set<string>>(
 		new Set(),
 	);
 
-	useEffect(() => {
-		// Initial fetch
-		const fetchProjects = async () => {
-			try {
-				const result = await actions.projects.list();
-				if (result.error) {
-					setError(result.error.message);
-				} else if (result.data) {
-					setProjects(result.data.projects);
-					setError(null);
-				}
-			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Failed to load projects",
-				);
-			}
-		};
-
-		fetchProjects();
-
-		// Poll every 30 seconds
-		const interval = setInterval(fetchProjects, 30000);
-
-		return () => clearInterval(interval);
-	}, []);
-
-	if (error) {
-		return (
-			<div className="container mx-auto p-8">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
-	}
-
-	const displayProjects = projects && projects.length > 0 ? projects : fallback;
+	const displayProjects = fallback;
 	const filteredProjects = displayProjects.filter(
 		(project) => !deletedProjectIds.has(project.id),
 	);

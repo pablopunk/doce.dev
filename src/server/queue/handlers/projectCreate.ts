@@ -6,7 +6,7 @@ import {
 	ProjectError,
 	QueueError,
 } from "@/server/effect/errors";
-import type { QueueJobContext } from "@/server/effect/queue.worker";
+import type { LegacyHandler } from "@/server/effect/handler-adapter";
 import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { ensureAuthDirectory } from "@/server/opencode/authFile";
@@ -142,14 +142,22 @@ const enqueueDockerUpEffect = (
 		catch: (error) => toQueueError(error, projectId),
 	}).pipe(Effect.map(() => undefined));
 
-export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
+const checkCancelEffect = (
+	throwIfCancelRequested: () => Promise<void>,
+): Effect.Effect<void> =>
+	Effect.tryPromise({
+		try: () => throwIfCancelRequested(),
+		catch: () => undefined,
+	}).pipe(Effect.map(() => undefined));
+
+export const handleProjectCreate: LegacyHandler = async (ctx) => {
 	const payload = parsePayload("project.create", ctx.job.payloadJson);
 	const { projectId, ownerUserId, prompt, model, images } = payload;
 
 	logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
 	const program = Effect.gen(function* () {
-		yield* ctx.throwIfCancelRequested();
+		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
 		const [{ devPort }] = yield* Effect.all(
 			[allocatePortsEffect(), ensureAuthDirectoryEffect()],
@@ -165,7 +173,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 
 		logger.debug({ projectId, projectPath }, "Set up project filesystem");
 
-		yield* ctx.throwIfCancelRequested();
+		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
 		if (model) {
 			yield* updateModelEffect(projectId, model);
@@ -175,7 +183,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			);
 		}
 
-		yield* ctx.throwIfCancelRequested();
+		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
 		if (images && images.length > 0) {
 			yield* writeProjectImages(projectPath, images);
@@ -185,7 +193,7 @@ export async function handleProjectCreate(ctx: QueueJobContext): Promise<void> {
 			);
 		}
 
-		yield* ctx.throwIfCancelRequested();
+		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
 		const name = yield* generateNameEffect(prompt);
 		const slug = name;
