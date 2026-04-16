@@ -15,7 +15,8 @@ interface OpencodeConfig {
 	[key: string]: unknown;
 }
 
-const DOCE_COMPACTION_PLUGIN_FILENAME = "doce-compaction.ts";
+const DOCE_COMPACTION_PLUGIN_SOURCE_FILENAME = "doceCompactionPlugin.ts";
+const DOCE_COMPACTION_PLUGIN_TARGET_FILENAME = "doce-compaction.ts";
 
 function getDoceCompactionPluginSourcePath(): string {
 	return path.join(
@@ -23,7 +24,7 @@ function getDoceCompactionPluginSourcePath(): string {
 		"src",
 		"server",
 		"opencode",
-		DOCE_COMPACTION_PLUGIN_FILENAME,
+		DOCE_COMPACTION_PLUGIN_SOURCE_FILENAME,
 	);
 }
 
@@ -104,7 +105,7 @@ async function ensureGlobalDoceCompactionPlugin(): Promise<void> {
 	const pluginDirectory = path.join(getDataPath(), "opencode", "plugins");
 	const pluginPath = path.join(
 		pluginDirectory,
-		DOCE_COMPACTION_PLUGIN_FILENAME,
+		DOCE_COMPACTION_PLUGIN_TARGET_FILENAME,
 	);
 	await fs.mkdir(pluginDirectory, { recursive: true });
 	await fs.copyFile(getDoceCompactionPluginSourcePath(), pluginPath);
