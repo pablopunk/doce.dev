@@ -124,7 +124,8 @@ export function TerminalDocks({
 		setAppLines([]);
 	};
 
-	const { markRestarting, clearPending } = useProjectOptimisticState();
+	const markRestarting = useProjectOptimisticState((s) => s.markRestarting);
+	const clearPending = useProjectOptimisticState((s) => s.clearPending);
 
 	const handleRestartPreview = async () => {
 		markRestarting(projectId);

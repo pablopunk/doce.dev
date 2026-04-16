@@ -134,14 +134,15 @@ export function PreviewPanel({
 	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
 
 	// Optimistic action state
-	const {
-		markDeploying,
-		markStoppingProduction,
-		markRollingBack,
-		clearPending,
-		getPending,
-	} = useProjectOptimisticState();
-	const pendingAction = getPending(projectId);
+	const markDeploying = useProjectOptimisticState((s) => s.markDeploying);
+	const markStoppingProduction = useProjectOptimisticState(
+		(s) => s.markStoppingProduction,
+	);
+	const markRollingBack = useProjectOptimisticState((s) => s.markRollingBack);
+	const clearPending = useProjectOptimisticState((s) => s.clearPending);
+	const pendingAction = useProjectOptimisticState(
+		(s) => s.pendingByProjectId.get(projectId) ?? null,
+	);
 
 	// Opencode diagnostic from live state
 	const opencodeDiagnostic = liveData?.opencodeDiagnostic ?? null;

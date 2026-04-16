@@ -23,9 +23,13 @@ export function RestartAgentButton({
 	variant = "outline",
 	disabled = false,
 }: RestartAgentButtonProps) {
-	const { markRestartingAgent, clearPending, getPending } =
-		useProjectOptimisticState();
-	const isRestarting = getPending(projectId)?.action === "restarting-agent";
+	const markRestartingAgent = useProjectOptimisticState(
+		(s) => s.markRestartingAgent,
+	);
+	const clearPending = useProjectOptimisticState((s) => s.clearPending);
+	const isRestarting = useProjectOptimisticState(
+		(s) => s.pendingByProjectId.get(projectId)?.action === "restarting-agent",
+	);
 
 	const handleRestart = async () => {
 		markRestartingAgent(projectId);

@@ -149,7 +149,12 @@ export function useCreateProject({
 		setImageError(null);
 	};
 
-	const { addCreatingDraft, removeCreatingDraft } = useProjectOptimisticState();
+	const addCreatingDraft = useProjectOptimisticState(
+		(s) => s.addCreatingDraft,
+	);
+	const removeCreatingDraft = useProjectOptimisticState(
+		(s) => s.removeCreatingDraft,
+	);
 
 	const handleCreate = async () => {
 		if (!prompt.trim()) return;

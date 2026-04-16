@@ -86,9 +86,11 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
 	const { baseUrl } = useBaseUrlSetting();
-	const { markDeleting, clearPending, getPending } =
-		useProjectOptimisticState();
-	const pending = getPending(project.id);
+	const markDeleting = useProjectOptimisticState((s) => s.markDeleting);
+	const clearPending = useProjectOptimisticState((s) => s.clearPending);
+	const pending = useProjectOptimisticState(
+		(s) => s.pendingByProjectId.get(project.id) ?? null,
+	);
 	const isDeleting = pending?.action === "deleting";
 
 	const previewUrl =

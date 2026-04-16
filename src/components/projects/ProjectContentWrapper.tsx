@@ -52,8 +52,10 @@ export function ProjectContentWrapper({
 	});
 
 	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
-	const { clearPending, getPending } = useProjectOptimisticState();
-	const pendingAction = getPending(projectId);
+	const clearPending = useProjectOptimisticState((s) => s.clearPending);
+	const pendingAction = useProjectOptimisticState(
+		(s) => s.pendingByProjectId.get(projectId) ?? null,
+	);
 
 	useEffect(() => {
 		if (!showStartupDisplay) return;
