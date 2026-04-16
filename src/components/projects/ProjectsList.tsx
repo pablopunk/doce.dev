@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Project } from "@/server/db/schema";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
@@ -21,17 +21,24 @@ export function ProjectsList({ fallback }: ProjectsListProps) {
 		new Set(),
 	);
 
-	const creatingDrafts = useProjectOptimisticState((s) =>
-		s.getCreatingDrafts(),
-	);
+	const creatingDraftsMap = useProjectOptimisticState((s) => s.creatingDrafts);
 	const pendingByProjectId = useProjectOptimisticState(
 		(s) => s.pendingByProjectId,
 	);
 
-	const filteredProjects = fallback.filter(
-		(project) =>
-			!deletedProjectIds.has(project.id) &&
-			pendingByProjectId.get(project.id)?.action !== "deleting",
+	const creatingDrafts = useMemo(
+		() => Array.from(creatingDraftsMap.values()),
+		[creatingDraftsMap],
+	);
+
+	const filteredProjects = useMemo(
+		() =>
+			fallback.filter(
+				(project) =>
+					!deletedProjectIds.has(project.id) &&
+					pendingByProjectId.get(project.id)?.action !== "deleting",
+			),
+		[fallback, deletedProjectIds, pendingByProjectId],
 	);
 
 	const handleProjectDeleted = (projectId: string) => {
