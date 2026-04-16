@@ -148,26 +148,34 @@ export function useCreateProject({
 		setImageError(null);
 	};
 
-	const waitForProjectToExist = async (
-		projectId: string,
-		maxAttempts = 40,
-	) => {
-		const delayMs = 500;
+	const waitForProjectToBeReady = async (projectId: string) => {
+		return await new Promise<{ id: string; slug: string } | null>((resolve) => {
+			const eventSource = new EventSource(`/api/projects/${projectId}/ready`);
 
-		for (let attempt = 0; attempt < maxAttempts; attempt++) {
-			try {
-				const result = await actions.projects.get({ projectId });
-				if (result.data?.project) {
-					return result.data.project;
-				}
-			} catch {
-				// Not ready yet
-			}
+			const cleanup = () => {
+				eventSource.close();
+			};
 
-			await new Promise((resolve) => setTimeout(resolve, delayMs));
-		}
+			eventSource.addEventListener("ready", (event) => {
+				cleanup();
+				resolve(JSON.parse((event as MessageEvent).data));
+			});
 
-		return null;
+			eventSource.addEventListener("timeout", () => {
+				cleanup();
+				resolve(null);
+			});
+
+			eventSource.addEventListener("error", () => {
+				cleanup();
+				resolve(null);
+			});
+
+			eventSource.onerror = () => {
+				cleanup();
+				resolve(null);
+			};
+		});
 	};
 
 	const handleCreate = async () => {
@@ -205,7 +213,7 @@ export function useCreateProject({
 			}
 
 			const projectId = result.data.projectId;
-			const project = await waitForProjectToExist(projectId);
+			const project = await waitForProjectToBeReady(projectId);
 
 			if (!project) {
 				setError("Project creation is taking longer than expected");
