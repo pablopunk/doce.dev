@@ -9,6 +9,7 @@ import {
 } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
+import { getCanonicalProductionUrl } from "@/server/productions/productionUrl";
 import {
 	getPreviousReleaseHash,
 	updateProductionStatus,
@@ -108,17 +109,10 @@ export function handleProductionWaitReady(
 		if (productionReady) {
 			yield* promoteRelease(project.id, payload.productionHash);
 
-			const tailscaleUrl = yield* Effect.tryPromise({
-				try: async () => {
-					const { getTailscaleProjectUrl } = await import(
-						"@/server/tailscale/urls"
-					);
-					return getTailscaleProjectUrl(project.slug, "production", project.id);
-				},
-				catch: () => null as null,
-			}).pipe(Effect.catchAll(() => Effect.succeed(null as string | null)));
-			const productionUrl =
-				tailscaleUrl ?? `http://localhost:${payload.productionPort}`;
+			const productionUrl = yield* Effect.tryPromise({
+				try: () => getCanonicalProductionUrl(project),
+				catch: () => `http://localhost:${payload.productionPort}`,
+			});
 			yield* Effect.tryPromise({
 				try: () =>
 					updateProductionStatus(project.id, "running", {

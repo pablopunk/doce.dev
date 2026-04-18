@@ -538,9 +538,13 @@ export const projects = {
 				// Symlink update failed, but container is running
 			}
 
+			const { getCanonicalProductionUrl } = await import(
+				"@/server/productions/productionUrl"
+			);
 			await updateProductionStatus(input.projectId, "running", {
 				productionHash: input.toHash,
 				productionStartedAt: new Date(),
+				productionUrl: await getCanonicalProductionUrl(project),
 			});
 
 			return { success: true };
