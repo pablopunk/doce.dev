@@ -6,6 +6,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
+import { useChatPanel } from "@/hooks/useChatPanel";
 import { useLiveState } from "@/hooks/useLiveState";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { useChatLayout } from "@/stores/useChatLayout";
@@ -56,6 +57,21 @@ export function ProjectContentWrapper({
 	const pendingAction = useProjectOptimisticState(
 		(s) => s.pendingByProjectId.get(projectId) ?? null,
 	);
+
+	// Get chat send function for "Fix with Doce" feature
+	const { handleSend } = useChatPanel({
+		projectId,
+		models,
+		onStreamingStateChange: (count, streaming) => {
+			setUserMessageCount(count);
+			setIsStreaming(streaming);
+		},
+	});
+
+	const handleFixWithDoce = (errorMessage: string) => {
+		const prompt = `The preview server failed to start with this error:\n\n${errorMessage}\n\nPlease fix this issue.`;
+		void handleSend(prompt);
+	};
 
 	useEffect(() => {
 		if (!showStartupDisplay) return;
@@ -115,10 +131,7 @@ export function ProjectContentWrapper({
 								isStreaming={isStreaming}
 								models={models}
 								onOpenFile={setFileToOpen}
-								onStreamingStateChange={(count, streaming) => {
-									setUserMessageCount(count);
-									setIsStreaming(streaming);
-								}}
+								onFixWithDoce={handleFixWithDoce}
 							/>
 						</div>
 					) : (
@@ -151,10 +164,7 @@ export function ProjectContentWrapper({
 												projectId={projectId}
 												models={models}
 												onOpenFile={setFileToOpen}
-												onStreamingStateChange={(count, streaming) => {
-													setUserMessageCount(count);
-													setIsStreaming(streaming);
-												}}
+												hideDetachToggle={false}
 											/>
 										</ErrorBoundary>
 									</motion.div>
@@ -194,6 +204,7 @@ export function ProjectContentWrapper({
 										onFileOpened={() => setFileToOpen(null)}
 										userMessageCount={userMessageCount}
 										isStreaming={isStreaming}
+										onFixWithDoce={handleFixWithDoce}
 									/>
 								</ErrorBoundary>
 							</motion.div>
@@ -203,10 +214,6 @@ export function ProjectContentWrapper({
 								projectId={projectId}
 								models={models}
 								onOpenFile={setFileToOpen}
-								onStreamingStateChange={(count, streaming) => {
-									setUserMessageCount(count);
-									setIsStreaming(streaming);
-								}}
 							/>
 						</>
 					)}
