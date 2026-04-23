@@ -109,6 +109,9 @@ jobs:
             echo "Dockerfile unchanged, will reuse main branch image"
           fi
 
+      - name: Clean Tailscale cache
+        run: rm -f ~/.cache/tailscale.tgz
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -299,6 +302,9 @@ jobs:
       contents: read
 
     steps:
+      - name: Clean Tailscale cache
+        run: rm -f ~/.cache/tailscale.tgz
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
