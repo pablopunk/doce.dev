@@ -67,14 +67,6 @@ function validateOpenAICompatibleKeyEffect(baseUrl: string) {
 		apiKey: string,
 	): Effect.Effect<ValidationResult, ApiKeyValidationError> =>
 		Effect.gen(function* () {
-			if (!apiKey.startsWith("sk-") && !apiKey.startsWith("api-")) {
-				return {
-					valid: false,
-					error:
-						"Invalid API key format. Keys typically start with 'sk-' or 'api-'.",
-				};
-			}
-
 			const response = yield* Effect.tryPromise({
 				try: () =>
 					fetch(`${baseUrl}/models`, {
@@ -197,14 +189,6 @@ function validateAnthropicKeyEffect(
 	apiKey: string,
 ): Effect.Effect<ValidationResult, ApiKeyValidationError> {
 	return Effect.gen(function* () {
-		if (!apiKey.startsWith("sk-ant-")) {
-			return {
-				valid: false,
-				error:
-					"Invalid Anthropic API key format. Keys should start with 'sk-ant-'.",
-			};
-		}
-
 		const response = yield* Effect.tryPromise({
 			try: () =>
 				fetch("https://api.anthropic.com/v1/models", {
@@ -276,13 +260,6 @@ function validateOpenAIKeyEffect(
 	apiKey: string,
 ): Effect.Effect<ValidationResult, ApiKeyValidationError> {
 	return Effect.gen(function* () {
-		if (!apiKey.startsWith("sk-")) {
-			return {
-				valid: false,
-				error: "Invalid OpenAI API key format. Keys should start with 'sk-'.",
-			};
-		}
-
 		const response = yield* Effect.tryPromise({
 			try: () =>
 				fetch("https://api.openai.com/v1/models", {
@@ -350,11 +327,5 @@ export async function validateOpenAIKey(
 function validateOpencodeKeyEffect(
 	apiKey: string,
 ): Effect.Effect<ValidationResult, ApiKeyValidationError> {
-	if (!apiKey.startsWith("sk-")) {
-		return Effect.succeed({
-			valid: false,
-			error: "Invalid OpenCode API key format. Keys should start with 'sk-'.",
-		});
-	}
 	return Effect.succeed({ valid: true });
 }
