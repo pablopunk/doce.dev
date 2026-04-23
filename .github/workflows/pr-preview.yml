@@ -264,6 +264,9 @@ jobs:
             echo "⏱️ Build completed at $(date)"
           else
             echo "📥 Pulling pre-built image from registry (Dockerfile unchanged)..."
+            # Drop any stale ghcr.io credentials so public pulls fall back to anonymous
+            ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
+              "docker logout ghcr.io 2>/dev/null || true"
             ssh -o StrictHostKeyChecking=no "$SSH_USER@$VM_HOST" \
               "docker pull ghcr.io/${{ github.repository_owner }}/doce.dev:latest && \
                docker tag ghcr.io/${{ github.repository_owner }}/doce.dev:latest doce-pr-$PR_NUM:latest"
