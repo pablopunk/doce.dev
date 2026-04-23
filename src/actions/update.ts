@@ -170,6 +170,7 @@ export const update = {
 
 				if (isCacheValid(versionCache.remote)) {
 					const localDigest = await getLocalImageDigest();
+					logger.info({ localDigest, cachedRemoteDigest: versionCache.remote?.digest }, "Comparing digests (cache hit)");
 					const hasUpdate = localDigest !== versionCache.remote?.digest;
 					return {
 						hasUpdate,
@@ -197,6 +198,7 @@ export const update = {
 				}
 
 				const localDigest = await getLocalImageDigest();
+				logger.info({ localDigest, remoteDigest: remoteInfo.digest }, "Comparing digests");
 				const hasUpdate = localDigest !== remoteInfo.digest;
 
 				return {
