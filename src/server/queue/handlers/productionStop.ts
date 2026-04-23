@@ -51,7 +51,10 @@ export function handleProductionStop(
 
 		if (project.status !== "deleting") {
 			yield* Effect.tryPromise({
-				try: () => updateProductionStatus(project.id, "stopped"),
+				try: () =>
+					updateProductionStatus(project.id, "stopped", {
+						productionUrl: null,
+					}),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,

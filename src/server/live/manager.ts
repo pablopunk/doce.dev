@@ -10,6 +10,7 @@
  */
 
 import { logger } from "@/server/logger";
+import { repairStaleProductionUrl } from "@/server/productions/productionUrl";
 import {
 	getActiveProductionJob,
 	getProductionStatus,
@@ -275,7 +276,10 @@ async function buildState(
 			getActiveProductionJob(projectId),
 		]);
 
-	const production = getProductionStatus(project);
+	const production = {
+		...getProductionStatus(project),
+		url: await repairStaleProductionUrl(project),
+	};
 
 	const productionState: ProductionLiveState = {
 		status: production.status,
