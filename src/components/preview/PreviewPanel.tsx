@@ -102,6 +102,12 @@ export function PreviewPanel({
 	const [message, setMessage] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [iframeKey, setIframeKey] = useState(0);
+	const iframeRef = useRef<HTMLIFrameElement | null>(null);
+	const [runtimeError, setRuntimeError] = useState<{
+		message: string;
+		stack: string | undefined;
+		source: string;
+	} | null>(null);
 	const [activeTab, setActiveTab] = useState<TabType>(() => {
 		if (forceTab) {
 			return forceTab;
@@ -227,8 +233,46 @@ export function PreviewPanel({
 	}, [fileToOpen, onFileOpened]);
 
 	const handleRefresh = () => {
+		setRuntimeError(null);
 		setIframeKey((k) => k + 1);
 	};
+
+	// Listen for dev-time errors forwarded from the preview iframe via postMessage.
+	useEffect(() => {
+		const onMessage = (event: MessageEvent) => {
+			if (
+				iframeRef.current &&
+				event.source !== iframeRef.current.contentWindow
+			) {
+				return;
+			}
+			const data = event.data as
+				| {
+						type?: string;
+						message?: string;
+						stack?: string;
+						source?: string;
+				  }
+				| undefined;
+			if (!data || typeof data !== "object") return;
+			if (data.type === "doce:error" && data.message) {
+				setRuntimeError({
+					message: data.message,
+					stack: data.stack,
+					source: data.source ?? "runtime",
+				});
+			} else if (data.type === "doce:error-clear") {
+				setRuntimeError(null);
+			}
+		};
+		window.addEventListener("message", onMessage);
+		return () => window.removeEventListener("message", onMessage);
+	}, []);
+
+	// Reset runtime error if preview url/iframe changes.
+	useEffect(() => {
+		setRuntimeError(null);
+	}, [previewUrl]);
 
 	// Auto-refresh preview iframe when state first becomes "ready".
 	// The container health check can pass before Astro finishes its initial compile,
@@ -638,12 +682,49 @@ export function PreviewPanel({
 				{/* Preview iframe */}
 				<div className="flex-1 relative bg-background">
 					{state === "ready" && previewUrl ? (
-						<iframe
-							key={iframeKey}
-							src={previewUrl}
-							className="absolute inset-0 w-full h-full border-0"
-							title="Preview"
-						/>
+						<>
+							<iframe
+								ref={iframeRef}
+								key={iframeKey}
+								src={previewUrl}
+								className="absolute inset-0 w-full h-full border-0"
+								title="Preview"
+							/>
+							{runtimeError && (
+								<div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4 z-40">
+									<div className="flex flex-col items-center gap-4 text-center max-w-2xl">
+										<AlertTriangle className="h-8 w-8 text-status-error" />
+										<div>
+											<p className="font-medium text-status-error">
+												Preview error
+											</p>
+											<pre className="text-xs text-muted-foreground mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-left bg-muted/50 rounded p-3">
+												{runtimeError.message}
+											</pre>
+										</div>
+										<div className="flex items-center gap-2">
+											<Button variant="outline" onClick={handleRefresh}>
+												Reload
+											</Button>
+											{onFixWithDoce && (
+												<Button
+													variant="default"
+													onClick={() =>
+														onFixWithDoce(
+															runtimeError.stack
+																? `${runtimeError.message}\n\n${runtimeError.stack}`
+																: runtimeError.message,
+														)
+													}
+												>
+													Fix with Doce
+												</Button>
+											)}
+										</div>
+									</div>
+								</div>
+							)}
+						</>
 					) : (
 						<div className="absolute inset-0 flex items-center justify-center">
 							{state === "initializing" || state === "starting" ? (
