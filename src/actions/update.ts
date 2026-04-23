@@ -41,8 +41,10 @@ async function getGhcrToken(): Promise<string> {
 
 async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 	const token = await getGhcrToken();
-	const manifestUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/latest`;
-	const response = await fetch(manifestUrl, {
+
+	// First, get the manifest list (index) to find the amd64 manifest
+	const indexUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/latest`;
+	const indexResponse = await fetch(indexUrl, {
 		headers: {
 			Authorization: `Bearer ${token}`,
 			Accept: "application/vnd.oci.image.index.v1+json",
@@ -50,13 +52,13 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 		signal: AbortSignal.timeout(10000),
 	});
 
-	if (!response.ok) {
+	if (!indexResponse.ok) {
 		throw new Error(
-			`Failed to fetch manifest: ${response.status} ${response.statusText}`,
+			`Failed to fetch manifest index: ${indexResponse.status} ${indexResponse.statusText}`,
 		);
 	}
 
-	const index = (await response.json()) as {
+	const index = (await indexResponse.json()) as {
 		manifests?: Array<{
 			digest: string;
 			platform?: { architecture: string; os: string };
@@ -71,9 +73,30 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 		throw new Error("No amd64/linux manifest found");
 	}
 
+	// Now fetch the actual platform manifest by its digest to get the correct content digest
+	// This matches what Docker stores in RepoDigests after a pull
+	const manifestUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/${amd64Manifest.digest}`;
+	const manifestResponse = await fetch(manifestUrl, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.docker.distribution.manifest.v2+json",
+		},
+		signal: AbortSignal.timeout(10000),
+	});
+
+	if (!manifestResponse.ok) {
+		throw new Error(
+			`Failed to fetch platform manifest: ${manifestResponse.status} ${manifestResponse.statusText}`,
+		);
+	}
+
+	// Docker-Content-Digest header contains the actual manifest digest
+	const contentDigest = manifestResponse.headers.get("docker-content-digest");
+	const digest = contentDigest || amd64Manifest.digest;
+
 	const tag = await fetchLatestTag(token);
 
-	return { digest: amd64Manifest.digest, tag };
+	return { digest, tag };
 }
 
 async function fetchLatestTag(token: string): Promise<string> {
