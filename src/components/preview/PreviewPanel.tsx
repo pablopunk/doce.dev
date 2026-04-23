@@ -70,6 +70,8 @@ interface PreviewPanelProps {
 		userMessageCount: number,
 		isStreaming: boolean,
 	) => void;
+	/** Callback to send a "Fix with Doce" message to the chat */
+	onFixWithDoce?: (errorMessage: string) => void;
 }
 
 type PreviewState =
@@ -92,6 +94,7 @@ export function PreviewPanel({
 	models = [],
 	onOpenFile,
 	onStreamingStateChange,
+	onFixWithDoce,
 }: PreviewPanelProps) {
 	const isMobile = useIsMobile();
 	const { baseUrl } = useBaseUrlSetting();
@@ -673,9 +676,19 @@ export function PreviewPanel({
 											{message || "Check the terminal for details."}
 										</p>
 									</div>
-									<Button variant="outline" onClick={handleRetry}>
-										Try Again
-									</Button>
+									<div className="flex items-center gap-2">
+										<Button variant="outline" onClick={handleRetry}>
+											Try Again
+										</Button>
+										{onFixWithDoce && message && (
+											<Button
+												variant="default"
+												onClick={() => onFixWithDoce(message)}
+											>
+												Fix with Doce
+											</Button>
+										)}
+									</div>
 								</div>
 							) : null}
 						</div>

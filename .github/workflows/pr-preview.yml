@@ -109,10 +109,20 @@ jobs:
             echo "Dockerfile unchanged, will reuse main branch image"
           fi
 
+      - name: Clean Tailscale cache
+        run: rm -f ~/.cache/tailscale.tgz
+
+      - name: Stop any running Tailscale
+        run: |
+          sudo pkill -f tailscaled 2>/dev/null || true
+          sudo rm -f /usr/local/bin/tailscale /usr/local/bin/tailscaled 2>/dev/null || true
+          sleep 2
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          use-cache: false
 
       - name: Extract PR number
         id: pr
@@ -298,10 +308,20 @@ jobs:
       contents: read
 
     steps:
+      - name: Clean Tailscale cache
+        run: rm -f ~/.cache/tailscale.tgz
+
+      - name: Stop any running Tailscale
+        run: |
+          sudo pkill -f tailscaled 2>/dev/null || true
+          sudo rm -f /usr/local/bin/tailscale /usr/local/bin/tailscaled 2>/dev/null || true
+          sleep 2
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          use-cache: false
 
       - name: Extract PR number
         id: pr
