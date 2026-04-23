@@ -4,7 +4,9 @@ import { logger } from "@/server/logger";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { parsePayload } from "../types";
 
-const IMAGE_NAME = "ghcr.io/pablopunk/doce.dev:latest";
+const REGISTRY = "ghcr.io";
+const REPO_PATH = "pablopunk/doce.dev";
+const IMAGE_NAME = `${REGISTRY}/${REPO_PATH}:latest`;
 
 interface PullResult {
 	success: boolean;

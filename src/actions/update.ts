@@ -4,7 +4,9 @@ import { logger } from "@/server/logger";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { VERSION } from "@/server/version";
 
-const IMAGE_NAME = "ghcr.io/pablopunk/doce.dev";
+const REGISTRY = "ghcr.io";
+const REPO_PATH = "pablopunk/doce.dev";
+const IMAGE_NAME = `${REGISTRY}/${REPO_PATH}`;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 interface CacheEntry {
@@ -20,7 +22,7 @@ interface VersionCache {
 const versionCache: VersionCache = {};
 
 async function getGhcrToken(): Promise<string> {
-	const tokenUrl = `https://ghcr.io/token?service=ghcr.io&scope=repository:pablopunk/doce.dev:pull`;
+	const tokenUrl = `https://${REGISTRY}/token?service=${REGISTRY}&scope=repository:${REPO_PATH}:pull`;
 	const response = await fetch(tokenUrl, {
 		signal: AbortSignal.timeout(10000),
 	});
@@ -43,7 +45,7 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 	const token = await getGhcrToken();
 
 	// First, get the manifest list (index) to find the amd64 manifest
-	const indexUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/latest`;
+	const indexUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/latest`;
 	const indexResponse = await fetch(indexUrl, {
 		headers: {
 			Authorization: `Bearer ${token}`,
@@ -75,11 +77,11 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 
 	// Now fetch the actual platform manifest by its digest to get the correct content digest
 	// This matches what Docker stores in RepoDigests after a pull
-	const manifestUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/${amd64Manifest.digest}`;
+	const manifestUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/${amd64Manifest.digest}`;
 	const manifestResponse = await fetch(manifestUrl, {
 		headers: {
 			Authorization: `Bearer ${token}`,
-			Accept: "application/vnd.docker.distribution.manifest.v2+json",
+			Accept: "application/vnd.oci.image.manifest.v1+json",
 		},
 		signal: AbortSignal.timeout(10000),
 	});
@@ -101,7 +103,7 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 
 async function fetchLatestTag(token: string): Promise<string> {
 	try {
-		const tagsUrl = `https://ghcr.io/v2/pablopunk/doce.dev/tags/list`;
+		const tagsUrl = `https://${REGISTRY}/v2/${REPO_PATH}/tags/list`;
 		const response = await fetch(tagsUrl, {
 			headers: { Authorization: `Bearer ${token}` },
 			signal: AbortSignal.timeout(10000),
