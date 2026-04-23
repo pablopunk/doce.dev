@@ -112,6 +112,12 @@ jobs:
       - name: Clean Tailscale cache
         run: rm -f ~/.cache/tailscale.tgz
 
+      - name: Stop any running Tailscale
+        run: |
+          sudo pkill -f tailscaled 2>/dev/null || true
+          sudo rm -f /usr/local/bin/tailscale /usr/local/bin/tailscaled 2>/dev/null || true
+          sleep 2
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -304,6 +310,12 @@ jobs:
     steps:
       - name: Clean Tailscale cache
         run: rm -f ~/.cache/tailscale.tgz
+
+      - name: Stop any running Tailscale
+        run: |
+          sudo pkill -f tailscaled 2>/dev/null || true
+          sudo rm -f /usr/local/bin/tailscale /usr/local/bin/tailscaled 2>/dev/null || true
+          sleep 2
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
