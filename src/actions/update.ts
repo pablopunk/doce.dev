@@ -8,13 +8,13 @@ const IMAGE_NAME = "ghcr.io/pablopunk/doce.dev";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 interface CacheEntry {
-	version: string;
+	digest: string;
+	tag: string;
 	timestamp: number;
 }
 
 interface VersionCache {
 	remote?: CacheEntry;
-	local?: CacheEntry;
 }
 
 const versionCache: VersionCache = {};
@@ -39,7 +39,7 @@ async function getGhcrToken(): Promise<string> {
 	return data.token;
 }
 
-async function fetchRemoteVersion(): Promise<string> {
+async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 	const token = await getGhcrToken();
 	const manifestUrl = `https://ghcr.io/v2/pablopunk/doce.dev/manifests/latest`;
 	const response = await fetch(manifestUrl, {
@@ -71,11 +71,45 @@ async function fetchRemoteVersion(): Promise<string> {
 		throw new Error("No amd64/linux manifest found");
 	}
 
-	return amd64Manifest.digest;
+	const tag = await fetchLatestTag(token);
+
+	return { digest: amd64Manifest.digest, tag };
 }
 
-function getLocalVersion(): string | null {
-	return VERSION !== "unknown" ? VERSION : null;
+async function fetchLatestTag(token: string): Promise<string> {
+	try {
+		const tagsUrl = `https://ghcr.io/v2/pablopunk/doce.dev/tags/list`;
+		const response = await fetch(tagsUrl, {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(10000),
+		});
+
+		if (!response.ok) return "latest";
+
+		const data = (await response.json()) as { tags?: string[] };
+		const tags = data.tags?.filter((t) => t !== "latest") ?? [];
+
+		tags.sort((a, b) => b.localeCompare(a));
+		return tags[0] ?? "latest";
+	} catch {
+		return "latest";
+	}
+}
+
+async function getLocalImageDigest(): Promise<string | null> {
+	const containerName = await getContainerName();
+
+	const result = await spawnCommand(
+		"docker",
+		["inspect", "--format", "{{.Image}}", containerName],
+		{ timeout: 10000 },
+	);
+
+	if (!result.success || !result.stdout.trim()) {
+		return null;
+	}
+
+	return result.stdout.trim();
 }
 
 function isCacheValid(entry: CacheEntry | undefined): boolean {
@@ -116,9 +150,7 @@ export const update = {
 		input: z.object({}),
 		handler: async () => {
 			try {
-				const localVersion = getLocalVersion();
-
-				if (!localVersion || localVersion === "unknown") {
+				if (VERSION === "unknown" || VERSION === "dev") {
 					logger.warn("No VERSION env var set in container");
 					return {
 						hasUpdate: false,
@@ -128,19 +160,21 @@ export const update = {
 				}
 
 				if (isCacheValid(versionCache.remote)) {
-					const hasUpdate = localVersion !== versionCache.remote?.version;
+					const localDigest = await getLocalImageDigest();
+					const hasUpdate = localDigest !== versionCache.remote?.digest;
 					return {
 						hasUpdate,
-						currentVersion: localVersion,
-						remoteVersion: versionCache.remote?.version,
+						currentVersion: VERSION,
+						remoteVersion: versionCache.remote?.tag,
 					};
 				}
 
-				let remoteVersion: string;
+				let remoteInfo: { digest: string; tag: string };
 				try {
-					remoteVersion = await fetchRemoteVersion();
+					remoteInfo = await fetchRemoteDigest();
 					versionCache.remote = {
-						version: remoteVersion,
+						digest: remoteInfo.digest,
+						tag: remoteInfo.tag,
 						timestamp: Date.now(),
 					};
 				} catch (err) {
@@ -148,17 +182,18 @@ export const update = {
 					logger.error({ err }, `Failed to check remote version: ${message}`);
 					return {
 						hasUpdate: false,
-						currentVersion: localVersion,
+						currentVersion: VERSION,
 						error: `Failed to check for updates: ${message}`,
 					};
 				}
 
-				const hasUpdate = localVersion !== remoteVersion;
+				const localDigest = await getLocalImageDigest();
+				const hasUpdate = localDigest !== remoteInfo.digest;
 
 				return {
 					hasUpdate,
-					currentVersion: localVersion,
-					remoteVersion,
+					currentVersion: VERSION,
+					remoteVersion: remoteInfo.tag,
 				};
 			} catch (err) {
 				const message = err instanceof Error ? err.message : "Unknown error";
