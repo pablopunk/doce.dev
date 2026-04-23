@@ -87,7 +87,9 @@ async function fetchLatestTag(token: string): Promise<string> {
 		if (!response.ok) return "latest";
 
 		const data = (await response.json()) as { tags?: string[] };
-		const tags = data.tags?.filter((t) => t !== "latest") ?? [];
+		// Only consider date-prefixed tags (YYYY-MM-DD-sha) to avoid raw git SHAs
+		const dateTagPattern = /^\d{4}-\d{2}-\d{2}-[a-f0-9]+$/;
+		const tags = data.tags?.filter((t) => dateTagPattern.test(t)) ?? [];
 
 		tags.sort((a, b) => b.localeCompare(a));
 		return tags[0] ?? "latest";
@@ -97,11 +99,17 @@ async function fetchLatestTag(token: string): Promise<string> {
 }
 
 async function getLocalImageDigest(): Promise<string | null> {
-	const containerName = await getContainerName();
-
+	// Inspect the image directly for its RepoDigests, which contains the
+	// manifest digest (matches what GHCR returns). The container's .Image
+	// field is the image config blob digest, which is different.
 	const result = await spawnCommand(
 		"docker",
-		["inspect", "--format", "{{.Image}}", containerName],
+		[
+			"inspect",
+			"--format",
+			"{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}",
+			`${IMAGE_NAME}:latest`,
+		],
 		{ timeout: 10000 },
 	);
 
@@ -109,7 +117,8 @@ async function getLocalImageDigest(): Promise<string | null> {
 		return null;
 	}
 
-	return result.stdout.trim();
+	const match = result.stdout.trim().match(/@(sha256:[a-f0-9]+)/);
+	return match?.[1] ?? null;
 }
 
 function isCacheValid(entry: CacheEntry | undefined): boolean {
