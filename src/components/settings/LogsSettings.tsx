@@ -25,17 +25,66 @@ interface ParsedLogLine {
 	level: "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "unknown";
 }
 
+const PINO_META_KEYS = new Set([
+	"level",
+	"time",
+	"msg",
+	"pid",
+	"hostname",
+	"v",
+]);
+
+function formatTimestamp(time: string | number | undefined): string {
+	if (time === undefined || time === null) return "";
+	if (typeof time === "number") {
+		try {
+			return new Date(time).toISOString();
+		} catch {
+			return String(time);
+		}
+	}
+	return String(time);
+}
+
+function formatContext(parsed: Record<string, unknown>): string {
+	const entries = Object.entries(parsed).filter(
+		([key]) => !PINO_META_KEYS.has(key),
+	);
+	if (entries.length === 0) return "";
+
+	const parts = entries.map(([key, value]) => {
+		if (key === "err" && value && typeof value === "object") {
+			const err = value as { message?: string; stack?: string; type?: string };
+			const label = err.type ?? "Error";
+			const msg = err.message ?? "";
+			const stack = err.stack ? `\n${err.stack}` : "";
+			return `${key}=${label}: ${msg}${stack}`;
+		}
+		if (typeof value === "string") return `${key}=${value}`;
+		if (typeof value === "number" || typeof value === "boolean")
+			return `${key}=${value}`;
+		try {
+			return `${key}=${JSON.stringify(value)}`;
+		} catch {
+			return `${key}=[unserializable]`;
+		}
+	});
+	return ` ${parts.join(" ")}`;
+}
+
 function parseLogLine(line: string): ParsedLogLine {
 	try {
-		const parsed = JSON.parse(line) as {
+		const parsed = JSON.parse(line) as Record<string, unknown> & {
 			level?: number;
 			msg?: string;
 			time?: string | number;
 		};
 		const level = mapPinoLevel(parsed.level);
-		const timestamp = parsed.time ? `[${String(parsed.time)}] ` : "";
-		const message = parsed.msg ? `${timestamp}${parsed.msg}` : line;
-		return { text: message, level };
+		const timestamp = parsed.time ? `[${formatTimestamp(parsed.time)}] ` : "";
+		const msg = parsed.msg ?? "";
+		const context = formatContext(parsed);
+		const text = `${timestamp}${msg}${context}`.trim();
+		return { text: text || line, level };
 	} catch {
 		return {
 			text: line,
