@@ -1,4 +1,5 @@
 # Multi-stage build for production deployment
+# Trigger rebuild: 2026-04-23
 # Builder stage
 FROM node:22-slim AS builder
 
