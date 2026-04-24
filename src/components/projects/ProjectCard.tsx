@@ -2,8 +2,9 @@ import { actions } from "astro:actions";
 import {
 	Download,
 	Ellipsis,
-	ExternalLink,
 	Loader2,
+	Plug,
+	SatelliteDish,
 	Trash2,
 } from "lucide-react";
 import { useState } from "react";
@@ -115,7 +116,11 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group relative overflow-hidden">
 				<CardHeader className="pb-2">
-					<CardTitle className="text-lg truncate">{project.name}</CardTitle>
+					<CardTitle className="text-lg truncate">
+						<a href={`/projects/${project.id}/${project.slug}`}>
+							{project.name}
+						</a>
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<p className="text-sm text-muted-foreground line-clamp-2 mb-4">
@@ -136,7 +141,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 									className="inline-flex"
 								>
 									<Button variant="outline" size="sm">
-										<ExternalLink className="mr-1 h-4 w-4" />
+										<Plug className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
 										Preview
 									</Button>
 								</a>
@@ -149,7 +154,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 									className="inline-flex"
 								>
 									<Button variant="outline" size="sm">
-										<ExternalLink className="mr-1 h-4 w-4" />
+										<SatelliteDish className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
 										Production
 									</Button>
 								</a>
