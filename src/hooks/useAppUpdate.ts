@@ -1,3 +1,4 @@
+import { actions } from "astro:actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,18 +9,6 @@ export type UpdateState =
 	| "updating"
 	| "restart-ready"
 	| "error";
-
-interface CheckResult {
-	hasUpdate: boolean;
-	currentVersion?: string;
-	remoteVersion?: string;
-	error?: string;
-}
-
-interface PullResult {
-	success: boolean;
-	error?: string;
-}
 
 export function useAppUpdate() {
 	const [state, setState] = useState<UpdateState>("idle");
@@ -35,23 +24,15 @@ export function useAppUpdate() {
 		setError(null);
 
 		try {
-			const res = await fetch("/_actions/update.checkForUpdate", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
+			const { data, error: actionError } = await actions.update.checkForUpdate(
+				{},
+			);
 
-			if (!res.ok) {
-				throw new Error("Failed to check for updates");
+			if (actionError) {
+				throw new Error(actionError.message || "Failed to check for updates");
 			}
 
-			const result = (await res.json()) as CheckResult;
-
-			if (result.error) {
-				throw new Error(result.error);
-			}
-
-			if (result.hasUpdate) {
+			if (data?.hasUpdate) {
 				setState("update-available");
 			} else {
 				setState("idle");
@@ -70,19 +51,14 @@ export function useAppUpdate() {
 		setError(null);
 
 		try {
-			const res = await fetch("/_actions/update.pull", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
+			const { data, error: actionError } = await actions.update.pull({});
 
-			if (!res.ok) {
-				throw new Error("Failed to pull update");
+			if (actionError) {
+				throw new Error(actionError.message || "Failed to pull update");
 			}
 
-			const result = (await res.json()) as PullResult;
-			if (!result.success) {
-				throw new Error(result.error || "Failed to pull update");
+			if (!data?.success) {
+				throw new Error("Failed to pull update");
 			}
 
 			setState("restart-ready");
@@ -97,13 +73,13 @@ export function useAppUpdate() {
 
 	const restart = useCallback(async () => {
 		try {
-			const res = await fetch("/_actions/update.restart", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
+			const { data, error: actionError } = await actions.update.restart({});
 
-			if (!res.ok) {
+			if (actionError) {
+				throw new Error(actionError.message || "Failed to restart");
+			}
+
+			if (!data?.success) {
 				throw new Error("Failed to restart");
 			}
 
