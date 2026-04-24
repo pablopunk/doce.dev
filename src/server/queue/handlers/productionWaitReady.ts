@@ -9,19 +9,19 @@ import {
 } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { cleanupOldProductionVersions } from "@/server/productions/cleanup";
-import { getCanonicalProductionUrl } from "@/server/productions/productionUrl";
 import {
 	getPreviousReleaseHash,
 	updateProductionStatus,
 } from "@/server/productions/productions.model";
+import { getCanonicalProductionUrl } from "@/server/productions/productionUrl";
 import {
 	getProductionContainerName,
 	getProductionCurrentSymlink,
 	getProductionPath,
 } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
-import { registerServe } from "@/server/tailscale/serve";
 import { getTailscaleConfig } from "@/server/tailscale/config";
+import { registerServe } from "@/server/tailscale/serve";
 import { parsePayload } from "../types";
 
 const WAIT_TIMEOUT_MS = 300_000;
@@ -114,7 +114,11 @@ export function handleProductionWaitReady(
 			const productionUrl = yield* Effect.tryPromise({
 				try: () => getCanonicalProductionUrl(project),
 				catch: () => `http://localhost:${payload.productionPort}`,
-			}).pipe(Effect.orElse(() => Effect.succeed(`http://localhost:${payload.productionPort}`)));
+			}).pipe(
+				Effect.orElse(() =>
+					Effect.succeed(`http://localhost:${payload.productionPort}`),
+				),
+			);
 
 			// Register with Tailscale Serve for HTTPS access
 			const tailscaleConfig = yield* Effect.tryPromise({

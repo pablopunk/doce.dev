@@ -1,3 +1,4 @@
+import * as os from "node:os";
 import * as path from "node:path";
 import { getConfigValue } from "@/server/config";
 import { isComposeV1 } from "@/server/docker/composeVersion";
@@ -29,7 +30,8 @@ function getDataRoot(): string {
  * Get the absolute path to the data directory.
  */
 export function getOpencodePath(): string {
-	return path.join(getDataPath(), "opencode", "auth.json");
+	// Use the user's OpenCode auth file (shared with CLI) instead of an isolated copy
+	return path.join(os.homedir(), ".local", "share", "opencode", "auth.json");
 }
 
 export function getGlobalOpencodeConfigPath(): string {

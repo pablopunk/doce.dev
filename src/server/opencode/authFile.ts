@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { Effect } from "effect";
 import { AuthFileError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
-import { getDataPath, getOpencodePath } from "@/server/projects/paths";
+import { getOpencodePath } from "@/server/projects/paths";
 
 export interface ProviderConfig {
 	id: string;
@@ -14,14 +14,15 @@ export interface ProviderConfig {
 export async function ensureAuthDirectory(): Promise<void> {
 	const effect = Effect.tryPromise({
 		try: async () => {
-			const opencodeDir = path.join(getDataPath(), "opencode");
+			const authPath = getOpencodePath();
+			const opencodeDir = path.dirname(authPath);
 			await fs.mkdir(opencodeDir, { recursive: true });
 			logger.debug({ opencodeDir }, "Ensured auth directory exists");
 		},
 		catch: (error) =>
 			new AuthFileError({
 				operation: "write",
-				path: path.join(getDataPath(), "opencode"),
+				path: getOpencodePath(),
 				message: "Failed to create auth directory",
 				cause: error,
 			}),

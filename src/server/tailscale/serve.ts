@@ -1,6 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { logger } from "@/server/logger";
 import { runCommand } from "@/server/utils/execAsync";
-import { readFile } from "node:fs/promises";
 
 let cachedHostIp: string | null = null;
 
@@ -77,7 +77,10 @@ export async function registerServe(
 		throw new Error(`tailscale serve failed: ${result.stderr}`);
 	}
 
-	logger.info({ localPort, httpsPort, targetHost }, "Tailscale Serve registered");
+	logger.info(
+		{ localPort, httpsPort, targetHost },
+		"Tailscale Serve registered",
+	);
 }
 
 /**

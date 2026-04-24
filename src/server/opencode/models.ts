@@ -4,6 +4,8 @@ import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
 import { getOpencodeClient } from "./client";
 
+const HIDDEN_PROVIDER_IDS = new Set(["opencode-go"]);
+
 export interface ModelCapabilities {
 	supportsVision: boolean;
 	supportedInputTypes: string[];
@@ -175,15 +177,22 @@ export async function getAvailableModels(): Promise<
 		Effect.tryPromise({
 			try: async () => {
 				const client = getOpencodeClient();
-				const response = await client.config.providers();
+				const response = await client.provider.list();
 
-				if (!response.data?.providers) {
+				if (!response.data?.all) {
 					logger.warn("No providers returned from OpenCode");
 					return [];
 				}
 
+				const connectedIds = new Set(response.data.connected || []);
+				const visibleProviders = response.data.all.filter(
+					(p) =>
+						(connectedIds.has(p.id) || p.id === "opencode") &&
+						!HIDDEN_PROVIDER_IDS.has(p.id),
+				);
+
 				return collectAvailableModelsFromProviders(
-					response.data.providers as OpencodeProvider[],
+					visibleProviders as OpencodeProvider[],
 				);
 			},
 			catch: (error) =>
@@ -230,13 +239,13 @@ export async function modelSupportsVision(modelId: string): Promise<boolean> {
 		Effect.tryPromise({
 			try: async () => {
 				const client = getOpencodeClient();
-				const response = await client.config.providers();
+				const response = await client.provider.list();
 
-				if (!response.data?.providers) {
+				if (!response.data?.all) {
 					return false;
 				}
 
-				for (const provider of response.data.providers) {
+				for (const provider of response.data.all) {
 					const models = (provider as OpencodeProvider).models;
 					if (models?.[modelId]) {
 						return models[modelId].capabilities?.input?.image ?? false;
@@ -265,13 +274,13 @@ export async function getModelCapabilities(
 		Effect.tryPromise({
 			try: async () => {
 				const client = getOpencodeClient();
-				const response = await client.config.providers();
+				const response = await client.provider.list();
 
-				if (!response.data?.providers) {
+				if (!response.data?.all) {
 					return null;
 				}
 
-				for (const provider of response.data.providers) {
+				for (const provider of response.data.all) {
 					const models = (provider as OpencodeProvider).models;
 					const model = models?.[modelId];
 					if (model) {

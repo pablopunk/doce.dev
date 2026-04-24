@@ -256,14 +256,14 @@ export const update = {
 				try {
 					remoteDigest = await fetchRemoteDigest();
 					remoteVersion = await fetchRemoteVersion();
-					remoteCache = { digest: remoteDigest, version: remoteVersion, timestamp: Date.now() };
+					remoteCache = {
+						digest: remoteDigest,
+						version: remoteVersion,
+						timestamp: Date.now(),
+					};
 				} catch (err) {
-					const message =
-						err instanceof Error ? err.message : "Unknown error";
-					logger.error(
-						{ err },
-						`Failed to check remote version: ${message}`,
-					);
+					const message = err instanceof Error ? err.message : "Unknown error";
+					logger.error({ err }, `Failed to check remote version: ${message}`);
 					return {
 						hasUpdate: false,
 						error: `Failed to check for updates: ${message}`,
@@ -280,12 +280,8 @@ export const update = {
 					newVersion: remoteVersion,
 				};
 			} catch (err) {
-				const message =
-					err instanceof Error ? err.message : "Unknown error";
-				logger.error(
-					{ err },
-					`Unexpected error in checkForUpdate: ${message}`,
-				);
+				const message = err instanceof Error ? err.message : "Unknown error";
+				logger.error({ err }, `Unexpected error in checkForUpdate: ${message}`);
 				return {
 					hasUpdate: false,
 					error: `Failed to check for updates: ${message}`,
@@ -320,8 +316,7 @@ export const update = {
 				logger.info("Image pulled successfully");
 				return { success: true };
 			} catch (err) {
-				const message =
-					err instanceof Error ? err.message : "Unknown error";
+				const message = err instanceof Error ? err.message : "Unknown error";
 				logger.error({ err }, `Unexpected error in pull: ${message}`);
 				return {
 					success: false,
@@ -372,8 +367,7 @@ export const update = {
 				logger.info("Container restarted successfully");
 				return { success: true };
 			} catch (err) {
-				const message =
-					err instanceof Error ? err.message : "Unknown error";
+				const message = err instanceof Error ? err.message : "Unknown error";
 				logger.error({ err }, `Unexpected error in restart: ${message}`);
 				return {
 					success: false,

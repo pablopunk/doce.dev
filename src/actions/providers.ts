@@ -4,16 +4,9 @@ import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
 import { validateApiKey } from "@/server/opencode/apiKeyValidation";
-import {
-	listConnectedProviderIds,
-	removeProvider,
-} from "@/server/opencode/authFile";
 import type { OpencodeClient } from "@/server/opencode/client";
 import { getOpencodeClient } from "@/server/opencode/client";
-import {
-	getAvailableModels,
-	modelSupportsVision,
-} from "@/server/opencode/models";
+import { getAvailableModels } from "@/server/opencode/models";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
@@ -84,24 +77,17 @@ async function syncOpencodeDisconnect(
 	if (providerId !== OPENCODE_PROVIDER_ID) return;
 	try {
 		await client.auth.remove({ providerID: OPENCODE_SIBLING_ID });
-		await removeProvider(OPENCODE_SIBLING_ID);
 	} catch (error) {
 		logger.warn({ error }, "Failed to sync disconnect to opencode-go");
 	}
 }
 
-/** OpenCode is always runtime-connected (free models). Only mark it connected if the user added an API key. */
+/** A provider is connected if the runtime reports it in the connected array. */
 function isProviderConnected(
 	providerId: string,
-	runtimeConnectedIds: Set<string>,
-	authConnectedIds: Set<string>,
+	connectedIds: Set<string>,
 ): boolean {
-	if (providerId === OPENCODE_PROVIDER_ID) {
-		return authConnectedIds.has(providerId);
-	}
-	return (
-		runtimeConnectedIds.has(providerId) || authConnectedIds.has(providerId)
-	);
+	return connectedIds.has(providerId);
 }
 
 function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
@@ -115,18 +101,14 @@ export const providers = {
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
 			async () => {
 				const client = getOpencodeClient();
-				const [providerResponse, authResponse, authBackedIds] =
-					await Promise.all([
-						client.provider.list(),
-						client.provider.auth(),
-						listConnectedProviderIds(),
-					]);
+				const [providerResponse, authResponse] = await Promise.all([
+					client.provider.list(),
+					client.provider.auth(),
+				]);
 
 				const providerData = providerResponse.data;
 				const authData = authResponse.data || {};
-				const runtimeConnectedIds = new Set(providerData?.connected || []);
-				const authConnectedIds = new Set(authBackedIds);
-				const disconnectableIds = new Set(authBackedIds);
+				const connectedIds = new Set(providerData?.connected || []);
 
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
 					(provider) => ({
@@ -134,12 +116,8 @@ export const providers = {
 						name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
 						env: provider.env,
 						source: (provider.source || "custom") as ProviderSource,
-						connected: isProviderConnected(
-							provider.id,
-							runtimeConnectedIds,
-							authConnectedIds,
-						),
-						disconnectable: disconnectableIds.has(provider.id),
+						connected: isProviderConnected(provider.id, connectedIds),
+						disconnectable: connectedIds.has(provider.id),
 						methods: getProviderMethods(
 							provider,
 							(authData[provider.id] || []) as ProviderAuthMethod[],
@@ -211,7 +189,6 @@ export const providers = {
 			}
 
 			await syncOpencodeDisconnect(client, input.providerId);
-			await removeProvider(input.providerId);
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
 			return { success: true };
@@ -275,21 +252,7 @@ export const providers = {
 			async (): Promise<{ models: AvailableModel[] }> => {
 				try {
 					const availableModels = await getAvailableModels();
-
-					// Enrich with vision support data
-					const enrichedModels: AvailableModel[] = [];
-					for (const model of availableModels) {
-						const supportsImages = await modelSupportsVision(model.id);
-						enrichedModels.push({
-							id: model.id,
-							name: model.name,
-							provider: model.provider,
-							vendor: model.vendor,
-							supportsImages,
-						});
-					}
-
-					return { models: enrichedModels };
+					return { models: availableModels };
 				} catch (error) {
 					logger.error({ error }, "Failed to get available models for user");
 					return { models: [] };

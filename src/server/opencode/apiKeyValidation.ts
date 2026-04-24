@@ -37,11 +37,13 @@ export async function validateApiKey(
 			cohere: validateOpenAICompatibleKeyEffect("https://api.cohere.ai/v1"),
 			mistral: validateOpenAICompatibleKeyEffect("https://api.mistral.ai/v1"),
 			groq: validateOpenAICompatibleKeyEffect("https://api.groq.com/openai/v1"),
+			"fireworks-ai": validateOpenAICompatibleKeyEffect(
+				"https://api.fireworks.ai/inference/v1",
+			),
 		};
 
 		const validatorEffect =
-			validators[providerId] ??
-			validateOpenAICompatibleKeyEffect("https://api.openai.com/v1");
+			validators[providerId] ?? skipValidationEffect(providerId);
 
 		const result = yield* Effect.either(validatorEffect(apiKey));
 
@@ -325,7 +327,20 @@ export async function validateOpenAIKey(
 }
 
 function validateOpencodeKeyEffect(
-	apiKey: string,
+	_apiKey: string,
 ): Effect.Effect<ValidationResult, ApiKeyValidationError> {
 	return Effect.succeed({ valid: true });
+}
+
+function skipValidationEffect(
+	providerId: string,
+): (apiKey: string) => Effect.Effect<ValidationResult, ApiKeyValidationError> {
+	return (_apiKey: string) =>
+		Effect.sync(() => {
+			logger.warn(
+				{ provider: providerId },
+				"No explicit API key validator for provider; skipping validation",
+			);
+			return { valid: true };
+		});
 }

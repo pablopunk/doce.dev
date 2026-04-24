@@ -157,10 +157,8 @@ function getOpencodeEnvironment(): NodeJS.ProcessEnv {
 
 	return {
 		...safeEnvironment,
-		HOME: dataPath,
+		// Use the real HOME so the runtime shares auth and data with the CLI
 		XDG_CONFIG_HOME: dataPath,
-		XDG_DATA_HOME: dataPath,
-		XDG_STATE_HOME: dataPath,
 		XDG_CACHE_HOME: `${dataPath}/cache`,
 	};
 }

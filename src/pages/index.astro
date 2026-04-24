@@ -49,19 +49,8 @@ let allModels: Array<{
 
 try {
 	const { getAvailableModels } = await import("@/server/opencode/models");
-	const { modelSupportsVision } = await import("@/server/opencode/models");
-
 	const availableModels = await getAvailableModels();
-
-	allModels = await Promise.all(
-		availableModels.map(async (model) => ({
-			id: model.id,
-			name: model.name,
-			provider: model.provider,
-			vendor: model.vendor,
-			supportsImages: await modelSupportsVision(model.id),
-		})),
-	);
+	allModels = availableModels;
 } catch (error) {
 	logger.error({ error }, "Failed to load models");
 	// Fallback to empty array

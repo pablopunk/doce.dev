@@ -19,7 +19,8 @@
 		"drizzle:generate": "drizzle-kit generate",
 		"drizzle:migrate": "drizzle-kit migrate",
 		"drizzle:studio": "drizzle-kit studio",
-		"generate-videos": "pnpm --dir ./www/remotion render && pnpm --dir ./www/remotion render:gif"
+		"generate-videos": "pnpm --dir ./www/remotion render && pnpm --dir ./www/remotion render:gif",
+		"update-opencode-version": "node scripts/update-opencode-version.mjs"
 	},
 	"packageManager": "pnpm@10.20.0",
 	"dependencies": {
