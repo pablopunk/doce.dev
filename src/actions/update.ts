@@ -163,8 +163,11 @@ async function fetchRemoteVersion(): Promise<string | undefined> {
 	};
 
 	const versionPattern = /VERSION=(\d{4}-\d{2}-\d{2}-[a-f0-9]+)/;
-	for (const layer of config.history ?? []) {
-		const match = layer.created_by?.match(versionPattern);
+	// History is ordered oldest → newest; search from the end to find the
+	// most recent VERSION=... layer (avoids matching stale base-image layers).
+	const history = config.history ?? [];
+	for (let i = history.length - 1; i >= 0; i--) {
+		const match = history[i]?.created_by?.match(versionPattern);
 		if (match) {
 			return match[1];
 		}
@@ -271,12 +274,20 @@ export const update = {
 				}
 
 				const localDigest = await getLocalImageDigest();
+				const hasUpdate = localDigest !== remoteDigest;
 				logger.info(
-					`Comparing digests: local=${localDigest} remote=${remoteDigest}`,
+					`Comparing digests: local=${localDigest} remote=${remoteDigest} hasUpdate=${hasUpdate}`,
 				);
 
+				if (hasUpdate && remoteVersion === VERSION) {
+					logger.warn(
+						"Remote image digest differs but version label is identical. " +
+							"The VERSION build arg may not have been bumped during the last build.",
+					);
+				}
+
 				return {
-					hasUpdate: localDigest !== remoteDigest,
+					hasUpdate,
 					newVersion: remoteVersion,
 				};
 			} catch (err) {
