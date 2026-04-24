@@ -93,6 +93,39 @@ async function getInstalledOpencodeVersion(): Promise<string> {
 	return version;
 }
 
+/**
+ * Parse a semver string into [major, minor, patch] numbers.
+ * Falls back to [0, 0, 0] for non-semver strings so the check stays safe.
+ */
+function parseSemver(version: string): [number, number, number] {
+	const match = version.match(/(\d+)\.(\d+)\.(\d+)/);
+	if (!match) {
+		return [0, 0, 0];
+	}
+	return [
+		Number.parseInt(match[1], 10),
+		Number.parseInt(match[2], 10),
+		Number.parseInt(match[3], 10),
+	];
+}
+
+/**
+ * Check whether the installed version satisfies the minimum required version.
+ * Returns true when installed >= required (semver comparison).
+ */
+function isVersionSufficient(installed: string, required: string): boolean {
+	const [iMajor, iMinor, iPatch] = parseSemver(installed);
+	const [rMajor, rMinor, rPatch] = parseSemver(required);
+
+	if (iMajor !== rMajor) {
+		return iMajor > rMajor;
+	}
+	if (iMinor !== rMinor) {
+		return iMinor > rMinor;
+	}
+	return iPatch >= rPatch;
+}
+
 async function ensureRequiredOpencodeVersion(): Promise<void> {
 	const requiredVersion = await readRequiredOpencodeVersion();
 	if (!requiredVersion) {
@@ -100,11 +133,23 @@ async function ensureRequiredOpencodeVersion(): Promise<void> {
 	}
 
 	const installedVersion = await getInstalledOpencodeVersion();
-	if (installedVersion !== requiredVersion) {
-		throw new Error(
-			`OpenCode version mismatch: required ${requiredVersion} from ${getRequiredOpencodeVersionFilePath()}, but ${getOpencodeCommand()} reports ${installedVersion}`,
+	if (!isVersionSufficient(installedVersion, requiredVersion)) {
+		logger.warn(
+			{
+				installedVersion,
+				requiredVersion,
+				versionFile: getRequiredOpencodeVersionFilePath(),
+			},
+			`OpenCode version ${installedVersion} is older than the recommended minimum ${requiredVersion}. ` +
+				`You may encounter compatibility issues. Consider upgrading with: opencode update`,
 		);
+		return;
 	}
+
+	logger.info(
+		{ installedVersion, requiredVersion },
+		"OpenCode runtime version check passed",
+	);
 }
 
 async function ensureOpencodeDirectories(): Promise<void> {
