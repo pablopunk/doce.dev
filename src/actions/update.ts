@@ -11,15 +11,11 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 
 interface CacheEntry {
 	digest: string;
-	tag: string;
+	version: string | undefined;
 	timestamp: number;
 }
 
-interface VersionCache {
-	remote?: CacheEntry;
-}
-
-const versionCache: VersionCache = {};
+let remoteCache: CacheEntry | undefined;
 
 async function getGhcrToken(): Promise<string> {
 	const tokenUrl = `https://${REGISTRY}/token?service=${REGISTRY}&scope=repository:${REPO_PATH}:pull`;
@@ -41,10 +37,9 @@ async function getGhcrToken(): Promise<string> {
 	return data.token;
 }
 
-async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
+async function fetchRemoteDigest(): Promise<string> {
 	const token = await getGhcrToken();
 
-	// First, get the manifest list (index) to find the amd64 manifest
 	const indexUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/latest`;
 	const indexResponse = await fetch(indexUrl, {
 		headers: {
@@ -75,8 +70,6 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 		throw new Error("No amd64/linux manifest found");
 	}
 
-	// Now fetch the actual platform manifest by its digest to get the correct content digest
-	// This matches what Docker stores in RepoDigests after a pull
 	const manifestUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/${amd64Manifest.digest}`;
 	const manifestResponse = await fetch(manifestUrl, {
 		headers: {
@@ -92,41 +85,95 @@ async function fetchRemoteDigest(): Promise<{ digest: string; tag: string }> {
 		);
 	}
 
-	// Docker-Content-Digest header contains the actual manifest digest
 	const contentDigest = manifestResponse.headers.get("docker-content-digest");
-	const digest = contentDigest || amd64Manifest.digest;
-
-	const tag = await fetchLatestTag(token);
-
-	return { digest, tag };
+	return contentDigest || amd64Manifest.digest;
 }
 
-async function fetchLatestTag(token: string): Promise<string> {
-	try {
-		const tagsUrl = `https://${REGISTRY}/v2/${REPO_PATH}/tags/list`;
-		const response = await fetch(tagsUrl, {
-			headers: { Authorization: `Bearer ${token}` },
-			signal: AbortSignal.timeout(10000),
-		});
+async function fetchRemoteVersion(): Promise<string | undefined> {
+	const token = await getGhcrToken();
 
-		if (!response.ok) return "latest";
+	const indexUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/latest`;
+	const indexResponse = await fetch(indexUrl, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.oci.image.index.v1+json",
+		},
+		signal: AbortSignal.timeout(10000),
+	});
 
-		const data = (await response.json()) as { tags?: string[] };
-		// Only consider date-prefixed tags (YYYY-MM-DD-sha) to avoid raw git SHAs
-		const dateTagPattern = /^\d{4}-\d{2}-\d{2}-[a-f0-9]+$/;
-		const tags = data.tags?.filter((t) => dateTagPattern.test(t)) ?? [];
-
-		tags.sort((a, b) => b.localeCompare(a));
-		return tags[0] ?? "latest";
-	} catch {
-		return "latest";
+	if (!indexResponse.ok) {
+		throw new Error(
+			`Failed to fetch manifest index: ${indexResponse.status} ${indexResponse.statusText}`,
+		);
 	}
+
+	const index = (await indexResponse.json()) as {
+		manifests?: Array<{
+			digest: string;
+			platform?: { architecture: string; os: string };
+		}>;
+	};
+
+	const amd64Manifest = index.manifests?.find(
+		(m) => m.platform?.architecture === "amd64" && m.platform?.os === "linux",
+	);
+
+	if (!amd64Manifest) {
+		throw new Error("No amd64/linux manifest found");
+	}
+
+	const manifestUrl = `https://${REGISTRY}/v2/${REPO_PATH}/manifests/${amd64Manifest.digest}`;
+	const manifestResponse = await fetch(manifestUrl, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.oci.image.manifest.v1+json",
+		},
+		signal: AbortSignal.timeout(10000),
+	});
+
+	if (!manifestResponse.ok) {
+		throw new Error(
+			`Failed to fetch platform manifest: ${manifestResponse.status} ${manifestResponse.statusText}`,
+		);
+	}
+
+	const manifest = (await manifestResponse.json()) as {
+		config?: { digest: string };
+	};
+
+	if (!manifest.config?.digest) {
+		return undefined;
+	}
+
+	const configUrl = `https://${REGISTRY}/v2/${REPO_PATH}/blobs/${manifest.config.digest}`;
+	const configResponse = await fetch(configUrl, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.oci.image.config.v1+json",
+		},
+		signal: AbortSignal.timeout(10000),
+	});
+
+	if (!configResponse.ok) {
+		return undefined;
+	}
+
+	const config = (await configResponse.json()) as {
+		history?: Array<{ created_by?: string }>;
+	};
+
+	const versionPattern = /VERSION=(\d{4}-\d{2}-\d{2}-[a-f0-9]+)/;
+	for (const layer of config.history ?? []) {
+		const match = layer.created_by?.match(versionPattern);
+		if (match) {
+			return match[1];
+		}
+	}
+
+	return undefined;
 }
 
 async function getLocalImageDigest(): Promise<string | null> {
-	// Inspect the image directly for its RepoDigests, which contains the
-	// manifest digest (matches what GHCR returns). The container's .Image
-	// field is the image config blob digest, which is different.
 	const result = await spawnCommand(
 		"docker",
 		[
@@ -193,47 +240,52 @@ export const update = {
 					};
 				}
 
-				if (isCacheValid(versionCache.remote)) {
+				if (isCacheValid(remoteCache)) {
 					const localDigest = await getLocalImageDigest();
-					logger.info(`Comparing digests (cache hit): local=${localDigest} remote=${versionCache.remote?.digest}`);
-					const hasUpdate = localDigest !== versionCache.remote?.digest;
+					logger.info(
+						`Comparing digests (cache hit): local=${localDigest} remote=${remoteCache?.digest}`,
+					);
 					return {
-						hasUpdate,
-						currentVersion: VERSION,
-						remoteVersion: versionCache.remote?.tag,
+						hasUpdate: localDigest !== remoteCache?.digest,
+						newVersion: remoteCache?.version,
 					};
 				}
 
-				let remoteInfo: { digest: string; tag: string };
+				let remoteDigest: string;
+				let remoteVersion: string | undefined;
 				try {
-					remoteInfo = await fetchRemoteDigest();
-					versionCache.remote = {
-						digest: remoteInfo.digest,
-						tag: remoteInfo.tag,
-						timestamp: Date.now(),
-					};
+					remoteDigest = await fetchRemoteDigest();
+					remoteVersion = await fetchRemoteVersion();
+					remoteCache = { digest: remoteDigest, version: remoteVersion, timestamp: Date.now() };
 				} catch (err) {
-					const message = err instanceof Error ? err.message : "Unknown error";
-					logger.error({ err }, `Failed to check remote version: ${message}`);
+					const message =
+						err instanceof Error ? err.message : "Unknown error";
+					logger.error(
+						{ err },
+						`Failed to check remote version: ${message}`,
+					);
 					return {
 						hasUpdate: false,
-						currentVersion: VERSION,
 						error: `Failed to check for updates: ${message}`,
 					};
 				}
 
 				const localDigest = await getLocalImageDigest();
-				logger.info(`Comparing digests: local=${localDigest} remote=${remoteInfo.digest}`);
-				const hasUpdate = localDigest !== remoteInfo.digest;
+				logger.info(
+					`Comparing digests: local=${localDigest} remote=${remoteDigest}`,
+				);
 
 				return {
-					hasUpdate,
-					currentVersion: VERSION,
-					remoteVersion: remoteInfo.tag,
+					hasUpdate: localDigest !== remoteDigest,
+					newVersion: remoteVersion,
 				};
 			} catch (err) {
-				const message = err instanceof Error ? err.message : "Unknown error";
-				logger.error({ err }, `Unexpected error in checkForUpdate: ${message}`);
+				const message =
+					err instanceof Error ? err.message : "Unknown error";
+				logger.error(
+					{ err },
+					`Unexpected error in checkForUpdate: ${message}`,
+				);
 				return {
 					hasUpdate: false,
 					error: `Failed to check for updates: ${message}`,
@@ -268,7 +320,8 @@ export const update = {
 				logger.info("Image pulled successfully");
 				return { success: true };
 			} catch (err) {
-				const message = err instanceof Error ? err.message : "Unknown error";
+				const message =
+					err instanceof Error ? err.message : "Unknown error";
 				logger.error({ err }, `Unexpected error in pull: ${message}`);
 				return {
 					success: false,
@@ -319,7 +372,8 @@ export const update = {
 				logger.info("Container restarted successfully");
 				return { success: true };
 			} catch (err) {
-				const message = err instanceof Error ? err.message : "Unknown error";
+				const message =
+					err instanceof Error ? err.message : "Unknown error";
 				logger.error({ err }, `Unexpected error in restart: ${message}`);
 				return {
 					success: false,
