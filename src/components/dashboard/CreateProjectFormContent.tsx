@@ -1,4 +1,5 @@
 import { Loader2, Paperclip, Sparkles } from "lucide-react";
+import { motion } from "motion/react";
 import { ImagePreview } from "@/components/chat/ImagePreview";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,100 +70,144 @@ export function CreateProjectFormContent({
 	return (
 		<div className="w-full relative">
 			<div className="flex flex-col gap-4">
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: This is a drop zone container */}
-				<div
-					className={`flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
-						isDragging ? "border-primary bg-primary/5" : "border-input"
-					}`}
-					onDragOver={onDragOver}
-					onDragLeave={onDragLeave}
-					onDrop={onDrop}
-				>
-					<textarea
-						ref={textareaRef}
-						value={prompt}
-						onChange={(e) => onPromptChange(e.target.value)}
-						onKeyDown={onKeyDown}
-						onPaste={onPaste}
-						placeholder="It all starts here..."
-						title="Use Ctrl+Enter (or Cmd+Enter on Mac) to create a project"
-						className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none"
-						rows={1}
-						style={{ minHeight: "80px" }}
-						disabled={isLoading}
-					/>
-					{/* Image Preview */}
-					{selectedImages.length > 0 && (
-						<ImagePreview
-							images={selectedImages}
-							onRemove={onRemoveImage}
-							disabled={isLoading}
+				<div className="relative rounded-2xl">
+					{isLoading && (
+						<motion.div
+							className="absolute -inset-[2px] rounded-2xl blur-lg opacity-50"
+							animate={{ backgroundPositionX: ["0%", "200%"] }}
+							transition={{
+								repeat: Infinity,
+								duration: 10,
+								ease: "linear",
+							}}
+							style={{
+								background:
+									"linear-gradient(90deg, var(--cta-accent-start), var(--cta-accent-mid), oklch(0.82 0.2 95), var(--cta-accent-end), oklch(0.82 0.2 95), var(--cta-accent-mid), var(--cta-accent-start), var(--cta-accent-start), var(--cta-accent-mid), oklch(0.82 0.2 95), var(--cta-accent-end), oklch(0.82 0.2 95), var(--cta-accent-mid), var(--cta-accent-start))",
+								backgroundSize: "200% 100%",
+							}}
 						/>
 					)}
-					{/* Image Error */}
-					{imageError && (
-						<p className="text-sm text-destructive">{imageError}</p>
-					)}
-					<div className="flex items-center justify-between gap-2 min-w-0">
-						<ModelSelector
-							models={models}
-							selectedModelId={selectedModel || ""}
-							onModelChange={onModelChange}
-							triggerClassName="max-w-[150px] min-[420px]:max-w-[200px] min-w-0"
-						/>
-						<div className="flex items-center gap-1.5 shrink-0">
-							{/* Hidden File Input - only render when images are supported */}
-							{currentModelSupportsImages && (
-								<input
-									ref={fileInputRef}
-									type="file"
-									accept={VALID_IMAGE_MIME_TYPES.join(",")}
-									multiple
-									onChange={onFileSelect}
-									className="hidden"
-								/>
-							)}
-							{/* Attachment Button - only show when images are supported */}
-							{currentModelSupportsImages && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={onFileButtonClick}
-									disabled={
-										isLoading || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
-									}
-									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
-									type="button"
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: This is a drop zone container */}
+					<div
+						className={`relative z-10 flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
+							isDragging ? "border-primary bg-primary/5" : "border-input"
+						}`}
+						onDragOver={onDragOver}
+						onDragLeave={onDragLeave}
+						onDrop={onDrop}
+					>
+						<div className="relative flex-1">
+							<textarea
+								ref={textareaRef}
+								value={prompt}
+								onChange={(e) => onPromptChange(e.target.value)}
+								onKeyDown={onKeyDown}
+								onPaste={onPaste}
+								placeholder="It all starts here..."
+								title="Use Ctrl+Enter (or Cmd+Enter on Mac) to create a project"
+								className={`w-full h-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none ${
+									isLoading ? "text-transparent caret-transparent" : ""
+								}`}
+								rows={1}
+								style={{ minHeight: "80px" }}
+								disabled={isLoading}
+							/>
+							{isLoading && (
+								<motion.div
+									className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words overflow-hidden text-base"
+									animate={{ backgroundPositionX: ["0%", "200%"] }}
+									transition={{
+										repeat: Infinity,
+										duration: 10,
+										ease: "linear",
+									}}
+									style={{
+										background:
+											"linear-gradient(90deg, var(--cta-accent-start), var(--cta-accent-mid), oklch(0.82 0.2 95), var(--cta-accent-end), oklch(0.82 0.2 95), var(--cta-accent-mid), var(--cta-accent-start), var(--cta-accent-start), var(--cta-accent-mid), oklch(0.82 0.2 95), var(--cta-accent-end), oklch(0.82 0.2 95), var(--cta-accent-mid), var(--cta-accent-start))",
+										backgroundSize: "200% 100%",
+										WebkitBackgroundClip: "text",
+										backgroundClip: "text",
+										color: "transparent",
+									}}
 								>
-									<Paperclip className="w-5 h-5" />
-									{selectedImages.length > 0 && (
-										<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-											{selectedImages.length}
-										</span>
-									)}
-								</Button>
+									{prompt}
+								</motion.div>
 							)}
-							{/* Create Button */}
-							<Button
-								onClick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									onCreate();
-								}}
-								disabled={isLoading || !prompt.trim()}
-								title="Create project (or press Ctrl+Enter in textarea)"
-								type="button"
-								className="px-2.5 min-[380px]:px-3"
-							>
-								{isLoading ? (
-									<Loader2 className="w-5 h-5 animate-spin" />
-								) : (
-									<Sparkles className="w-5 h-5 text-cta-accent-start" />
+						</div>
+						{/* Image Preview */}
+						{selectedImages.length > 0 && (
+							<ImagePreview
+								images={selectedImages}
+								onRemove={onRemoveImage}
+								disabled={isLoading}
+							/>
+						)}
+						{/* Image Error */}
+						{imageError && (
+							<p className="text-sm text-destructive">{imageError}</p>
+						)}
+						<div className="flex items-center justify-between gap-2 min-w-0">
+							<ModelSelector
+								models={models}
+								selectedModelId={selectedModel || ""}
+								onModelChange={onModelChange}
+								triggerClassName="max-w-[150px] min-[420px]:max-w-[200px] min-w-0"
+							/>
+							<div className="flex items-center gap-1.5 shrink-0">
+								{/* Hidden File Input - only render when images are supported */}
+								{currentModelSupportsImages && (
+									<input
+										ref={fileInputRef}
+										type="file"
+										accept={VALID_IMAGE_MIME_TYPES.join(",")}
+										multiple
+										onChange={onFileSelect}
+										className="hidden"
+									/>
 								)}
-								<span className="hidden min-[380px]:inline bg-gradient-to-r from-cta-accent-start via-cta-accent-mid to-cta-accent-end bg-clip-text text-transparent font-semibold">
-									Create
-								</span>
-							</Button>
+								{/* Attachment Button - only show when images are supported */}
+								{currentModelSupportsImages && (
+									<Button
+										variant="ghost"
+										size="icon"
+										onClick={onFileButtonClick}
+										disabled={
+											isLoading ||
+											selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+										}
+										title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+										type="button"
+									>
+										<Paperclip className="w-5 h-5" />
+										{selectedImages.length > 0 && (
+											<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+												{selectedImages.length}
+											</span>
+										)}
+									</Button>
+								)}
+								{/* Create Button */}
+								<Button
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										onCreate();
+									}}
+									disabled={isLoading || !prompt.trim()}
+									title="Create project (or press Ctrl+Enter in textarea)"
+									type="button"
+									className="px-2.5 min-[380px]:px-3"
+								>
+									{isLoading ? (
+										<Loader2 className="w-5 h-5 animate-spin" />
+									) : (
+										<Sparkles className="w-5 h-5 text-cta-accent-start" />
+									)}
+									<span className="hidden min-[380px]:inline bg-gradient-to-r from-cta-accent-start via-cta-accent-mid to-cta-accent-end bg-clip-text text-transparent font-semibold">
+										Create
+									</span>
+								</Button>
+							</div>
 						</div>
 					</div>
 				</div>
