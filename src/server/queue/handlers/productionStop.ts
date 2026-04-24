@@ -9,6 +9,8 @@ import {
 	getProductionPath,
 } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { unregisterServe } from "@/server/tailscale/serve";
+import { getTailscaleConfig } from "@/server/tailscale/config";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { parsePayload } from "../types";
 
@@ -48,6 +50,28 @@ export function handleProductionStop(
 		yield* removeContainer(project.id, containerName);
 		yield* removeDockerImages(project.id);
 		yield* removeProductionArtifacts(project.id);
+
+		// Unregister Tailscale Serve
+		const tailscaleConfig = yield* Effect.tryPromise({
+			try: () => getTailscaleConfig(),
+			catch: () => ({ enabled: false }),
+		}).pipe(Effect.orElse(() => Effect.succeed({ enabled: false })));
+
+		if (tailscaleConfig.enabled && project.productionPort) {
+			yield* Effect.tryPromise({
+				try: () => unregisterServe(443),
+				catch: () => undefined,
+			}).pipe(
+				Effect.catchAll(() =>
+					Effect.sync(() => {
+						logger.warn(
+							{ projectId: project.id },
+							"Tailscale Serve unregistration failed, continuing cleanup",
+						);
+					}),
+				),
+			);
+		}
 
 		if (project.status !== "deleting") {
 			yield* Effect.tryPromise({

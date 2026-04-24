@@ -20,6 +20,8 @@ import {
 	getProductionPath,
 } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { registerServe } from "@/server/tailscale/serve";
+import { getTailscaleConfig } from "@/server/tailscale/config";
 import { parsePayload } from "../types";
 
 const WAIT_TIMEOUT_MS = 300_000;
@@ -112,7 +114,30 @@ export function handleProductionWaitReady(
 			const productionUrl = yield* Effect.tryPromise({
 				try: () => getCanonicalProductionUrl(project),
 				catch: () => `http://localhost:${payload.productionPort}`,
-			});
+			}).pipe(Effect.orElse(() => Effect.succeed(`http://localhost:${payload.productionPort}`)));
+
+			// Register with Tailscale Serve for HTTPS access
+			const tailscaleConfig = yield* Effect.tryPromise({
+				try: () => getTailscaleConfig(),
+				catch: () => ({ enabled: false }),
+			}).pipe(Effect.orElse(() => Effect.succeed({ enabled: false })));
+
+			if (tailscaleConfig.enabled) {
+				yield* Effect.tryPromise({
+					try: () => registerServe(payload.productionPort, 443),
+					catch: () => undefined,
+				}).pipe(
+					Effect.catchAll(() =>
+						Effect.sync(() => {
+							logger.warn(
+								{ projectId: project.id },
+								"Tailscale Serve registration failed, continuing without HTTPS",
+							);
+						}),
+					),
+				);
+			}
+
 			yield* Effect.tryPromise({
 				try: () =>
 					updateProductionStatus(project.id, "running", {
