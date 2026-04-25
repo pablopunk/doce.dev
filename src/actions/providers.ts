@@ -4,6 +4,7 @@ import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
 import { validateApiKey } from "@/server/opencode/apiKeyValidation";
+import { listConnectedProviderIds } from "@/server/opencode/authFile";
 import type { OpencodeClient } from "@/server/opencode/client";
 import { getOpencodeClient } from "@/server/opencode/client";
 import { getAvailableModels } from "@/server/opencode/models";
@@ -101,14 +102,20 @@ export const providers = {
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
 			async () => {
 				const client = getOpencodeClient();
-				const [providerResponse, authResponse] = await Promise.all([
-					client.provider.list(),
-					client.provider.auth(),
-				]);
+				const [providerResponse, authResponse, fileConnectedIds] =
+					await Promise.all([
+						client.provider.list(),
+						client.provider.auth(),
+						listConnectedProviderIds(),
+					]);
 
 				const providerData = providerResponse.data;
 				const authData = authResponse.data || {};
-				const connectedIds = new Set(providerData?.connected || []);
+				// Merge runtime-connected providers (env vars) with auth-file providers (API keys)
+				const connectedIds = new Set([
+					...(providerData?.connected || []),
+					...fileConnectedIds,
+				]);
 
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
 					(provider) => ({

@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { toVendorSlug } from "@/lib/modelVendor";
 import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
+import { listConnectedProviderIds } from "./authFile";
 import { getOpencodeClient } from "./client";
 
 const HIDDEN_PROVIDER_IDS = new Set(["opencode-go"]);
@@ -184,7 +185,11 @@ export async function getAvailableModels(): Promise<
 					return [];
 				}
 
-				const connectedIds = new Set(response.data.connected || []);
+				const fileConnectedIds = await listConnectedProviderIds();
+				const connectedIds = new Set([
+					...(response.data.connected || []),
+					...fileConnectedIds,
+				]);
 				const visibleProviders = response.data.all.filter(
 					(p) =>
 						(connectedIds.has(p.id) || p.id === "opencode") &&
