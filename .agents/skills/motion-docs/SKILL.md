@@ -1,3 +1,7 @@
+---
+description: Documentation and resources for using the Motion animation library with React, Vue, and other frameworks. Provides guides, API references, and examples for creating dynamic web animations.
+---
+
 # motion.dev llms.txt
 
 > Offers a comprehensive guide and resources for using the Motion animation library with React, including installation instructions, component features, and examples for creating dynamic animations.
