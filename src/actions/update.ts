@@ -244,12 +244,11 @@ export const update = {
 				}
 
 				if (isCacheValid(remoteCache)) {
-					const localDigest = await getLocalImageDigest();
 					logger.info(
-						`Comparing digests (cache hit): local=${localDigest} remote=${remoteCache?.digest}`,
+						`Comparing versions (cache hit): local=${VERSION} remote=${remoteCache?.version}`,
 					);
 					return {
-						hasUpdate: localDigest !== remoteCache?.digest,
+						hasUpdate: remoteCache?.version !== VERSION,
 						newVersion: remoteCache?.version,
 					};
 				}
@@ -273,17 +272,22 @@ export const update = {
 					};
 				}
 
-				const localDigest = await getLocalImageDigest();
-				const hasUpdate = localDigest !== remoteDigest;
+				const hasUpdate = remoteVersion !== VERSION;
 				logger.info(
-					`Comparing digests: local=${localDigest} remote=${remoteDigest} hasUpdate=${hasUpdate}`,
+					`Comparing versions: local=${VERSION} remote=${remoteVersion} hasUpdate=${hasUpdate}`,
 				);
 
-				if (hasUpdate && remoteVersion === VERSION) {
-					logger.warn(
-						"Remote image digest differs but version label is identical. " +
-							"The VERSION build arg may not have been bumped during the last build.",
-					);
+				// Fallback to digest comparison when the remote image has no VERSION label
+				// or when the local version is missing (shouldn't happen in production).
+				if (!hasUpdate && remoteVersion) {
+					const localDigest = await getLocalImageDigest();
+					const digestMismatch = localDigest !== remoteDigest;
+					if (digestMismatch) {
+						logger.warn(
+							"Remote image digest differs but version label is identical. " +
+								"The VERSION build arg may not have been bumped during the last build.",
+						);
+					}
 				}
 
 				return {
