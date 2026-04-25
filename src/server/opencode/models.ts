@@ -1,8 +1,6 @@
 import { Effect } from "effect";
-import { toVendorSlug } from "@/lib/modelVendor";
 import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
-import { listConnectedProviderIds } from "./authFile";
 import { getOpencodeClient } from "./client";
 
 const HIDDEN_PROVIDER_IDS = new Set(["opencode-go"]);
@@ -14,57 +12,12 @@ export interface ModelCapabilities {
 	contextLimit: number;
 }
 
-const MODEL_VENDOR_PATTERNS: Array<{ pattern: RegExp; vendor: string }> = [
-	{ pattern: /^gpt[-_]/, vendor: "openai" },
-	{ pattern: /^claude[-_]/, vendor: "anthropic" },
-	{ pattern: /^gemini[-_]/, vendor: "google" },
-	{ pattern: /^grok[-_]/, vendor: "xai" },
-	{ pattern: /(^|[-_])kimi([-_.]|$)/, vendor: "moonshot" },
-	{ pattern: /^glm[-_]/, vendor: "z-ai" },
-];
-
-const MULTI_VENDOR_PROVIDERS = new Set(["openrouter", "opencode"]);
-
-function extractVendorFromModelId(modelId: string): string | null {
+function resolveModelVendor(providerId: string, modelId: string): string {
 	const separatorIndex = modelId.indexOf("/");
-	if (separatorIndex <= 0) {
-		return null;
+	if (separatorIndex > 0) {
+		return modelId.slice(0, separatorIndex);
 	}
-
-	const vendorPart = modelId.slice(0, separatorIndex);
-	if (!vendorPart) {
-		return null;
-	}
-
-	return toVendorSlug(vendorPart);
-}
-
-function inferVendorFromModelId(modelId: string): string | null {
-	const normalizedModelId = modelId.trim().toLowerCase();
-
-	for (const { pattern, vendor } of MODEL_VENDOR_PATTERNS) {
-		if (pattern.test(normalizedModelId)) {
-			return vendor;
-		}
-	}
-
-	return null;
-}
-
-export function resolveModelVendor(
-	providerId: string,
-	modelId: string,
-): string {
-	const normalizedProvider = toVendorSlug(providerId);
-	const vendorFromModelId = extractVendorFromModelId(modelId);
-
-	if (!MULTI_VENDOR_PROVIDERS.has(normalizedProvider)) {
-		return normalizedProvider;
-	}
-
-	return (
-		vendorFromModelId ?? inferVendorFromModelId(modelId) ?? normalizedProvider
-	);
+	return providerId;
 }
 
 interface OpencodeModel {
@@ -122,7 +75,7 @@ export function collectAvailableModelsFromProviders(
 	name: string;
 	provider: string;
 	vendor: string;
-	supportsImages?: boolean;
+	supportsImages: boolean;
 }> {
 	const available: Array<{
 		id: string;
@@ -171,7 +124,7 @@ export async function getAvailableModels(): Promise<
 		name: string;
 		provider: string;
 		vendor: string;
-		supportsImages?: boolean;
+		supportsImages: boolean;
 	}>
 > {
 	return Effect.runPromise(
@@ -185,11 +138,7 @@ export async function getAvailableModels(): Promise<
 					return [];
 				}
 
-				const fileConnectedIds = await listConnectedProviderIds();
-				const connectedIds = new Set([
-					...(response.data.connected || []),
-					...fileConnectedIds,
-				]);
+				const connectedIds = new Set(response.data.connected || []);
 				const visibleProviders = response.data.all.filter(
 					(p) =>
 						(connectedIds.has(p.id) || p.id === "opencode") &&

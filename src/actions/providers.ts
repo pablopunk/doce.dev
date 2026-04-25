@@ -3,8 +3,6 @@ import { z } from "astro/zod";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
-import { validateApiKey } from "@/server/opencode/apiKeyValidation";
-import { listConnectedProviderIds } from "@/server/opencode/authFile";
 import type { OpencodeClient } from "@/server/opencode/client";
 import { getOpencodeClient } from "@/server/opencode/client";
 import { getAvailableModels } from "@/server/opencode/models";
@@ -83,6 +81,17 @@ async function syncOpencodeDisconnect(
 	}
 }
 
+/** Trigger a runtime reload so auth changes are picked up by provider.list() */
+async function reloadRuntimeAfterAuthChange(
+	client: OpencodeClient,
+): Promise<void> {
+	try {
+		await client.global.dispose();
+	} catch (error) {
+		logger.warn({ error }, "Runtime dispose after auth change failed");
+	}
+}
+
 /** A provider is connected if the runtime reports it in the connected array. */
 function isProviderConnected(
 	providerId: string,
@@ -102,20 +111,14 @@ export const providers = {
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
 			async () => {
 				const client = getOpencodeClient();
-				const [providerResponse, authResponse, fileConnectedIds] =
-					await Promise.all([
-						client.provider.list(),
-						client.provider.auth(),
-						listConnectedProviderIds(),
-					]);
+				const [providerResponse, authResponse] = await Promise.all([
+					client.provider.list(),
+					client.provider.auth(),
+				]);
 
 				const providerData = providerResponse.data;
 				const authData = authResponse.data || {};
-				// Merge runtime-connected providers (env vars) with auth-file providers (API keys)
-				const connectedIds = new Set([
-					...(providerData?.connected || []),
-					...fileConnectedIds,
-				]);
+				const connectedIds = new Set(providerData?.connected || []);
 
 				const mapped = filterVisibleProviders(providerData?.all || []).map(
 					(provider) => ({
@@ -143,20 +146,6 @@ export const providers = {
 			apiKey: z.string().min(1, "API key is required"),
 		}),
 		handler: async (input) => {
-			const validationResult = await validateApiKey(
-				input.providerId,
-				input.apiKey,
-			);
-
-			if (!validationResult.valid) {
-				throw new ActionError({
-					code: "BAD_REQUEST",
-					message:
-						validationResult.error ||
-						"Failed to validate API key. Please check your key and try again.",
-				});
-			}
-
 			const client = getOpencodeClient();
 			const authPayload = { type: "api" as const, key: input.apiKey };
 
@@ -173,6 +162,7 @@ export const providers = {
 			}
 
 			await syncOpencodeCredentials(client, input.providerId, authPayload);
+			await reloadRuntimeAfterAuthChange(client);
 
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
@@ -196,6 +186,8 @@ export const providers = {
 			}
 
 			await syncOpencodeDisconnect(client, input.providerId);
+			await reloadRuntimeAfterAuthChange(client);
+
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);
 			return { success: true };
@@ -245,6 +237,8 @@ export const providers = {
 					message: "OAuth authorization did not complete successfully.",
 				});
 			}
+
+			await reloadRuntimeAfterAuthChange(client);
 
 			invalidatePrefix(PROVIDERS_CACHE_PREFIX);
 			invalidatePrefix(AVAILABLE_MODELS_CACHE_PREFIX);

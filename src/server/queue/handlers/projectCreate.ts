@@ -9,7 +9,6 @@ import {
 import type { LegacyHandler } from "@/server/effect/handler-adapter";
 import { generateProjectName } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
-import { ensureAuthDirectory } from "@/server/opencode/authFile";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { ensureProjectPromptFile } from "@/server/projects/projectPrompt";
 import {
@@ -71,12 +70,6 @@ const allocatePortsEffect = (): Effect.Effect<
 	Effect.tryPromise({
 		try: allocateProjectPorts,
 		catch: (error) => toProjectError(error, "allocateProjectPorts", undefined),
-	});
-
-const ensureAuthDirectoryEffect = (): Effect.Effect<void, FilesystemError> =>
-	Effect.tryPromise({
-		try: ensureAuthDirectory,
-		catch: (error) => toFilesystemError(error, "mkdir", "auth-directory"),
 	});
 
 const setupFilesystemEffect = (
@@ -160,10 +153,7 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 	const program = Effect.gen(function* () {
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
-		const [{ devPort }] = yield* Effect.all(
-			[allocatePortsEffect(), ensureAuthDirectoryEffect()],
-			{ concurrency: 2 },
-		);
+		const [{ devPort }] = yield* Effect.all([allocatePortsEffect()]);
 
 		logger.debug({ projectId, devPort }, "Allocated ports");
 
