@@ -34,7 +34,6 @@ export function TerminalDocks({
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 	const [dockerLines, setDockerLines] = useState<LogLine[]>([]);
 	const [appLines, setAppLines] = useState<LogLine[]>([]);
-	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const lineIdRef = useRef(0);
@@ -45,29 +44,46 @@ export function TerminalDocks({
 		}
 	}, []);
 
-	// Connect to logs SSE
+	// Connect to logs SSE.
+	// IMPORTANT: nextOffset is tracked in a closure variable (not state) so we don't
+	// tear down and recreate the EventSource on every chunk — that would cause a
+	// reconnect storm and the server would only replay from the latest offset (i.e.
+	// nothing new), so the UI would appear empty even when logs are flowing.
 	useEffect(() => {
 		if (!isOpen) return;
 
-		const url =
-			nextOffset !== null
-				? `/api/projects/${projectId}/logs?offset=${nextOffset}`
-				: `/api/projects/${projectId}/logs`;
-
-		const eventSource = new EventSource(url);
-		eventSourceRef.current = eventSource;
+		let eventSource: EventSource | null = null;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let isUnmounted = false;
+		let nextOffset = 0;
 
 		const createLogLine = (text: string, type: "docker" | "app"): LogLine => {
 			lineIdRef.current += 1;
 			return { id: lineIdRef.current, text, type };
 		};
 
-		eventSource.addEventListener("log.chunk", (e) => {
-			try {
-				const data = JSON.parse(e.data);
-				const { text, nextOffset: newOffset } = data;
+		const connect = () => {
+			if (isUnmounted) return;
 
-				if (text) {
+			const url =
+				nextOffset > 0
+					? `/api/projects/${projectId}/logs?offset=${nextOffset}`
+					: `/api/projects/${projectId}/logs`;
+
+			eventSource = new EventSource(url);
+			eventSourceRef.current = eventSource;
+
+			eventSource.addEventListener("log.chunk", (e) => {
+				try {
+					const data = JSON.parse(e.data);
+					const { text, nextOffset: newOffset } = data;
+
+					if (typeof newOffset === "number") {
+						nextOffset = newOffset;
+					}
+
+					if (!text) return;
+
 					const rawLines = text.split("\n").filter((l: string) => l.trim());
 					const parsedLines = rawLines
 						.map((line: string): LogLine | null => {
@@ -86,7 +102,6 @@ export function TerminalDocks({
 						})
 						.filter((line: LogLine | null): line is LogLine => line !== null);
 
-					// Separate by type
 					const dockerLogs = parsedLines.filter(
 						(l: LogLine) => l.type === "docker",
 					);
@@ -99,25 +114,32 @@ export function TerminalDocks({
 						setAppLines((prev) => [...prev, ...appLogs]);
 					}
 					if (dockerLogs.length > 0 || appLogs.length > 0) {
-						scrollToBottom();
+						requestAnimationFrame(scrollToBottom);
 					}
-
-					setNextOffset(newOffset);
+				} catch {
+					// Ignore parse errors
 				}
-			} catch {
-				// Ignore parse errors
-			}
-		});
+			});
 
-		eventSource.onerror = () => {
-			// Will auto-reconnect
+			eventSource.addEventListener("error", () => {
+				eventSource?.close();
+				eventSource = null;
+				eventSourceRef.current = null;
+				if (!isUnmounted) {
+					reconnectTimer = setTimeout(connect, 1000);
+				}
+			});
 		};
+
+		connect();
 
 		return () => {
-			eventSource.close();
+			isUnmounted = true;
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			eventSource?.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, isOpen, nextOffset, scrollToBottom]);
+	}, [projectId, isOpen, scrollToBottom]);
 
 	const handleClear = () => {
 		setDockerLines([]);

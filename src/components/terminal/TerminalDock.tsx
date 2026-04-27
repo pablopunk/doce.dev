@@ -23,7 +23,6 @@ export function TerminalDock({
 }: TerminalDockProps) {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 	const [lines, setLines] = useState<LogLine[]>([]);
-	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const lineIdRef = useRef(0);
@@ -34,17 +33,19 @@ export function TerminalDock({
 		}
 	}, []);
 
-	// Connect to logs SSE
+	// Connect to logs SSE.
+	// IMPORTANT: nextOffset is tracked in a closure variable (not state) so we don't
+	// tear down and recreate the EventSource on every chunk — that would cause a
+	// reconnect storm and the server would only replay from the latest offset (i.e.
+	// nothing new), so the UI would appear empty even when logs are flowing.
 	useEffect(() => {
 		if (!isOpen) return;
 
-		const url =
-			nextOffset !== null
-				? `/api/projects/${projectId}/logs?offset=${nextOffset}`
-				: `/api/projects/${projectId}/logs`;
-
-		const eventSource = new EventSource(url);
-		eventSourceRef.current = eventSource;
+		let eventSource: EventSource | null = null;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let isUnmounted = false;
+		let nextOffset = 0;
+		let shownTruncationIndicator = false;
 
 		const createLogLine = (
 			text: string,
@@ -55,24 +56,43 @@ export function TerminalDock({
 			return { id: lineIdRef.current, text, type, streamType };
 		};
 
-		eventSource.addEventListener("log.chunk", (e) => {
-			try {
-				const data = JSON.parse(e.data);
-				const { text, nextOffset: newOffset, truncated } = data;
+		const connect = () => {
+			if (isUnmounted) return;
 
-				if (truncated && lines.length === 0) {
-					// Show truncation indicator
-					setLines([
-						createLogLine(
-							"[...showing last portion of logs...]",
-							logType,
-							"out",
-						),
-					]);
-				}
+			const url =
+				nextOffset > 0
+					? `/api/projects/${projectId}/logs?offset=${nextOffset}`
+					: `/api/projects/${projectId}/logs`;
 
-				if (text) {
-					// Split text into lines and parse markers
+			eventSource = new EventSource(url);
+			eventSourceRef.current = eventSource;
+
+			eventSource.addEventListener("log.chunk", (e) => {
+				try {
+					const data = JSON.parse(e.data);
+					const { text, nextOffset: newOffset, truncated } = data;
+
+					if (typeof newOffset === "number") {
+						nextOffset = newOffset;
+					}
+
+					if (truncated && !shownTruncationIndicator) {
+						shownTruncationIndicator = true;
+						setLines((prev) =>
+							prev.length === 0
+								? [
+										createLogLine(
+											"[...showing last portion of logs...]",
+											logType,
+											"out",
+										),
+									]
+								: prev,
+						);
+					}
+
+					if (!text) return;
+
 					const rawLines = text.split("\n").filter((l: string) => l.trim());
 					const newLines = rawLines
 						.map((line: string): LogLine | null => {
@@ -107,24 +127,34 @@ export function TerminalDock({
 						})
 						.filter((line: LogLine | null): line is LogLine => line !== null);
 
-					setLines((prev) => [...prev, ...newLines]);
-					setNextOffset(newOffset);
-					scrollToBottom();
+					if (newLines.length > 0) {
+						setLines((prev) => [...prev, ...newLines]);
+						requestAnimationFrame(scrollToBottom);
+					}
+				} catch {
+					// Ignore parse errors
 				}
-			} catch {
-				// Ignore parse errors
-			}
-		});
+			});
 
-		eventSource.onerror = () => {
-			// Will auto-reconnect
+			eventSource.addEventListener("error", () => {
+				eventSource?.close();
+				eventSource = null;
+				eventSourceRef.current = null;
+				if (!isUnmounted) {
+					reconnectTimer = setTimeout(connect, 1000);
+				}
+			});
 		};
+
+		connect();
 
 		return () => {
-			eventSource.close();
+			isUnmounted = true;
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			eventSource?.close();
 			eventSourceRef.current = null;
 		};
-	}, [projectId, isOpen, scrollToBottom, logType, lines.length, nextOffset]);
+	}, [projectId, isOpen, scrollToBottom, logType]);
 
 	// Scroll when lines change
 	useEffect(() => {
