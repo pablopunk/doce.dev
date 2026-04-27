@@ -34,6 +34,7 @@ services:
       - "4321:4321"
     volumes:
       - ./data:/app/data # DB and project files
+      - ./opencode:/root/.local/share/opencode # opencode auth data
       - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run project previews
 ```
 
