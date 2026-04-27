@@ -112,6 +112,7 @@ export const projects = sqliteTable(
 		opencodeErrorMessage: text("opencode_error_message"),
 		opencodeErrorSource: text("opencode_error_source"),
 		opencodeErrorAt: integer("opencode_error_at", { mode: "timestamp" }),
+		preferredModel: text("preferred_model"),
 	},
 	(table) => ({
 		ownerUserIdIdx: index("projects_owner_user_id_idx").on(table.ownerUserId),

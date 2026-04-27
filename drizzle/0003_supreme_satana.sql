@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `preferred_model` text;

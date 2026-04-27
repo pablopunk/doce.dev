@@ -73,14 +73,16 @@ export async function updateProjectStatus(
 }
 
 /**
- * Update project model in DB.
+ * Update project preferred model in DB.
  */
 export async function updateProjectModelInDb(
-	_id: string,
-	_model: string | null,
+	id: string,
+	model: string | null,
 ): Promise<void> {
-	// Note: The schema doesn't seem to have a 'model' field in projects table?
-	// Checking schema... it doesn't. It's stored in opencode.json.
+	await db
+		.update(projects)
+		.set({ preferredModel: model })
+		.where(eq(projects.id, id));
 }
 
 /**

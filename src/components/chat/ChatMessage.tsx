@@ -11,6 +11,7 @@ import type {
 	Message,
 	ReasoningPart,
 	TextPart,
+	ToolPart,
 } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
@@ -149,6 +150,69 @@ export function ChatMessage({ message }: ChatMessageProps) {
 										</p>
 									)}
 								</div>
+							);
+						}
+
+						if (part.type === "tool") {
+							const toolPart = part as ToolPart;
+							const statusIcon = {
+								pending: "⏳",
+								running: "▶️",
+								completed: "✅",
+								error: "❌",
+							}[toolPart.status];
+							return (
+								<details
+									key={part.id || idx}
+									className="cursor-pointer border rounded-md"
+								>
+									<summary className="font-medium text-sm p-2 hover:bg-muted/50 flex items-center gap-2">
+										<span>{statusIcon}</span>
+										<span className="font-mono text-xs">{toolPart.name}</span>
+										<span className="text-xs text-muted-foreground ml-auto">
+											{toolPart.status}
+										</span>
+									</summary>
+									<div className="p-3 space-y-2 text-xs border-t">
+										{toolPart.input !== undefined &&
+											toolPart.input !== null && (
+												<div>
+													<div className="font-medium text-muted-foreground mb-1">
+														Input:
+													</div>
+													<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+														{typeof toolPart.input === "string"
+															? toolPart.input
+															: JSON.stringify(toolPart.input, null, 2)}
+													</pre>
+												</div>
+											)}
+										{toolPart.output !== undefined &&
+											toolPart.output !== null && (
+												<div>
+													<div className="font-medium text-muted-foreground mb-1">
+														Output:
+													</div>
+													<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+														{typeof toolPart.output === "string"
+															? toolPart.output
+															: JSON.stringify(toolPart.output, null, 2)}
+													</pre>
+												</div>
+											)}
+										{toolPart.error !== undefined &&
+											toolPart.error !== null && (
+												<div>
+													<div className="font-medium text-destructive mb-1">
+														Error:
+													</div>
+													<pre className="bg-destructive/10 p-2 rounded overflow-x-auto max-h-32 text-destructive">
+														{toolPart.error}
+													</pre>
+												</div>
+											)}
+									</div>
+								</details>
 							);
 						}
 

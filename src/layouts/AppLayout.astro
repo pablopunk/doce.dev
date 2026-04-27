@@ -1,5 +1,6 @@
 ---
 import "@/styles/globals.css";
+import { CommandPaletteHost } from "@/components/command-palette/CommandPaletteHost";
 import { Navbar } from "@/components/navbar/Navbar";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -34,5 +35,6 @@ const { title } = Astro.props;
       <slot />
       <Toaster client:load />
     </ThemeProvider>
+    <CommandPaletteHost client:load />
   </body>
 </html>
