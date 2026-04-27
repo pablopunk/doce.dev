@@ -1,22 +1,43 @@
 /**
- * useLiveState — robust SSE consumer hook.
+ * useLiveState — shared robust SSE consumer hook.
  *
- * Robustness features:
- * - Full snapshots only (no patches, no corruption risk)
- * - Heartbeat liveness detection: stale=true if no event in 30s
- * - Visibility-driven lifecycle: disconnects when tab hidden, reconnects when visible
- * - Jittered exponential backoff on reconnect (prevents reconnect storms)
- * - Reconnects forever (capped delay) — user has tab open, they want it working
+ * Multiple components on the project page need the same live state. Browser
+ * EventSource connections count against the per-origin connection limit, so this
+ * hook shares one EventSource per URL and fans snapshots out to subscribers.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { LiveEvent, ProjectLiveState } from "@/types/live";
 
 const HEARTBEAT_TIMEOUT_MS = 30_000;
-const VISIBILITY_GRACE_MS = 30_000; // stay connected for 30s after tab hidden
+const VISIBILITY_GRACE_MS = 30_000;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_CAP_MS = 10_000;
-const BACKOFF_JITTER = 0.3; // ±30%
+const BACKOFF_JITTER = 0.3;
+
+export interface LiveStateResult {
+	data: ProjectLiveState | null;
+	stale: boolean;
+	connected: boolean;
+	reconnecting: boolean;
+}
+
+type Subscriber = (state: LiveStateResult) => void;
+
+interface SharedLiveConnection {
+	url: string;
+	state: LiveStateResult;
+	subscribers: Set<Subscriber>;
+	es: EventSource | null;
+	heartbeatTimer: ReturnType<typeof setTimeout> | null;
+	reconnectTimer: ReturnType<typeof setTimeout> | null;
+	visibilityTimer: ReturnType<typeof setTimeout> | null;
+	attempt: number;
+	intentional: boolean;
+}
+
+const connections = new Map<string, SharedLiveConnection>();
+let visibilityListenerInstalled = false;
 
 function jitter(ms: number): number {
 	const range = ms * BACKOFF_JITTER;
@@ -28,153 +49,184 @@ function nextBackoff(attempt: number): number {
 	return jitter(base);
 }
 
-export interface LiveStateResult {
-	data: ProjectLiveState | null;
-	stale: boolean;
-	connected: boolean;
-	reconnecting: boolean;
+function createConnection(url: string): SharedLiveConnection {
+	return {
+		url,
+		state: {
+			data: null,
+			stale: false,
+			connected: false,
+			reconnecting: false,
+		},
+		subscribers: new Set(),
+		es: null,
+		heartbeatTimer: null,
+		reconnectTimer: null,
+		visibilityTimer: null,
+		attempt: 0,
+		intentional: false,
+	};
+}
+
+function getConnection(url: string): SharedLiveConnection {
+	const existing = connections.get(url);
+	if (existing) return existing;
+
+	const connection = createConnection(url);
+	connections.set(url, connection);
+	return connection;
+}
+
+function setConnectionState(
+	connection: SharedLiveConnection,
+	patch: Partial<LiveStateResult>,
+): void {
+	connection.state = { ...connection.state, ...patch };
+	for (const subscriber of connection.subscribers) {
+		subscriber(connection.state);
+	}
+}
+
+function clearHeartbeatTimer(connection: SharedLiveConnection): void {
+	if (!connection.heartbeatTimer) return;
+	clearTimeout(connection.heartbeatTimer);
+	connection.heartbeatTimer = null;
+}
+
+function resetHeartbeatTimer(connection: SharedLiveConnection): void {
+	clearHeartbeatTimer(connection);
+	setConnectionState(connection, { stale: false });
+	connection.heartbeatTimer = setTimeout(() => {
+		setConnectionState(connection, { stale: true });
+	}, HEARTBEAT_TIMEOUT_MS);
+}
+
+function disconnect(
+	connection: SharedLiveConnection,
+	intentional: boolean,
+): void {
+	connection.intentional = intentional;
+	if (connection.es) {
+		connection.es.close();
+		connection.es = null;
+	}
+	clearHeartbeatTimer(connection);
+	if (connection.reconnectTimer) {
+		clearTimeout(connection.reconnectTimer);
+		connection.reconnectTimer = null;
+	}
+	setConnectionState(connection, {
+		connected: false,
+		reconnecting: intentional ? false : connection.state.reconnecting,
+	});
+}
+
+function connect(connection: SharedLiveConnection): void {
+	if (connection.es || document.visibilityState === "hidden") return;
+
+	const es = new EventSource(connection.url);
+	connection.es = es;
+	connection.intentional = false;
+
+	es.addEventListener("state", (e: MessageEvent) => {
+		try {
+			const event = JSON.parse(e.data) as LiveEvent["data"];
+			connection.attempt = 0;
+			setConnectionState(connection, {
+				data: event,
+				connected: true,
+				reconnecting: false,
+				stale: false,
+			});
+			resetHeartbeatTimer(connection);
+		} catch {
+			// Ignore malformed events and wait for the next snapshot.
+		}
+	});
+
+	es.onopen = () => {
+		setConnectionState(connection, { connected: true, reconnecting: false });
+		resetHeartbeatTimer(connection);
+	};
+
+	es.onerror = () => {
+		es.close();
+		if (connection.es === es) {
+			connection.es = null;
+		}
+		clearHeartbeatTimer(connection);
+		setConnectionState(connection, { connected: false });
+
+		if (connection.intentional || connection.subscribers.size === 0) return;
+
+		const delay = nextBackoff(connection.attempt);
+		connection.attempt += 1;
+		setConnectionState(connection, { reconnecting: true });
+
+		connection.reconnectTimer = setTimeout(() => {
+			connection.reconnectTimer = null;
+			if (!connection.intentional && connection.subscribers.size > 0) {
+				connect(connection);
+			}
+		}, delay);
+	};
+}
+
+function disposeIfUnused(connection: SharedLiveConnection): void {
+	if (connection.subscribers.size > 0) return;
+	disconnect(connection, true);
+	if (connection.visibilityTimer) {
+		clearTimeout(connection.visibilityTimer);
+	}
+	connections.delete(connection.url);
+}
+
+function installVisibilityListener(): void {
+	if (visibilityListenerInstalled || typeof document === "undefined") return;
+	visibilityListenerInstalled = true;
+
+	document.addEventListener("visibilitychange", () => {
+		for (const connection of connections.values()) {
+			if (document.visibilityState === "hidden") {
+				if (connection.visibilityTimer)
+					clearTimeout(connection.visibilityTimer);
+				connection.visibilityTimer = setTimeout(() => {
+					if (document.visibilityState === "hidden") {
+						disconnect(connection, true);
+					}
+				}, VISIBILITY_GRACE_MS);
+				continue;
+			}
+
+			if (connection.visibilityTimer) {
+				clearTimeout(connection.visibilityTimer);
+				connection.visibilityTimer = null;
+			}
+			connection.intentional = false;
+			connection.attempt = 0;
+			setConnectionState(connection, { reconnecting: false });
+			connect(connection);
+		}
+	});
 }
 
 export function useLiveState(url: string): LiveStateResult {
-	const [data, setData] = useState<ProjectLiveState | null>(null);
-	const [stale, setStale] = useState(false);
-	const [connected, setConnected] = useState(false);
-	const [reconnecting, setReconnecting] = useState(false);
-
-	const esRef = useRef<EventSource | null>(null);
-	const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const attemptRef = useRef(0);
-	const intentionalRef = useRef(false); // true when we purposely disconnect
-
-	const clearHeartbeatTimer = useCallback(() => {
-		if (heartbeatTimerRef.current) {
-			clearTimeout(heartbeatTimerRef.current);
-			heartbeatTimerRef.current = null;
-		}
-	}, []);
-
-	const resetHeartbeatTimer = useCallback(() => {
-		clearHeartbeatTimer();
-		setStale(false);
-		heartbeatTimerRef.current = setTimeout(() => {
-			setStale(true);
-		}, HEARTBEAT_TIMEOUT_MS);
-	}, [clearHeartbeatTimer]);
-
-	const disconnect = useCallback(
-		(intentional: boolean) => {
-			intentionalRef.current = intentional;
-			if (esRef.current) {
-				esRef.current.close();
-				esRef.current = null;
-			}
-			clearHeartbeatTimer();
-			if (reconnectTimerRef.current) {
-				clearTimeout(reconnectTimerRef.current);
-				reconnectTimerRef.current = null;
-			}
-			setConnected(false);
-			if (intentional) {
-				setReconnecting(false);
-			}
-		},
-		[clearHeartbeatTimer],
+	const [state, setState] = useState<LiveStateResult>(
+		() => getConnection(url).state,
 	);
 
-	const connect = useCallback(() => {
-		// Clean up any existing connection first
-		if (esRef.current) {
-			esRef.current.close();
-			esRef.current = null;
-		}
-
-		const es = new EventSource(url);
-		esRef.current = es;
-		intentionalRef.current = false;
-
-		es.addEventListener("state", (e: MessageEvent) => {
-			try {
-				const event = JSON.parse(e.data) as LiveEvent["data"];
-				setData(event);
-				setConnected(true);
-				setReconnecting(false);
-				setStale(false);
-				attemptRef.current = 0;
-				resetHeartbeatTimer();
-			} catch {
-				// Malformed event — ignore, wait for next
-			}
-		});
-
-		es.onopen = () => {
-			setConnected(true);
-			setReconnecting(false);
-			resetHeartbeatTimer();
-		};
-
-		es.onerror = () => {
-			es.close();
-			esRef.current = null;
-			setConnected(false);
-			clearHeartbeatTimer();
-
-			if (intentionalRef.current) return;
-
-			// Schedule reconnect with jittered backoff
-			const delay = nextBackoff(attemptRef.current);
-			attemptRef.current += 1;
-			setReconnecting(true);
-
-			reconnectTimerRef.current = setTimeout(() => {
-				if (!intentionalRef.current && document.visibilityState !== "hidden") {
-					connect();
-				}
-			}, delay);
-		};
-	}, [url, resetHeartbeatTimer, clearHeartbeatTimer]);
-
-	// Visibility-driven lifecycle
 	useEffect(() => {
-		const onVisibilityChange = () => {
-			if (document.visibilityState === "hidden") {
-				// Grace period before disconnecting
-				visibilityTimerRef.current = setTimeout(() => {
-					if (document.visibilityState === "hidden") {
-						disconnect(true);
-					}
-				}, VISIBILITY_GRACE_MS);
-			} else {
-				// Tab visible again — cancel grace period, reconnect if disconnected
-				if (visibilityTimerRef.current) {
-					clearTimeout(visibilityTimerRef.current);
-					visibilityTimerRef.current = null;
-				}
-				if (!esRef.current) {
-					attemptRef.current = 0;
-					setReconnecting(false);
-					connect();
-				}
-			}
-		};
+		installVisibilityListener();
+		const connection = getConnection(url);
+		connection.subscribers.add(setState);
+		setState(connection.state);
+		connect(connection);
 
-		document.addEventListener("visibilitychange", onVisibilityChange);
 		return () => {
-			document.removeEventListener("visibilitychange", onVisibilityChange);
+			connection.subscribers.delete(setState);
+			disposeIfUnused(connection);
 		};
-	}, [connect, disconnect]);
+	}, [url]);
 
-	// Initial connect + cleanup
-	useEffect(() => {
-		connect();
-		return () => {
-			disconnect(true);
-			if (visibilityTimerRef.current) {
-				clearTimeout(visibilityTimerRef.current);
-			}
-		};
-	}, [connect, disconnect]);
-
-	return { data, stale, connected, reconnecting };
+	return state;
 }

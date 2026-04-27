@@ -120,6 +120,8 @@ services:
     volumes:
       - ts-state:/var/lib/tailscale
       - ${serveConfigHostPath}:/config:ro
+    ports:
+      - "\${DEV_PORT:-4321}:4321"
     restart: unless-stopped
 
   preview:
@@ -172,6 +174,8 @@ services:
     volumes:
       - ts-state:/var/lib/tailscale
       - ${serveConfigHostPath}:/config:ro
+    ports:
+      - "\${PRODUCTION_PORT:-5000}:3000"
     restart: unless-stopped
 
   production:
