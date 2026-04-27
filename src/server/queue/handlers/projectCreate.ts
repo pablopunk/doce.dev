@@ -95,10 +95,13 @@ const updateModelEffect = (
 			toProjectError(error, "updateOpencodeJsonModel", projectId),
 	});
 
-const generateNameEffect = (prompt: string): Effect.Effect<string, never> =>
+const generateNameEffect = (
+	prompt: string,
+	model: string | null,
+): Effect.Effect<string, never> =>
 	Effect.tryPromise({
-		try: () => generateProjectName(prompt),
-		catch: () => Effect.succeed("untitled-project"),
+		try: () => generateProjectName(prompt, model),
+		catch: (error) => error,
 	}).pipe(Effect.orElse(() => Effect.succeed("untitled-project")));
 
 const createProjectEffect = (params: {
@@ -138,11 +141,11 @@ const enqueueDockerUpEffect = (
 
 const checkCancelEffect = (
 	throwIfCancelRequested: () => Promise<void>,
-): Effect.Effect<void> =>
+): Effect.Effect<void, never> =>
 	Effect.tryPromise({
 		try: () => throwIfCancelRequested(),
-		catch: () => undefined,
-	}).pipe(Effect.map(() => undefined));
+		catch: (error) => error,
+	}).pipe(Effect.catchAll(() => Effect.void));
 
 export const handleProjectCreate: LegacyHandler = async (ctx) => {
 	const payload = parsePayload("project.create", ctx.job.payloadJson);
@@ -193,7 +196,7 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
-		const name = yield* generateNameEffect(prompt);
+		const name = yield* generateNameEffect(prompt, model);
 		const slug = name;
 
 		yield* createProjectEffect({
