@@ -82,7 +82,6 @@ export function useChatPanel({
 		sessionId,
 		opencodeReady,
 		initialPromptSent,
-		userPromptMessageId,
 		projectPrompt,
 		currentModel,
 		historyLoaded,
@@ -407,18 +406,12 @@ export function useChatPanel({
 				}
 
 				const historyItems: ChatItem[] = [];
-				let foundUserPrompt = false;
 
 				for (const msg of messages) {
 					const info = msg.info || {};
 					const msgParts = msg.parts || [];
 					const role = info.role;
 					const messageId = info.id || `hist_${Date.now()}_${Math.random()}`;
-
-					if (userPromptMessageId && !foundUserPrompt) {
-						if (messageId === userPromptMessageId) foundUserPrompt = true;
-						else continue;
-					}
 
 					if (role === "user" || role === "assistant") {
 						const messageParts: MessagePart[] = [];
@@ -476,7 +469,6 @@ export function useChatPanel({
 		opencodeReady,
 		historyLoaded,
 		presenceLoaded,
-		userPromptMessageId,
 		models,
 		setHistoryLoaded,
 		setSessionId,
@@ -490,15 +482,17 @@ export function useChatPanel({
 
 	// React to live state for readiness
 	useEffect(() => {
-		if (!liveData || opencodeReady) return;
-		if (liveData.opencodeReady) {
+		if (!liveData) return;
+		if (liveData.opencodeReady && !opencodeReady) {
 			setOpenCodeReady(true);
+			setPresenceLoaded(true);
+		}
+		if (liveData.opencodeReady) {
 			setInitialPromptSent(liveData.initialPromptSent);
 			setUserPromptMessageId(liveData.userPromptMessageId);
 			setProjectPrompt(liveData.prompt ?? "");
 			if (liveData.bootstrapSessionId)
 				setSessionId(liveData.bootstrapSessionId);
-			setPresenceLoaded(true);
 		}
 	}, [
 		liveData,
