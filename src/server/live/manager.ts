@@ -28,6 +28,7 @@ import {
 	enqueueDockerStop,
 } from "@/server/queue/enqueue";
 import { listJobs } from "@/server/queue/queue.crud";
+import { getInstanceBaseUrl } from "@/server/settings/instance.settings";
 import { getTailscaleProjectUrl } from "@/server/tailscale/urls";
 import type { ProductionLiveState, ProjectLiveState } from "@/types/live";
 
@@ -341,14 +342,27 @@ async function buildState(
 		}
 	}
 
+	const baseUrl = await getInstanceBaseUrl();
+	const previewUrl = baseUrl
+		? (() => {
+				try {
+					const parsed = new URL(baseUrl);
+					return `${parsed.protocol}//${parsed.hostname}:${project.devPort}`;
+				} catch {
+					return null;
+				}
+			})()
+		: null;
+
 	return {
 		gen: state.gen, // will be overwritten by broadcast()
 		status,
 		previewReady,
 		opencodeReady,
 		previewUrl:
-			(await getTailscaleProjectUrl(project.slug, "preview", project.id)) ??
-			`http://127.0.0.1:${project.devPort}`,
+			previewUrl ??
+			((await getTailscaleProjectUrl(project.slug, "preview", project.id)) ||
+				`http://127.0.0.1:${project.devPort}`),
 		message,
 		viewerCount: state.clients.size,
 		slug: project.slug,

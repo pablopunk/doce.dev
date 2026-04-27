@@ -68,19 +68,27 @@ export function mapPortUrlToPreferredHost(
 		return null;
 	}
 
-	const originWithoutPort = getPreferredOrigin(baseUrl, fallbackOrigin).replace(
-		/:\d+$/,
-		"",
-	);
+	const preferredOrigin = getPreferredOrigin(baseUrl, fallbackOrigin);
 
 	try {
 		const parsed = new URL(url);
-		if (!parsed.port) {
+		const preferredParsed = new URL(preferredOrigin);
+
+		// If no baseUrl is set and the URL has no explicit port, it's likely a
+		// proxied/Tailscale URL that should not be remapped.
+		if (!baseUrl && !parsed.port) {
 			return url;
 		}
 
-		return `${originWithoutPort}:${parsed.port}${parsed.pathname}${parsed.search}${parsed.hash}`;
+		// Replace host with preferred host, keep port from original URL
+		const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+		const host = preferredParsed.host.includes(":")
+			? preferredParsed.hostname
+			: preferredParsed.host;
+
+		return `${preferredParsed.protocol}//${host}:${port}${parsed.pathname}${parsed.search}${parsed.hash}`;
 	} catch {
+		const originWithoutPort = preferredOrigin.replace(/:\d+$/, "");
 		const match = url.match(/:(\d+)(?:\/|$)/);
 		if (!match) {
 			return url;
