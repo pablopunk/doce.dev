@@ -130,9 +130,7 @@ function NavbarInner({
 							onKeyDown={handleKeyDown}
 							onBlur={() => void save()}
 							className={`text-sm font-medium bg-transparent outline-none transition-all truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px] h-7 leading-7 ${
-								editing
-									? "border-b border-primary cursor-text"
-									: "border-b border-transparent cursor-pointer hover:opacity-80"
+								editing ? "cursor-text" : "cursor-pointer hover:opacity-80"
 							}`}
 							maxLength={64}
 						/>
