@@ -1,0 +1,13 @@
+import type { SVGProps } from "react";
+
+const Opencode = (props: SVGProps<SVGSVGElement>) => (
+	<svg {...props} viewBox="0 0 24 24" fill="none">
+		<title>OpenCode</title>
+		<path
+			d="M8.40005 17.4H19.2001V21H4.80005V13.8H8.40005V17.4ZM15.6001 10.2V13.8H8.40005V10.2H15.6001ZM19.2001 10.2H15.6001V6.6H4.80005V3H19.2001V10.2Z"
+			fill="currentColor"
+		/>
+	</svg>
+);
+
+export { Opencode };

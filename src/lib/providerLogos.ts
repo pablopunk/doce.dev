@@ -7,6 +7,7 @@ import { Minimax } from "@/components/ui/svgs/minimax";
 import { MinimaxDark } from "@/components/ui/svgs/minimaxDark";
 import { Openai } from "@/components/ui/svgs/openai";
 import { OpenaiDark } from "@/components/ui/svgs/openaiDark";
+import { Opencode } from "@/components/ui/svgs/opencode";
 import { ZaiDark } from "@/components/ui/svgs/zaiDark";
 import { ZaiLight } from "@/components/ui/svgs/zaiLight";
 
@@ -24,6 +25,8 @@ const LOCAL_LOGOS: Record<
 	minimax: { light: Minimax, dark: MinimaxDark },
 	kimi: { light: Kimi, dark: Kimi },
 	moonshot: { light: Kimi, dark: Kimi },
+	opencode: { light: Opencode, dark: Opencode },
+	"opencode-go": { light: Opencode, dark: Opencode },
 };
 
 const PROVIDER_DOMAINS: Record<string, string> = {
