@@ -118,9 +118,27 @@ function NavbarInner({
 
 				{/* Center - Project name + icon */}
 				{projectName && (
-					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-						{editing && projectId ? (
-							<>
+					<div className="absolute left-1/2 -translate-x-1/2">
+						{/* Display layer - always rendered for stable layout */}
+						<button
+							type="button"
+							onClick={() => setEditing(true)}
+							className={`flex items-center gap-2 hover:opacity-80 transition-opacity ${editing ? "invisible" : ""}`}
+							title="Click to rename"
+						>
+							{projectIcon && (
+								<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
+									{projectIcon}
+								</span>
+							)}
+							<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+								{projectName}
+							</span>
+						</button>
+
+						{/* Edit layer - overlays on top when editing */}
+						{editing && projectId && (
+							<div className="absolute inset-0 flex items-center gap-2 bg-background">
 								<ProjectIconPicker value={editIcon} onChange={setEditIcon} />
 								<input
 									ref={inputRef}
@@ -129,26 +147,10 @@ function NavbarInner({
 									onChange={(e) => setEditName(e.target.value)}
 									onKeyDown={handleKeyDown}
 									onBlur={() => void save()}
-									className="text-sm font-medium bg-transparent border-b border-primary outline-none min-w-[80px] max-w-[260px] md:max-w-[400px] truncate"
+									className="text-sm font-medium bg-transparent border-b border-primary outline-none min-w-[80px] max-w-[260px] md:max-w-[400px] truncate h-7 leading-7"
 									maxLength={64}
 								/>
-							</>
-						) : (
-							<button
-								type="button"
-								onClick={() => setEditing(true)}
-								className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
-								title="Click to rename"
-							>
-								{projectIcon && (
-									<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
-										{projectIcon}
-									</span>
-								)}
-								<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
-									{projectName}
-								</span>
-							</button>
+							</div>
 						)}
 					</div>
 				)}
