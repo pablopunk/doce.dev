@@ -49,29 +49,31 @@ function NavbarInner({
 		}
 	}, [editing]);
 
-	const save = async () => {
-		if (!projectId || !editName.trim()) {
+	const save = async (nameOverride?: string, iconOverride?: string) => {
+		if (!projectId) return;
+		const nameToSave = nameOverride ?? editName.trim();
+		const iconToSave = iconOverride ?? editIcon;
+		if (!nameToSave) {
 			setEditing(false);
 			return;
 		}
-		const name = editName.trim();
-		if (name === projectName && editIcon === projectIcon) {
+		if (nameToSave === displayName && iconToSave === displayIcon) {
 			setEditing(false);
 			return;
 		}
 		const { error } = await actions.projects.updateIdentity({
 			projectId,
-			name,
-			icon: editIcon,
+			name: nameToSave,
+			icon: iconToSave,
 		});
 		if (error) {
-			toast.error(error.message ?? "Failed to rename project");
+			toast.error(error.message ?? "Failed to update project");
 			setEditName(displayName);
 			setEditIcon(displayIcon);
 		} else {
-			toast.success("Project renamed");
-			setDisplayName(name);
-			setDisplayIcon(editIcon);
+			toast.success("Project updated");
+			setDisplayName(nameToSave);
+			setDisplayIcon(iconToSave);
 			window.dispatchEvent(new CustomEvent("project-identity-updated"));
 		}
 		setEditing(false);
@@ -124,7 +126,13 @@ function NavbarInner({
 				{/* Center - Project name + icon */}
 				{projectName && projectId && (
 					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-						<ProjectIconPicker value={editIcon} onChange={setEditIcon} />
+						<ProjectIconPicker
+							value={editIcon}
+							onChange={(icon) => {
+								setEditIcon(icon);
+								void save(editName, icon);
+							}}
+						/>
 						<input
 							ref={inputRef}
 							type="text"
