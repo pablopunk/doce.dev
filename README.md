@@ -92,6 +92,19 @@ Connect Tailscale once in settings and doce gives the app, previews, and deploym
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/tailscale.jpg?raw=true" alt="Tailscale settings" width="95%" />
 </p>
 
+### Your apps run wherever you are
+
+<p align="center">
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/macbook-and-iphone-preview.jpg?raw=true" alt="Macbook and iphone preview" width="95%" />
+</p>
+
+### Doce works on your phone to. Create on the go
+
+<p align="center">
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/create-on-phone.jpg?raw=true" alt="Create on your phone" width="95%" />
+</p>
+
+
 ## How it works
 
 - Provider auth lives in the central OpenCode runtime, not per project
