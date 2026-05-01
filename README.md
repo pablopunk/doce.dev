@@ -13,7 +13,7 @@ Doce stands for:
 
 - **D**elicious **O**pen **C**ode **E**nvironments
 - **D**eploy **O**n **C**ontainers **E**asily
-- **D**eploy **O**rchestrated **C**ontainers
+- **D**eploy **O**rchestrated **C**ontain**E**rs
 - **D**eploy **O**nce **C**rash **E**verywhere
 - **D**on't **O**ver **C**omplicate **E**nvironments
 - ...
