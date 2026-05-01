@@ -23,11 +23,11 @@ Doce stands for:
 
 ## Features
 
-- Self-hosted AI website builder powered by OpenCode
-- Live project workspace: chat, preview, files, assets, and terminal logs
-- Isolated Docker previews with one-click production deployments
-- Provider auth, model selection, skills, and MCPs managed from the UI
-- Automatic private HTTPS domains via Tailscale (`https://...ts.net`)
+- 🤖 Self-hosted AI website builder powered by OpenCode
+- 🧰 Live project workspace: chat, preview, files, assets, and terminal logs
+- 🐳 Isolated Docker previews with one-click production deployments
+- 🔐 Provider auth, model selection, skills, and MCPs managed from the UI
+- 🌐 Automatic private HTTPS domains via Tailscale (`https://...ts.net`)
 
 ## docker-compose.yml
 
@@ -45,7 +45,7 @@ services:
     volumes:
       - ./data:/app/data # DB and project files
       - ./opencode:/root/.local/share/opencode # opencode auth data
-      - /var/run/docker.sock:/var/run/docker.sock # Required since we use containers to run project previews
+      - /var/run/docker.sock:/var/run/docker.sock # Required to run projects
 ```
 
 That's still the whole deployment story. Internally, `doce` now runs:
