@@ -3,6 +3,7 @@
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
   <br />
+  <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/homepage.jpg?raw=true" alt="Homepage" width="95%" />
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/project-view.jpg?raw=true" alt="Project view with preview, chat, and terminal logs" width="95%" />
 </p>
 
