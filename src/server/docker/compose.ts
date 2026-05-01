@@ -233,6 +233,7 @@ async function runComposeCommandProduction(
 	args: string[],
 	filePath?: string,
 	hash?: string,
+	productionPort?: number,
 ): Promise<ComposeResult> {
 	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgsProduction(projectId, hash);
@@ -262,6 +263,7 @@ async function runComposeCommandProduction(
 			env: {
 				...process.env,
 				PROJECT_ID: projectId,
+				...(productionPort ? { PRODUCTION_PORT: String(productionPort) } : {}),
 				DOCE_NETWORK: docceNetwork,
 				COMPOSE_BAKE: "false",
 			},
@@ -438,6 +440,7 @@ export async function composeUpProduction(
 		["up", "-d", "--build"],
 		composeFile,
 		productionHash,
+		productionPort,
 	);
 
 	// Log output with stream markers
@@ -560,9 +563,18 @@ export async function composeDownProduction(
 	productionHash?: string,
 ): Promise<ComposeResult> {
 	const logsDir = path.join(productionPath, "logs");
+	const tailscaleComposeFile = path.join(
+		productionPath,
+		"docker-compose.tailscale.yml",
+	);
+	const composeFile = await fs
+		.access(tailscaleComposeFile)
+		.then(() => "docker-compose.tailscale.yml")
+		.catch(() => "docker-compose.production.yml");
+
 	await writeHostMarker(
 		logsDir,
-		`docker compose -f docker-compose.production.yml down (project=${getProductionProjectName(projectId, productionHash)})`,
+		`docker compose -f ${composeFile} down (project=${getProductionProjectName(projectId, productionHash)})`,
 	);
 
 	// Stop streaming container logs before stopping containers
@@ -572,7 +584,7 @@ export async function composeDownProduction(
 		projectId,
 		productionPath,
 		["down"],
-		"docker-compose.production.yml",
+		composeFile,
 		productionHash,
 	);
 

@@ -97,3 +97,53 @@ export function mapPortUrlToPreferredHost(
 		return `${originWithoutPort}:${match[1]}`;
 	}
 }
+
+export interface RuntimeUrlSet {
+	local: string | null;
+	tailscale: string | null;
+	preferred?: string | null;
+}
+
+function isLocalHost(hostname: string): boolean {
+	return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function isTailscaleHost(hostname: string): boolean {
+	return hostname.endsWith(".ts.net");
+}
+
+function getPreferredHostname(
+	baseUrl: string | null | undefined,
+	fallbackOrigin: string,
+): string | null {
+	try {
+		return new URL(getPreferredOrigin(baseUrl, fallbackOrigin)).hostname;
+	} catch {
+		return null;
+	}
+}
+
+export function getPreferredRuntimeUrl(
+	urls: RuntimeUrlSet | null | undefined,
+	baseUrl: string | null | undefined,
+	fallbackOrigin: string,
+): string | null {
+	if (!urls) {
+		return null;
+	}
+
+	const hostname = getPreferredHostname(baseUrl, fallbackOrigin);
+	if (hostname && isTailscaleHost(hostname) && urls.tailscale) {
+		return urls.tailscale;
+	}
+
+	if (hostname && isLocalHost(hostname) && urls.local) {
+		return urls.local;
+	}
+
+	if (urls.local) {
+		return mapPortUrlToPreferredHost(urls.local, baseUrl, fallbackOrigin);
+	}
+
+	return urls.tailscale ?? urls.preferred ?? null;
+}

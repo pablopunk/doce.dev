@@ -1,8 +1,31 @@
 import { readFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import { logger } from "@/server/logger";
+import { isRunningInDocker } from "@/server/utils/docker";
 import { runCommand } from "@/server/utils/execAsync";
 
 let cachedHostIp: string | null = null;
+
+function getOperatorUsername(): string | null {
+	try {
+		return userInfo().username || null;
+	} catch {
+		return null;
+	}
+}
+
+function buildServeError(stderr: string): string {
+	if (!stderr.includes("Access denied")) {
+		return stderr;
+	}
+
+	const username = getOperatorUsername();
+	const command = username
+		? `sudo tailscale set --operator=${username}`
+		: "sudo tailscale set --operator=$USER";
+
+	return `${stderr.trim()}\n\nOn Linux, allow this user to manage Tailscale once with: ${command}`;
+}
 
 /**
  * Detect the host IP from within a Docker container.
@@ -43,18 +66,15 @@ async function detectHostIp(): Promise<string | null> {
 async function getServeTargetHost(): Promise<string> {
 	if (cachedHostIp) return cachedHostIp;
 
-	// Try to detect if running in Docker by checking for docker-specific files
-	try {
-		await readFile("/proc/self/cgroup", "utf-8");
+	if (isRunningInDocker()) {
 		const hostIp = await detectHostIp();
 		if (hostIp) {
 			cachedHostIp = hostIp;
 			return hostIp;
 		}
-	} catch {
-		// Not in Docker
 	}
-	return "localhost";
+
+	return "127.0.0.1";
 }
 
 /**
@@ -68,17 +88,20 @@ export async function registerServe(
 	logger.info({ localPort, httpsPort }, "Registering Tailscale Serve");
 
 	const targetHost = await getServeTargetHost();
+	const targetUrl = `http://${targetHost}:${localPort}`;
 	const result = await runCommand(
-		`tailscale serve --bg --https=${httpsPort} ${targetHost}:${localPort}`,
+		`tailscale serve --bg --https=${httpsPort} ${targetUrl}`,
 		{ timeout: 10000 },
 	);
 
 	if (!result.success) {
-		throw new Error(`tailscale serve failed: ${result.stderr}`);
+		throw new Error(
+			`tailscale serve failed: ${buildServeError(result.stderr)}`,
+		);
 	}
 
 	logger.info(
-		{ localPort, httpsPort, targetHost },
+		{ localPort, httpsPort, targetHost, targetUrl },
 		"Tailscale Serve registered",
 	);
 }

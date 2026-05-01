@@ -23,9 +23,16 @@ export type ProductionLiveStatus =
 	| "failed"
 	| "stopped";
 
+export interface RuntimeUrlSet {
+	local: string | null;
+	tailscale: string | null;
+	preferred: string | null;
+}
+
 export interface ProductionLiveState {
 	status: ProductionLiveStatus;
 	url: string | null;
+	urls: RuntimeUrlSet;
 	port: number;
 	error: string | null;
 	startedAt: string | null; // ISO string
@@ -49,6 +56,7 @@ export interface ProjectLiveState {
 	previewReady: boolean;
 	opencodeReady: boolean;
 	previewUrl: string;
+	previewUrls: RuntimeUrlSet;
 	message: string | null;
 	viewerCount: number;
 	slug: string;

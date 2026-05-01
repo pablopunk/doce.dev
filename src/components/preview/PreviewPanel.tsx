@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { useLiveState } from "@/hooks/useLiveState";
-import { mapPortUrlToPreferredHost } from "@/lib/base-url";
+import { getPreferredRuntimeUrl } from "@/lib/base-url";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface ProductionStatus {
@@ -181,13 +181,17 @@ export function PreviewPanel({
 		}
 	}, [activeTab]);
 
-	const mapPortUrlToPreferredBase = useCallback(
-		(url: string | null) => {
-			if (!url || typeof window === "undefined") {
-				return url;
+	const getPreferredUrl = useCallback(
+		(urls: {
+			local: string | null;
+			tailscale: string | null;
+			preferred?: string | null;
+		}) => {
+			if (typeof window === "undefined") {
+				return urls.preferred ?? urls.local ?? urls.tailscale;
 			}
 
-			return mapPortUrlToPreferredHost(url, baseUrl, window.location.origin);
+			return getPreferredRuntimeUrl(urls, baseUrl, window.location.origin);
 		},
 		[baseUrl],
 	);
@@ -196,13 +200,8 @@ export function PreviewPanel({
 	useEffect(() => {
 		if (!liveData) return;
 
-		// Update preview URL with preferred host mapping
-		const mappedUrl =
-			typeof window !== "undefined"
-				? (mapPortUrlToPreferredBase(liveData.previewUrl) ??
-					liveData.previewUrl)
-				: liveData.previewUrl;
-		setPreviewUrl(mappedUrl);
+		// Update preview URL with the URL that matches the current doce origin.
+		setPreviewUrl(getPreferredUrl(liveData.previewUrls) ?? liveData.previewUrl);
 		setMessage(liveData.message);
 		onStatusChange?.(liveData);
 
@@ -221,7 +220,7 @@ export function PreviewPanel({
 		} else {
 			setState("starting");
 		}
-	}, [liveData, mapPortUrlToPreferredBase, onStatusChange]);
+	}, [liveData, getPreferredUrl, onStatusChange]);
 
 	// Handle file opening from chat panel
 	useEffect(() => {
@@ -328,10 +327,7 @@ export function PreviewPanel({
 		? {
 				status: liveData.production.status,
 				url:
-					typeof window !== "undefined"
-						? (mapPortUrlToPreferredBase(liveData.production.url) ??
-							liveData.production.url)
-						: liveData.production.url,
+					getPreferredUrl(liveData.production.urls) ?? liveData.production.url,
 				port: liveData.production.port,
 				error: liveData.production.error,
 				startedAt: liveData.production.startedAt,

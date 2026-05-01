@@ -36,6 +36,16 @@ interface TailscaleStatusData {
 		tailscaleIp: string | null;
 		magicDnsUrl: string | null;
 	} | null;
+	serveWarning?: string | null;
+}
+
+interface ReconcileStatusData {
+	previewRestartCount: number;
+	previews: Array<{
+		id: string;
+		name: string;
+		slug: string;
+	}>;
 }
 
 function StatusBadge({ connected }: { connected: boolean }) {
@@ -217,6 +227,10 @@ export function TailscaleSettings() {
 	const [data, setData] = useState<TailscaleStatusData | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isDisconnecting, setIsDisconnecting] = useState(false);
+	const [isFixingOperator, setIsFixingOperator] = useState(false);
+	const [isReconciling, setIsReconciling] = useState(false);
+	const [reconcileStatus, setReconcileStatus] =
+		useState<ReconcileStatusData | null>(null);
 
 	const fetchStatus = useCallback(async () => {
 		try {
@@ -227,7 +241,22 @@ export function TailscaleSettings() {
 				return;
 			}
 
-			setData(result.data as TailscaleStatusData);
+			const statusData = result.data as TailscaleStatusData;
+			setData(statusData);
+			if (statusData.serveWarning) {
+				toast.warning(
+					`Tailscale Serve is not active: ${statusData.serveWarning}`,
+				);
+			}
+
+			if (statusData.config?.enabled && statusData.status?.connected) {
+				const reconcileResult = await actions.tailscale.getReconcileStatus({});
+				if (!reconcileResult.error) {
+					setReconcileStatus(reconcileResult.data as ReconcileStatusData);
+				}
+			} else {
+				setReconcileStatus(null);
+			}
 		} catch {
 			// Tailscale actions might not exist yet
 			setData({ installed: false, config: null, status: null });
@@ -239,6 +268,50 @@ export function TailscaleSettings() {
 	useEffect(() => {
 		fetchStatus();
 	}, [fetchStatus]);
+
+	const handleEnableOperator = async () => {
+		setIsFixingOperator(true);
+		try {
+			const result = await actions.tailscale.enableLocalOperator({});
+
+			if (result.error) {
+				toast.error(result.error.message || "Failed to grant permissions");
+				return;
+			}
+
+			toast.success("Tailscale permissions granted");
+			fetchStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Failed to grant permissions";
+			toast.error(message);
+		} finally {
+			setIsFixingOperator(false);
+		}
+	};
+
+	const handleReconcilePreviews = async () => {
+		setIsReconciling(true);
+		try {
+			const result = await actions.tailscale.reconcilePreviews({});
+
+			if (result.error) {
+				toast.error(result.error.message || "Failed to update previews");
+				return;
+			}
+
+			toast.success(
+				`Restarting ${result.data?.restartedCount ?? 0} preview${result.data?.restartedCount === 1 ? "" : "s"} with Tailscale`,
+			);
+			fetchStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Failed to update previews";
+			toast.error(message);
+		} finally {
+			setIsReconciling(false);
+		}
+	};
 
 	const handleDisconnect = async () => {
 		setIsDisconnecting(true);
@@ -312,6 +385,53 @@ export function TailscaleSettings() {
 				{isConnected && data.status ? (
 					<>
 						<ConnectionInfo status={data.status} />
+						{reconcileStatus && reconcileStatus.previewRestartCount > 0 && (
+							<div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-4 text-sm">
+								<p className="text-muted-foreground">
+									{reconcileStatus.previewRestartCount} running preview
+									{reconcileStatus.previewRestartCount === 1
+										? " needs"
+										: "s need"}{" "}
+									a restart to get Tailscale URLs.
+								</p>
+								<Button
+									variant="secondary"
+									onClick={handleReconcilePreviews}
+									disabled={isReconciling}
+								>
+									{isReconciling ? (
+										<>
+											<Loader2 className="mr-2 size-4 animate-spin" />
+											Restarting previews...
+										</>
+									) : (
+										"Update running previews"
+									)}
+								</Button>
+							</div>
+						)}
+						{data.serveWarning && (
+							<div className="space-y-2 text-sm">
+								<p className="text-muted-foreground">
+									Tailscale is connected, but HTTPS Serve needs local Linux
+									permission.
+								</p>
+								<Button
+									variant="secondary"
+									onClick={handleEnableOperator}
+									disabled={isFixingOperator}
+								>
+									{isFixingOperator ? (
+										<>
+											<Loader2 className="mr-2 size-4 animate-spin" />
+											Waiting for system auth...
+										</>
+									) : (
+										"Fix local Tailscale permissions"
+									)}
+								</Button>
+							</div>
+						)}
 						<Button
 							variant="destructive"
 							onClick={handleDisconnect}

@@ -98,8 +98,22 @@ export const projects = {
 				});
 			}
 
+			const { getProjectRuntimeUrls } = await import(
+				"@/server/projects/projectUrls"
+			);
 			const projects = await getProjectsByUserId(user.id);
-			return { projects };
+			const projectsWithUrls = await Promise.all(
+				projects.map(async (project) => {
+					const urls = await getProjectRuntimeUrls(project);
+					return {
+						...project,
+						previewUrl: urls.preview.preferred,
+						previewUrls: urls.preview,
+						productionUrls: urls.production,
+					};
+				}),
+			);
+			return { projects: projectsWithUrls };
 		},
 	}),
 
@@ -843,21 +857,26 @@ export const projects = {
 				"@/server/productions/cleanup"
 			);
 
+			const { getProjectRuntimeUrls } = await import(
+				"@/server/projects/projectUrls"
+			);
 			const versions = await getProductionVersions(input.projectId);
 			const productionPort = project.productionPort;
+			const urls = await getProjectRuntimeUrls(project);
 
 			return {
 				productionPort,
-				baseUrl: productionPort ? `http://localhost:${productionPort}` : null,
+				baseUrl: urls.production.preferred,
 				versions: versions.map((v) => {
 					return {
 						hash: v.hash,
 						isActive: v.isActive,
 						createdAt: v.mtimeIso,
-						url:
-							v.isActive && productionPort
-								? `http://localhost:${productionPort}`
-								: undefined,
+						url: v.isActive
+							? (urls.production.preferred ?? undefined)
+							: undefined,
+						baseUrl: urls.production.local,
+						previewUrl: urls.production.tailscale ?? undefined,
 						productionPort,
 					};
 				}),

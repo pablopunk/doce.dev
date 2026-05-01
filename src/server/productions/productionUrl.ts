@@ -1,17 +1,14 @@
 import type { Project } from "@/server/db/schema";
 import { updateProductionStatus } from "@/server/productions/productions.model";
-import { getTailscaleProjectUrl } from "@/server/tailscale/urls";
+import { getProjectRuntimeUrls } from "@/server/projects/projectUrls";
 
 export async function getCanonicalProductionUrl(
 	project: Pick<Project, "id" | "slug" | "productionPort">,
 ): Promise<string> {
-	const tailscaleUrl = await getTailscaleProjectUrl(
-		project.slug,
-		"production",
-		project.id,
+	const urls = await getProjectRuntimeUrls(project);
+	return (
+		urls.production.preferred ?? `http://localhost:${project.productionPort}`
 	);
-
-	return tailscaleUrl ?? `http://localhost:${project.productionPort}`;
 }
 
 export async function repairStaleProductionUrl(

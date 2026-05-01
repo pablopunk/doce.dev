@@ -1,4 +1,8 @@
 import { Effect } from "effect";
+import {
+	composeDownProduction,
+	composeUpProduction,
+} from "@/server/docker/compose";
 import { ProductionDeployError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
 import { logger } from "@/server/logger";
@@ -9,6 +13,7 @@ import {
 	getProductionPath,
 } from "@/server/projects/paths";
 import { getProjectByIdIncludeDeleted } from "@/server/projects/projects.model";
+import { getTailscaleConfig } from "@/server/tailscale/config";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { enqueueProductionWaitReady } from "../enqueue";
 import { parsePayload } from "../types";
@@ -123,69 +128,133 @@ export function handleProductionStart(
 		yield* ctx.throwIfCancelRequested();
 
 		const containerName = getProductionContainerName(project.id);
-		logger.info(
-			{ projectId: project.id, containerName, productionPort },
-			"Starting production container",
-		);
+		const tailscaleConfig = yield* Effect.tryPromise({
+			try: () => getTailscaleConfig(),
+			catch: () => ({ enabled: false }),
+		}).pipe(Effect.orElse(() => Effect.succeed({ enabled: false })));
 
-		const runResult = yield* Effect.tryPromise({
-			try: () =>
-				spawnCommand("docker", [
-					"run",
-					"-d",
-					"--name",
-					containerName,
-					"-p",
-					`${productionPort}:3000`,
-					"-e",
-					"PORT=3000",
-					"-e",
-					"HOST=0.0.0.0",
-					"--restart",
-					"unless-stopped",
-					imageName,
-				]),
-			catch: (error) =>
-				new ProductionDeployError({
-					projectId: project.id,
-					hash: payload.productionHash,
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
-
-		if (!runResult.success) {
-			const errorMsg = `Docker run failed: ${runResult.stderr.slice(0, 500)}`;
-			logger.error(
-				{ projectId: project.id, error: errorMsg },
-				"Docker run failed",
+		if (project.productionHash) {
+			const previousProductionPath = getProductionPath(
+				project.id,
+				project.productionHash,
 			);
 			yield* Effect.tryPromise({
 				try: () =>
-					updateProductionStatus(project.id, "failed", {
-						productionError: errorMsg,
-					}),
+					composeDownProduction(
+						project.id,
+						previousProductionPath,
+						project.productionHash ?? undefined,
+					),
+				catch: () => undefined,
+			}).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+		}
+
+		if (tailscaleConfig.enabled) {
+			logger.info(
+				{ projectId: project.id, productionPort },
+				"Starting production compose with Tailscale sidecar",
+			);
+
+			const composeResult = yield* Effect.tryPromise({
+				try: () =>
+					composeUpProduction(
+						project.id,
+						productionPath,
+						productionPort,
+						payload.productionHash,
+					),
 				catch: (error) =>
-					new ProjectError({
+					new ProductionDeployError({
 						projectId: project.id,
-						operation: "updateProductionStatus",
+						hash: payload.productionHash,
 						message: error instanceof Error ? error.message : String(error),
 						cause: error,
 					}),
 			});
-			return yield* new ProductionDeployError({
-				projectId: project.id,
-				hash: payload.productionHash,
-				message: errorMsg,
+
+			if (!composeResult.success) {
+				const errorMsg = `Docker compose up failed: ${composeResult.stderr.slice(0, 500)}`;
+				logger.error({ projectId: project.id, error: errorMsg }, errorMsg);
+				yield* Effect.tryPromise({
+					try: () =>
+						updateProductionStatus(project.id, "failed", {
+							productionError: errorMsg,
+						}),
+					catch: (error) =>
+						new ProjectError({
+							projectId: project.id,
+							operation: "updateProductionStatus",
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+						}),
+				});
+				return yield* new ProductionDeployError({
+					projectId: project.id,
+					hash: payload.productionHash,
+					message: errorMsg,
+				});
+			}
+		} else {
+			logger.info(
+				{ projectId: project.id, containerName, productionPort },
+				"Starting production container",
+			);
+
+			const runResult = yield* Effect.tryPromise({
+				try: () =>
+					spawnCommand("docker", [
+						"run",
+						"-d",
+						"--name",
+						containerName,
+						"-p",
+						`${productionPort}:3000`,
+						"-e",
+						"PORT=3000",
+						"-e",
+						"HOST=0.0.0.0",
+						"--restart",
+						"unless-stopped",
+						imageName,
+					]),
+				catch: (error) =>
+					new ProductionDeployError({
+						projectId: project.id,
+						hash: payload.productionHash,
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
 			});
+
+			if (!runResult.success) {
+				const errorMsg = `Docker run failed: ${runResult.stderr.slice(0, 500)}`;
+				logger.error(
+					{ projectId: project.id, error: errorMsg },
+					"Docker run failed",
+				);
+				yield* Effect.tryPromise({
+					try: () =>
+						updateProductionStatus(project.id, "failed", {
+							productionError: errorMsg,
+						}),
+					catch: (error) =>
+						new ProjectError({
+							projectId: project.id,
+							operation: "updateProductionStatus",
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+						}),
+				});
+				return yield* new ProductionDeployError({
+					projectId: project.id,
+					hash: payload.productionHash,
+					message: errorMsg,
+				});
+			}
 		}
 
 		logger.info(
-			{
-				projectId: project.id,
-				containerName,
-				productionPort,
-			},
+			{ projectId: project.id, containerName, productionPort },
 			"Production container started",
 		);
 

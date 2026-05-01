@@ -26,7 +26,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
-import { mapPortUrlToPreferredHost } from "@/lib/base-url";
+import { getPreferredRuntimeUrl } from "@/lib/base-url";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import type { ProjectListItem } from "./projects.types";
@@ -55,18 +55,31 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 
 	const rawPreviewUrl =
 		project.previewUrl ?? `http://localhost:${project.devPort}`;
+	const previewUrls = project.previewUrls ?? {
+		local: `http://localhost:${project.devPort}`,
+		tailscale: project.previewUrl,
+		preferred: rawPreviewUrl,
+	};
+	const productionUrls = project.productionUrls ?? {
+		local: project.productionPort
+			? `http://localhost:${project.productionPort}`
+			: null,
+		tailscale: null,
+		preferred: project.productionUrl,
+	};
 	const previewUrl =
 		typeof window === "undefined"
-			? rawPreviewUrl
-			: (mapPortUrlToPreferredHost(
-					rawPreviewUrl,
-					baseUrl,
-					window.location.origin,
-				) ?? rawPreviewUrl);
+			? (previewUrls.preferred ?? rawPreviewUrl)
+			: (getPreferredRuntimeUrl(previewUrls, baseUrl, window.location.origin) ??
+				rawPreviewUrl);
+	const productionUrl =
+		typeof window === "undefined"
+			? (productionUrls.preferred ?? project.productionUrl)
+			: getPreferredRuntimeUrl(productionUrls, baseUrl, window.location.origin);
 	const isPreviewRunning = project.status === "running" && !isStoppingPreview;
 	const isProductionRunning =
 		project.productionStatus === "running" &&
-		Boolean(project.productionUrl) &&
+		Boolean(productionUrl) &&
 		!isStoppingProduction;
 
 	const handleDeleteClick = () => {
@@ -123,6 +136,15 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 			toast.error("Failed to stop production");
 		}
 	};
+
+	const hasAlternatePreviewUrls =
+		Boolean(previewUrls.local && previewUrls.local !== previewUrl) ||
+		Boolean(previewUrls.tailscale && previewUrls.tailscale !== previewUrl);
+	const hasAlternateProductionUrls =
+		Boolean(productionUrls.local && productionUrls.local !== productionUrl) ||
+		Boolean(
+			productionUrls.tailscale && productionUrls.tailscale !== productionUrl,
+		);
 
 	const handleExportClick = async () => {
 		setIsExporting(true);
@@ -193,6 +215,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 										</button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="start">
+										{/* @ts-expect-error asChild from radix not typed */}
 										<DropdownMenuItem asChild className="cursor-pointer">
 											<a
 												href={previewUrl}
@@ -204,6 +227,34 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 												Visit Preview
 											</a>
 										</DropdownMenuItem>
+										{hasAlternatePreviewUrls && previewUrls.local && (
+											// @ts-expect-error asChild from radix not typed
+											<DropdownMenuItem asChild className="cursor-pointer">
+												<a
+													href={previewUrls.local}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="flex items-center gap-2 w-full h-full"
+												>
+													<ExternalLink className="size-4 shrink-0" />
+													Visit Preview locally
+												</a>
+											</DropdownMenuItem>
+										)}
+										{hasAlternatePreviewUrls && previewUrls.tailscale && (
+											// @ts-expect-error asChild from radix not typed
+											<DropdownMenuItem asChild className="cursor-pointer">
+												<a
+													href={previewUrls.tailscale}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="flex items-center gap-2 w-full h-full"
+												>
+													<ExternalLink className="size-4 shrink-0" />
+													Visit Preview via Tailscale
+												</a>
+											</DropdownMenuItem>
+										)}
 										<DropdownMenuItem
 											onClick={handleStopPreview}
 											disabled={isStoppingPreview}
@@ -219,7 +270,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 									</DropdownMenuContent>
 								</DropdownMenu>
 							)}
-							{isProductionRunning && project.productionUrl && (
+							{isProductionRunning && productionUrl && (
 								<DropdownMenu>
 									{/* @ts-expect-error asChild from radix not typed */}
 									<DropdownMenuTrigger asChild>
@@ -231,9 +282,10 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 										</button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="start">
+										{/* @ts-expect-error asChild from radix not typed */}
 										<DropdownMenuItem asChild className="cursor-pointer">
 											<a
-												href={project.productionUrl}
+												href={productionUrl}
 												target="_blank"
 												rel="noopener noreferrer"
 												className="flex items-center gap-2 w-full h-full"
@@ -242,6 +294,34 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 												Visit Production
 											</a>
 										</DropdownMenuItem>
+										{hasAlternateProductionUrls && productionUrls.local && (
+											// @ts-expect-error asChild from radix not typed
+											<DropdownMenuItem asChild className="cursor-pointer">
+												<a
+													href={productionUrls.local}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="flex items-center gap-2 w-full h-full"
+												>
+													<ExternalLink className="size-4 shrink-0" />
+													Visit Production locally
+												</a>
+											</DropdownMenuItem>
+										)}
+										{hasAlternateProductionUrls && productionUrls.tailscale && (
+											// @ts-expect-error asChild from radix not typed
+											<DropdownMenuItem asChild className="cursor-pointer">
+												<a
+													href={productionUrls.tailscale}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="flex items-center gap-2 w-full h-full"
+												>
+													<ExternalLink className="size-4 shrink-0" />
+													Visit Production via Tailscale
+												</a>
+											</DropdownMenuItem>
+										)}
 										<DropdownMenuItem
 											onClick={handleStopProduction}
 											disabled={isStoppingProduction}
@@ -267,6 +347,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 						<div className="flex items-center gap-1 opacity-0 translate-x-2.5 transition-all duration-200 group-hover/card:opacity-100 group-hover/card:translate-x-0 has-[.top-link:hover]:opacity-100 has-[.top-link:hover]:translate-x-0">
 							<div className="flex items-center gap-1">
 								<Tooltip>
+									{/* @ts-expect-error asChild from radix not typed */}
 									<TooltipTrigger asChild>
 										<Button
 											variant="ghost"
@@ -286,6 +367,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 								</Tooltip>
 
 								<Tooltip>
+									{/* @ts-expect-error asChild from radix not typed */}
 									<TooltipTrigger asChild>
 										<Button
 											variant="ghost"

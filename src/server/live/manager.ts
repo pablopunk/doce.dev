@@ -14,7 +14,6 @@ import {
 	getActiveProductionJob,
 	getProductionStatus,
 } from "@/server/productions/productions.model";
-import { repairStaleProductionUrl } from "@/server/productions/productionUrl";
 import {
 	checkOpencodeReady,
 	checkPreviewReady,
@@ -23,13 +22,13 @@ import {
 	getProjectById,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
+import { getProjectRuntimeUrls } from "@/server/projects/projectUrls";
 import {
 	enqueueDockerEnsureRunning,
 	enqueueDockerStop,
 } from "@/server/queue/enqueue";
 import { listJobs } from "@/server/queue/queue.crud";
-import { getInstanceBaseUrl } from "@/server/settings/instance.settings";
-import { getTailscaleProjectUrl } from "@/server/tailscale/urls";
+
 import type { ProductionLiveState, ProjectLiveState } from "@/types/live";
 
 const POLL_INTERVAL_MS = 3_000;
@@ -123,6 +122,11 @@ function makeInitialState(): ProjectLiveState {
 		previewReady: false,
 		opencodeReady: false,
 		previewUrl: "",
+		previewUrls: {
+			local: null,
+			tailscale: null,
+			preferred: "",
+		},
 		message: null,
 		viewerCount: 0,
 		slug: "",
@@ -137,6 +141,11 @@ function makeInitialState(): ProjectLiveState {
 		production: {
 			status: "stopped",
 			url: null,
+			urls: {
+				local: null,
+				tailscale: null,
+				preferred: null,
+			},
 			port: 0,
 			error: null,
 			startedAt: null,
@@ -277,14 +286,18 @@ async function buildState(
 			getActiveProductionJob(projectId),
 		]);
 
-	const production = {
-		...getProductionStatus(project),
-		url: await repairStaleProductionUrl(project),
-	};
+	const runtimeUrls = await getProjectRuntimeUrls(project);
+	const production = getProductionStatus(project);
+	const productionUrl =
+		production.status === "running" ? runtimeUrls.production.preferred : null;
 
 	const productionState: ProductionLiveState = {
 		status: production.status,
-		url: production.url,
+		url: productionUrl,
+		urls:
+			production.status === "running"
+				? runtimeUrls.production
+				: { local: null, tailscale: null, preferred: null },
 		port: production.port ?? project.productionPort,
 		error: production.error,
 		startedAt: production.startedAt?.toISOString() ?? null,
@@ -342,27 +355,13 @@ async function buildState(
 		}
 	}
 
-	const baseUrl = await getInstanceBaseUrl();
-	const previewUrl = baseUrl
-		? (() => {
-				try {
-					const parsed = new URL(baseUrl);
-					return `${parsed.protocol}//${parsed.hostname}:${project.devPort}`;
-				} catch {
-					return null;
-				}
-			})()
-		: null;
-
 	return {
 		gen: state.gen, // will be overwritten by broadcast()
 		status,
 		previewReady,
 		opencodeReady,
-		previewUrl:
-			previewUrl ??
-			((await getTailscaleProjectUrl(project.slug, "preview", project.id)) ||
-				`http://127.0.0.1:${project.devPort}`),
+		previewUrl: runtimeUrls.preview.preferred,
+		previewUrls: runtimeUrls.preview,
 		message,
 		viewerCount: state.clients.size,
 		slug: project.slug,
@@ -402,6 +401,8 @@ function hasChanged(prev: ProjectLiveState, next: ProjectLiveState): boolean {
 		prev.previewReady !== next.previewReady ||
 		prev.opencodeReady !== next.opencodeReady ||
 		prev.previewUrl !== next.previewUrl ||
+		prev.previewUrls.local !== next.previewUrls.local ||
+		prev.previewUrls.tailscale !== next.previewUrls.tailscale ||
 		prev.message !== next.message ||
 		prev.setupError !== next.setupError ||
 		prev.initialPromptCompleted !== next.initialPromptCompleted ||
