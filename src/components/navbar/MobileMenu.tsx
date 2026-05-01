@@ -1,18 +1,29 @@
 "use client";
 
-import { LayoutGrid, Menu, Settings } from "lucide-react";
+import { LayoutGrid, Menu, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ThemeToggle } from "./ThemeToggle";
+
+const cycleOrder = ["system", "light", "dark"] as const;
 
 export const MobileMenu = () => {
+	const { theme, preference, setPreference } = useTheme();
+	const nextTheme = () => {
+		const currentIndex = cycleOrder.indexOf(preference);
+		setPreference(
+			cycleOrder[(currentIndex + 1) % cycleOrder.length] ?? "system",
+		);
+	};
+	const ThemeIcon =
+		preference === "system" ? Monitor : theme === "light" ? Sun : Moon;
+
 	return (
 		<div className="md:hidden flex items-center gap-2">
-			<ThemeToggle />
 			<DropdownMenu>
 				<DropdownMenuTrigger
 					aria-label="Open menu"
@@ -21,6 +32,10 @@ export const MobileMenu = () => {
 					<Menu className="h-5 w-5" />
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
+					<DropdownMenuItem onClick={nextTheme}>
+						<ThemeIcon className="w-4 h-4" />
+						Theme: {preference}
+					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {
 							window.location.href = "/";

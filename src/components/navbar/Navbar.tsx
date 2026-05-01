@@ -92,22 +92,22 @@ function NavbarInner({
 
 	return (
 		<header className="border-b border-border bg-background sticky top-0 z-40">
-			<div className="flex h-14 items-center justify-between px-4 md:px-6 relative">
+			<div className="relative grid h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-4 md:flex md:justify-between md:px-6">
 				{/* Logo/Brand */}
 				<a
 					href="/"
 					className="flex items-center font-semibold text-sm tracking-tight hover:opacity-80 transition-opacity gap-2"
 				>
 					<img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
-					<span>
+					<span className="hidden md:inline">
 						doce<span className="text-muted-foreground">.dev</span>
 					</span>
-					<Badge variant="secondary" className="text-xs">
+					<Badge variant="secondary" className="hidden text-xs md:inline-flex">
 						alpha
 					</Badge>
 					<Badge
 						variant="outline"
-						className={`text-xs text-muted-foreground cursor-pointer hover:bg-accent ${needsUpdate ? "border-orange-500 text-orange-500" : ""} ${isUpdating ? "opacity-70" : ""}`}
+						className={`hidden text-xs text-muted-foreground cursor-pointer hover:bg-accent md:inline-flex ${needsUpdate ? "border-orange-500 text-orange-500" : ""} ${isUpdating ? "opacity-70" : ""}`}
 						onClick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();
@@ -125,45 +125,55 @@ function NavbarInner({
 
 				{/* Center - Project name + icon */}
 				{projectName && projectId && (
-					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-						<ProjectIconPicker
-							value={editIcon}
-							onChange={(icon) => {
-								setEditIcon(icon);
-								void save(editName, icon);
-							}}
-						/>
-						<input
-							ref={inputRef}
-							type="text"
-							value={editing ? editName : displayName}
-							readOnly={!editing}
-							onFocus={() => setEditing(true)}
-							onChange={(e) => editing && setEditName(e.target.value)}
-							onKeyDown={handleKeyDown}
-							onBlur={() => void save()}
-							className={`text-sm font-medium bg-transparent outline-none transition-all truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px] h-7 leading-7 ${
-								editing ? "cursor-text" : "cursor-pointer hover:opacity-80"
-							}`}
-							maxLength={64}
-						/>
-					</div>
+					<>
+						<div className="absolute left-1/2 top-1/2 flex min-w-0 max-w-[calc(100%-7rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 md:hidden">
+							<span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-sm">
+								{displayIcon}
+							</span>
+							<span className="min-w-0 truncate text-sm font-medium">
+								{displayName}
+							</span>
+						</div>
+						<div className="absolute left-1/2 top-1/2 hidden min-w-0 max-w-[calc(100%-7rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 md:flex md:max-w-none">
+							<ProjectIconPicker
+								value={editIcon}
+								onChange={(icon) => {
+									setEditIcon(icon);
+									void save(editName, icon);
+								}}
+							/>
+							<input
+								ref={inputRef}
+								type="text"
+								value={editing ? editName : displayName}
+								readOnly={!editing}
+								onFocus={() => setEditing(true)}
+								onChange={(e) => editing && setEditName(e.target.value)}
+								onKeyDown={handleKeyDown}
+								onBlur={() => void save()}
+								className={`min-w-0 max-w-full text-sm font-medium bg-transparent outline-none transition-all truncate sm:max-w-[260px] md:max-w-[400px] h-7 leading-7 ${
+									editing ? "cursor-text" : "cursor-pointer hover:opacity-80"
+								}`}
+								maxLength={64}
+							/>
+						</div>
+					</>
 				)}
 				{projectName && !projectId && (
-					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+					<div className="absolute left-1/2 top-1/2 flex min-w-0 max-w-[calc(100%-7rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 md:max-w-none">
 						{projectIcon && (
 							<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
 								{projectIcon}
 							</span>
 						)}
-						<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+						<span className="min-w-0 max-w-full truncate text-sm font-medium sm:max-w-[260px] md:max-w-[400px]">
 							{projectName}
 						</span>
 					</div>
 				)}
 
 				{/* Right side - Desktop navigation, theme toggle + Mobile menu */}
-				<div className="flex items-center gap-2">
+				<div className="col-start-3 flex items-center justify-end gap-2">
 					<NavLinks />
 					<div className="hidden md:block">
 						<ThemeToggle />
@@ -192,30 +202,30 @@ export function Navbar({ projectName, projectIcon, projectId }: NavbarProps) {
 	if (!mounted) {
 		return (
 			<header className="border-b border-border bg-background sticky top-0 z-40">
-				<div className="flex h-14 items-center justify-between px-4 md:px-6 relative">
+				<div className="relative grid h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-4 md:flex md:justify-between md:px-6">
 					<a
 						href="/"
 						className="flex items-center font-semibold text-sm tracking-tight gap-2"
 					>
 						<img src="/icon-1080.svg" alt="doce.dev" className="w-5 h-5" />
-						<span>
+						<span className="hidden md:inline">
 							doce<span className="text-muted-foreground">.dev</span>
 						</span>
 					</a>
 					{projectName && (
-						<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+						<div className="absolute left-1/2 top-1/2 flex min-w-0 max-w-[calc(100%-7rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 md:max-w-none">
 							{projectIcon && (
 								<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
 									{projectIcon}
 								</span>
 							)}
-							<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+							<span className="min-w-0 max-w-full truncate text-sm font-medium sm:max-w-[260px] md:max-w-[400px]">
 								{projectName}
 							</span>
 						</div>
 					)}
 					<div className="hidden md:flex items-center gap-1" />
-					<div className="flex items-center gap-2" />
+					<div className="col-start-3 flex items-center justify-end gap-2" />
 				</div>
 			</header>
 		);
