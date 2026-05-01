@@ -25,6 +25,8 @@ function NavbarInner({
 }: NavbarInnerProps) {
 	const { handleClick, state } = useAppUpdate();
 	const [editing, setEditing] = useState(false);
+	const [displayName, setDisplayName] = useState(projectName ?? "");
+	const [displayIcon, setDisplayIcon] = useState(projectIcon ?? "✨");
 	const [editName, setEditName] = useState(projectName ?? "");
 	const [editIcon, setEditIcon] = useState(projectIcon ?? "✨");
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,8 @@ function NavbarInner({
 	const needsRestart = state === "restart-ready";
 
 	useEffect(() => {
+		setDisplayName(projectName ?? "");
+		setDisplayIcon(projectIcon ?? "✨");
 		setEditName(projectName ?? "");
 		setEditIcon(projectIcon ?? "✨");
 	}, [projectName, projectIcon]);
@@ -62,11 +66,12 @@ function NavbarInner({
 		});
 		if (error) {
 			toast.error(error.message ?? "Failed to rename project");
-			setEditName(projectName ?? "");
-			setEditIcon(projectIcon ?? "✨");
+			setEditName(displayName);
+			setEditIcon(displayIcon);
 		} else {
 			toast.success("Project renamed");
-			// Update local state so navbar reflects change immediately
+			setDisplayName(name);
+			setDisplayIcon(editIcon);
 			window.dispatchEvent(new CustomEvent("project-identity-updated"));
 		}
 		setEditing(false);
@@ -123,7 +128,7 @@ function NavbarInner({
 						<input
 							ref={inputRef}
 							type="text"
-							value={editing ? editName : projectName}
+							value={editing ? editName : displayName}
 							readOnly={!editing}
 							onFocus={() => setEditing(true)}
 							onChange={(e) => editing && setEditName(e.target.value)}
