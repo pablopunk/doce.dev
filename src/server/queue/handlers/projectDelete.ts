@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import { composeDownWithVolumes } from "@/server/docker/compose";
-import type { QueueJobContext } from "@/server/effect/queue.worker";
+import type { LegacyHandler } from "@/server/effect/handler-adapter";
 import { logger } from "@/server/logger";
 import { deleteProjectBootstrapSession } from "@/server/opencode/projectSessions";
 import {
@@ -30,7 +30,7 @@ import { parsePayload } from "../types";
  * Best-effort steps continue on failure. The DB deletion is critical
  * and will cause job failure if it fails, triggering retries.
  */
-export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
+export const handleProjectDelete: LegacyHandler = async (ctx) => {
 	const payload = parsePayload("project.delete", ctx.job.payloadJson);
 
 	const project = await getProjectByIdIncludeDeleted(payload.projectId);
@@ -152,4 +152,4 @@ export async function handleProjectDelete(ctx: QueueJobContext): Promise<void> {
 		}
 		throw error;
 	}
-}
+};

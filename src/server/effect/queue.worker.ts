@@ -56,7 +56,9 @@ export interface QueueJobContext {
 	reschedule: (delayMs: number) => never;
 }
 
-type JobHandler = (ctx: QueueJobContext) => Effect.Effect<void, unknown>;
+type JobHandler = (
+	ctx: QueueJobContext,
+) => Effect.Effect<void, unknown, unknown>;
 
 const handlerByType: Record<string, JobHandler | undefined> = {};
 

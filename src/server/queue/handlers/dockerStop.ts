@@ -1,5 +1,5 @@
 import { composeStop } from "@/server/docker/compose";
-import type { QueueJobContext } from "@/server/effect/queue.worker";
+import type { LegacyHandler } from "@/server/effect/handler-adapter";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
@@ -7,7 +7,7 @@ import {
 } from "@/server/projects/projects.model";
 import { parsePayload } from "../types";
 
-export async function handleDockerStop(ctx: QueueJobContext): Promise<void> {
+export const handleDockerStop: LegacyHandler = async (ctx) => {
 	const payload = parsePayload("docker.stop", ctx.job.payloadJson);
 
 	const project = await getProjectByIdIncludeDeleted(payload.projectId);
@@ -32,4 +32,4 @@ export async function handleDockerStop(ctx: QueueJobContext): Promise<void> {
 		await updateProjectStatus(project.id, "error");
 		throw new Error(`compose stop failed: ${result.stderr.slice(0, 500)}`);
 	}
-}
+};
