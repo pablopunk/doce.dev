@@ -7,7 +7,7 @@ import {
 	QueueError,
 } from "@/server/effect/errors";
 import type { LegacyHandler } from "@/server/effect/handler-adapter";
-import { generateProjectName } from "@/server/llm/autoname";
+import { generateProjectIdentity } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { ensureProjectPromptFile } from "@/server/projects/projectPrompt";
@@ -95,19 +95,24 @@ const updateModelEffect = (
 			toProjectError(error, "updateOpencodeJsonModel", projectId),
 	});
 
-const generateNameEffect = (
+const generateIdentityEffect = (
 	prompt: string,
 	model: string | null,
-): Effect.Effect<string, never> =>
+): Effect.Effect<{ name: string; icon: string }, never> =>
 	Effect.tryPromise({
-		try: () => generateProjectName(prompt, model),
+		try: () => generateProjectIdentity(prompt, model),
 		catch: (error) => error,
-	}).pipe(Effect.orElse(() => Effect.succeed("untitled-project")));
+	}).pipe(
+		Effect.orElse(() =>
+			Effect.succeed({ name: "untitled-project", icon: "✨" }),
+		),
+	);
 
 const createProjectEffect = (params: {
 	id: string;
 	ownerUserId: string;
 	name: string;
+	icon: string;
 	slug: string;
 	prompt: string;
 	devPort: number;
@@ -121,6 +126,7 @@ const createProjectEffect = (params: {
 				ownerUserId: params.ownerUserId,
 				createdAt: new Date(),
 				name: params.name,
+				icon: params.icon,
 				slug: params.slug,
 				prompt: params.prompt,
 				devPort: params.devPort,
@@ -196,13 +202,15 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
-		const name = yield* generateNameEffect(prompt, model);
+		const identity = yield* generateIdentityEffect(prompt, model);
+		const { name, icon } = identity;
 		const slug = name;
 
 		yield* createProjectEffect({
 			id: projectId,
 			ownerUserId,
 			name,
+			icon,
 			slug,
 			prompt,
 			devPort,
@@ -210,7 +218,7 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 			projectPath,
 		});
 
-		logger.info({ projectId, name, slug }, "Created project in database");
+		logger.info({ projectId, name, icon, slug }, "Created project in database");
 
 		yield* enqueueDockerUpEffect(projectId);
 		logger.debug({ projectId }, "Enqueued docker.composeUp");

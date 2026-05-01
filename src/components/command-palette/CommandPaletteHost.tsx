@@ -8,6 +8,7 @@ import { CommandPalette } from "./CommandPalette";
 interface PaletteProject {
 	id: string;
 	name: string;
+	icon: string;
 }
 
 function getCurrentProjectId(): string | undefined {
@@ -31,7 +32,11 @@ export function CommandPaletteHost() {
 				if (cancelled) return;
 				const list = result.data?.projects ?? [];
 				setProjects(
-					list.map((project) => ({ id: project.id, name: project.name })),
+					list.map((project) => ({
+						id: project.id,
+						name: project.name,
+						icon: project.icon,
+					})),
 				);
 			} catch {
 				// Silently ignore — palette still works for navigation/theme.

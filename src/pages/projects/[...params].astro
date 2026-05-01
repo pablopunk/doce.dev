@@ -37,7 +37,7 @@ const availableModels = await getAvailableModels();
 const allModels = availableModels;
 ---
 
-<AppLayout title={project.name}>
+<AppLayout title={`${project.icon} ${project.name}`}>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- Main content -->
     {/* Show setup display until user prompt is complete (session.init is pre-done in template) */}

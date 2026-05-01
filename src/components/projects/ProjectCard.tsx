@@ -29,6 +29,7 @@ import { useBaseUrlSetting } from "@/hooks/useBaseUrlSetting";
 import { getPreferredRuntimeUrl } from "@/lib/base-url";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { ProjectIcon } from "./ProjectIcon";
 import type { ProjectListItem } from "./projects.types";
 
 interface ProjectCardProps {
@@ -187,14 +188,62 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	return (
 		<>
 			<Card className="group/card relative overflow-hidden transition-all duration-300 has-[.top-link:hover]:shadow-lg has-[.top-link:hover]:ring-1 has-[.top-link:hover]:ring-primary/20">
+				<div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 translate-x-2 transition-all duration-200 group-hover/card:opacity-100 group-hover/card:translate-x-0 focus-within:opacity-100 focus-within:translate-x-0">
+					<Tooltip>
+						{/* @ts-expect-error asChild from radix not typed */}
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 bg-card/80 backdrop-blur-sm"
+								onClick={handleExportClick}
+								disabled={isDeleting || isExporting}
+							>
+								{isExporting ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<Download className="h-4 w-4" />
+								)}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Export source (.zip)</TooltipContent>
+					</Tooltip>
+
+					<Tooltip>
+						{/* @ts-expect-error asChild from radix not typed */}
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 bg-card/80 text-destructive backdrop-blur-sm hover:text-destructive hover:bg-destructive/10"
+								onClick={handleDeleteClick}
+								disabled={isDeleting || project.status === "deleting"}
+							>
+								{isDeleting ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<Trash2 className="h-4 w-4" />
+								)}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete project</TooltipContent>
+					</Tooltip>
+				</div>
 				<a
 					href={`/projects/${project.id}/${project.slug}`}
 					className="block top-link"
 				>
-					<CardHeader className="pb-2">
-						<CardTitle className="text-lg truncate font-medium transition-all [.top-link:hover_&]:font-bold">
-							{project.name}
-						</CardTitle>
+					<CardHeader className="pb-2 pr-24">
+						<div className="flex items-center gap-3 min-w-0">
+							<ProjectIcon
+								icon={project.icon}
+								name={project.name}
+								className="inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-muted text-xs"
+							/>
+							<CardTitle className="text-lg truncate font-medium transition-all [.top-link:hover_&]:font-bold">
+								{project.name}
+							</CardTitle>
+						</div>
 					</CardHeader>
 				</a>
 				<CardContent>
@@ -338,54 +387,16 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 								</DropdownMenu>
 							)}
 							{!isPreviewRunning && !isProductionRunning && (
-								<Badge variant="info">
-									<Moon className="h-3.5 w-3.5" />
-									Stale
-								</Badge>
+								<Tooltip>
+									{/* @ts-expect-error asChild from radix not typed */}
+									<TooltipTrigger asChild>
+										<Badge variant="info" aria-label="Stale">
+											<Moon className="h-3.5 w-3.5" />
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent>Stale (open project to start)</TooltipContent>
+								</Tooltip>
 							)}
-						</div>
-						<div className="flex items-center gap-1 opacity-0 translate-x-2.5 transition-all duration-200 group-hover/card:opacity-100 group-hover/card:translate-x-0 has-[.top-link:hover]:opacity-100 has-[.top-link:hover]:translate-x-0">
-							<div className="flex items-center gap-1">
-								<Tooltip>
-									{/* @ts-expect-error asChild from radix not typed */}
-									<TooltipTrigger asChild>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-8 w-8"
-											onClick={handleExportClick}
-											disabled={isDeleting || isExporting}
-										>
-											{isExporting ? (
-												<Loader2 className="h-4 w-4 animate-spin" />
-											) : (
-												<Download className="h-4 w-4" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Export source (.zip)</TooltipContent>
-								</Tooltip>
-
-								<Tooltip>
-									{/* @ts-expect-error asChild from radix not typed */}
-									<TooltipTrigger asChild>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-											onClick={handleDeleteClick}
-											disabled={isDeleting || project.status === "deleting"}
-										>
-											{isDeleting ? (
-												<Loader2 className="h-4 w-4 animate-spin" />
-											) : (
-												<Trash2 className="h-4 w-4" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Delete project</TooltipContent>
-								</Tooltip>
-							</div>
 						</div>
 					</div>
 				</CardContent>

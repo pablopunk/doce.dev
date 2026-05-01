@@ -63,6 +63,7 @@ export const projects = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 		deletedAt: integer("deleted_at", { mode: "timestamp" }),
 		name: text("name").notNull(),
+		icon: text("icon").notNull().default("✨"),
 		slug: text("slug").notNull().unique(),
 		prompt: text("prompt").notNull(),
 		devPort: integer("dev_port").notNull(),

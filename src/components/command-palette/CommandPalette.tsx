@@ -2,7 +2,6 @@
 
 import {
 	Download,
-	FolderOpen,
 	LayoutDashboard,
 	Moon,
 	Rocket,
@@ -25,6 +24,7 @@ import {
 interface CommandProject {
 	id: string;
 	name: string;
+	icon?: string | null;
 }
 
 interface CommandPaletteProps {
@@ -92,7 +92,9 @@ export function CommandPalette({
 										run(() => navigateTo(`/projects/${project.id}`))
 									}
 								>
-									<FolderOpen className="mr-2 h-4 w-4" />
+									<span className="mr-2 flex h-4 w-4 items-center justify-center text-sm">
+										{project.icon || "✨"}
+									</span>
 									<span>{project.name}</span>
 									{project.id === currentProjectId && (
 										<CommandShortcut>current</CommandShortcut>
