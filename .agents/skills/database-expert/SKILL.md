@@ -13,20 +13,13 @@ description: Expert in SQLite with WAL mode, Drizzle ORM, and better-sqlite3 dri
 - Transactions: Multi-step operations with ACID guarantees
 
 ## Use Context7 for Documentation
-```typescript
-// Resolve and fetch Drizzle ORM docs
-context7_resolve-library-id({ libraryName: "drizzle-orm" })
-context7_query-docs({
-  context7CompatibleLibraryID: "/llmstxt/orm_drizzle_team_llms-full_txt",
-  query: "migrations schema joins indexes transactions"
-})
+```bash
+# Resolve library IDs, then fetch docs
+ctx7 library drizzle-orm "migrations schema joins indexes transactions"
+ctx7 docs /llmstxt/orm_drizzle_team_llms-full_txt "migrations schema joins indexes transactions"
 
-// Resolve and fetch better-sqlite3 docs
-context7_resolve-library-id({ libraryName: "better-sqlite3" })
-context7_query-docs({
-  context7CompatibleLibraryID: "/wiselibs/better-sqlite3",
-  query: "setup transactions performance WAL mode prepared statements"
-})
+ctx7 library better-sqlite3 "setup transactions performance WAL mode prepared statements"
+ctx7 docs /wiselibs/better-sqlite3 "setup transactions performance WAL mode prepared statements"
 ```
 
 ## Database Setup
@@ -234,7 +227,7 @@ const stats = await db.execute(sql`PRAGMA table_info(projects)`);
 ```
 
 ## Best Practices
-1. Always use context7 for Drizzle and better-sqlite3 syntax
+1. Always use ctx7 for Drizzle and better-sqlite3 syntax
 2. Read current schema before making changes
 3. Generate migrations after schema changes
 4. Use transactions for multi-table operations

@@ -14,16 +14,13 @@ description: Expert in Astro v5, Drizzle ORM, Docker Compose, OpenCode SDK v2, q
 - Authentication: Session-based auth with password hashing
 
 ## Use Context7 for Documentation
-```typescript
-// Resolve and fetch library docs
-context7_resolve-library-id({ libraryName: "Astro" }) // → /withastro/docs
-context7_query-docs({
-  context7CompatibleLibraryID: "/withastro/docs",
-  query: "actions API routes SSE streaming"
-})
+```bash
+# Resolve library IDs, then fetch docs
+ctx7 library Astro "actions API routes SSE streaming"
+ctx7 docs /withastro/docs "actions API routes SSE streaming"
 
-context7_resolve-library-id({ libraryName: "Zod" }) // → /colinhacks/zod
-context7_query-docs({ context7CompatibleLibraryID: "/colinhacks/zod", query: "schemas validation" })
+ctx7 library Zod "schemas validation"
+ctx7 docs /colinhacks/zod "schemas validation"
 ```
 
 ## Astro Actions
@@ -224,7 +221,7 @@ handler: async () => { await initializeSession(); return { success: true }; };
 ```
 
 ## Best Practices
-1. Always use context7 for Astro, Zod, and other library docs
+1. Always use ctx7 for Astro, Zod, and other library docs
 2. Delegate complex DB tasks (schema, optimization, migrations) to database-expert
 3. Keep transactions short, use WAL mode
 4. Validate inputs with Zod, check auth/ownership

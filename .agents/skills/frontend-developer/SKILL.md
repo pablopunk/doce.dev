@@ -11,16 +11,13 @@ description: Expert in Astro v5, React, shadcn/ui, and Tailwind CSS with semanti
 - TypeScript: Strict mode, type safety
 
 ## Use Context7 for Documentation
-```typescript
-// Resolve and fetch library docs
-context7_resolve-library-id({ libraryName: "shadcn/ui" }) // → /websites/ui_shadcn
-context7_query-docs({
-  context7CompatibleLibraryID: "/websites/ui_shadcn",
-  query: "form button dialog composition"
-})
+```bash
+# Resolve library IDs, then fetch docs
+ctx7 library shadcn/ui "form button dialog composition"
+ctx7 docs /websites/ui_shadcn "form button dialog composition"
 
-context7_resolve-library-id({ libraryName: "Tailwind CSS" }) // → /tailwindlabs/tailwindcss.com
-context7_resolve-library-id({ libraryName: "Astro" }) // → /withastro/docs
+ctx7 library "Tailwind CSS"
+ctx7 library Astro
 ```
 
 ## Core Responsibilities
@@ -134,4 +131,4 @@ const style = statusStyles[status];
 4. Clean code - MVC, single-purpose files, component composition
 5. Accessibility - Leverage shadcn's Radix UI primitives
 6. pnpm always - Never use npm, yarn, or bun
-7. Context7 - Always fetch documentation before implementing
+7. ctx7 - Always fetch documentation before implementing
