@@ -47,11 +47,20 @@ function getProviderMethods(
 	return [];
 }
 
+function isUnauthenticatedDefaultOpencodeProvider(provider: {
+	id?: string;
+	source?: string;
+}): boolean {
+	return provider.id === OPENCODE_PROVIDER_ID && provider.source === "custom";
+}
+
 function isProviderConnected(
-	providerId: string,
+	provider: { id?: string; source?: string },
 	connectedIds: Set<string>,
 ): boolean {
-	return connectedIds.has(providerId);
+	if (!provider.id) return false;
+	if (isUnauthenticatedDefaultOpencodeProvider(provider)) return false;
+	return connectedIds.has(provider.id);
 }
 
 function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
@@ -70,18 +79,22 @@ export async function getSettingsProviders(
 	const authData = authResponse.data || {};
 	const connectedIds = new Set(providerData?.connected || []);
 
-	return filterVisibleProviders(providerData?.all || []).map((provider) => ({
-		id: provider.id,
-		name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
-		env: provider.env,
-		source: (provider.source || "custom") as ProviderSource,
-		connected: isProviderConnected(provider.id, connectedIds),
-		disconnectable: connectedIds.has(provider.id),
-		methods: getProviderMethods(
-			provider,
-			(authData[provider.id] || []) as ProviderAuthMethod[],
-		),
-	}));
+	return filterVisibleProviders(providerData?.all || []).map((provider) => {
+		const connected = isProviderConnected(provider, connectedIds);
+
+		return {
+			id: provider.id,
+			name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
+			env: provider.env,
+			source: (provider.source || "custom") as ProviderSource,
+			connected,
+			disconnectable: connected,
+			methods: getProviderMethods(
+				provider,
+				(authData[provider.id] || []) as ProviderAuthMethod[],
+			),
+		};
+	});
 }
 
 export function shouldDefaultSettingsToProviders(

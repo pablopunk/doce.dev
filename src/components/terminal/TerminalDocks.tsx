@@ -257,15 +257,17 @@ export function TerminalDocks({
 
 			{/* Content */}
 			{isOpen && (
-				<div className="h-[calc(100%-40px)] grid grid-cols-2 font-mono text-xs bg-black">
+				<div className="h-[calc(100%-40px)] grid grid-cols-2 font-mono text-xs bg-background">
 					{/* Docker column */}
-					<div className="flex flex-col border-r border-muted/30 overflow-hidden">
-						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-black border-b border-muted/30 shrink-0">
+					<div className="flex flex-col border-r border-border overflow-hidden">
+						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-muted/40 border-b border-border shrink-0">
 							Docker
 						</div>
 						<div className="flex-1 overflow-y-auto p-4">
 							{dockerLines.length === 0 ? (
-								<div className="text-gray-500">No docker logs yet...</div>
+								<div className="text-muted-foreground">
+									No docker logs yet...
+								</div>
 							) : (
 								renderLogLines(dockerLines)
 							)}
@@ -273,12 +275,12 @@ export function TerminalDocks({
 					</div>
 					{/* App column */}
 					<div className="flex flex-col overflow-hidden">
-						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-black border-b border-muted/30 shrink-0">
+						<div className="text-xs font-semibold text-muted-foreground px-4 py-2 bg-muted/40 border-b border-border shrink-0">
 							App
 						</div>
 						<div ref={terminalRef} className="flex-1 overflow-y-auto p-4">
 							{appLines.length === 0 ? (
-								<div className="text-gray-500">No app logs yet...</div>
+								<div className="text-muted-foreground">No app logs yet...</div>
 							) : (
 								renderLogLines(appLines)
 							)}
