@@ -9,7 +9,12 @@ import { MobileMenu } from "./MobileMenu";
 import { NavLinks } from "./NavLinks";
 import { ThemeToggle } from "./ThemeToggle";
 
-function NavbarInner() {
+interface NavbarInnerProps {
+	projectName?: string | undefined;
+	projectIcon?: string | undefined;
+}
+
+function NavbarInner({ projectName, projectIcon }: NavbarInnerProps) {
 	const { handleClick, state } = useAppUpdate();
 
 	const needsUpdate = state === "update-available";
@@ -18,7 +23,7 @@ function NavbarInner() {
 
 	return (
 		<header className="border-b border-border bg-background sticky top-0 z-40">
-			<div className="flex h-14 items-center justify-between px-4 md:px-6">
+			<div className="flex h-14 items-center justify-between px-4 md:px-6 relative">
 				{/* Logo/Brand */}
 				<a
 					href="/"
@@ -49,6 +54,20 @@ function NavbarInner() {
 					</Badge>
 				</a>
 
+				{/* Center - Project name + icon */}
+				{projectName && (
+					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+						{projectIcon && (
+							<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
+								{projectIcon}
+							</span>
+						)}
+						<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+							{projectName}
+						</span>
+					</div>
+				)}
+
 				{/* Right side - Desktop navigation, theme toggle + Mobile menu */}
 				<div className="flex items-center gap-2">
 					<NavLinks />
@@ -62,7 +81,12 @@ function NavbarInner() {
 	);
 }
 
-export function Navbar() {
+interface NavbarProps {
+	projectName?: string | undefined;
+	projectIcon?: string | undefined;
+}
+
+export function Navbar({ projectName, projectIcon }: NavbarProps) {
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -73,7 +97,7 @@ export function Navbar() {
 	if (!mounted) {
 		return (
 			<header className="border-b border-border bg-background sticky top-0 z-40">
-				<div className="flex h-14 items-center justify-between px-4 md:px-6">
+				<div className="flex h-14 items-center justify-between px-4 md:px-6 relative">
 					<a
 						href="/"
 						className="flex items-center font-semibold text-sm tracking-tight gap-2"
@@ -83,6 +107,18 @@ export function Navbar() {
 							doce<span className="text-muted-foreground">.dev</span>
 						</span>
 					</a>
+					{projectName && (
+						<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+							{projectIcon && (
+								<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
+									{projectIcon}
+								</span>
+							)}
+							<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+								{projectName}
+							</span>
+						</div>
+					)}
 					<div className="hidden md:flex items-center gap-1" />
 					<div className="flex items-center gap-2" />
 				</div>
@@ -93,7 +129,7 @@ export function Navbar() {
 	// On client, render the full interactive navbar
 	return (
 		<ThemeProvider>
-			<NavbarInner />
+			<NavbarInner projectName={projectName} projectIcon={projectIcon} />
 		</ThemeProvider>
 	);
 }

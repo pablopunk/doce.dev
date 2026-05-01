@@ -26,7 +26,7 @@ if (!project || project.ownerUserId !== user.id) {
 	return Astro.redirect("/");
 }
 
-// Redirect if slug is provided but doesn't match (enforce canonical URL)
+// Project ID is canonical; slug is decorative. Redirect only when a stale slug is present.
 if (slug && slug !== project.slug) {
 	return Astro.redirect(`/projects/${project.id}/${project.slug}`);
 }
@@ -37,7 +37,7 @@ const availableModels = await getAvailableModels();
 const allModels = availableModels;
 ---
 
-<AppLayout title={`${project.icon} ${project.name}`}>
+<AppLayout title={`${project.icon} ${project.name}`} projectName={project.name} projectIcon={project.icon}>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- Main content -->
     {/* Show setup display until user prompt is complete (session.init is pre-done in template) */}

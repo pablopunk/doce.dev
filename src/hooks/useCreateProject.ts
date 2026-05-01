@@ -148,32 +148,32 @@ export function useCreateProject({
 		setImageError(null);
 	};
 
-	const waitForProjectToBeReady = async (projectId: string) => {
-		return await new Promise<{ id: string; slug: string } | null>((resolve) => {
+	const waitForProjectToExist = async (projectId: string) => {
+		return await new Promise<boolean>((resolve) => {
 			const eventSource = new EventSource(`/api/projects/${projectId}/ready`);
 
 			const cleanup = () => {
 				eventSource.close();
 			};
 
-			eventSource.addEventListener("ready", (event) => {
+			eventSource.addEventListener("ready", () => {
 				cleanup();
-				resolve(JSON.parse((event as MessageEvent).data));
+				resolve(true);
 			});
 
 			eventSource.addEventListener("timeout", () => {
 				cleanup();
-				resolve(null);
+				resolve(false);
 			});
 
 			eventSource.addEventListener("error", () => {
 				cleanup();
-				resolve(null);
+				resolve(false);
 			});
 
 			eventSource.onerror = () => {
 				cleanup();
-				resolve(null);
+				resolve(false);
 			};
 		});
 	};
@@ -212,16 +212,15 @@ export function useCreateProject({
 				return;
 			}
 
-			const projectId = result.data.projectId;
-			const project = await waitForProjectToBeReady(projectId);
+			const projectExists = await waitForProjectToExist(result.data.projectId);
 
-			if (!project) {
+			if (!projectExists) {
 				setError("Project creation is taking longer than expected");
 				setIsLoading(false);
 				return;
 			}
 
-			window.location.replace(`/projects/${project.id}/${project.slug}`);
+			window.location.replace(`/projects/${result.data.projectId}`);
 		} catch (err) {
 			const errorMessage =
 				err instanceof Error ? err.message : "Failed to create project";

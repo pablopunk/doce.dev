@@ -75,6 +75,13 @@ export async function updateProjectStatus(
 /**
  * Update project preferred model in DB.
  */
+export async function updateProjectIdentity(
+	id: string,
+	identity: { name: string; icon: string; slug: string },
+): Promise<void> {
+	await db.update(projects).set(identity).where(eq(projects.id, id));
+}
+
 export async function updateProjectModelInDb(
 	id: string,
 	model: string | null,

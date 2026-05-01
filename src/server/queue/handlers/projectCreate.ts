@@ -7,7 +7,6 @@ import {
 	QueueError,
 } from "@/server/effect/errors";
 import type { LegacyHandler } from "@/server/effect/handler-adapter";
-import { generateProjectIdentity } from "@/server/llm/autoname";
 import { logger } from "@/server/logger";
 import { allocateProjectPorts } from "@/server/ports/allocate";
 import { ensureProjectPromptFile } from "@/server/projects/projectPrompt";
@@ -16,7 +15,10 @@ import {
 	updateOpencodeJsonModel,
 } from "@/server/projects/projects.model";
 import { setupProjectFilesystem } from "@/server/projects/setup";
-import { enqueueDockerComposeUp } from "../enqueue";
+import {
+	enqueueDockerComposeUp,
+	enqueueProjectIdentityGenerate,
+} from "../enqueue";
 import type { ImageAttachment } from "../types";
 import { parsePayload } from "../types";
 
@@ -95,19 +97,6 @@ const updateModelEffect = (
 			toProjectError(error, "updateOpencodeJsonModel", projectId),
 	});
 
-const generateIdentityEffect = (
-	prompt: string,
-	model: string | null,
-): Effect.Effect<{ name: string; icon: string }, never> =>
-	Effect.tryPromise({
-		try: () => generateProjectIdentity(prompt, model),
-		catch: (error) => error,
-	}).pipe(
-		Effect.orElse(() =>
-			Effect.succeed({ name: "untitled-project", icon: "✨" }),
-		),
-	);
-
 const createProjectEffect = (params: {
 	id: string;
 	ownerUserId: string;
@@ -135,6 +124,16 @@ const createProjectEffect = (params: {
 				pathOnDisk: params.projectPath,
 			}),
 		catch: (error) => toProjectError(error, "createProject", params.id),
+	}).pipe(Effect.map(() => undefined));
+
+const enqueueIdentityGenerateEffect = (
+	projectId: string,
+	prompt: string,
+	model: string | null,
+): Effect.Effect<void, QueueError> =>
+	Effect.tryPromise({
+		try: () => enqueueProjectIdentityGenerate({ projectId, prompt, model }),
+		catch: (error) => toQueueError(error, projectId),
 	}).pipe(Effect.map(() => undefined));
 
 const enqueueDockerUpEffect = (
@@ -202,9 +201,9 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
-		const identity = yield* generateIdentityEffect(prompt, model);
-		const { name, icon } = identity;
-		const slug = name;
+		const name = "New project";
+		const icon = "✨";
+		const slug = projectId;
 
 		yield* createProjectEffect({
 			id: projectId,
@@ -220,6 +219,7 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 
 		logger.info({ projectId, name, icon, slug }, "Created project in database");
 
+		yield* enqueueIdentityGenerateEffect(projectId, prompt, model);
 		yield* enqueueDockerUpEffect(projectId);
 		logger.debug({ projectId }, "Enqueued docker.composeUp");
 	}).pipe(

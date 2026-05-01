@@ -70,7 +70,7 @@ interface PreviewPanelProps {
 		userMessageCount: number,
 		isStreaming: boolean,
 	) => void;
-	/** Callback to send a "Fix with Doce" message to the chat */
+	/** Callback to send a "✨ Fix with Doce" message to the chat */
 	onFixWithDoce?: (errorMessage: string) => void;
 }
 
@@ -713,7 +713,7 @@ export function PreviewPanel({
 														)
 													}
 												>
-													Fix with Doce
+													✨ Fix with Doce
 												</Button>
 											)}
 										</div>
@@ -762,7 +762,7 @@ export function PreviewPanel({
 												variant="default"
 												onClick={() => onFixWithDoce(message)}
 											>
-												Fix with Doce
+												✨ Fix with Doce
 											</Button>
 										)}
 									</div>
