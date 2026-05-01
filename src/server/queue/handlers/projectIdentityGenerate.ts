@@ -14,11 +14,16 @@ export const handleProjectIdentityGenerate: LegacyHandler = async (ctx) => {
 	await updateProjectIdentity(projectId, {
 		name: identity.name,
 		icon: identity.icon,
-		slug: identity.name,
+		slug: identity.slug,
 	});
 
 	logger.info(
-		{ projectId, name: identity.name, icon: identity.icon },
+		{
+			projectId,
+			name: identity.name,
+			slug: identity.slug,
+			icon: identity.icon,
+		},
 		"Generated project identity",
 	);
 };

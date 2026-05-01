@@ -4,7 +4,7 @@ import { createOpencodeClient } from "@/server/opencode/client";
 import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
 import {
 	generateUniqueCreativeSlug,
-	isSlugTaken,
+	generateUniqueSlug,
 	nameToSlug,
 } from "@/server/projects/slug";
 
@@ -13,6 +13,7 @@ type ProjectIcon = (typeof ALLOWED_PROJECT_ICONS)[number];
 export interface ProjectIdentity {
 	name: string;
 	icon: ProjectIcon;
+	slug: string;
 }
 
 const NAMING_SYSTEM_PROMPT = `You are a product identity assistant. Given a project description, generate one short product-like name and choose one emoji icon from the allowed list.
@@ -20,11 +21,10 @@ const NAMING_SYSTEM_PROMPT = `You are a product identity assistant. Given a proj
 Name requirements:
 - Sound like a real polished product, not a file name or literal prompt summary
 - Be memorable, brandable, and slightly evocative while still hinting at the product's purpose
-- Use 2-3 concise words joined by hyphens
-- Use only lowercase letters, numbers, and hyphens
-- No spaces or special characters
+- Use 2-3 concise words in Title Case with spaces
+- Use only letters, numbers, and spaces
 - Maximum 32 characters
-- Must be suitable as a URL slug
+- Must be suitable as a human-facing project title
 - Avoid generic filler like app, website, html, page, project, created, open, simple, basic
 - Avoid copying the user's words verbatim unless they are central to the product concept
 
@@ -34,10 +34,10 @@ Icon requirements:
 - Use ✨ only when no other icon fits
 
 Examples:
-- "full screen click tracker with red circles" → {"name":"pulse-marker","icon":"🎯"}
-- "minimal clock" → {"name":"chrono-glow","icon":"⏱️"}
-- "todo app" → {"name":"task-flow","icon":"✅"}
-- "recipe finder" → {"name":"pantry-spark","icon":"🍽️"}
+- "full screen click tracker with red circles" → {"name":"Pulse Marker","icon":"🎯"}
+- "minimal clock" → {"name":"Chrono Glow","icon":"⏱️"}
+- "todo app" → {"name":"Task Flow","icon":"✅"}
+- "recipe finder" → {"name":"Pantry Spark","icon":"🍽️"}
 
 Return only compact JSON with keys "name" and "icon". No markdown, no explanation.`;
 
@@ -104,41 +104,48 @@ function selectFallbackIcon(prompt: string): ProjectIcon {
 	);
 }
 
-async function ensureUniqueProjectName(
-	name: string,
-	prompt: string,
-): Promise<string> {
-	if (!(await isSlugTaken(name))) {
-		return name;
-	}
+function slugToDisplayName(slug: string): string {
+	return slug
+		.split("-")
+		.filter(Boolean)
+		.map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+		.join(" ");
+}
 
-	logger.info(
-		{ name, prompt: prompt.slice(0, 80) },
-		"Auto-generated project name already exists, generating creative variant",
-	);
-	return generateUniqueCreativeSlug(`${prompt} ${name}`);
+function normalizeDisplayName(rawName: string): string {
+	return rawName
+		.trim()
+		.replace(/[^a-zA-Z0-9\s-]/g, "")
+		.replace(/[-_]+/g, " ")
+		.replace(/\s+/g, " ")
+		.slice(0, MAX_PRODUCT_NAME_LENGTH)
+		.trim();
 }
 
 function isProductLikeName(name: string): boolean {
-	const words = name.split("-").filter(Boolean);
+	const words = name.split(" ").filter(Boolean);
 	return (
 		name.length > 0 &&
 		name.length <= MAX_PRODUCT_NAME_LENGTH &&
 		words.length >= 2 &&
 		words.length <= 3 &&
-		words.every((word) => !BANNED_NAME_WORDS.has(word))
+		words.every((word) => !BANNED_NAME_WORDS.has(word.toLowerCase()))
 	);
 }
 
-async function normalizeAndEnsureUniqueName(
-	rawName: string,
-	prompt: string,
-): Promise<string | null> {
-	const normalized = nameToSlug(rawName).slice(0, MAX_PRODUCT_NAME_LENGTH);
-	if (!isProductLikeName(normalized)) {
+async function normalizeAndEnsureUniqueIdentity(
+	rawIdentity: ProjectIdentity,
+): Promise<ProjectIdentity | null> {
+	const name = normalizeDisplayName(rawIdentity.name);
+	if (!isProductLikeName(name)) {
 		return null;
 	}
-	return ensureUniqueProjectName(normalized, prompt);
+
+	return {
+		name,
+		icon: rawIdentity.icon,
+		slug: await generateUniqueSlug(name),
+	};
 }
 
 function parseModelString(
@@ -172,21 +179,14 @@ function parseIdentityResponse(rawResponse: string): ProjectIdentity | null {
 		if (!isAllowedProjectIcon(parsed.icon)) {
 			return null;
 		}
-		return { name: parsed.name, icon: parsed.icon };
+		return {
+			name: parsed.name,
+			icon: parsed.icon,
+			slug: nameToSlug(parsed.name),
+		};
 	} catch {
 		return null;
 	}
-}
-
-async function normalizeAndEnsureUniqueIdentity(
-	rawIdentity: ProjectIdentity,
-	prompt: string,
-): Promise<ProjectIdentity | null> {
-	const name = await normalizeAndEnsureUniqueName(rawIdentity.name, prompt);
-	if (!name) {
-		return null;
-	}
-	return { name, icon: rawIdentity.icon };
 }
 
 async function generateIdentityWithModel(
@@ -258,10 +258,7 @@ export async function generateProjectIdentity(
 	// Try primary model first
 	try {
 		const rawIdentity = await generateIdentityWithModel(prompt, PRIMARY_MODEL);
-		const identity = await normalizeAndEnsureUniqueIdentity(
-			rawIdentity,
-			prompt,
-		);
+		const identity = await normalizeAndEnsureUniqueIdentity(rawIdentity);
 
 		if (!identity) {
 			throw new Error("Primary model returned a non-product-like identity");
@@ -302,10 +299,7 @@ export async function generateProjectIdentity(
 					prompt,
 					fallbackModelParsed,
 				);
-				const identity = await normalizeAndEnsureUniqueIdentity(
-					rawIdentity,
-					prompt,
-				);
+				const identity = await normalizeAndEnsureUniqueIdentity(rawIdentity);
 
 				if (!identity) {
 					throw new Error(
@@ -343,9 +337,11 @@ export async function generateProjectIdentity(
 		{ prompt: prompt.slice(0, 80) },
 		"Using creative random fallback for project naming",
 	);
+	const slug = await generateUniqueCreativeSlug(prompt);
 	return {
-		name: await generateUniqueCreativeSlug(prompt),
+		name: slugToDisplayName(slug),
 		icon: selectFallbackIcon(prompt),
+		slug,
 	};
 }
 

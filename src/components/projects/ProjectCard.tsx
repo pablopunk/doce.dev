@@ -4,6 +4,7 @@ import {
 	ExternalLink,
 	Loader2,
 	Moon,
+	Pencil,
 	Plug,
 	SatelliteDish,
 	Square,
@@ -15,11 +16,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
 	Tooltip,
 	TooltipContent,
@@ -30,6 +40,7 @@ import { getPreferredRuntimeUrl } from "@/lib/base-url";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ProjectIcon } from "./ProjectIcon";
+import { ProjectIconPicker } from "./ProjectIconPicker";
 import type { ProjectListItem } from "./projects.types";
 
 interface ProjectCardProps {
@@ -39,7 +50,13 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
+	const [isSavingIdentity, setIsSavingIdentity] = useState(false);
+	const [displayName, setDisplayName] = useState(project.name);
+	const [displayIcon, setDisplayIcon] = useState(project.icon);
+	const [editName, setEditName] = useState(project.name);
+	const [editIcon, setEditIcon] = useState(project.icon);
 	const { baseUrl } = useBaseUrlSetting();
 	const markDeleting = useProjectOptimisticState((s) => s.markDeleting);
 	const markStopping = useProjectOptimisticState((s) => s.markStopping);
@@ -85,6 +102,42 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 
 	const handleDeleteClick = () => {
 		setIsDeleteDialogOpen(true);
+	};
+
+	const handleEditClick = () => {
+		setEditName(displayName);
+		setEditIcon(displayIcon);
+		setIsEditDialogOpen(true);
+	};
+
+	const handleSaveIdentity = async () => {
+		const name = editName.trim();
+		if (!name) {
+			toast.error("Project name is required");
+			return;
+		}
+
+		setIsSavingIdentity(true);
+		try {
+			const result = await actions.projects.updateIdentity({
+				projectId: project.id,
+				name,
+				icon: editIcon,
+			});
+			if (result.error) {
+				toast.error(result.error.message);
+				return;
+			}
+
+			setDisplayName(name);
+			setDisplayIcon(editIcon);
+			setIsEditDialogOpen(false);
+			toast.success("Project updated");
+		} catch {
+			toast.error("Failed to update project");
+		} finally {
+			setIsSavingIdentity(false);
+		}
 	};
 
 	const handleDeleteConfirm = async (projectId: string) => {
@@ -173,7 +226,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 			link.remove();
 			URL.revokeObjectURL(downloadUrl);
 
-			toast.success(`Exported ${project.name}`);
+			toast.success(`Exported ${displayName}`);
 		} catch (error) {
 			toast.error(
 				error instanceof Error
@@ -189,6 +242,26 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		<>
 			<Card className="group/card relative overflow-hidden transition-all duration-300 has-[.top-link:hover]:shadow-lg has-[.top-link:hover]:ring-1 has-[.top-link:hover]:ring-primary/20">
 				<div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 translate-x-2 transition-all duration-200 group-hover/card:opacity-100 group-hover/card:translate-x-0 focus-within:opacity-100 focus-within:translate-x-0">
+					<Tooltip>
+						{/* @ts-expect-error asChild from radix not typed */}
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 bg-card/80 backdrop-blur-sm"
+								onClick={handleEditClick}
+								disabled={isDeleting || isSavingIdentity}
+							>
+								{isSavingIdentity ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<Pencil className="h-4 w-4" />
+								)}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Edit project</TooltipContent>
+					</Tooltip>
+
 					<Tooltip>
 						{/* @ts-expect-error asChild from radix not typed */}
 						<TooltipTrigger asChild>
@@ -233,15 +306,15 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 					href={`/projects/${project.id}/${project.slug}`}
 					className="block top-link"
 				>
-					<CardHeader className="pb-2 pr-24">
+					<CardHeader className="pb-2 pr-32">
 						<div className="flex items-center gap-3 min-w-0">
 							<ProjectIcon
-								icon={project.icon}
-								name={project.name}
+								icon={displayIcon}
+								name={displayName}
 								className="inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-muted text-xs"
 							/>
 							<CardTitle className="text-lg truncate font-medium transition-all [.top-link:hover_&]:font-bold">
-								{project.name}
+								{displayName}
 							</CardTitle>
 						</div>
 					</CardHeader>
@@ -402,9 +475,52 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 				</CardContent>
 			</Card>
 
+			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Edit project</DialogTitle>
+						<DialogDescription>
+							Update the display name and icon for this project.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="flex items-center gap-3 py-2">
+						<ProjectIconPicker value={editIcon} onChange={setEditIcon} />
+						<Input
+							value={editName}
+							onChange={(event) => setEditName(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									event.preventDefault();
+									void handleSaveIdentity();
+								}
+							}}
+							maxLength={64}
+							placeholder="Project name"
+							disabled={isSavingIdentity}
+							autoFocus
+						/>
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsEditDialogOpen(false)}
+							disabled={isSavingIdentity}
+						>
+							Cancel
+						</Button>
+						<Button onClick={handleSaveIdentity} disabled={isSavingIdentity}>
+							{isSavingIdentity && <Loader2 className="h-4 w-4 animate-spin" />}
+							Save
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
 			<DeleteProjectDialog
 				projectId={project.id}
-				projectName={project.name}
+				projectName={displayName}
 				isOpen={isDeleteDialogOpen}
 				onOpenChange={setIsDeleteDialogOpen}
 				onConfirm={handleDeleteConfirm}
