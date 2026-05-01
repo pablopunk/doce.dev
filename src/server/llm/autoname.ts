@@ -7,24 +7,41 @@ import {
 	nameToSlug,
 } from "@/server/projects/slug";
 
-const NAMING_SYSTEM_PROMPT = `You are a creative project naming assistant. Given a project description, generate a short, memorable project name (2-4 words).
+const NAMING_SYSTEM_PROMPT = `You are a product naming assistant. Given a project description, generate one short product-like name that is descriptive but creative.
 
 Requirements:
+- Sound like a real polished product, not a file name or literal prompt summary
+- Be memorable, brandable, and slightly evocative while still hinting at the product's purpose
+- Use 2-3 concise words joined by hyphens
 - Use only lowercase letters, numbers, and hyphens
 - No spaces or special characters
-- Maximum 40 characters
+- Maximum 32 characters
 - Must be suitable as a URL slug
-- Be creative, imaginative, and unique
-- Use adjectives, colors, metaphors, or evocative concepts
-- Even for similar projects, suggest different angles or descriptors
+- Avoid generic filler like app, website, html, page, project, created, open, simple, basic
+- Avoid copying the user's words verbatim unless they are central to the product concept
 
 Examples:
-- "minimal clock" → "chrono-minimal", "amber-ticker", "sleek-time"
-- "todo app" → "task-flow", "done-daily", "check-mate"
+- "full screen click tracker with red circles" → "pulse-marker", "click-halo", "trace-dot"
+- "minimal clock" → "chrono-glow", "still-ticker", "tempo-mist"
+- "todo app" → "task-flow", "done-daily", "checkmate-list"
+- "recipe finder" → "pantry-spark", "flavor-path", "dish-compass"
 
 Return only the project name, nothing else. No quotes, no explanation.`;
 
 const TIMEOUT_MS = 10_000;
+const MAX_PRODUCT_NAME_LENGTH = 32;
+const BANNED_NAME_WORDS = new Set([
+	"app",
+	"basic",
+	"created",
+	"html",
+	"open",
+	"page",
+	"project",
+	"simple",
+	"site",
+	"website",
+]);
 
 // Priority 1: Always try this model first - it's free and reliable
 const PRIMARY_MODEL = {
@@ -56,6 +73,28 @@ async function ensureUniqueProjectName(
 		"Auto-generated project name already exists, generating creative variant",
 	);
 	return generateUniqueCreativeSlug(`${prompt} ${name}`);
+}
+
+function isProductLikeName(name: string): boolean {
+	const words = name.split("-").filter(Boolean);
+	return (
+		name.length > 0 &&
+		name.length <= MAX_PRODUCT_NAME_LENGTH &&
+		words.length >= 2 &&
+		words.length <= 3 &&
+		words.every((word) => !BANNED_NAME_WORDS.has(word))
+	);
+}
+
+async function normalizeAndEnsureUniqueName(
+	rawName: string,
+	prompt: string,
+): Promise<string | null> {
+	const normalized = nameToSlug(rawName).slice(0, MAX_PRODUCT_NAME_LENGTH);
+	if (!isProductLikeName(normalized)) {
+		return null;
+	}
+	return ensureUniqueProjectName(normalized, prompt);
 }
 
 function parseModelString(
@@ -136,13 +175,11 @@ export async function generateProjectName(
 	// Try primary model first
 	try {
 		const rawName = await generateNameWithModel(prompt, PRIMARY_MODEL);
-		const normalized = nameToSlug(rawName);
+		const uniqueName = await normalizeAndEnsureUniqueName(rawName, prompt);
 
-		if (!normalized) {
-			throw new Error("Empty normalized name from primary model");
+		if (!uniqueName) {
+			throw new Error("Primary model returned a non-product-like name");
 		}
-
-		const uniqueName = await ensureUniqueProjectName(normalized, prompt);
 
 		logger.info(
 			{
@@ -178,13 +215,11 @@ export async function generateProjectName(
 					prompt,
 					fallbackModelParsed,
 				);
-				const normalized = nameToSlug(rawName);
+				const uniqueName = await normalizeAndEnsureUniqueName(rawName, prompt);
 
-				if (!normalized) {
-					throw new Error("Empty normalized name from fallback model");
+				if (!uniqueName) {
+					throw new Error("Fallback model returned a non-product-like name");
 				}
-
-				const uniqueName = await ensureUniqueProjectName(normalized, prompt);
 
 				logger.info(
 					{
