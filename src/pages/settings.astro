@@ -1,6 +1,7 @@
 ---
 import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { getShouldDefaultSettingsToProviders } from "@/server/providers/provider-list";
 import { getSettingsLogsPageData } from "@/server/settings/logs";
 import {
 	getQueueStatusPageData,
@@ -17,17 +18,33 @@ const tabParam = Astro.url.searchParams.get("tab");
 const legacyGeneralTabs = ["base-url", "account", "danger"];
 const isProduction =
 	import.meta.env.PROD || process.env.NODE_ENV === "production";
-const initialTab =
-	tabParam === "general" ||
-	tabParam === "providers" ||
-	tabParam === "mcps" ||
-	tabParam === "skills" ||
-	tabParam === "status" ||
-	(tabParam === "logs" && isProduction)
-		? tabParam
-		: legacyGeneralTabs.includes(tabParam ?? "")
-			? "general"
-			: "providers";
+
+async function getDefaultSettingsTab() {
+	return (await getShouldDefaultSettingsToProviders())
+		? "providers"
+		: "general";
+}
+
+async function resolveInitialTab() {
+	if (
+		tabParam === "general" ||
+		tabParam === "providers" ||
+		tabParam === "mcps" ||
+		tabParam === "skills" ||
+		tabParam === "status" ||
+		(tabParam === "logs" && isProduction)
+	) {
+		return tabParam;
+	}
+
+	if (legacyGeneralTabs.includes(tabParam ?? "")) {
+		return "general";
+	}
+
+	return getDefaultSettingsTab();
+}
+
+const initialTab = await resolveInitialTab();
 
 const queueFilters: import("@/server/settings/status").QueueStatusFilters = {};
 const stateParam = Astro.url.searchParams.get("state");

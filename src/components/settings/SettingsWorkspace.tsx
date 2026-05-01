@@ -89,7 +89,7 @@ const baseTabs = [
 }>;
 
 export function SettingsWorkspace({
-	initialTab = "providers",
+	initialTab = "general",
 	isProduction,
 	statusData,
 	logsData,
@@ -110,7 +110,7 @@ export function SettingsWorkspace({
 		[isProduction],
 	);
 	const resolvedInitialTab =
-		initialTab === "logs" && !isProduction ? "providers" : initialTab;
+		initialTab === "logs" && !isProduction ? "general" : initialTab;
 	const [activeTab, setActiveTab] = useState<SettingsTabId>(resolvedInitialTab);
 
 	const selectTab = (tabId: SettingsTabId) => {

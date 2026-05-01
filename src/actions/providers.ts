@@ -6,6 +6,11 @@ import { logger } from "@/server/logger";
 import type { OpencodeClient } from "@/server/opencode/client";
 import { getOpencodeClient } from "@/server/opencode/client";
 import { getAvailableModels } from "@/server/opencode/models";
+import {
+	getSettingsProviders,
+	OPENCODE_PROVIDER_ID,
+	OPENCODE_SIBLING_ID,
+} from "@/server/providers/provider-list";
 
 const PROVIDERS_LIST_TTL_MS = 5 * 60_000;
 const PROVIDERS_CACHE_PREFIX = "cache:v1:action:providers.list:";
@@ -20,41 +25,6 @@ interface AvailableModel {
 	vendor: string;
 	supportsImages: boolean;
 }
-
-interface ProviderAuthMethod {
-	type: "api" | "oauth";
-	label: string;
-}
-
-type ProviderSource = "env" | "config" | "custom" | "api";
-
-function getProviderMethods(
-	provider: { id?: string; env?: string[] },
-	methods: ProviderAuthMethod[] | undefined,
-): ProviderAuthMethod[] {
-	if (methods && methods.length > 0) {
-		return methods;
-	}
-
-	if (provider.id === OPENCODE_PROVIDER_ID) {
-		return [{ type: "api", label: "Enter OpenCode Zen/Go API Key" }];
-	}
-
-	if ((provider.env || []).length > 0) {
-		return [{ type: "api", label: "Manually enter API Key" }];
-	}
-
-	return [];
-}
-
-/** opencode-go shares credentials with opencode; hide it and sync keys automatically */
-const OPENCODE_PROVIDER_ID = "opencode";
-const OPENCODE_SIBLING_ID = "opencode-go";
-const HIDDEN_PROVIDER_IDS = new Set([OPENCODE_SIBLING_ID]);
-
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-	[OPENCODE_PROVIDER_ID]: "OpenCode Zen/Go",
-};
 
 async function syncOpencodeCredentials(
 	client: OpencodeClient,
@@ -92,51 +62,12 @@ async function reloadRuntimeAfterAuthChange(
 	}
 }
 
-/** A provider is connected if the runtime reports it in the connected array. */
-function isProviderConnected(
-	providerId: string,
-	connectedIds: Set<string>,
-): boolean {
-	return connectedIds.has(providerId);
-}
-
-function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
-	return providers.filter((provider) => !HIDDEN_PROVIDER_IDS.has(provider.id));
-}
-
 export const providers = {
 	list: defineAction({
 		handler: cachedAction(
 			"providers.list",
 			{ ttlMs: PROVIDERS_LIST_TTL_MS },
-			async () => {
-				const client = getOpencodeClient();
-				const [providerResponse, authResponse] = await Promise.all([
-					client.provider.list(),
-					client.provider.auth(),
-				]);
-
-				const providerData = providerResponse.data;
-				const authData = authResponse.data || {};
-				const connectedIds = new Set(providerData?.connected || []);
-
-				const mapped = filterVisibleProviders(providerData?.all || []).map(
-					(provider) => ({
-						id: provider.id,
-						name: PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.name,
-						env: provider.env,
-						source: (provider.source || "custom") as ProviderSource,
-						connected: isProviderConnected(provider.id, connectedIds),
-						disconnectable: connectedIds.has(provider.id),
-						methods: getProviderMethods(
-							provider,
-							(authData[provider.id] || []) as ProviderAuthMethod[],
-						),
-					}),
-				);
-
-				return { providers: mapped };
-			},
+			async () => ({ providers: await getSettingsProviders() }),
 		),
 	}),
 
