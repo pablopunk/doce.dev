@@ -6,6 +6,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { ResizableSeparator } from "@/components/preview/ResizableSeparator";
 import { ContainerStartupDisplay } from "@/components/setup/ContainerStartupDisplay";
+import { useCanonicalProjectUrl } from "@/hooks/useCanonicalProjectUrl";
 import { useChatPanel } from "@/hooks/useChatPanel";
 import { useLiveState } from "@/hooks/useLiveState";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
@@ -29,6 +30,7 @@ export function ProjectContentWrapper({
 	projectSlug,
 	models = [],
 }: ProjectContentWrapperProps) {
+	useCanonicalProjectUrl(projectId, projectSlug ?? projectId);
 	const [showStartupDisplay, setShowStartupDisplay] = useState(true);
 	const [fileToOpen, setFileToOpen] = useState<string | null>(null);
 	const [userMessageCount, setUserMessageCount] = useState(0);
