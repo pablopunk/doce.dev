@@ -62,21 +62,31 @@ Connect Tailscale once in settings and doce gives the app, previews, and deploym
 
 ## Screenshots
 
+### One button to automatically fix issues on your apps
+
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/fix-with-doce.jpg?raw=true" alt="Fixing a website with doce.dev" width="95%" />
 </p>
+
+### Dark/Light mode, detached transparent chat, and server logs
 
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/transparent-chat-light.jpg?raw=true" alt="Transparent chat in light mode" width="95%" />
 </p>
 
+### File browser
+
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/file-browser.jpg?raw=true" alt="Project file browser" width="95%" />
 </p>
 
+### Skills and MCPs
+
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/skills.jpg?raw=true" alt="OpenCode skills settings" width="95%" />
 </p>
+
+### Automatic tailscale config
 
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/screenshots/tailscale.jpg?raw=true" alt="Tailscale settings" width="95%" />
