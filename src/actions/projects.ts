@@ -13,6 +13,7 @@ import {
 	markInitialPromptSent,
 	markUserPromptCompleted,
 	updateOpencodeJsonModel,
+	updateProjectDisplayIdentity,
 	updateProjectModel,
 	updateProjectStatus,
 } from "@/server/projects/projects.model";
@@ -924,6 +925,36 @@ export const projects = {
 						error instanceof Error ? error.message : "Failed to restart agent",
 				});
 			}
+		},
+	}),
+
+	updateIdentity: defineAction({
+		accept: "json",
+		input: z.object({
+			projectId: z.string(),
+			name: z.string().min(1).max(64),
+			icon: z.string().emoji().max(4),
+		}),
+		handler: async (input, context) => {
+			const user = context.locals.user;
+			if (!user) {
+				throw new ActionError({
+					code: "UNAUTHORIZED",
+					message: "You must be logged in",
+				});
+			}
+			const isOwner = await isProjectOwnedByUser(input.projectId, user.id);
+			if (!isOwner) {
+				throw new ActionError({
+					code: "FORBIDDEN",
+					message: "You don't have access to this project",
+				});
+			}
+			await updateProjectDisplayIdentity(input.projectId, {
+				name: input.name,
+				icon: input.icon,
+			});
+			return { success: true };
 		},
 	}),
 };

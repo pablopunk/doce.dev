@@ -82,6 +82,16 @@ export async function updateProjectIdentity(
 	await db.update(projects).set(identity).where(eq(projects.id, id));
 }
 
+/**
+ * Update only the display name and icon (not slug).
+ */
+export async function updateProjectDisplayIdentity(
+	id: string,
+	identity: { name: string; icon: string },
+): Promise<void> {
+	await db.update(projects).set(identity).where(eq(projects.id, id));
+}
+
 export async function updateProjectModelInDb(
 	id: string,
 	model: string | null,

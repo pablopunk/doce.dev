@@ -9,9 +9,10 @@ interface Props {
 	title: string;
 	projectName?: string;
 	projectIcon?: string;
+	projectId?: string;
 }
 
-const { title, projectName, projectIcon } = Astro.props;
+const { title, projectName, projectIcon, projectId } = Astro.props;
 ---
 
 <!doctype html>
@@ -32,7 +33,7 @@ const { title, projectName, projectIcon } = Astro.props;
     </script>
   </head>
   <body class="h-screen bg-background text-foreground antialiased flex flex-col">
-    <Navbar client:load projectName={projectName} projectIcon={projectIcon} />
+    <Navbar client:load projectName={projectName} projectIcon={projectIcon} projectId={projectId} />
     <ThemeProvider client:load>
       <slot />
       <Toaster client:load />

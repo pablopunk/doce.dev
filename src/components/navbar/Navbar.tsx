@@ -1,25 +1,87 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { actions } from "astro:actions";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { NavLinks } from "@/components/navbar/NavLinks";
+import { ThemeToggle } from "@/components/navbar/ThemeToggle";
+import { ProjectIconPicker } from "@/components/projects/ProjectIconPicker";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { Badge } from "@/components/ui/badge";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { VERSION } from "@/server/version";
 import { MobileMenu } from "./MobileMenu";
-import { NavLinks } from "./NavLinks";
-import { ThemeToggle } from "./ThemeToggle";
 
 interface NavbarInnerProps {
 	projectName?: string | undefined;
 	projectIcon?: string | undefined;
+	projectId?: string | undefined;
 }
 
-function NavbarInner({ projectName, projectIcon }: NavbarInnerProps) {
+function NavbarInner({
+	projectName,
+	projectIcon,
+	projectId,
+}: NavbarInnerProps) {
 	const { handleClick, state } = useAppUpdate();
+	const [editing, setEditing] = useState(false);
+	const [editName, setEditName] = useState(projectName ?? "");
+	const [editIcon, setEditIcon] = useState(projectIcon ?? "✨");
+	const inputRef = useRef<HTMLInputElement>(null);
 
 	const needsUpdate = state === "update-available";
 	const isUpdating = state === "updating";
 	const needsRestart = state === "restart-ready";
+
+	useEffect(() => {
+		setEditName(projectName ?? "");
+		setEditIcon(projectIcon ?? "✨");
+	}, [projectName, projectIcon]);
+
+	useEffect(() => {
+		if (editing && inputRef.current) {
+			inputRef.current.focus();
+			inputRef.current.select();
+		}
+	}, [editing]);
+
+	const save = async () => {
+		if (!projectId || !editName.trim()) {
+			setEditing(false);
+			return;
+		}
+		const name = editName.trim();
+		if (name === projectName && editIcon === projectIcon) {
+			setEditing(false);
+			return;
+		}
+		const { error } = await actions.projects.updateIdentity({
+			projectId,
+			name,
+			icon: editIcon,
+		});
+		if (error) {
+			toast.error(error.message ?? "Failed to rename project");
+			setEditName(projectName ?? "");
+			setEditIcon(projectIcon ?? "✨");
+		} else {
+			toast.success("Project renamed");
+			// Update local state so navbar reflects change immediately
+			window.dispatchEvent(new CustomEvent("project-identity-updated"));
+		}
+		setEditing(false);
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			void save();
+		} else if (e.key === "Escape") {
+			setEditing(false);
+			setEditName(projectName ?? "");
+			setEditIcon(projectIcon ?? "✨");
+		}
+	};
 
 	return (
 		<header className="border-b border-border bg-background sticky top-0 z-40">
@@ -57,14 +119,37 @@ function NavbarInner({ projectName, projectIcon }: NavbarInnerProps) {
 				{/* Center - Project name + icon */}
 				{projectName && (
 					<div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-						{projectIcon && (
-							<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
-								{projectIcon}
-							</span>
+						{editing && projectId ? (
+							<>
+								<ProjectIconPicker value={editIcon} onChange={setEditIcon} />
+								<input
+									ref={inputRef}
+									type="text"
+									value={editName}
+									onChange={(e) => setEditName(e.target.value)}
+									onKeyDown={handleKeyDown}
+									onBlur={() => void save()}
+									className="text-sm font-medium bg-transparent border-b border-primary outline-none min-w-[80px] max-w-[260px] md:max-w-[400px] truncate"
+									maxLength={64}
+								/>
+							</>
+						) : (
+							<button
+								type="button"
+								onClick={() => setEditing(true)}
+								className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+								title="Click to rename"
+							>
+								{projectIcon && (
+									<span className="inline-flex size-7 items-center justify-center rounded-lg bg-muted text-sm">
+										{projectIcon}
+									</span>
+								)}
+								<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
+									{projectName}
+								</span>
+							</button>
 						)}
-						<span className="text-sm font-medium truncate max-w-[180px] sm:max-w-[260px] md:max-w-[400px]">
-							{projectName}
-						</span>
 					</div>
 				)}
 
@@ -84,9 +169,10 @@ function NavbarInner({ projectName, projectIcon }: NavbarInnerProps) {
 interface NavbarProps {
 	projectName?: string | undefined;
 	projectIcon?: string | undefined;
+	projectId?: string | undefined;
 }
 
-export function Navbar({ projectName, projectIcon }: NavbarProps) {
+export function Navbar({ projectName, projectIcon, projectId }: NavbarProps) {
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -129,7 +215,11 @@ export function Navbar({ projectName, projectIcon }: NavbarProps) {
 	// On client, render the full interactive navbar
 	return (
 		<ThemeProvider>
-			<NavbarInner projectName={projectName} projectIcon={projectIcon} />
+			<NavbarInner
+				projectName={projectName}
+				projectIcon={projectIcon}
+				projectId={projectId}
+			/>
 		</ThemeProvider>
 	);
 }

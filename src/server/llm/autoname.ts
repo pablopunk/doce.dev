@@ -1,3 +1,4 @@
+import { ALLOWED_PROJECT_ICONS } from "@/lib/project-icons";
 import { logger } from "@/server/logger";
 import { createOpencodeClient } from "@/server/opencode/client";
 import { ensureGlobalOpencodeStarted } from "@/server/opencode/runtime";
@@ -6,59 +7,6 @@ import {
 	isSlugTaken,
 	nameToSlug,
 } from "@/server/projects/slug";
-
-const ALLOWED_PROJECT_ICONS = [
-	"✨",
-	"🎯",
-	"📊",
-	"✅",
-	"💬",
-	"📅",
-	"🎵",
-	"🎮",
-	"🖼️",
-	"🗺️",
-	"💸",
-	"🛒",
-	"🍽️",
-	"📚",
-	"📝",
-	"⏱️",
-	"🌤️",
-	"🏃",
-	"💪",
-	"🧘",
-	"✈️",
-	"🏠",
-	"🔐",
-	"🔎",
-	"🧭",
-	"📈",
-	"📦",
-	"🧪",
-	"🤖",
-	"🧠",
-	"🚀",
-	"🌱",
-	"🔥",
-	"💡",
-	"🎨",
-	"📷",
-	"🎬",
-	"📰",
-	"📍",
-	"🔔",
-	"📁",
-	"🧰",
-	"⚙️",
-	"🌐",
-	"👥",
-	"❤️",
-	"⭐",
-	"☕",
-	"🐾",
-	"🚗",
-] as const;
 
 type ProjectIcon = (typeof ALLOWED_PROJECT_ICONS)[number];
 
