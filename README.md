@@ -20,6 +20,14 @@ Doce stands for:
 <p align="center">
 </p>
 
+## Features
+
+- Self-hosted AI website builder powered by OpenCode
+- Live project workspace: chat, preview, files, assets, and terminal logs
+- Isolated Docker previews with one-click production deployments
+- Provider auth, model selection, skills, and MCPs managed from the UI
+- Automatic private HTTPS domains via Tailscale (`https://...ts.net`)
+
 ## docker-compose.yml
 
 Deploy doce.dev on your own infrastructure using Docker Compose:
@@ -46,6 +54,10 @@ That's still the whole deployment story. Internally, `doce` now runs:
 - the queue worker
 
 Project previews still run in isolated Docker Compose stacks, but OpenCode itself is now global and shared.
+
+## Automatic HTTPS with Tailscale
+
+Connect Tailscale once in settings and doce gives the app, previews, and deployments stable private `https://...ts.net` URLs. No DNS, reverse proxy, or TLS setup required.
 
 ## Screenshots
 
