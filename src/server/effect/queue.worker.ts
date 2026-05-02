@@ -2,7 +2,6 @@ import { Cause, Duration, Effect, Fiber, type Layer } from "effect";
 import { getConfigValue } from "@/server/config";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
-import { runReconciliation } from "@/server/reconciliation/reconcile";
 import { errorToSanitizedMessage } from "@/server/utils/sanitize";
 import {
 	JobCancelledError,
@@ -256,25 +255,8 @@ const workerLoop = (
 				),
 			);
 
-		let pollCount = 0;
-
 		while (true) {
 			yield* safeRecover;
-
-			// Run reconciliation every 10 polls (~30 seconds)
-			pollCount++;
-			if (pollCount % 10 === 0) {
-				yield* Effect.tryPromise({
-					try: () => runReconciliation(),
-					catch: (e) => e,
-				}).pipe(
-					Effect.catchAll((e) =>
-						Effect.sync(() =>
-							logger.debug({ error: e }, "Reconciliation cycle completed"),
-						),
-					),
-				);
-			}
 
 			while (fibers.length < options.concurrency) {
 				const job = yield* safeClaim({
@@ -323,29 +305,3 @@ export const startQueueWorkerEffect = (
 	});
 
 export const getHandlers = () => handlerByType;
-
-/**
- * Export reconciliation for use in other contexts
- */
-export { runReconciliation };
-
-/**
- * Get current reconciliation metrics
- */
-export async function getReconciliationMetrics() {
-	const report = await runReconciliation();
-	return {
-		lastRun: report.startedAt,
-		durationMs: report.durationMs,
-		violationsFound: report.violationsFound.length,
-		violationsHealed: report.actionsApplied.length,
-		violationsByType: report.violationsFound.reduce(
-			(acc, v) => ({
-				...acc,
-				[v.violationType]: (acc[v.violationType] || 0) + 1,
-			}),
-			{} as Record<string, number>,
-		),
-		summary: report.summary,
-	};
-}

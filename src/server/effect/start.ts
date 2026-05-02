@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Effect, Layer } from "effect";
 import { getConfigValue } from "@/server/config";
 import { logger } from "@/server/logger";
+import { runReconciliation } from "@/server/reconciliation/reconcile";
 import { registerQueueWorkerForShutdown } from "@/server/shutdown";
 import { AppLayer, registerAllHandlers } from "./index";
 import { type QueueWorkerHandle, startQueueWorkerEffect } from "./queue.worker";
@@ -42,6 +43,23 @@ const startWorker = async () => {
 
 	// Register for graceful shutdown
 	registerQueueWorkerForShutdown(() => handle.stop());
+
+	// Start self-healing reconciliation on its own timer
+	// Completely independent of the queue worker poll loop
+	const RECONCILIATION_INTERVAL_MS = 30_000;
+	const reconciliationTimer = setInterval(async () => {
+		try {
+			await runReconciliation();
+		} catch (error) {
+			logger.error({ error }, "Reconciliation timer failed");
+		}
+	}, RECONCILIATION_INTERVAL_MS);
+
+	// Clean up reconciliation timer on shutdown
+	registerQueueWorkerForShutdown(() => {
+		clearInterval(reconciliationTimer);
+		return Promise.resolve();
+	});
 
 	logger.info(
 		{ workerId, concurrency, leaseMs, pollMs },

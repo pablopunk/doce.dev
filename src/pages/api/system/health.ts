@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { count, isNull } from "drizzle-orm";
+import { count, desc, isNull } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { projects, queueJobs, systemHealthSnapshots } from "@/server/db/schema";
 import { isGlobalOpencodeHealthy } from "@/server/opencode/runtime";
@@ -36,7 +36,7 @@ export const GET: APIRoute = async () => {
 	const snapshot = await db
 		.select()
 		.from(systemHealthSnapshots)
-		.orderBy((t) => t.takenAt)
+		.orderBy(desc(systemHealthSnapshots.takenAt))
 		.limit(1);
 
 	// OpenCode health
