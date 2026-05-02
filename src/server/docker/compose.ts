@@ -20,6 +20,11 @@ import {
 // Cache the detected compose command
 let composeCommand: string[] | null = null;
 
+// Hard ceilings so a hung docker pull / build can't wedge a queue worker forever.
+const COMPOSE_UP_TIMEOUT_MS = 15 * 60 * 1000;
+const COMPOSE_LIFECYCLE_TIMEOUT_MS = 2 * 60 * 1000;
+const COMPOSE_PS_TIMEOUT_MS = 30 * 1000;
+
 async function loadProjectEnvFile(
 	envFilePath: string,
 ): Promise<Record<string, string>> {
@@ -126,6 +131,14 @@ export interface ComposeResult {
 	exitCode: number;
 	stdout: string;
 	stderr: string;
+	timedOut?: boolean;
+}
+
+export interface RunComposeOptions {
+	/** Kill the child after this many ms and resolve as a failure. */
+	timeoutMs?: number;
+	/** When set, stream stdout/stderr chunks live to this logs dir. */
+	streamLogsDir?: string;
 }
 
 /**
@@ -139,6 +152,7 @@ export async function runComposeCommand(
 	args: string[],
 	profile?: string,
 	filePath?: string,
+	options?: RunComposeOptions,
 ): Promise<ComposeResult> {
 	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgs(projectId);
@@ -186,34 +200,85 @@ export async function runComposeCommand(
 
 		let stdout = "";
 		let stderr = "";
+		let timedOut = false;
+		let resolved = false;
+		const streamLogsDir = options?.streamLogsDir;
+
+		const settle = (result: ComposeResult) => {
+			if (resolved) return;
+			resolved = true;
+			if (killTimer) clearTimeout(killTimer);
+			if (forceKillTimer) clearTimeout(forceKillTimer);
+			resolve(result);
+		};
 
 		proc.stdout?.on("data", (data: Buffer) => {
-			stdout += data.toString();
+			const chunk = data.toString();
+			stdout += chunk;
+			if (streamLogsDir) {
+				void appendDockerLog(streamLogsDir, chunk, false);
+			}
 		});
 
 		proc.stderr?.on("data", (data: Buffer) => {
-			stderr += data.toString();
+			const chunk = data.toString();
+			stderr += chunk;
+			if (streamLogsDir) {
+				void appendDockerLog(streamLogsDir, chunk, true);
+			}
 		});
+
+		let killTimer: NodeJS.Timeout | null = null;
+		let forceKillTimer: NodeJS.Timeout | null = null;
+		if (options?.timeoutMs && options.timeoutMs > 0) {
+			killTimer = setTimeout(() => {
+				timedOut = true;
+				const message = `compose command timed out after ${options.timeoutMs}ms; sending SIGTERM`;
+				logger.warn({ command, args: fullArgs }, message);
+				if (streamLogsDir) {
+					void writeHostMarker(streamLogsDir, message);
+				}
+				try {
+					proc.kill("SIGTERM");
+				} catch (err) {
+					logger.warn({ error: err }, "Failed to SIGTERM compose process");
+				}
+				forceKillTimer = setTimeout(() => {
+					try {
+						proc.kill("SIGKILL");
+					} catch (err) {
+						logger.warn({ error: err }, "Failed to SIGKILL compose process");
+					}
+				}, 5_000);
+			}, options.timeoutMs);
+		}
 
 		proc.on("close", (code: number | null) => {
 			const exitCode = code ?? 1;
-			const success = exitCode === 0;
+			const success = !timedOut && exitCode === 0;
 
 			logger.debug(
 				{
 					exitCode,
+					timedOut,
 					stdout: stdout.slice(0, 500),
 					stderr: stderr.slice(0, 500),
 				},
 				"Compose command completed",
 			);
 
-			resolve({ success, exitCode, stdout, stderr });
+			let finalStderr = stderr;
+			if (timedOut) {
+				const note = `compose command killed after ${options?.timeoutMs}ms timeout`;
+				finalStderr = finalStderr ? `${finalStderr}\n${note}` : note;
+			}
+
+			settle({ success, exitCode, stdout, stderr: finalStderr, timedOut });
 		});
 
 		proc.on("error", (err: Error) => {
 			logger.error({ error: err }, "Compose command failed to spawn");
-			resolve({
+			settle({
 				success: false,
 				exitCode: 1,
 				stdout: "",
@@ -379,16 +444,18 @@ export async function composeUp(
 		args,
 		undefined,
 		tailscaleFile ?? undefined,
+		{
+			timeoutMs: COMPOSE_UP_TIMEOUT_MS,
+			streamLogsDir: logsDir,
+		},
 	);
 
-	// Log output with stream markers
-	if (result.stdout) {
-		await appendDockerLog(logsDir, result.stdout, false);
-	}
-	if (result.stderr) {
-		await appendDockerLog(logsDir, result.stderr, true);
-	}
-	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
+	await writeHostMarker(
+		logsDir,
+		result.timedOut
+			? `exit=${result.exitCode} (timed out after ${COMPOSE_UP_TIMEOUT_MS}ms)`
+			: `exit=${result.exitCode}`,
+	);
 
 	// Start streaming container logs (e.g., pnpm dev output) after containers start
 	if (result.success) {
@@ -472,16 +539,15 @@ export async function composeStart(
 	const logsDir = path.join(normalizedProjectPath, "logs");
 	await writeHostMarker(logsDir, "docker compose start");
 
-	const result = await runComposeCommand(projectId, normalizedProjectPath, [
-		"start",
-	]);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		["start"],
+		undefined,
+		undefined,
+		{ timeoutMs: COMPOSE_LIFECYCLE_TIMEOUT_MS, streamLogsDir: logsDir },
+	);
 
-	if (result.stdout) {
-		await appendDockerLog(logsDir, result.stdout, false);
-	}
-	if (result.stderr) {
-		await appendDockerLog(logsDir, result.stderr, true);
-	}
 	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
 	if (result.success) {
@@ -505,16 +571,15 @@ export async function composeStop(
 
 	stopStreamingContainerLogs(projectId);
 
-	const result = await runComposeCommand(projectId, normalizedProjectPath, [
-		"stop",
-	]);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		["stop"],
+		undefined,
+		undefined,
+		{ timeoutMs: COMPOSE_LIFECYCLE_TIMEOUT_MS, streamLogsDir: logsDir },
+	);
 
-	if (result.stdout) {
-		await appendDockerLog(logsDir, result.stdout, false);
-	}
-	if (result.stderr) {
-		await appendDockerLog(logsDir, result.stderr, true);
-	}
 	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
 	return result;
@@ -534,17 +599,15 @@ export async function composeDown(
 	// Stop streaming container logs before stopping containers
 	stopStreamingContainerLogs(projectId);
 
-	const result = await runComposeCommand(projectId, normalizedProjectPath, [
-		"down",
-		"--remove-orphans",
-	]);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		["down", "--remove-orphans"],
+		undefined,
+		undefined,
+		{ timeoutMs: COMPOSE_LIFECYCLE_TIMEOUT_MS, streamLogsDir: logsDir },
+	);
 
-	if (result.stdout) {
-		await appendDockerLog(logsDir, result.stdout, false);
-	}
-	if (result.stderr) {
-		await appendDockerLog(logsDir, result.stderr, true);
-	}
 	await writeHostMarker(logsDir, `exit=${result.exitCode}`);
 
 	return result;
@@ -613,11 +676,14 @@ export async function composeDownWithVolumes(
 		"docker compose down --remove-orphans --volumes",
 	);
 
-	const result = await runComposeCommand(projectId, normalizedProjectPath, [
-		"down",
-		"--remove-orphans",
-		"--volumes",
-	]);
+	const result = await runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		["down", "--remove-orphans", "--volumes"],
+		undefined,
+		undefined,
+		{ timeoutMs: COMPOSE_LIFECYCLE_TIMEOUT_MS, streamLogsDir: logsDir },
+	);
 
 	return result;
 }
@@ -630,12 +696,14 @@ export async function composePs(
 	projectPath: string,
 ): Promise<ComposeResult> {
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
-	return runComposeCommand(projectId, normalizedProjectPath, [
-		"ps",
-		"--all",
-		"--format",
-		"json",
-	]);
+	return runComposeCommand(
+		projectId,
+		normalizedProjectPath,
+		["ps", "--all", "--format", "json"],
+		undefined,
+		undefined,
+		{ timeoutMs: COMPOSE_PS_TIMEOUT_MS },
+	);
 }
 
 export interface ContainerStatus {

@@ -20,6 +20,14 @@ import {
 interface QueueDiagnosticProps {
 	error: string | null;
 	onRetry?: () => void;
+	/**
+	 * "error" (default) renders the destructive banner for a job that has
+	 * failed/exhausted. "warning" renders a softer banner for a job that is
+	 * still running/queued after a previous attempt failed — gives the user
+	 * context without implying the current attempt has failed.
+	 */
+	tone?: "error" | "warning";
+	titleOverride?: string | undefined;
 }
 
 function getCategoryFromError(error: string): {
@@ -47,7 +55,12 @@ function getCategoryBadgeVariant(
 	}
 }
 
-export function QueueDiagnostic({ error, onRetry }: QueueDiagnosticProps) {
+export function QueueDiagnostic({
+	error,
+	onRetry,
+	tone = "error",
+	titleOverride,
+}: QueueDiagnosticProps) {
 	const [showDetails, setShowDetails] = useState(false);
 
 	if (!error) return null;
@@ -62,6 +75,7 @@ export function QueueDiagnostic({ error, onRetry }: QueueDiagnosticProps) {
 			defaultRetryable: true,
 		};
 	const badgeVariant = getCategoryBadgeVariant(category);
+	const isWarning = tone === "warning";
 
 	const handleRemediationClick = (action: RemediationAction) => {
 		if (action.href) {
@@ -99,14 +113,24 @@ export function QueueDiagnostic({ error, onRetry }: QueueDiagnosticProps) {
 	return (
 		<div
 			data-testid="queue-diagnostic"
-			className="mt-6 rounded-lg border border-destructive/40 p-4"
+			className={
+				isWarning
+					? "mt-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"
+					: "mt-6 rounded-lg border border-destructive/40 p-4"
+			}
 		>
 			<div className="flex items-start gap-3">
-				<AlertCircle className="h-5 w-5 flex-shrink-0 text-destructive mt-0.5" />
+				<AlertCircle
+					className={
+						isWarning
+							? "h-5 w-5 flex-shrink-0 text-amber-500 mt-0.5"
+							: "h-5 w-5 flex-shrink-0 text-destructive mt-0.5"
+					}
+				/>
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2 flex-wrap">
 						<h3 className="font-semibold text-sm">
-							{metadata?.displayTitle ?? "Error"}
+							{titleOverride ?? metadata?.displayTitle ?? "Error"}
 						</h3>
 						<Badge variant={badgeVariant} className="text-xs">
 							{category}

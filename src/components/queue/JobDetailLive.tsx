@@ -169,6 +169,17 @@ export function JobDetailLive({
 		(isExhaustedQueueJob
 			? "Job exhausted all retry attempts before it could be marked failed."
 			: null);
+	const isMidRetryWithPriorError =
+		!!job.lastError &&
+		!isExhaustedQueueJob &&
+		(job.state === "running" || job.state === "queued") &&
+		job.attempts > 1;
+	const diagnosticTone: "error" | "warning" = isMidRetryWithPriorError
+		? "warning"
+		: "error";
+	const diagnosticTitle = isMidRetryWithPriorError
+		? `Previous attempt failed (retrying ${job.attempts}/${job.maxAttempts})`
+		: undefined;
 
 	const canCancel = job.state === "queued" || job.state === "running";
 	const canRunNow = job.state === "queued";
@@ -410,6 +421,8 @@ export function JobDetailLive({
 				<QueueDiagnostic
 					error={effectiveError}
 					onRetry={() => handleAction("retry")}
+					tone={diagnosticTone}
+					titleOverride={diagnosticTitle}
 				/>
 
 				<div className="mt-6 rounded-lg border p-4">
