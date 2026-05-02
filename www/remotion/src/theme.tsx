@@ -6,26 +6,29 @@ export type ThemeMode = "dark" | "light";
 export type Theme = {
 	mode: ThemeMode;
 
+	// Wallpaper / window chrome (used in macOS frame, if any)
 	wallpaperGradient: string;
 	wallpaperGlow1: string;
 	wallpaperGlow2: string;
-
 	windowTitleBar: string;
 	windowTitleText: string;
 	windowBorder: string;
 	windowShadow: string;
 	windowTitleBorderBottom: string;
 
-	sceneBg: string;
-	navbarBg: string;
-	chatPanelBg: string;
-	rightPanelBg: string;
-	cardBg: string;
-	inputBg: string;
-	codeBg: string;
+	// Surfaces (mapped to globals.css tokens)
+	sceneBg: string; // --background
+	navbarBg: string; // --background
+	chatPanelBg: string; // --background
+	rightPanelBg: string; // --background
+	cardBg: string; // --card
+	popoverBg: string; // --popover
+	inputBg: string; // --input bg-ish
+	codeBg: string; // editor surface
 	codeTabBg: string;
 	codeTabBorder: string;
 
+	// iPhone mock surfaces
 	iphoneBody: string;
 	iphoneBorder: string;
 	iphoneNotch: string;
@@ -33,36 +36,43 @@ export type Theme = {
 	iphoneShadow: string;
 	iphoneLiveBadgeBg: string;
 
-	textPrimary: string;
-	textSecondary: string;
-	textMuted: string;
+	// Text (mapped to globals.css tokens)
+	textPrimary: string; // --foreground
+	textSecondary: string; // --muted-foreground (slightly darker)
+	textMuted: string; // --muted-foreground
 	textSubtle: string;
 	chatUserText: string;
 	chatAssistantText: string;
 	chatUserLabel: string;
 	chatAssistantLabel: string;
 
-	borderSubtle: string;
+	// Borders
+	borderSubtle: string; // --border
 	borderLight: string;
 	borderMedium: string;
-	inputBorderColor: string;
+	inputBorderColor: string; // --input
 
 	divider: string;
 
-	pillBg: string;
+	// Pills / muted chips
+	pillBg: string; // --secondary
 	pillBorder: string;
 	pillText: string;
 
-	tabsListBg: string;
-	tabsTriggerActive: string;
+	// Tabs
+	tabsListBg: string; // --muted
+	tabsTriggerActive: string; // --background
 
-	mutedBg50: string;
+	mutedBg50: string; // bg-muted/50
 
+	// Selected file highlight (now uses --accent / --muted)
 	fileHighlightBg: string;
 	fileHighlightText: string;
 	fileText: string;
 	fileIcon: string;
+	accentBg: string; // --accent
 
+	// Code (Monaco vs / vs-dark inspired)
 	codeKeyword: string;
 	codeString: string;
 	codeTag: string;
@@ -71,131 +81,179 @@ export type Theme = {
 	codeDefault: string;
 	codeLineNumber: string;
 	codeCursor: string;
+	codeFunction: string;
+	codeType: string;
+	codeNumber: string;
 
+	// Buttons
 	buttonBg: string;
 	buttonBgPressed: string;
-	buttonPrimary: string;
-	buttonPrimaryForeground: string;
+	buttonPrimary: string; // --primary
+	buttonPrimaryForeground: string; // --primary-foreground
 
+	// CTA accent (Create button gradient)
+	ctaAccentStart: string;
+	ctaAccentMid: string;
+	ctaAccentEnd: string;
+
+	// Status
+	statusSuccess: string;
+	statusError: string;
+	statusWarning: string;
+	statusInfo: string;
+
+	// Chart colors (kept neutral; mostly unused now)
 	chart1: string;
 	chart4: string;
 	chart5: string;
 
+	// Blurred deco
 	blurredBg: string;
 	blurredBorder: string;
 	blurredPlaceholder: string;
 
+	// Spinner
 	spinnerTrack: string;
 	spinnerArc: string;
 
-	assistantAvatarBg: string;
-
-	statusSuccess: string;
+	// Avatars
+	assistantAvatarBg: string; // --muted
 };
 
+/**
+ * Token values are eyeballed sRGB hex equivalents of the oklch tokens in
+ * src/styles/globals.css. Remotion runs server-side for rendering, so we keep
+ * pre-computed hex/rgba instead of relying on the browser's oklch().
+ */
 const dark: Theme = {
 	mode: "dark",
 
 	wallpaperGradient:
-		"radial-gradient(ellipse at 30% 20%, #1a1040 0%, #0c0c1a 40%, #080812 100%)",
+		"radial-gradient(ellipse at 30% 20%, #1a1a1a 0%, #131313 40%, #0d0d0d 100%)",
 	wallpaperGlow1:
-		"radial-gradient(circle, rgba(99,70,220,0.12) 0%, transparent 70%)",
+		"radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)",
 	wallpaperGlow2:
-		"radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%)",
+		"radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%)",
 
-	windowTitleBar: "linear-gradient(180deg, #2a2a35 0%, #1e1e28 100%)",
-	windowTitleText: "rgba(255,255,255,0.35)",
-	windowBorder: "rgba(255,255,255,0.1)",
+	windowTitleBar: "linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%)",
+	windowTitleText: "rgba(255,255,255,0.4)",
+	windowBorder: "rgba(255,255,255,0.10)",
 	windowShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)",
 	windowTitleBorderBottom: "rgba(255,255,255,0.06)",
 
-	sceneBg: "#0f1117",
-	navbarBg: "#0f1117",
-	chatPanelBg: "#0f1117",
-	rightPanelBg: "#0f1117",
-	cardBg: "#1e2030",
-	inputBg: "rgba(255,255,255,0.05)",
-	codeBg: "#1e1e1e",
-	codeTabBg: "#1e2030",
+	// --background oklch(0.145) ≈ #1a1a1a
+	sceneBg: "#1a1a1a",
+	navbarBg: "#1a1a1a",
+	chatPanelBg: "#1a1a1a",
+	rightPanelBg: "#1a1a1a",
+	// --card oklch(0.18) ≈ #212121
+	cardBg: "#212121",
+	popoverBg: "#212121",
+	inputBg: "rgba(255,255,255,0.06)",
+	codeBg: "#1e1e1e", // VS Code dark editor bg
+	codeTabBg: "#252526",
 	codeTabBorder: "rgba(255,255,255,0.10)",
 
 	iphoneBody: "#1c1c1e",
 	iphoneBorder: "rgba(255,255,255,0.15)",
 	iphoneNotch: "#000",
-	iphoneScreenBg: "#0f1115",
+	iphoneScreenBg: "#1a1a1a",
 	iphoneShadow:
 		"0 50px 100px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset",
 	iphoneLiveBadgeBg: "rgba(0,0,0,0.6)",
 
-	textPrimary: "#f8f9fa",
-	textSecondary: "#9ca3af",
-	textMuted: "#8b93a5",
+	// --foreground oklch(0.94) ≈ #ebebeb
+	textPrimary: "#ebebeb",
+	textSecondary: "#a8a8a8",
+	// --muted-foreground oklch(0.68) ≈ #a3a3a3
+	textMuted: "#a3a3a3",
 	textSubtle: "rgba(255,255,255,0.6)",
-	chatUserText: "#f8f9fa",
-	chatAssistantText: "#e5e7eb",
-	chatUserLabel: "#9ca3af",
-	chatAssistantLabel: "#8b93a5",
+	chatUserText: "#ebebeb",
+	chatAssistantText: "#d4d4d4",
+	chatUserLabel: "#a3a3a3",
+	chatAssistantLabel: "#a3a3a3",
 
-	borderSubtle: "rgba(255,255,255,0.10)",
+	// --border oklch(1 0 0 / 12%)
+	borderSubtle: "rgba(255,255,255,0.12)",
 	borderLight: "rgba(255,255,255,0.10)",
-	borderMedium: "rgba(255,255,255,0.15)",
-	inputBorderColor: "rgba(255,255,255,0.15)",
+	borderMedium: "rgba(255,255,255,0.18)",
+	// --input oklch(1 0 0 / 16%)
+	inputBorderColor: "rgba(255,255,255,0.16)",
 
-	divider: "rgba(255,255,255,0.10)",
+	divider: "rgba(255,255,255,0.12)",
 
-	pillBg: "#2a2e3e",
+	// --secondary oklch(0.24) ≈ #2e2e2e
+	pillBg: "#2e2e2e",
 	pillBorder: "rgba(255,255,255,0.10)",
-	pillText: "#d1d5db",
+	pillText: "#d4d4d4",
 
-	tabsListBg: "#2a2e3e",
-	tabsTriggerActive: "#1e2030",
+	// --muted ≈ #292929
+	tabsListBg: "#292929",
+	tabsTriggerActive: "#1a1a1a",
 
-	mutedBg50: "rgba(42,46,62,0.5)",
+	mutedBg50: "rgba(41,41,41,0.5)",
 
-	fileHighlightBg: "#1e3a5f",
-	fileHighlightText: "#58a6ff",
-	fileText: "#e6edf3",
-	fileIcon: "#9ca3af",
+	// File highlight: --accent oklch(0.28) ≈ #363636
+	fileHighlightBg: "#363636",
+	fileHighlightText: "#ebebeb",
+	fileText: "#ebebeb",
+	fileIcon: "#a3a3a3",
+	accentBg: "#363636",
 
-	codeKeyword: "#ff7b72",
-	codeString: "#a5d6ff",
-	codeTag: "#7ee787",
-	codeAttribute: "#d2a8ff",
-	codeComment: "#8b949e",
-	codeDefault: "#e6edf3",
-	codeLineNumber: "#484f58",
-	codeCursor: "#58a6ff",
+	// Monaco vs-dark / Dark+ palette
+	codeKeyword: "#569cd6",
+	codeString: "#ce9178",
+	codeTag: "#569cd6",
+	codeAttribute: "#9cdcfe",
+	codeComment: "#6a9955",
+	codeDefault: "#d4d4d4",
+	codeLineNumber: "#858585",
+	codeCursor: "#aeafad",
+	codeFunction: "#dcdcaa",
+	codeType: "#4ec9b0",
+	codeNumber: "#b5cea8",
 
-	buttonBg: "#e8eaf0",
-	buttonBgPressed: "#d1d5db",
-	buttonPrimary: "#e8eaf0",
-	buttonPrimaryForeground: "#1e2030",
+	// --primary oklch(0.94) ≈ #ebebeb on dark
+	buttonBg: "#ebebeb",
+	buttonBgPressed: "#d4d4d4",
+	buttonPrimary: "#ebebeb",
+	buttonPrimaryForeground: "#212121",
 
-	chart1: "#e97316",
-	chart4: "#eab308",
-	chart5: "#f59e0b",
+	// CTA accent gradient (oklch dark variants)
+	ctaAccentStart: "#7d8cf0", // start (blue)
+	ctaAccentMid: "#b585e8", // mid (purple)
+	ctaAccentEnd: "#ec85bd", // end (pink)
+
+	// Status (dark mode oklch values)
+	statusSuccess: "#26c281",
+	statusError: "#f87171",
+	statusWarning: "#f59e0b",
+	statusInfo: "#3b82f6",
+
+	chart1: "#cfcfcf",
+	chart4: "#5c5c5c",
+	chart5: "#444444",
 
 	blurredBg: "rgba(255,255,255,0.03)",
 	blurredBorder: "rgba(255,255,255,0.05)",
-	blurredPlaceholder: "rgba(255,255,255,0.1)",
+	blurredPlaceholder: "rgba(255,255,255,0.08)",
 
-	spinnerTrack: "rgba(124,58,237,0.2)",
-	spinnerArc: "#7c3aed",
+	// Spinner uses muted-foreground tones (no purple)
+	spinnerTrack: "rgba(255,255,255,0.10)",
+	spinnerArc: "#ebebeb",
 
-	assistantAvatarBg: "#2a2e3e",
-
-	statusSuccess: "#22c55e",
+	assistantAvatarBg: "#292929",
 };
 
 const light: Theme = {
 	mode: "light",
 
 	wallpaperGradient:
-		"radial-gradient(ellipse at 30% 20%, #e8e0ff 0%, #f0f0f5 40%, #f5f5f7 100%)",
+		"radial-gradient(ellipse at 30% 20%, #f5f5f5 0%, #f0f0f0 40%, #ebebeb 100%)",
 	wallpaperGlow1:
-		"radial-gradient(circle, rgba(99,70,220,0.08) 0%, transparent 70%)",
+		"radial-gradient(circle, rgba(0,0,0,0.04) 0%, transparent 70%)",
 	wallpaperGlow2:
-		"radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)",
+		"radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)",
 
 	windowTitleBar: "linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%)",
 	windowTitleText: "rgba(0,0,0,0.45)",
@@ -203,15 +261,18 @@ const light: Theme = {
 	windowShadow: "0 25px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08)",
 	windowTitleBorderBottom: "rgba(0,0,0,0.08)",
 
-	sceneBg: "#ffffff",
+	// --background oklch(0.985) ≈ #fafafa
+	sceneBg: "#fafafa",
 	navbarBg: "#fafafa",
-	chatPanelBg: "#f9fafb",
-	rightPanelBg: "#ffffff",
+	chatPanelBg: "#fafafa",
+	rightPanelBg: "#fafafa",
+	// --card oklch(1) = #ffffff
 	cardBg: "#ffffff",
-	inputBg: "#f3f4f6",
-	codeBg: "#ffffff",
-	codeTabBg: "#f3f4f6",
-	codeTabBorder: "#e5e7eb",
+	popoverBg: "#ffffff",
+	inputBg: "#f3f3f3",
+	codeBg: "#ffffff", // Monaco vs theme bg
+	codeTabBg: "#f3f3f3",
+	codeTabBorder: "#e0e0e0",
 
 	iphoneBody: "#f5f5f7",
 	iphoneBorder: "rgba(0,0,0,0.15)",
@@ -221,64 +282,84 @@ const light: Theme = {
 		"0 50px 100px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05) inset",
 	iphoneLiveBadgeBg: "rgba(0,0,0,0.7)",
 
-	textPrimary: "#111827",
-	textSecondary: "#6b7280",
-	textMuted: "#6b7280",
+	// --foreground oklch(0.205) ≈ #262626
+	textPrimary: "#262626",
+	textSecondary: "#525252",
+	// --muted-foreground oklch(0.52) ≈ #737373
+	textMuted: "#737373",
 	textSubtle: "rgba(0,0,0,0.5)",
-	chatUserText: "#111827",
-	chatAssistantText: "#374151",
-	chatUserLabel: "#374151",
-	chatAssistantLabel: "#6b7280",
+	chatUserText: "#262626",
+	chatAssistantText: "#404040",
+	chatUserLabel: "#404040",
+	chatAssistantLabel: "#737373",
 
-	borderSubtle: "#e5e7eb",
-	borderLight: "#e5e7eb",
-	borderMedium: "#d1d5db",
-	inputBorderColor: "#e5e7eb",
+	// --border oklch(0.905) ≈ #e0e0e0
+	borderSubtle: "#e0e0e0",
+	borderLight: "#e5e5e5",
+	borderMedium: "#d4d4d4",
+	inputBorderColor: "#e0e0e0",
 
-	divider: "#e5e7eb",
+	divider: "#e0e0e0",
 
-	pillBg: "#f3f4f6",
-	pillBorder: "#e5e7eb",
-	pillText: "#374151",
+	// --secondary oklch(0.955) ≈ #f0f0f0
+	pillBg: "#f0f0f0",
+	pillBorder: "#e0e0e0",
+	pillText: "#404040",
 
-	tabsListBg: "#f3f4f6",
+	// --muted oklch(0.965) ≈ #f3f3f3
+	tabsListBg: "#f3f3f3",
 	tabsTriggerActive: "#ffffff",
 
-	mutedBg50: "rgba(243,244,246,0.5)",
+	mutedBg50: "rgba(243,243,243,0.5)",
 
-	fileHighlightBg: "#dbeafe",
-	fileHighlightText: "#2563eb",
-	fileText: "#24292f",
+	// --accent oklch(0.94) ≈ #ebebeb
+	fileHighlightBg: "#ebebeb",
+	fileHighlightText: "#262626",
+	fileText: "#262626",
 	fileIcon: "#9ca3af",
+	accentBg: "#ebebeb",
 
-	codeKeyword: "#cf222e",
-	codeString: "#0a3069",
-	codeTag: "#116329",
-	codeAttribute: "#8250df",
-	codeComment: "#6e7781",
-	codeDefault: "#24292f",
-	codeLineNumber: "#8b949e",
-	codeCursor: "#2563eb",
+	// Monaco vs theme
+	codeKeyword: "#0000ff",
+	codeString: "#a31515",
+	codeTag: "#800000",
+	codeAttribute: "#ff0000",
+	codeComment: "#008000",
+	codeDefault: "#000000",
+	codeLineNumber: "#237893",
+	codeCursor: "#000000",
+	codeFunction: "#795e26",
+	codeType: "#267f99",
+	codeNumber: "#098658",
 
-	buttonBg: "#111827",
-	buttonBgPressed: "#374151",
-	buttonPrimary: "#111827",
-	buttonPrimaryForeground: "#f8f9fa",
+	// --primary oklch(0.235) ≈ #2b2b2b
+	buttonBg: "#2b2b2b",
+	buttonBgPressed: "#404040",
+	buttonPrimary: "#2b2b2b",
+	buttonPrimaryForeground: "#fafafa",
 
-	chart1: "#e97316",
-	chart4: "#eab308",
-	chart5: "#f59e0b",
+	// CTA accent gradient (oklch light variants)
+	ctaAccentStart: "#5b5be6",
+	ctaAccentMid: "#a560e3",
+	ctaAccentEnd: "#e668b0",
+
+	statusSuccess: "#0d9488",
+	statusError: "#dc2626",
+	statusWarning: "#f59e0b",
+	statusInfo: "#2563eb",
+
+	chart1: "#525252",
+	chart4: "#a3a3a3",
+	chart5: "#cccccc",
 
 	blurredBg: "rgba(0,0,0,0.03)",
 	blurredBorder: "rgba(0,0,0,0.05)",
 	blurredPlaceholder: "rgba(0,0,0,0.08)",
 
-	spinnerTrack: "rgba(124,58,237,0.15)",
-	spinnerArc: "#7c3aed",
+	spinnerTrack: "rgba(0,0,0,0.10)",
+	spinnerArc: "#262626",
 
-	assistantAvatarBg: "#f3f4f6",
-
-	statusSuccess: "#22c55e",
+	assistantAvatarBg: "#f3f3f3",
 };
 
 export const themes = { dark, light } as const;

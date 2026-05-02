@@ -6,6 +6,7 @@ import {
 	useCurrentFrame,
 	useVideoConfig,
 } from "remotion";
+import { Navbar } from "../components/Navbar";
 import { useTheme } from "../theme";
 
 const { fontFamily } = loadFont("normal", {
@@ -32,50 +33,6 @@ const MODEL_SWITCH = 90;
 const DROPDOWN_CLOSE = 100;
 const ZOOM_BUTTON_START = 105;
 const BUTTON_PRESS = 120;
-
-const LogoIcon: React.FC = () => (
-	<svg width="20" height="20" viewBox="0 0 1080 1080" fill="none">
-		<path
-			d="M196 283L207.5 281L308.244 260.163L883.75 156.75V167.146L836.748 236.635L785.919 752.058L401.156 1032.75L390.771 1027.83L387.492 1024L361.805 993.355L308.244 493.252L196.75 303.936L196 283Z"
-			fill="#404040"
-		/>
-		<path
-			d="M676.612 46.75L196 283L406.075 403.75L883.75 157.016L676.612 46.75Z"
-			fill="#C3C3C3"
-		/>
-		<path
-			d="M710.508 532.3L883.75 637.259L868.978 667.578L522.003 822.75L430.181 772.896L710.508 532.3Z"
-			fill="#565656"
-		/>
-		<path
-			d="M636.135 387.75L749.325 463.807L744.953 475.844L458.616 691.857L328.75 562.63L636.135 387.75Z"
-			fill="#565656"
-		/>
-		<path
-			d="M196.75 296L400.75 414.112V553.43V1028.75L275.5 976.847V479.5L196.75 430V296Z"
-			fill="white"
-		/>
-		<path
-			d="M410.75 553.732V414.319L883.75 167.75V548.265L536.519 730.869V813.423L883.75 637.927V784.994L410.75 1033.75V644.487L749.232 464.617V382.063L410.75 553.732Z"
-			fill="white"
-		/>
-	</svg>
-);
-
-const MoonIcon: React.FC<{ color: string }> = ({ color }) => (
-	<svg
-		width="20"
-		height="20"
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke={color}
-		strokeWidth="2"
-		strokeLinecap="round"
-		strokeLinejoin="round"
-	>
-		<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-	</svg>
-);
 
 const AnthropicLogo: React.FC<{ size?: number }> = ({ size = 16 }) => (
 	<svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -163,27 +120,6 @@ const PaperclipIcon: React.FC<{ color: string; size?: number }> = ({
 	>
 		<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
 	</svg>
-);
-
-const AlphaBadge: React.FC<{ bg: string; textColor: string }> = ({
-	bg,
-	textColor,
-}) => (
-	<span
-		style={{
-			display: "inline-flex",
-			alignItems: "center",
-			borderRadius: "9999px",
-			border: "1px solid rgba(255,255,255,0.1)",
-			backgroundColor: bg,
-			padding: "2px 8px",
-			fontSize: "11px",
-			fontWeight: 600,
-			color: textColor,
-		}}
-	>
-		alpha
-	</span>
 );
 
 export const Scene2Dashboard: React.FC = () => {
@@ -280,25 +216,7 @@ export const Scene2Dashboard: React.FC = () => {
 					flexDirection: "column",
 				}}
 			>
-				<nav
-					className="w-full h-14 border-b flex items-center justify-between px-6"
-					style={{ backgroundColor: t.navbarBg, borderColor: t.borderSubtle }}
-				>
-					<div className="flex items-center gap-2">
-						<LogoIcon />
-						<span
-							className="font-semibold text-sm tracking-tight"
-							style={{ color: t.textPrimary }}
-						>
-							doce<span style={{ color: t.textMuted }}>.dev</span>
-						</span>
-						<AlphaBadge bg={t.pillBg} textColor={t.textMuted} />
-					</div>
-					<div />
-					<div className="flex items-center">
-						<MoonIcon color={t.textMuted} />
-					</div>
-				</nav>
+				<Navbar />
 
 				<div className="flex-1 flex flex-col items-center justify-center px-8">
 					<h1
@@ -394,7 +312,7 @@ export const Scene2Dashboard: React.FC = () => {
 												model.name === "Claude Opus 4.6" &&
 												frame >= MODEL_SWITCH - 4;
 											const bgHighlight = isOpusHighlighting
-												? `rgba(99, 102, 241, ${highlightOpusProgress * 0.15})`
+												? t.accentBg
 												: "transparent";
 
 											return (
@@ -426,7 +344,7 @@ export const Scene2Dashboard: React.FC = () => {
 															height="16"
 															viewBox="0 0 24 24"
 															fill="none"
-															stroke={t.mode === "dark" ? "#6366f1" : "#4f46e5"}
+															stroke={t.textPrimary}
 															strokeWidth="3"
 															strokeLinecap="round"
 															strokeLinejoin="round"
@@ -459,10 +377,10 @@ export const Scene2Dashboard: React.FC = () => {
 										transform: `scale(${buttonScale})`,
 									}}
 								>
-									<SparklesIcon color={t.chart1} size={18} />
+									<SparklesIcon color={t.ctaAccentStart} size={18} />
 									<span
 										style={{
-											background: `linear-gradient(90deg, ${t.chart1}, ${t.chart4}, ${t.chart5})`,
+											background: `linear-gradient(90deg, ${t.ctaAccentStart}, ${t.ctaAccentMid}, ${t.ctaAccentEnd})`,
 											WebkitBackgroundClip: "text",
 											WebkitTextFillColor: "transparent",
 											backgroundClip: "text",

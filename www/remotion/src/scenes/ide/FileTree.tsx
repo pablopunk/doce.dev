@@ -77,6 +77,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 	const frame = Math.max(0, globalFrame - startFrame);
 	const t = useTheme();
 
+	// Neutral selected highlight pulses gently using --accent
 	const highlightProgress = spring({
 		frame: frame - 15,
 		fps,
@@ -85,9 +86,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
 	const highlightOpacity = interpolate(
 		highlightProgress,
 		[0, 0.5, 1],
-		[0.3, 0.6, 0.3],
+		[0.6, 1, 0.85],
 	);
-	const highlightRgb = t.mode === "dark" ? "42, 46, 62" : "243, 244, 246";
 
 	return (
 		<div
@@ -97,7 +97,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
 				minWidth: width,
 				maxWidth: width,
 				flexShrink: 0,
-				backgroundColor: t.mode === "dark" ? "#1a1d2e" : "#f9fafb",
+				backgroundColor: t.sceneBg,
 				fontFamily,
 				borderRight: `1px solid ${t.borderSubtle}`,
 			}}
@@ -121,12 +121,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
 						style={{
 							paddingLeft: `${item.level * 12 + 8}px`,
 							color: item.highlighted ? t.textPrimary : t.textSecondary,
-							backgroundColor: isHighlighted
-								? `rgba(${highlightRgb}, ${highlightOpacity})`
-								: "transparent",
+							backgroundColor: isHighlighted ? t.accentBg : "transparent",
 							fontWeight: item.highlighted ? 500 : 400,
 							transform: `translateX(${itemX}px)`,
-							opacity: itemProgress,
+							opacity:
+								itemProgress *
+								(isHighlighted ? interpolate(highlightOpacity, [0, 1], [0.85, 1]) : 1),
 						}}
 					>
 						{isDirectory ? (

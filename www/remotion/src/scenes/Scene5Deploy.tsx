@@ -6,6 +6,7 @@ import {
 	useCurrentFrame,
 	useVideoConfig,
 } from "remotion";
+import { Navbar } from "../components/Navbar";
 import { useTheme } from "../theme";
 
 const { fontFamily } = loadFont("normal", {
@@ -73,71 +74,6 @@ const LoaderIcon: React.FC<{
 	</svg>
 );
 
-const LogoIcon: React.FC = () => (
-	<svg width="20" height="20" viewBox="0 0 1080 1080" fill="none">
-		<path
-			d="M196 283L207.5 281L308.244 260.163L883.75 156.75V167.146L836.748 236.635L785.919 752.058L401.156 1032.75L390.771 1027.83L387.492 1024L361.805 993.355L308.244 493.252L196.75 303.936L196 283Z"
-			fill="#404040"
-		/>
-		<path
-			d="M676.612 46.75L196 283L406.075 403.75L883.75 157.016L676.612 46.75Z"
-			fill="#C3C3C3"
-		/>
-		<path
-			d="M710.508 532.3L883.75 637.259L868.978 667.578L522.003 822.75L430.181 772.896L710.508 532.3Z"
-			fill="#565656"
-		/>
-		<path
-			d="M636.135 387.75L749.325 463.807L744.953 475.844L458.616 691.857L328.75 562.63L636.135 387.75Z"
-			fill="#565656"
-		/>
-		<path
-			d="M196.75 296L400.75 414.112V553.43V1028.75L275.5 976.847V479.5L196.75 430V296Z"
-			fill="white"
-		/>
-		<path
-			d="M410.75 553.732V414.319L883.75 167.75V548.265L536.519 730.869V813.423L883.75 637.927V784.994L410.75 1033.75V644.487L749.232 464.617V382.063L410.75 553.732Z"
-			fill="white"
-		/>
-	</svg>
-);
-
-const MoonIcon: React.FC<{ color: string }> = ({ color }) => (
-	<svg
-		width="20"
-		height="20"
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke={color}
-		strokeWidth="2"
-		strokeLinecap="round"
-		strokeLinejoin="round"
-	>
-		<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-	</svg>
-);
-
-const AlphaBadge: React.FC<{ bg: string; textColor: string }> = ({
-	bg,
-	textColor,
-}) => (
-	<span
-		style={{
-			display: "inline-flex",
-			alignItems: "center",
-			borderRadius: "9999px",
-			border: "1px solid rgba(255,255,255,0.1)",
-			backgroundColor: bg,
-			padding: "2px 8px",
-			fontSize: "11px",
-			fontWeight: 600,
-			color: textColor,
-		}}
-	>
-		alpha
-	</span>
-);
-
 export const Scene5Deploy: React.FC = () => {
 	const frame = useCurrentFrame();
 	const { fps } = useVideoConfig();
@@ -169,27 +105,7 @@ export const Scene5Deploy: React.FC = () => {
 				transformOrigin: "top right",
 			}}
 		>
-			{/* Navbar */}
-			<div
-				className="w-full h-14 border-b flex items-center justify-between px-6"
-				style={{ backgroundColor: t.navbarBg, borderColor: t.borderSubtle }}
-			>
-				<div className="flex items-center gap-2">
-					<LogoIcon />
-					<span
-						className="font-semibold text-sm tracking-tight"
-						style={{ color: t.textPrimary }}
-					>
-						doce<span style={{ color: t.textMuted }}>.dev</span>
-					</span>
-					<AlphaBadge bg={t.pillBg} textColor={t.textMuted} />
-				</div>
-				<div />
-
-				<div className="flex items-center">
-					<MoonIcon color={t.textMuted} />
-				</div>
-			</div>
+			<Navbar projectName="finance-saas" projectIcon="💸" />
 
 			{/* Toolbar with tabs and deploy button */}
 			<div
@@ -218,10 +134,36 @@ export const Scene5Deploy: React.FC = () => {
 					))}
 				</div>
 
+				<div className="flex items-center gap-2">
+				<button
+					type="button"
+					className="h-8 px-3 rounded-md text-sm font-medium inline-flex items-center gap-1.5"
+					style={{
+						backgroundColor: t.sceneBg,
+						color: t.textPrimary,
+						border: `1px solid ${t.borderSubtle}`,
+					}}
+				>
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+						<polyline points="7 10 12 15 17 10" />
+						<line x1="12" x2="12" y1="15" y2="3" />
+					</svg>
+					<span>Export</span>
+				</button>
 				{/* Deploy button with state transitions */}
 				<button
 					type="button"
-					className="h-7 px-2.5 rounded-md text-sm font-medium inline-flex items-center gap-1.5"
+					className="h-8 px-3 rounded-md text-sm font-medium inline-flex items-center gap-1.5"
 					style={{
 						backgroundColor: isDeployed ? t.buttonPrimary : t.sceneBg,
 						color: isDeployed ? t.buttonPrimaryForeground : t.textPrimary,
@@ -250,6 +192,7 @@ export const Scene5Deploy: React.FC = () => {
 						</>
 					)}
 				</button>
+				</div>
 			</div>
 
 			{/* Blurred background content */}

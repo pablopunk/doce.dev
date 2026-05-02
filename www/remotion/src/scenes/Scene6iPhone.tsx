@@ -275,7 +275,7 @@ export const Scene6iPhone: React.FC = () => {
 											flex: 1,
 											height: `${h}%`,
 											background:
-												"linear-gradient(180deg, #7c3aed 0%, #4c1d95 100%)",
+												`linear-gradient(180deg, ${t.textPrimary} 0%, ${t.textMuted} 100%)`,
 											borderRadius: "3px 3px 0 0",
 											opacity: 0.9,
 										}}
@@ -317,7 +317,7 @@ export const Scene6iPhone: React.FC = () => {
 							<svg width="100%" height="40" viewBox="0 0 240 40" fill="none">
 								<path
 									d="M0 35 Q30 30 48 25 T96 18 T144 22 T192 10 T240 5"
-									stroke="#7c3aed"
+									stroke={t.textPrimary}
 									strokeWidth="2"
 									fill="none"
 								/>
@@ -328,7 +328,7 @@ export const Scene6iPhone: React.FC = () => {
 								/>
 								<defs>
 									<linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-										<stop offset="0%" stopColor="#7c3aed" />
+										<stop offset="0%" stopColor={t.textPrimary} />
 										<stop offset="100%" stopColor="transparent" />
 									</linearGradient>
 								</defs>
