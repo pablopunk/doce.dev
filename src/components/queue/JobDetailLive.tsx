@@ -12,6 +12,7 @@ interface JobStreamData {
 
 interface JobDetailLiveProps {
 	initialJob: QueueJob;
+	backHref?: string;
 }
 
 interface JobLogChunkEvent {
@@ -44,7 +45,10 @@ function parseJobLogChunk(text: string): ParsedJobLogLine[] {
 		});
 }
 
-export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
+export function JobDetailLive({
+	initialJob,
+	backHref = "/settings?tab=status",
+}: JobDetailLiveProps) {
 	const [job, setJob] = useState<QueueJob>(initialJob);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [pendingAction, setPendingAction] = useState<
@@ -245,7 +249,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 
 	return (
 		<>
-			<main className="container mx-auto max-w-4xl p-8">
+			<main className="mx-auto max-w-4xl">
 				<div className="mb-6 flex items-start justify-between gap-4">
 					<div>
 						<h1 className="text-2xl font-bold">Job</h1>
@@ -254,10 +258,7 @@ export function JobDetailLive({ initialJob }: JobDetailLiveProps) {
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<a
-							href="/settings?tab=status"
-							className="rounded-md border px-3 py-2 text-sm"
-						>
+						<a href={backHref} className="rounded-md border px-3 py-2 text-sm">
 							Back
 						</a>
 						{canCancel && (

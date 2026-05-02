@@ -7,6 +7,7 @@ import {
 	Layers3,
 	Package,
 } from "lucide-react";
+import { JobDetailLive } from "@/components/queue/JobDetailLive";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
 import {
 	Card,
@@ -35,6 +36,7 @@ interface StatusSettingsProps {
 		q?: string;
 	};
 	diagnostics: SettingsStatusDiagnostics;
+	selectedJob: QueueJob | undefined;
 }
 
 const checkIcons = [Cpu, Activity, Layers3, Package] as const;
@@ -46,6 +48,7 @@ export function StatusSettings({
 	initialPagination,
 	filters,
 	diagnostics,
+	selectedJob,
 }: StatusSettingsProps) {
 	const checklistItems = [
 		{
@@ -70,6 +73,12 @@ export function StatusSettings({
 			icon: checkIcons[index] ?? Activity,
 		})),
 	];
+
+	if (selectedJob) {
+		return (
+			<JobDetailLive initialJob={selectedJob} backHref="/settings?tab=status" />
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -119,6 +128,7 @@ export function StatusSettings({
 			<div className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm">
 				<QueueTableLive
 					initialJobs={initialJobs}
+					jobDetailHref={(jobId) => `/settings?tab=status&jobId=${jobId}`}
 					initialPaused={initialPaused}
 					initialConcurrency={initialConcurrency}
 					initialPagination={initialPagination}

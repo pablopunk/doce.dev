@@ -25,6 +25,7 @@ import { QueuePlayerControl } from "./QueuePlayerControl";
 
 interface QueueTableLiveProps {
 	initialJobs: QueueJob[];
+	jobDetailHref?: (jobId: string) => string;
 	initialPage?: number;
 	initialPagination?: {
 		page: number;
@@ -49,6 +50,7 @@ export function QueueTableLive({
 	initialPaused,
 	initialConcurrency = 2,
 	filters = {},
+	jobDetailHref = (jobId) => `/queue/${jobId}`,
 }: QueueTableLiveProps) {
 	const { jobs, paused, concurrency, pagination, hasNewJobs, setPagination } =
 		useQueueStream(
@@ -163,7 +165,7 @@ export function QueueTableLive({
 	);
 
 	const handlePageChange = (newPage: number) => {
-		const params = new URLSearchParams();
+		const params = new URLSearchParams(window.location.search);
 		params.set("page", newPage.toString());
 		if (filters.state) params.set("state", filters.state);
 		if (filters.type) params.set("type", filters.type);
@@ -275,7 +277,7 @@ export function QueueTableLive({
 											{getStateIcon(job.state)}
 										</span>
 										<a
-											href={`/queue/${job.id}`}
+											href={jobDetailHref(job.id)}
 											className="hover:underline text-status-info font-mono text-xs"
 										>
 											{job.id.slice(0, 8)}
@@ -344,7 +346,7 @@ export function QueueTableLive({
 										</td>
 										<td className="py-2 px-2 font-mono text-xs">
 											<a
-												href={`/queue/${job.id}`}
+												href={jobDetailHref(job.id)}
 												className="hover:underline text-status-info"
 											>
 												{job.id.slice(0, 8)}

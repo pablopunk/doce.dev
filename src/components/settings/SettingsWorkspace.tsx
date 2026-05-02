@@ -46,6 +46,7 @@ interface SettingsWorkspaceProps {
 			q?: string;
 		};
 		diagnostics: SettingsStatusDiagnostics;
+		selectedJob: QueueJob | undefined;
 	};
 	logsData?: SettingsLogsPageData;
 }
@@ -89,7 +90,7 @@ const baseTabs = [
 }>;
 
 export function SettingsWorkspace({
-	initialTab = "general",
+	initialTab = "providers",
 	isProduction,
 	statusData,
 	logsData,
@@ -110,7 +111,7 @@ export function SettingsWorkspace({
 		[isProduction],
 	);
 	const resolvedInitialTab =
-		initialTab === "logs" && !isProduction ? "general" : initialTab;
+		initialTab === "logs" && !isProduction ? "providers" : initialTab;
 	const [activeTab, setActiveTab] = useState<SettingsTabId>(resolvedInitialTab);
 
 	const selectTab = (tabId: SettingsTabId) => {
@@ -139,6 +140,7 @@ export function SettingsWorkspace({
 						initialPagination={statusData.pagination}
 						filters={statusData.filters}
 						diagnostics={statusData.diagnostics}
+						selectedJob={statusData.selectedJob}
 					/>
 				);
 			case "logs":
