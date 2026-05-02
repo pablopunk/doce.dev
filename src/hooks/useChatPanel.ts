@@ -757,6 +757,9 @@ export function useChatPanel({
 			setIsStreaming(true);
 			setPendingImages([]);
 			setPendingImageError(null);
+			// Sending a new prompt branches from the revert point; the visible-items
+			// slice should no longer hide the new message + its response.
+			if (revertMessageId) setRevertMessageId(null);
 		} catch (error) {
 			updateItem(userMessageId, {
 				localStatus: "failed",
@@ -903,6 +906,12 @@ export function useChatPanel({
 			text: string;
 			images: ImagePart[];
 		}) => {
+			// Optimistic: snapshot prev state, apply, roll back on failure.
+			const prevRevert = revertMessageId;
+			setRevertMessageId(messageId);
+			if (role === "user") {
+				setDraftSeed({ key: Date.now(), text, images });
+			}
 			try {
 				const result = await actions.chat.revertToMessage({
 					projectId,
@@ -911,18 +920,33 @@ export function useChatPanel({
 				if (result.error) {
 					throw new Error(result.error.message);
 				}
-				setRevertMessageId(messageId);
-				if (role === "user") {
-					setDraftSeed({ key: Date.now(), text, images });
-				}
+				// Trust server-returned revert pointer.
+				const serverId = result.data?.revertMessageId ?? messageId;
+				if (serverId !== messageId) setRevertMessageId(serverId);
 				toast.success("Conversation restored");
 			} catch (error) {
+				setRevertMessageId(prevRevert);
+				if (role === "user") setDraftSeed(null);
 				showRequestError("Failed to restore conversation", error);
 				throw error;
 			}
 		},
-		[projectId, setRevertMessageId, showRequestError],
+		[projectId, revertMessageId, setRevertMessageId, showRequestError],
 	);
+
+	const handleUnrevert = useCallback(async () => {
+		const prevRevert = revertMessageId;
+		if (!prevRevert) return;
+		setRevertMessageId(null);
+		try {
+			const result = await actions.chat.unrevertSession({ projectId });
+			if (result.error) throw new Error(result.error.message);
+		} catch (error) {
+			setRevertMessageId(prevRevert);
+			showRequestError("Failed to cancel restore", error);
+			throw error;
+		}
+	}, [projectId, revertMessageId, setRevertMessageId, showRequestError]);
 
 	const clearDraftSeed = useCallback(() => setDraftSeed(null), []);
 
@@ -940,6 +964,7 @@ export function useChatPanel({
 		rawItems: items,
 		revertMessageId,
 		handleRestore,
+		handleUnrevert,
 		draftSeed,
 		clearDraftSeed,
 		opencodeReady,
