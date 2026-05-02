@@ -10,6 +10,7 @@ import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 import { PermissionDock } from "./composer/PermissionDock";
 import { QuestionDock } from "./composer/QuestionDock";
+import { buildRolledMessages, RevertDock } from "./composer/RevertDock";
 import { TodoDock } from "./composer/TodoDock";
 
 interface ChatPanelProps {
@@ -59,10 +60,44 @@ export function ChatPanel({
 		toggleToolExpanded,
 		handleScroll,
 		handleRestore,
+		handleUnrevert,
 		draftSeed,
 		clearDraftSeed,
 		clearDiagnostic,
+		rawItems,
+		revertMessageId,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
+
+	const rolledMessages = useMemo(
+		() => buildRolledMessages(rawItems, revertMessageId),
+		[rawItems, revertMessageId],
+	);
+
+	const handleRestoreUpTo = async (messageId: string) => {
+		// Step the revert pointer forward to the user message AFTER the clicked one.
+		// If there's nothing further, unrevert entirely (matches opencode redo).
+		const idx = rolledMessages.findIndex((m) => m.id === messageId);
+		const next = idx >= 0 ? rolledMessages[idx + 1] : undefined;
+		if (!next) {
+			await handleUnrevert();
+			return;
+		}
+		const item = rawItems.find(
+			(it) => it.type === "message" && it.id === next.id,
+		);
+		const data = item?.data as Message | undefined;
+		if (!data) return;
+		const text = next.text;
+		const images = data.parts.filter(
+			(p): p is import("@/types/message").ImagePart => p.type === "image",
+		);
+		await handleRestore({
+			messageId: next.id,
+			role: "user",
+			text,
+			images,
+		});
+	};
 
 	const isBlocked = Boolean(pendingPermission || pendingQuestion);
 
@@ -150,6 +185,14 @@ export function ChatPanel({
 
 				return (
 					<>
+						{rolledMessages.length > 0 && !isBlocked && (
+							<RevertDock
+								items={rolledMessages}
+								disabled={isStreaming}
+								onRestoreUpTo={handleRestoreUpTo}
+								onCancel={handleUnrevert}
+							/>
+						)}
 						{todos.length > 0 && !isBlocked && <TodoDock todos={todos} />}
 						{pendingQuestion && (
 							<QuestionDock
