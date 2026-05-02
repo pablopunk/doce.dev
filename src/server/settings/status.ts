@@ -8,6 +8,7 @@ import {
 	listJobs,
 } from "@/server/queue/queue.model";
 import type { QueueJobType } from "@/server/queue/types";
+import { getLatestHealthSnapshot } from "@/server/reconciliation/reconcile";
 import { runCommand } from "@/server/utils/execAsync";
 import { VERSION } from "@/server/version";
 
@@ -63,6 +64,10 @@ export interface SettingsStatusDiagnostics {
 		phase: string;
 		error: string | null;
 	};
+	selfHealing: {
+		lastSnapshot: Awaited<ReturnType<typeof getLatestHealthSnapshot>>;
+		violationsFoundInLastHour: number;
+	} | null;
 }
 
 function validateJobState(stateParam: string): QueueJob["state"] | undefined {
@@ -196,6 +201,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 		dockerHealthy,
 		networkHealthy,
 		volumeHealthy,
+		lastSnapshot,
 	] = await Promise.all([
 		isQueuePaused(),
 		getConcurrency(),
@@ -207,6 +213,7 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 		checkDockerResource("docker version"),
 		checkDockerResource(`docker network inspect ${DOCE_SHARED_NETWORK}`),
 		checkDockerResource(`docker volume inspect ${GLOBAL_PNPM_VOLUME}`),
+		getLatestHealthSnapshot(),
 	]);
 
 	return {
@@ -262,6 +269,10 @@ export async function getSettingsStatusDiagnostics(): Promise<SettingsStatusDiag
 		prewarm: {
 			phase: prewarm.phase,
 			error: prewarm.error,
+		},
+		selfHealing: {
+			lastSnapshot,
+			violationsFoundInLastHour: lastSnapshot?.violationsFound ?? 0,
 		},
 	};
 }

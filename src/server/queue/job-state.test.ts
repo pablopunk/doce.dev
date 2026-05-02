@@ -49,6 +49,8 @@ function buildJob(overrides: Partial<QueueJob>): QueueJob {
 		lockedBy: null,
 		dedupeKey: null,
 		dedupeActive: null,
+		healedAt: null,
+		healReason: null,
 		cancelRequestedAt: null,
 		cancelledAt: null,
 		lastError: null,

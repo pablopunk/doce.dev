@@ -4,8 +4,10 @@ import {
 	CheckCircle2,
 	Cpu,
 	GitBranch,
+	Heart,
 	Layers3,
 	Package,
+	RefreshCw,
 } from "lucide-react";
 import { JobDetailLive } from "@/components/queue/JobDetailLive";
 import { QueueTableLive } from "@/components/queue/QueueTableLive";
@@ -124,6 +126,94 @@ export function StatusSettings({
 					</div>
 				</CardContent>
 			</Card>
+
+			{diagnostics.selfHealing?.lastSnapshot && (
+				<Card>
+					<CardHeader className="pb-4">
+						<div className="flex items-center gap-2">
+							<Heart className="size-5 text-status-success" />
+							<CardTitle>Self-healing</CardTitle>
+						</div>
+						<CardDescription>
+							Automatic recovery from state desyncs across projects, queue jobs,
+							and infrastructure.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							<div className="flex items-start gap-3">
+								<RefreshCw className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<p className="text-sm font-medium">Last check</p>
+										<p className="text-sm text-foreground/90">
+											{diagnostics.selfHealing.lastSnapshot.takenAt
+												? new Date(
+														diagnostics.selfHealing.lastSnapshot.takenAt,
+													).toLocaleString()
+												: "Never"}
+										</p>
+									</div>
+									<p className="mt-1 text-sm text-muted-foreground">
+										Reconciliation scans run automatically every 30 seconds.
+									</p>
+								</div>
+							</div>
+
+							<div className="flex items-start gap-3">
+								<Activity className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<p className="text-sm font-medium">Projects</p>
+										<p className="text-sm text-foreground/90">
+											{diagnostics.selfHealing.lastSnapshot.projectsRunning ??
+												0}{" "}
+											running /{" "}
+											{diagnostics.selfHealing.lastSnapshot.projectsTotal ?? 0}{" "}
+											total
+										</p>
+									</div>
+								</div>
+							</div>
+
+							<div className="flex items-start gap-3">
+								<Package className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<p className="text-sm font-medium">Queue</p>
+										<p className="text-sm text-foreground/90">
+											{diagnostics.selfHealing.lastSnapshot.queueJobsRunning ??
+												0}{" "}
+											running /{" "}
+											{diagnostics.selfHealing.lastSnapshot.queueJobsQueued ??
+												0}{" "}
+											queued
+										</p>
+									</div>
+								</div>
+							</div>
+
+							{(() => {
+								const v = diagnostics.selfHealing.lastSnapshot.violationsFound;
+								return v != null && v > 0;
+							})() && (
+								<div className="rounded-md bg-status-warning/10 p-3">
+									<p className="text-sm font-medium text-status-warning">
+										{diagnostics.selfHealing.lastSnapshot.violationsFound}{" "}
+										violation
+										{diagnostics.selfHealing.lastSnapshot.violationsFound === 1
+											? ""
+											: "s"}{" "}
+										found,{" "}
+										{diagnostics.selfHealing.lastSnapshot.violationsHealed}{" "}
+										healed
+									</p>
+								</div>
+							)}
+						</div>
+					</CardContent>
+				</Card>
+			)}
 
 			<div className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm">
 				<QueueTableLive
