@@ -595,3 +595,22 @@ export function useChatStore(projectId: string): ChatStore {
 	}
 	return store();
 }
+
+/**
+ * Synchronously seed a project's chat store with SSR-fetched state. Returns
+ * true if the store was newly created and seeded; returns false if a store
+ * already existed (we don't clobber an in-flight session).
+ *
+ * Called from a useState initializer in the project page wrapper so the very
+ * first render of the chat panel sees history already populated.
+ */
+export function seedChatStoreOnce(
+	projectId: string,
+	patch: Partial<ChatStore>,
+): boolean {
+	if (storeInstances.has(projectId)) return false;
+	const instance = createChatStore();
+	instance.setState((state) => ({ ...state, ...patch }));
+	storeInstances.set(projectId, instance);
+	return true;
+}

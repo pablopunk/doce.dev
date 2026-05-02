@@ -2,7 +2,12 @@ import { actions } from "astro:actions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLiveState } from "@/hooks/useLiveState";
-import { type ChatItem, useChatStore } from "@/stores/useChatStore";
+import {
+	buildHistoryItems,
+	type RawSessionMessage,
+} from "@/lib/chat/buildHistoryItems";
+import type { InitialChatState } from "@/server/opencode/initialChat";
+import { useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
 	createImagePart,
@@ -69,12 +74,19 @@ interface UseChatPanelOptions {
 	onStreamingStateChange?:
 		| ((userMessageCount: number, isStreaming: boolean) => void)
 		| undefined;
+	/**
+	 * SSR-fetched initial state. When present we hydrate the store synchronously
+	 * on mount so the panel paints with history already populated, skipping the
+	 * client-side history fetch entirely.
+	 */
+	initialChat?: InitialChatState | null;
 }
 
 export function useChatPanel({
 	projectId,
 	models,
 	onStreamingStateChange,
+	initialChat = null,
 }: UseChatPanelOptions) {
 	const store = useChatStore(projectId);
 	const {
@@ -138,6 +150,10 @@ export function useChatPanel({
 	const loadingHistoryRef = useRef(false);
 	const configLoadedRef = useRef(false);
 	const streamDegradedRef = useRef(false);
+	// initialChat is consumed by ProjectContentWrapper via useChatStoreSeed —
+	// it lands in the store before this hook's first read. Reference it here
+	// only to silence the unused-prop lint when callers pass it through.
+	void initialChat;
 
 	const isNearBottom = useCallback(() => {
 		if (!scrollRef.current) return false;
@@ -346,69 +362,66 @@ export function useChatPanel({
 		const loadHistory = async () => {
 			loadingHistoryRef.current = true;
 			try {
-				type SessionListItem = { id?: string } | string;
-				type SessionMessage = {
-					info?: {
-						id?: string;
-						role?: "user" | "assistant";
-						model?: { providerID: string; modelID: string };
-						error?: { name?: string; data?: { message?: string } };
-					};
-					parts?: Array<{
-						type?: string;
-						id?: string;
-						text?: string;
-						tool?: string;
-						callID?: string;
-						state?: {
-							input?: unknown;
-							output?: unknown;
-							status?: string;
-							error?: unknown;
-						};
-					}>;
-				};
+				// Resolve session id without an extra roundtrip when possible.
+				// liveData hands us bootstrapSessionId; fall back to the list call only
+				// for legacy projects that predate that field.
+				let latestSessionId =
+					sessionId ?? liveData?.bootstrapSessionId ?? null;
 
-				const sessionsData = await fetchJson<
-					SessionListItem[] | { sessions?: SessionListItem[] }
-				>(`/api/projects/${projectId}/opencode/session`);
-				const sessions = Array.isArray(sessionsData)
-					? sessionsData
-					: sessionsData.sessions || [];
-				if (sessions.length === 0) {
-					setHistoryLoaded(true);
-					loadingHistoryRef.current = false;
-					return;
+				if (!latestSessionId) {
+					type SessionListItem = { id?: string } | string;
+					const sessionsData = await fetchJson<
+						SessionListItem[] | { sessions?: SessionListItem[] }
+					>(`/api/projects/${projectId}/opencode/session`);
+					const sessions = Array.isArray(sessionsData)
+						? sessionsData
+						: sessionsData.sessions || [];
+					const latest = sessions[sessions.length - 1];
+					latestSessionId =
+						(typeof latest === "string" ? latest : latest?.id) ?? null;
 				}
 
-				const latestSession = sessions[sessions.length - 1];
-				const latestSessionId =
-					typeof latestSession === "string" ? latestSession : latestSession?.id;
 				if (!latestSessionId) {
 					setHistoryLoaded(true);
 					loadingHistoryRef.current = false;
 					return;
 				}
 				setSessionId(latestSessionId);
-				await refreshBlockingState(latestSessionId);
 
-				try {
-					const sessionInfo = await fetchJson<{
-						revert?: { messageID?: string };
-					}>(`/api/projects/${projectId}/opencode/session/${latestSessionId}`);
-					setRevertMessageId(sessionInfo.revert?.messageID ?? null);
-				} catch {
-					// Best-effort; SSE will catch up later.
+				// Run the three remaining requests in parallel — none of them depend
+				// on each other, so the perceived latency drops to the slowest one.
+				const [, sessionInfoResult, messagesResult] = await Promise.allSettled([
+					refreshBlockingState(latestSessionId),
+					fetchJson<{ revert?: { messageID?: string } }>(
+						`/api/projects/${projectId}/opencode/session/${latestSessionId}`,
+					),
+					fetchJson<RawSessionMessage[] | { messages?: RawSessionMessage[] }>(
+						`/api/projects/${projectId}/opencode/session/${latestSessionId}/message`,
+					),
+				]);
+
+				if (sessionInfoResult.status === "fulfilled") {
+					setRevertMessageId(
+						sessionInfoResult.value?.revert?.messageID ?? null,
+					);
 				}
 
-				const messagesData = await fetchJson<
-					SessionMessage[] | { messages?: SessionMessage[] }
-				>(
-					`/api/projects/${projectId}/opencode/session/${latestSessionId}/message`,
-				);
+				if (messagesResult.status !== "fulfilled") {
+					if (messagesResult.status === "rejected") {
+						showRequestError(
+							"Failed to load chat history",
+							messagesResult.reason,
+						);
+					}
+					setHistoryLoaded(true);
+					loadingHistoryRef.current = false;
+					return;
+				}
+
+				const messagesData = messagesResult.value;
 				const messages = Array.isArray(messagesData)
 					? messagesData
-					: messagesData.messages || [];
+					: (messagesData.messages ?? []);
 
 				const lastUserMessageWithModel = messages
 					.filter(
@@ -422,60 +435,10 @@ export function useChatPanel({
 					);
 				}
 
-				const historyItems: ChatItem[] = [];
-				let foundUserPrompt = false;
-
-				for (const msg of messages) {
-					const info = msg.info || {};
-					const msgParts = msg.parts || [];
-					const role = info.role;
-					const messageId = info.id || `hist_${Date.now()}_${Math.random()}`;
-
-					if (userPromptMessageId && !foundUserPrompt) {
-						if (messageId === userPromptMessageId) foundUserPrompt = true;
-						else continue;
-					}
-
-					if (role === "user" || role === "assistant") {
-						const messageParts: MessagePart[] = [];
-						const assistantError = info.error?.data?.message;
-						for (const part of msgParts) {
-							if (part.type === "text" && part.text) {
-								messageParts.push(createTextPart(part.text, part.id));
-							}
-							if (part.type === "tool" && part.tool && part.callID) {
-								historyItems.push({
-									type: "tool",
-									id: part.callID,
-									data: {
-										id: part.callID,
-										name: part.tool,
-										input: part.state?.input,
-										output: part.state?.output,
-										status:
-											part.state?.status === "error" ? "error" : "success",
-									},
-								});
-							}
-						}
-						if (role === "assistant" && assistantError) {
-							messageParts.push(createErrorPart(assistantError));
-						}
-						if (messageParts.length > 0) {
-							historyItems.push({
-								type: "message",
-								id: messageId,
-								data: {
-									id: messageId,
-									role,
-									parts: messageParts,
-									isStreaming: false,
-									localStatus: "sent",
-								},
-							});
-						}
-					}
-				}
+				const historyItems = buildHistoryItems(
+					messages,
+					userPromptMessageId ?? null,
+				);
 				if (historyItems.length > 0) {
 					setItems(historyItems);
 					setTimeout(scrollToBottom, 100);
@@ -494,6 +457,8 @@ export function useChatPanel({
 		presenceLoaded,
 		userPromptMessageId,
 		models,
+		sessionId,
+		liveData?.bootstrapSessionId,
 		setHistoryLoaded,
 		setSessionId,
 		setCurrentModel,

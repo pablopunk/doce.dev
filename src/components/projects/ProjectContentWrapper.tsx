@@ -10,7 +10,9 @@ import { useCanonicalProjectUrl } from "@/hooks/useCanonicalProjectUrl";
 import { useChatPanel } from "@/hooks/useChatPanel";
 import { useLiveState } from "@/hooks/useLiveState";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
+import type { InitialChatState } from "@/server/opencode/initialChat";
 import { useChatLayout } from "@/stores/useChatLayout";
+import { useChatStoreSeed } from "@/stores/useChatStoreSeed";
 import { useProjectOptimisticState } from "@/stores/useProjectOptimisticState";
 
 interface ProjectContentWrapperProps {
@@ -23,14 +25,19 @@ interface ProjectContentWrapperProps {
 		vendor: string;
 		supportsImages?: boolean;
 	}>;
+	initialChat?: InitialChatState | null;
 }
 
 export function ProjectContentWrapper({
 	projectId,
 	projectSlug,
 	models = [],
+	initialChat = null,
 }: ProjectContentWrapperProps) {
 	useCanonicalProjectUrl(projectId, projectSlug ?? projectId);
+	// Seed the chat store synchronously before any child mounts so SSR-loaded
+	// history paints on the first frame.
+	useChatStoreSeed(projectId, initialChat);
 	const [showStartupDisplay, setShowStartupDisplay] = useState(true);
 	const [fileToOpen, setFileToOpen] = useState<string | null>(null);
 	const [userMessageCount, setUserMessageCount] = useState(0);
@@ -60,10 +67,13 @@ export function ProjectContentWrapper({
 		(s) => s.pendingByProjectId.get(projectId) ?? null,
 	);
 
-	// Get chat send function for "Fix with Doce" feature
+	// Get chat send function for "Fix with Doce" feature.
+	// Also seeds the chat store with SSR data so the panel paints with history
+	// already present (no client-side fetch waterfall on first load).
 	const { handleSend } = useChatPanel({
 		projectId,
 		models,
+		initialChat,
 		onStreamingStateChange: (count, streaming) => {
 			setUserMessageCount(count);
 			setIsStreaming(streaming);
