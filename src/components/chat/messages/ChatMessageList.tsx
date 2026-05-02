@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/message";
-import { ChatMessage } from "../ChatMessage";
+import { ChatMessage, type RestoreRequest } from "../ChatMessage";
 import type { ToolCall } from "../ToolCallDisplay";
 import { ToolCallGroup } from "../ToolCallGroup";
 
@@ -23,6 +23,7 @@ interface ChatMessageListProps {
 	onOpenFile?: (filePath: string) => void;
 	scrollRef: React.RefObject<HTMLDivElement>;
 	onScroll: () => void;
+	onRestore?: ((request: RestoreRequest) => void | Promise<void>) | undefined;
 }
 
 function groupConsecutiveTools(items: ChatItem[]): GroupedItem[] {
@@ -65,6 +66,7 @@ export function ChatMessageList({
 	onOpenFile,
 	scrollRef,
 	onScroll,
+	onRestore,
 }: ChatMessageListProps) {
 	return (
 		<div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={onScroll}>
@@ -83,7 +85,11 @@ export function ChatMessageList({
 				<div className="divide-y">
 					{groupConsecutiveTools(items).map((item) =>
 						item.type === "message" ? (
-							<ChatMessage key={item.id} message={item.data as Message} />
+							<ChatMessage
+								key={item.id}
+								message={item.data as Message}
+								onRestore={onRestore}
+							/>
 						) : item.type === "toolGroup" ? (
 							<ToolCallGroup
 								key={item.id}

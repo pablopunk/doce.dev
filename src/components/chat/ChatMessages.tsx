@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import type { ChatItem } from "@/stores/useChatStore";
 import type { Message } from "@/types/message";
-import { ChatMessage } from "./ChatMessage";
+import { ChatMessage, type RestoreRequest } from "./ChatMessage";
 import type { ToolCall } from "./ToolCallDisplay";
 import { ToolCallGroup } from "./ToolCallGroup";
 
@@ -11,6 +11,7 @@ interface ChatMessagesProps {
 	expandedTools: Set<string>;
 	onToggleTool: (id: string) => void;
 	onOpenFile?: ((filePath: string) => void) | undefined;
+	onRestore?: ((request: RestoreRequest) => void | Promise<void>) | undefined;
 }
 
 export function ChatMessages({
@@ -18,6 +19,7 @@ export function ChatMessages({
 	expandedTools,
 	onToggleTool,
 	onOpenFile,
+	onRestore,
 }: ChatMessagesProps) {
 	const grouped = useMemo(() => groupConsecutiveTools(items), [items]);
 
@@ -34,7 +36,10 @@ export function ChatMessages({
 							exit={{ opacity: 0 }}
 							transition={{ duration: 0.15, ease: "easeOut" }}
 						>
-							<ChatMessage message={item.data as Message} />
+							<ChatMessage
+								message={item.data as Message}
+								onRestore={onRestore}
+							/>
 						</motion.div>
 					) : item.type === "toolGroup" ? (
 						<motion.div

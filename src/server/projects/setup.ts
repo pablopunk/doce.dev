@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
@@ -32,6 +33,11 @@ export async function setupProjectFilesystem(
 	await copyTemplate(previewPath);
 	logger.debug({ previewPath }, "Copied template to preview directory");
 
+	// Initialize git repo so OpenCode snapshots can track agent file changes
+	// (snapshots require a git working tree to compute patches and revert).
+	await initGitRepo(previewPath);
+	logger.debug({ previewPath }, "Initialized git repo for preview directory");
+
 	// Create production directory
 	const productionPath = getProjectProductionPath(projectId);
 	await fs.mkdir(productionPath, { recursive: true });
@@ -49,6 +55,44 @@ export async function setupProjectFilesystem(
 	await fs.mkdir(path.join(productionPath, "logs"), { recursive: true });
 
 	return { projectPath, productionPort };
+}
+
+/**
+ * Initialize a git repository in the project directory with an initial commit.
+ * Required for OpenCode's snapshot/revert system to track file changes.
+ */
+async function initGitRepo(repoPath: string): Promise<void> {
+	const run = (args: string[]) =>
+		new Promise<void>((resolve, reject) => {
+			const child = spawn("git", args, {
+				cwd: repoPath,
+				stdio: "ignore",
+				env: {
+					...process.env,
+					GIT_AUTHOR_NAME: "doce",
+					GIT_AUTHOR_EMAIL: "doce@local",
+					GIT_COMMITTER_NAME: "doce",
+					GIT_COMMITTER_EMAIL: "doce@local",
+				},
+			});
+			child.on("error", reject);
+			child.on("exit", (code) =>
+				code === 0
+					? resolve()
+					: reject(new Error(`git ${args.join(" ")} exited with ${code}`)),
+			);
+		});
+
+	try {
+		await run(["init", "-q", "-b", "main"]);
+		await run(["add", "-A"]);
+		await run(["commit", "-q", "--allow-empty", "-m", "initial template"]);
+	} catch (error) {
+		logger.warn(
+			{ error, repoPath },
+			"Failed to initialize git repo for project; revert/snapshot will be disabled",
+		);
+	}
 }
 
 /**

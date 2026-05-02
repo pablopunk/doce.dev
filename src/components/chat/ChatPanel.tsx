@@ -58,6 +58,9 @@ export function ChatPanel({
 		handleQuestionReject,
 		toggleToolExpanded,
 		handleScroll,
+		handleRestore,
+		draftSeed,
+		clearDraftSeed,
 		clearDiagnostic,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
 
@@ -113,6 +116,7 @@ export function ChatPanel({
 							expandedTools={expandedTools}
 							onToggleTool={toggleToolExpanded}
 							onOpenFile={onOpenFile}
+							onRestore={handleRestore}
 						/>
 						<AgentThinkingIndicator
 							projectId={projectId}
@@ -162,6 +166,8 @@ export function ChatPanel({
 						)}
 						{!isBlocked && (
 							<ChatInput
+								seedDraft={draftSeed}
+								onSeedConsumed={clearDraftSeed}
 								onSend={handleSend}
 								disabled={!opencodeReady || isStreaming}
 								placeholder={

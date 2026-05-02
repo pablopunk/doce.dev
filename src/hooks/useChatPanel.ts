@@ -1,5 +1,5 @@
 import { actions } from "astro:actions";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLiveState } from "@/hooks/useLiveState";
 import { type ChatItem, useChatStore } from "@/stores/useChatStore";
@@ -80,8 +80,10 @@ export function useChatPanel({
 	const {
 		items,
 		sessionId,
+		revertMessageId,
 		opencodeReady,
 		initialPromptSent,
+		userPromptMessageId,
 		projectPrompt,
 		currentModel,
 		historyLoaded,
@@ -94,6 +96,7 @@ export function useChatPanel({
 		pendingQuestion,
 		todos,
 		setSessionId,
+		setRevertMessageId,
 		setOpenCodeReady,
 		setInitialPromptSent,
 		setUserPromptMessageId,
@@ -116,6 +119,11 @@ export function useChatPanel({
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 	const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+	const [draftSeed, setDraftSeed] = useState<{
+		key: number;
+		text: string;
+		images: ImagePart[];
+	} | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -384,6 +392,15 @@ export function useChatPanel({
 				setSessionId(latestSessionId);
 				await refreshBlockingState(latestSessionId);
 
+				try {
+					const sessionInfo = await fetchJson<{
+						revert?: { messageID?: string };
+					}>(`/api/projects/${projectId}/opencode/session/${latestSessionId}`);
+					setRevertMessageId(sessionInfo.revert?.messageID ?? null);
+				} catch {
+					// Best-effort; SSE will catch up later.
+				}
+
 				const messagesData = await fetchJson<
 					SessionMessage[] | { messages?: SessionMessage[] }
 				>(
@@ -406,12 +423,18 @@ export function useChatPanel({
 				}
 
 				const historyItems: ChatItem[] = [];
+				let foundUserPrompt = false;
 
 				for (const msg of messages) {
 					const info = msg.info || {};
 					const msgParts = msg.parts || [];
 					const role = info.role;
 					const messageId = info.id || `hist_${Date.now()}_${Math.random()}`;
+
+					if (userPromptMessageId && !foundUserPrompt) {
+						if (messageId === userPromptMessageId) foundUserPrompt = true;
+						else continue;
+					}
 
 					if (role === "user" || role === "assistant") {
 						const messageParts: MessagePart[] = [];
@@ -469,12 +492,14 @@ export function useChatPanel({
 		opencodeReady,
 		historyLoaded,
 		presenceLoaded,
+		userPromptMessageId,
 		models,
 		setHistoryLoaded,
 		setSessionId,
 		setCurrentModel,
 		fetchJson,
 		refreshBlockingState,
+		setRevertMessageId,
 		setItems,
 		scrollToBottom,
 		showRequestError,
@@ -482,17 +507,15 @@ export function useChatPanel({
 
 	// React to live state for readiness
 	useEffect(() => {
-		if (!liveData) return;
-		if (liveData.opencodeReady && !opencodeReady) {
-			setOpenCodeReady(true);
-			setPresenceLoaded(true);
-		}
+		if (!liveData || opencodeReady) return;
 		if (liveData.opencodeReady) {
+			setOpenCodeReady(true);
 			setInitialPromptSent(liveData.initialPromptSent);
 			setUserPromptMessageId(liveData.userPromptMessageId);
 			setProjectPrompt(liveData.prompt ?? "");
 			if (liveData.bootstrapSessionId)
 				setSessionId(liveData.bootstrapSessionId);
+			setPresenceLoaded(true);
 		}
 	}, [
 		liveData,
@@ -868,8 +891,57 @@ export function useChatPanel({
 		});
 	};
 
+	const handleRestore = useCallback(
+		async ({
+			messageId,
+			role,
+			text,
+			images,
+		}: {
+			messageId: string;
+			role: "user" | "assistant";
+			text: string;
+			images: ImagePart[];
+		}) => {
+			try {
+				const result = await actions.chat.revertToMessage({
+					projectId,
+					messageId,
+				});
+				if (result.error) {
+					throw new Error(result.error.message);
+				}
+				setRevertMessageId(messageId);
+				if (role === "user") {
+					setDraftSeed({ key: Date.now(), text, images });
+				}
+				toast.success("Conversation restored");
+			} catch (error) {
+				showRequestError("Failed to restore conversation", error);
+				throw error;
+			}
+		},
+		[projectId, setRevertMessageId, showRequestError],
+	);
+
+	const clearDraftSeed = useCallback(() => setDraftSeed(null), []);
+
+	const visibleItems = useMemo(() => {
+		if (!revertMessageId) return items;
+		const boundary = items.findIndex(
+			(item) => item.type === "message" && item.id === revertMessageId,
+		);
+		if (boundary < 0) return items;
+		return items.slice(0, boundary);
+	}, [items, revertMessageId]);
+
 	return {
-		items,
+		items: visibleItems,
+		rawItems: items,
+		revertMessageId,
+		handleRestore,
+		draftSeed,
+		clearDraftSeed,
 		opencodeReady,
 		isStreaming,
 		pendingPermission,

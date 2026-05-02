@@ -40,6 +40,8 @@ interface ChatInputProps {
 	imageError?: string | null;
 	onImageError?: (error: string | null) => void;
 	supportsImages?: boolean;
+	seedDraft?: { key: number; text: string; images: ImagePart[] } | null;
+	onSeedConsumed?: () => void;
 }
 
 export function ChatInput({
@@ -54,6 +56,8 @@ export function ChatInput({
 	imageError: externalImageError,
 	onImageError,
 	supportsImages = true,
+	seedDraft = null,
+	onSeedConsumed,
 }: ChatInputProps) {
 	const [message, setMessage] = useState("");
 	// Internal state (used when external state is not provided)
@@ -103,6 +107,28 @@ export function ChatInput({
 	useEffect(() => {
 		adjustTextareaHeight();
 	}, [adjustTextareaHeight]);
+
+	const lastSeedKeyRef = useRef<number | null>(null);
+	// updateImages closes over selectedImages; we deliberately re-run only on key change.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: see comment
+	useEffect(() => {
+		if (!seedDraft) return;
+		if (lastSeedKeyRef.current === seedDraft.key) return;
+		lastSeedKeyRef.current = seedDraft.key;
+		setMessage(seedDraft.text);
+		if (seedDraft.images.length > 0 && supportsImages) {
+			updateImages(seedDraft.images);
+		}
+		onSeedConsumed?.();
+		requestAnimationFrame(() => {
+			const el = textareaRef.current;
+			if (el) {
+				el.focus();
+				el.setSelectionRange(el.value.length, el.value.length);
+			}
+			adjustTextareaHeight();
+		});
+	}, [seedDraft, supportsImages, onSeedConsumed, adjustTextareaHeight]);
 
 	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {

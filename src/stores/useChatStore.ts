@@ -73,6 +73,7 @@ export interface ChatStore {
 
 	// State: Session and OpenCode status
 	sessionId: string | null;
+	revertMessageId: string | null;
 	opencodeReady: boolean;
 	initialPromptSent: boolean;
 	userPromptMessageId: string | null;
@@ -101,6 +102,7 @@ export interface ChatStore {
 
 	// Actions: Session & status
 	setSessionId: (id: string | null) => void;
+	setRevertMessageId: (id: string | null) => void;
 	setOpenCodeReady: (ready: boolean) => void;
 	setPresenceLoaded: (loaded: boolean) => void;
 	setInitialPromptSent: (sent: boolean) => void;
@@ -149,6 +151,7 @@ export interface ChatStore {
 const initialState = {
 	items: [] as ChatItem[],
 	sessionId: null as string | null,
+	revertMessageId: null as string | null,
 	opencodeReady: false,
 	initialPromptSent: true, // Assume sent until we know otherwise
 	userPromptMessageId: null as string | null,
@@ -175,6 +178,7 @@ export function createChatStore() {
 
 		// Simple setters
 		setSessionId: (id) => set({ sessionId: id }),
+		setRevertMessageId: (id) => set({ revertMessageId: id }),
 		setOpenCodeReady: (ready) => set({ opencodeReady: ready }),
 		setPresenceLoaded: (loaded) => set({ presenceLoaded: loaded }),
 		setInitialPromptSent: (sent) => set({ initialPromptSent: sent }),

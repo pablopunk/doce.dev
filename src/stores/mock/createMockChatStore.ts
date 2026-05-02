@@ -47,6 +47,7 @@ export function createMockChatStore(
 
 		// State: Session and OpenCode status
 		sessionId: "mock-session-id",
+		revertMessageId: null,
 		opencodeReady: options.initialOpenCodeReady ?? true,
 		initialPromptSent: true,
 		userPromptMessageId: null,
@@ -86,6 +87,10 @@ export function createMockChatStore(
 		// Actions: Session & status
 		setSessionId: (id: string | null) => {
 			state.sessionId = id;
+			notifyListeners();
+		},
+		setRevertMessageId: (id: string | null) => {
+			state.revertMessageId = id;
 			notifyListeners();
 		},
 		setOpenCodeReady: (ready: boolean) => {

@@ -1,8 +1,20 @@
-import { Bot, User } from "lucide-react";
+import { Bot, RotateCcw, User } from "lucide-react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
 	ErrorPart,
@@ -11,21 +23,98 @@ import type {
 	Message,
 	ReasoningPart,
 	TextPart,
-	ToolPart,
 } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
-interface ChatMessageProps {
-	message: Message;
+export interface RestoreRequest {
+	messageId: string;
+	role: "user" | "assistant";
+	text: string;
+	images: ImagePart[];
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+interface ChatMessageProps {
+	message: Message;
+	onRestore?: ((request: RestoreRequest) => void | Promise<void>) | undefined;
+}
+
+export function ChatMessage({ message, onRestore }: ChatMessageProps) {
 	const isUser = message.role === "user";
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const [restoring, setRestoring] = useState(false);
+	const canRestore =
+		Boolean(onRestore) &&
+		message.localStatus !== "pending" &&
+		message.localStatus !== "failed" &&
+		!message.isStreaming;
+
+	const handleConfirm = async () => {
+		if (!onRestore) return;
+		const text = message.parts
+			.filter((p): p is TextPart => p.type === "text")
+			.map((p) => p.text)
+			.join("\n\n");
+		const images = message.parts.filter(
+			(p): p is ImagePart => p.type === "image",
+		);
+		setRestoring(true);
+		try {
+			await onRestore({
+				messageId: message.id,
+				role: message.role,
+				text,
+				images,
+			});
+			setConfirmOpen(false);
+		} finally {
+			setRestoring(false);
+		}
+	};
 
 	return (
 		<div
-			className={cn("flex gap-3 p-4", isUser ? "bg-muted/50" : "bg-background")}
+			className={cn(
+				"group relative flex gap-3 p-4",
+				isUser ? "bg-muted/50" : "bg-background",
+			)}
 		>
+			{canRestore && (
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					onClick={() => setConfirmOpen(true)}
+					aria-label="Restore conversation to this message"
+					title="Restore conversation to this message"
+					className="absolute top-2 right-2 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+				>
+					<RotateCcw className="h-3.5 w-3.5" />
+				</Button>
+			)}
+			<AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Restore conversation?</AlertDialogTitle>
+						<AlertDialogDescription>
+							{isUser
+								? "This message and everything after it will be reverted, along with any file changes the agent made. The message content will be moved back into the chat input so you can edit and resend it."
+								: "This message and everything after it will be reverted, along with any file changes the agent made."}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={restoring}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={(e) => {
+								e.preventDefault();
+								void handleConfirm();
+							}}
+							disabled={restoring}
+						>
+							{restoring ? "Restoring..." : "Restore"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			<div
 				className={cn(
 					"flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
@@ -150,69 +239,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
 										</p>
 									)}
 								</div>
-							);
-						}
-
-						if (part.type === "tool") {
-							const toolPart = part as ToolPart;
-							const statusIcon = {
-								pending: "⏳",
-								running: "▶️",
-								completed: "✅",
-								error: "❌",
-							}[toolPart.status];
-							return (
-								<details
-									key={part.id || idx}
-									className="cursor-pointer border rounded-md"
-								>
-									<summary className="font-medium text-sm p-2 hover:bg-muted/50 flex items-center gap-2">
-										<span>{statusIcon}</span>
-										<span className="font-mono text-xs">{toolPart.name}</span>
-										<span className="text-xs text-muted-foreground ml-auto">
-											{toolPart.status}
-										</span>
-									</summary>
-									<div className="p-3 space-y-2 text-xs border-t">
-										{toolPart.input !== undefined &&
-											toolPart.input !== null && (
-												<div>
-													<div className="font-medium text-muted-foreground mb-1">
-														Input:
-													</div>
-													<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-														{typeof toolPart.input === "string"
-															? toolPart.input
-															: JSON.stringify(toolPart.input, null, 2)}
-													</pre>
-												</div>
-											)}
-										{toolPart.output !== undefined &&
-											toolPart.output !== null && (
-												<div>
-													<div className="font-medium text-muted-foreground mb-1">
-														Output:
-													</div>
-													<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-														{typeof toolPart.output === "string"
-															? toolPart.output
-															: JSON.stringify(toolPart.output, null, 2)}
-													</pre>
-												</div>
-											)}
-										{toolPart.error !== undefined &&
-											toolPart.error !== null && (
-												<div>
-													<div className="font-medium text-destructive mb-1">
-														Error:
-													</div>
-													<pre className="bg-destructive/10 p-2 rounded overflow-x-auto max-h-32 text-destructive">
-														{toolPart.error}
-													</pre>
-												</div>
-											)}
-									</div>
-								</details>
 							);
 						}
 
