@@ -8,9 +8,10 @@ type DoceErrorPayload = {
 	source: "runtime" | "promise" | "vite";
 };
 
+// Only run in browser context (not during SSR)
+if (typeof window !== "undefined" && typeof document !== "undefined") {
 if (
 	import.meta.env.DEV &&
-	typeof window !== "undefined" &&
 	window.parent !== window
 ) {
 	const send = (payload: Omit<DoceErrorPayload, "type">) => {
@@ -52,18 +53,22 @@ if (
 	});
 
 	if (import.meta.hot) {
-		import.meta.hot.on("vite:error", (payload: { err?: { message?: string; stack?: string } }) => {
-			const err = payload?.err ?? {};
-			send({
-				message: err.message ?? "Vite error",
-				stack: err.stack,
-				source: "vite",
+		try {
+			import.meta.hot.on("vite:error", (payload: { err?: { message?: string; stack?: string } }) => {
+				const err = payload?.err ?? {};
+				send({
+					message: err.message ?? "Vite error",
+					stack: err.stack,
+					source: "vite",
+				});
 			});
-		});
 
-		import.meta.hot.on("vite:afterUpdate", () => {
-			clear();
-		});
+			import.meta.hot.on("vite:afterUpdate", () => {
+				clear();
+			});
+		} catch {
+			// HMR not available
+		}
 	}
 
 	// Signal that this page loaded successfully (clears any previous error).
@@ -71,3 +76,5 @@ if (
 		clear();
 	});
 }
+}
+// End of browser context check

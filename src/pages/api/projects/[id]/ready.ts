@@ -30,12 +30,17 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 
 			const send = (event: string, data: unknown) => {
 				if (closed) return;
-				controller.enqueue(
-					encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-				);
+				try {
+					controller.enqueue(
+						encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+					);
+				} catch {
+					// Stream is closed, ignore
+				}
 			};
 
 			const check = async () => {
+				if (closed) return;
 				try {
 					const project = await getProjectById(projectId);
 					if (!project) return;
@@ -43,13 +48,17 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 					if (project.ownerUserId !== auth.user.id) {
 						send("error", { message: "Forbidden" });
 						cleanup();
-						controller.close();
+						try {
+							controller.close();
+						} catch {}
 						return;
 					}
 
 					send("ready", { id: project.id, slug: project.slug });
 					cleanup();
-					controller.close();
+					try {
+						controller.close();
+					} catch {}
 				} catch (error) {
 					send("error", {
 						message:
@@ -58,7 +67,9 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 								: "Failed to check project",
 					});
 					cleanup();
-					controller.close();
+					try {
+						controller.close();
+					} catch {}
 				}
 			};
 

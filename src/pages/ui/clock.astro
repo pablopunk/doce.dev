@@ -1,0 +1,10 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Clock from "@/components/ui-showcase/Clock";
+---
+
+<AppLayout title="Clock">
+  <div class="min-h-screen flex items-center justify-center bg-neutral-950">
+    <Clock client:load />
+  </div>
+</AppLayout>

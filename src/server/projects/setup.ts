@@ -24,6 +24,9 @@ export async function setupProjectFilesystem(
 	const projectPath = getProjectPath(projectId);
 	const productionPort = await allocateProjectProductionPort(projectId);
 
+	// Clean up any existing project directory (for idempotent retries)
+	await fs.rm(projectPath, { recursive: true, force: true });
+
 	// Ensure projects directory exists
 	await fs.mkdir(getProjectsPath(), { recursive: true });
 
@@ -125,6 +128,9 @@ async function copyDir(src: string, dest: string): Promise<void> {
 	for (const entry of entries) {
 		const srcPath = path.join(src, entry.name);
 		const destPath = path.join(dest, entry.name);
+
+		// Remove existing file/symlink/directory at destination (for idempotent retries)
+		await fs.rm(destPath, { recursive: true, force: true });
 
 		if (entry.isSymbolicLink()) {
 			// Preserve symlinks (important for pnpm node_modules)
