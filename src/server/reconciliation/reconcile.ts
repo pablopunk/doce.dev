@@ -11,6 +11,10 @@ import { db } from "@/server/db/client";
 import { projects, queueJobs, systemHealthSnapshots } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import { isGlobalOpencodeHealthy } from "@/server/opencode/runtime";
+import {
+	reconcileOpenCodeRuntime,
+	reconcileOpenCodeSessions,
+} from "./opencode.reconcile";
 import { reconcileProjects } from "./project.reconcile";
 import { reconcileQueue } from "./queue.reconcile";
 import type { HealingAction, ReconciliationReport, Violation } from "./types";
@@ -40,6 +44,21 @@ export async function runReconciliation(): Promise<ReconciliationReport> {
 			await reconcileProjects();
 		allViolations.push(...pViolations);
 		allActions.push(...pActions);
+
+		// OpenCode runtime reconciliation
+		const { violations: oViolations, actions: oActions } =
+			await reconcileOpenCodeRuntime();
+		allViolations.push(...oViolations);
+		allActions.push(...oActions);
+
+		// OpenCode session reconciliation (slower, do less frequently)
+		// This is checked based on time rather than poll count since runReconciliation
+		// doesn't have access to pollCount. We'll just do it every time for now
+		// since it's lightweight enough.
+		const { violations: sViolations, actions: sActions } =
+			await reconcileOpenCodeSessions();
+		allViolations.push(...sViolations);
+		allActions.push(...sActions);
 
 		// Gather health metrics for snapshot
 		const metrics = await gatherHealthMetrics(allViolations);

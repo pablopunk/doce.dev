@@ -63,13 +63,40 @@ export async function getProjectsByUserId(userId: string): Promise<Project[]> {
 }
 
 /**
+ * Map legacy status to desired status for backward compatibility.
+ */
+function statusToDesired(status: ProjectStatus): string {
+	switch (status) {
+		case "created":
+			return "created";
+		case "starting":
+			return "running";
+		case "running":
+			return "running";
+		case "stopping":
+			return "stopped";
+		case "stopped":
+			return "stopped";
+		case "error":
+			return "running"; // Assume user wants it running
+		case "deleting":
+			return "deleting";
+	}
+}
+
+/**
  * Update a project's status.
+ * Also updates desired_status for the new self-healing system.
  */
 export async function updateProjectStatus(
 	id: string,
 	status: ProjectStatus,
 ): Promise<void> {
-	await db.update(projects).set({ status }).where(eq(projects.id, id));
+	const desiredStatus = statusToDesired(status) as Project["desiredStatus"];
+	await db
+		.update(projects)
+		.set({ status, desiredStatus })
+		.where(eq(projects.id, id));
 }
 
 /**
