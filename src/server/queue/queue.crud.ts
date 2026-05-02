@@ -79,26 +79,18 @@ export async function getJobCancelRequestedAt(
 	return result[0]?.cancelRequestedAt ?? null;
 }
 
-export async function countJobs(
+function buildJobsWhere(
 	filters: Omit<ListJobsFilters, "limit" | "offset">,
-): Promise<number> {
-	const whereParts = [];
+) {
+	const parts = [];
 
-	if (filters.state) {
-		whereParts.push(eq(queueJobs.state, filters.state));
-	}
-
-	if (filters.type) {
-		whereParts.push(eq(queueJobs.type, filters.type));
-	}
-
-	if (filters.projectId) {
-		whereParts.push(eq(queueJobs.projectId, filters.projectId));
-	}
+	if (filters.state) parts.push(eq(queueJobs.state, filters.state));
+	if (filters.type) parts.push(eq(queueJobs.type, filters.type));
+	if (filters.projectId) parts.push(eq(queueJobs.projectId, filters.projectId));
 
 	if (filters.q) {
 		const pattern = `%${filters.q}%`;
-		whereParts.push(
+		parts.push(
 			or(
 				like(queueJobs.payloadJson, pattern),
 				like(queueJobs.lastError, pattern),
@@ -106,47 +98,25 @@ export async function countJobs(
 		);
 	}
 
-	const where = whereParts.length > 0 ? and(...whereParts) : undefined;
+	return parts.length > 0 ? and(...parts) : undefined;
+}
 
+export async function countJobs(
+	filters: Omit<ListJobsFilters, "limit" | "offset">,
+): Promise<number> {
 	const result = await db
 		.select({ count: sql`COUNT(*)` })
 		.from(queueJobs)
-		.where(where);
+		.where(buildJobsWhere(filters));
 
 	return (result[0]?.count as number) ?? 0;
 }
 
 export async function listJobs(filters: ListJobsFilters): Promise<QueueJob[]> {
-	const whereParts = [];
-
-	if (filters.state) {
-		whereParts.push(eq(queueJobs.state, filters.state));
-	}
-
-	if (filters.type) {
-		whereParts.push(eq(queueJobs.type, filters.type));
-	}
-
-	if (filters.projectId) {
-		whereParts.push(eq(queueJobs.projectId, filters.projectId));
-	}
-
-	if (filters.q) {
-		const pattern = `%${filters.q}%`;
-		whereParts.push(
-			or(
-				like(queueJobs.payloadJson, pattern),
-				like(queueJobs.lastError, pattern),
-			),
-		);
-	}
-
-	const where = whereParts.length > 0 ? and(...whereParts) : undefined;
-
 	return db
 		.select()
 		.from(queueJobs)
-		.where(where)
+		.where(buildJobsWhere(filters))
 		.orderBy(desc(queueJobs.createdAt))
 		.limit(filters.limit ?? 100)
 		.offset(filters.offset ?? 0);
