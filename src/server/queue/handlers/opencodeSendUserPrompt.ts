@@ -18,6 +18,7 @@ import {
 	parseModelString,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
+import { enqueueDockerEnsureRunning } from "../enqueue";
 import { type ImageAttachment, parsePayload } from "../types";
 
 export function handleOpencodeSendUserPrompt(
@@ -396,6 +397,26 @@ export function handleOpencodeSendUserPrompt(
 		logger.info(
 			{ projectId: project.id },
 			"Marked initial prompt as sent in database",
+		);
+
+		yield* Effect.tryPromise({
+			try: () =>
+				enqueueDockerEnsureRunning({
+					projectId: project.id,
+					reason: "initial-prompt-completed",
+				}),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "enqueueDockerEnsureRunning",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
+
+		logger.info(
+			{ projectId: project.id },
+			"Enqueued docker.ensureRunning after initial prompt",
 		);
 
 		logger.info(

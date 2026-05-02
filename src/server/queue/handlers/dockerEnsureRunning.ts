@@ -1,7 +1,6 @@
 import { Effect } from "effect";
 import {
 	composePs,
-	composeStart,
 	composeUp,
 	ensureDoceSharedNetwork,
 	ensureGlobalPnpmVolume,
@@ -18,18 +17,6 @@ import {
 } from "@/server/projects/projects.model";
 import { enqueueDockerWaitReady } from "../enqueue";
 import { parsePayload } from "../types";
-
-const startExistingPreview = (projectId: string, previewPath: string) =>
-	Effect.tryPromise({
-		try: () => composeStart(projectId, previewPath),
-		catch: (error) =>
-			new ProjectError({
-				projectId,
-				operation: "composeStart",
-				message: error instanceof Error ? error.message : String(error),
-				cause: error,
-			}),
-	});
 
 const createPreview = (projectId: string, previewPath: string) =>
 	Effect.tryPromise({
@@ -130,7 +117,7 @@ export function handleDockerEnsureRunning(
 			const hasExistingContainers = containers.length > 0;
 
 			const result = hasExistingContainers
-				? yield* startExistingPreview(project.id, previewPath)
+				? yield* createPreview(project.id, previewPath)
 				: yield* createPreview(project.id, previewPath);
 
 			if (!result.success) {
@@ -146,15 +133,15 @@ export function handleDockerEnsureRunning(
 				});
 				return yield* new ProjectError({
 					projectId: project.id,
-					operation: hasExistingContainers ? "composeStart" : "composeUp",
-					message: `${hasExistingContainers ? "compose start" : "compose up"} failed: ${result.stderr.slice(0, 500)}`,
+					operation: "composeUp",
+					message: `compose up failed: ${result.stderr.slice(0, 500)}`,
 				});
 			}
 
 			logger.info(
-				{ projectId: project.id, path: hasExistingContainers ? "start" : "up" },
+				{ projectId: project.id, path: hasExistingContainers ? "up" : "up" },
 				hasExistingContainers
-					? "Preview resumed with compose start"
+					? "Preview reconciled with compose up"
 					: "Preview missing, falling back to compose up",
 			);
 		}

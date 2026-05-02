@@ -93,7 +93,9 @@ export type DockerWaitReadyPayload = z.infer<
 
 export const dockerEnsureRunningPayloadSchema = z.object({
 	projectId: z.string().min(1),
-	reason: z.enum(["presence", "user"]).default("presence"),
+	reason: z
+		.enum(["presence", "user", "initial-prompt-completed"])
+		.default("presence"),
 });
 
 export type DockerEnsureRunningPayload = z.infer<

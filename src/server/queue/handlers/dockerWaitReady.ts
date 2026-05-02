@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 import {
-	ContainerTimeoutError,
 	type DockerOperationError,
 	ProjectNotFoundError,
 	RescheduleError,
@@ -18,29 +17,10 @@ import { parsePayload } from "../types";
 
 const WAIT_TIMEOUT_MS = 300_000; // 5 minutes max wait
 const POLL_DELAY_MS = 1_000; // 1 second between polls
-const MAX_RESCHEDULE_ATTEMPTS = 10;
 
 type Project = NonNullable<
 	Awaited<ReturnType<typeof getProjectByIdIncludeDeleted>>
 >;
-
-const checkTimeout = (
-	startedAt: number,
-	timeoutMs: number,
-	projectId: string,
-): Effect.Effect<void, ContainerTimeoutError> =>
-	Effect.gen(function* () {
-		const elapsed = Date.now() - startedAt;
-		if (elapsed > timeoutMs) {
-			return yield* Effect.fail(
-				new ContainerTimeoutError({
-					projectId,
-					timeoutMs,
-					waitedMs: elapsed,
-				}),
-			);
-		}
-	});
 
 const getProjectOrFail = (
 	projectId: string,
@@ -72,17 +52,13 @@ const shouldSkipDeletedProject = (
 		return false;
 	});
 
-const waitForContainersHealthy = (
+const checkContainersHealthy = (
 	projectId: string,
 	projectPath: string,
 ): Effect.Effect<boolean, DockerOperationError, DockerService> =>
 	Effect.gen(function* () {
 		const docker = yield* DockerService;
-		return yield* docker.waitForHealthy(
-			projectId,
-			projectPath,
-			WAIT_TIMEOUT_MS,
-		);
+		return yield* docker.waitForHealthy(projectId, projectPath, POLL_DELAY_MS);
 	});
 
 const handleServicesReady = (
@@ -118,29 +94,6 @@ const handleServicesReady = (
 			}).pipe(Effect.orElse(() => Effect.void));
 			logger.info({ projectId: project.id }, "Enqueued opencode.sessionCreate");
 		}
-	});
-
-const handleMaxAttemptsExceeded = (
-	projectId: string,
-	attempts: number,
-	elapsed: number,
-): Effect.Effect<never, RescheduleError, never> =>
-	Effect.gen(function* () {
-		const errorMsg = `Services failed to become ready after ${attempts} polling attempts (${elapsed}ms elapsed)`;
-		logger.error({ projectId, attempts, elapsed }, errorMsg);
-
-		yield* Effect.tryPromise({
-			try: () => updateProjectStatus(projectId, "error"),
-			catch: () => {},
-		}).pipe(Effect.orElse(() => Effect.void));
-
-		return yield* Effect.fail(
-			new RescheduleError({
-				jobId: projectId,
-				delayMs: POLL_DELAY_MS,
-				reason: `Max attempts exceeded: ${errorMsg}`,
-			}),
-		);
 	});
 
 const handleNotReady = (
@@ -195,28 +148,26 @@ export const handleDockerWaitReady = (
 
 		yield* ctx.throwIfCancelRequested();
 
-		yield* checkTimeout(payload.startedAt, WAIT_TIMEOUT_MS, project.id).pipe(
-			Effect.catchTag("ContainerTimeoutError", (error) => {
-				const errorMsg = `Timed out waiting for services to be ready (${error.waitedMs}ms of ${error.timeoutMs}ms allowed)`;
-				logger.error(
-					{
-						projectId: project.id,
-						elapsed: error.waitedMs,
-						maxWait: error.timeoutMs,
-					},
-					errorMsg,
-				);
-				return Effect.tryPromise({
-					try: () => updateProjectStatus(project.id, "error"),
-					catch: () => {},
-				}).pipe(Effect.orElse(() => Effect.void));
-			}),
-		);
+		const elapsed = Date.now() - payload.startedAt;
+		if (elapsed > WAIT_TIMEOUT_MS) {
+			const errorMsg = `Timed out waiting for services to be ready (${elapsed}ms of ${WAIT_TIMEOUT_MS}ms allowed)`;
+			logger.error(
+				{
+					projectId: project.id,
+					elapsed,
+					maxWait: WAIT_TIMEOUT_MS,
+				},
+				errorMsg,
+			);
+			yield* Effect.tryPromise({
+				try: () => updateProjectStatus(project.id, "error"),
+				catch: () => {},
+			}).pipe(Effect.orElse(() => Effect.void));
+			return;
+		}
 
 		const projectPath = getProjectPath(project.id);
-		const isHealthy = yield* waitForContainersHealthy(project.id, projectPath);
-
-		const elapsed = Date.now() - payload.startedAt;
+		const isHealthy = yield* checkContainersHealthy(project.id, projectPath);
 
 		logger.info(
 			{ projectId: project.id, isHealthy, elapsed, attempts: ctx.job.attempts },
@@ -226,14 +177,6 @@ export const handleDockerWaitReady = (
 		if (isHealthy) {
 			yield* handleServicesReady(project, elapsed, ctx.job.attempts);
 			return;
-		}
-
-		if (ctx.job.attempts >= MAX_RESCHEDULE_ATTEMPTS) {
-			return yield* handleMaxAttemptsExceeded(
-				project.id,
-				ctx.job.attempts,
-				elapsed,
-			);
 		}
 
 		return yield* handleNotReady(project.id, elapsed, ctx.job.attempts);

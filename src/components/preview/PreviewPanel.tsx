@@ -270,6 +270,7 @@ export function PreviewPanel({
 
 	// Reset runtime error if preview url/iframe changes.
 	useEffect(() => {
+		if (!previewUrl) return;
 		setRuntimeError(null);
 	}, [previewUrl]);
 

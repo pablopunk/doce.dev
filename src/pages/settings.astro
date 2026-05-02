@@ -49,7 +49,7 @@ const diagnostics = await getSettingsStatusDiagnostics();
 const logsData = isProduction ? await getSettingsLogsPageData() : undefined;
 
 // Fetch selected job if jobId param present (for status tab)
-let selectedJob;
+let selectedJob: Awaited<ReturnType<typeof getJobById>> | undefined;
 const jobIdParam = Astro.url.searchParams.get("jobId");
 if (initialTab === "status" && jobIdParam) {
 	const job = await getJobById(jobIdParam);

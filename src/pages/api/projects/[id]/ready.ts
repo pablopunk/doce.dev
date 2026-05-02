@@ -32,7 +32,9 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 				if (closed) return;
 				try {
 					controller.enqueue(
-						encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+						encoder.encode(
+							`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+						),
 					);
 				} catch {
 					// Stream is closed, ignore
