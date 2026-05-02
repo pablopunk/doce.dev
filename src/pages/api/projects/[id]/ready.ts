@@ -75,6 +75,18 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 				}
 			};
 
+			const onAbort = () => {
+				cleanup();
+				try {
+					controller.close();
+				} catch {}
+			};
+
+			if (request.signal.aborted) {
+				onAbort();
+				return;
+			}
+
 			interval = setInterval(() => {
 				void check();
 			}, POLL_INTERVAL_MS);
@@ -86,12 +98,7 @@ export const GET: APIRoute = async ({ params, cookies, request }) => {
 				controller.close();
 			}, TIMEOUT_MS);
 
-			request.signal.addEventListener("abort", () => {
-				cleanup();
-				try {
-					controller.close();
-				} catch {}
-			});
+			request.signal.addEventListener("abort", onAbort);
 		},
 		cancel() {},
 	});

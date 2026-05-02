@@ -7,38 +7,19 @@ import { checkOpencodeServerReady } from "@/server/health/checkHealthEndpoint";
 import { logger } from "@/server/logger";
 import { ensureGlobalOpencodeStarted, getOpencodeBaseUrl } from "./runtime";
 
-const clientCache = new Map<string, OpencodeClient>();
+let cachedClient: OpencodeClient | null = null;
 
-export function getOpencodeClient(_directory?: string): OpencodeClient {
-	const cacheKey = "__global__";
-
-	if (!clientCache.has(cacheKey)) {
+export function createOpencodeClient(_directory?: string): OpencodeClient {
+	if (!cachedClient) {
 		const baseUrl = getOpencodeBaseUrl();
 		logger.debug({ baseUrl }, "Creating central OpenCode client");
-
-		clientCache.set(
-			cacheKey,
-			createClient({
-				baseUrl,
-			}),
-		);
+		cachedClient = createClient({ baseUrl });
 	}
-
-	const client = clientCache.get(cacheKey);
-	if (!client) {
-		throw new Error(`Client for key ${cacheKey} not found in cache`);
-	}
-
-	return client;
+	return cachedClient;
 }
 
-export function createOpencodeClient(directory?: string): OpencodeClient {
-	return getOpencodeClient(directory);
-}
-
-export function clearOpencodeClientCache(directory?: string): void {
-	void directory;
-	clientCache.delete("__global__");
+export function clearOpencodeClientCache(): void {
+	cachedClient = null;
 }
 
 export async function isOpencodeHealthy(): Promise<boolean> {

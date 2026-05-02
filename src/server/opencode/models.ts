@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { ModelsFetchError } from "@/server/effect/errors";
 import { logger } from "@/server/logger";
-import { getOpencodeClient } from "./client";
+import { createOpencodeClient } from "./client";
 
 const HIDDEN_PROVIDER_IDS = new Set(["opencode-go"]);
 
@@ -130,7 +130,7 @@ export async function getAvailableModels(): Promise<
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const client = getOpencodeClient();
+				const client = createOpencodeClient();
 				const response = await client.provider.list();
 
 				if (!response.data?.all) {
@@ -192,7 +192,7 @@ export async function modelSupportsVision(modelId: string): Promise<boolean> {
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const client = getOpencodeClient();
+				const client = createOpencodeClient();
 				const response = await client.provider.list();
 
 				if (!response.data?.all) {
@@ -227,7 +227,7 @@ export async function getModelCapabilities(
 	return Effect.runPromise(
 		Effect.tryPromise({
 			try: async () => {
-				const client = getOpencodeClient();
+				const client = createOpencodeClient();
 				const response = await client.provider.list();
 
 				if (!response.data?.all) {

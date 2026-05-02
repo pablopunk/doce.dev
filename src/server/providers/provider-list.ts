@@ -1,6 +1,6 @@
 import { logger } from "@/server/logger";
 import type { OpencodeClient } from "@/server/opencode/client";
-import { getOpencodeClient } from "@/server/opencode/client";
+import { createOpencodeClient } from "@/server/opencode/client";
 
 export const OPENCODE_PROVIDER_ID = "opencode";
 export const OPENCODE_SIBLING_ID = "opencode-go";
@@ -68,7 +68,7 @@ function filterVisibleProviders<T extends { id: string }>(providers: T[]): T[] {
 }
 
 export async function getSettingsProviders(
-	client: OpencodeClient = getOpencodeClient(),
+	client: OpencodeClient = createOpencodeClient(),
 ): Promise<SettingsProvider[]> {
 	const [providerResponse, authResponse] = await Promise.all([
 		client.provider.list(),

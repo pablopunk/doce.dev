@@ -66,10 +66,8 @@ export function handleOpencodeSendInitialPrompt(
 
 		yield* ctx.throwIfCancelRequested();
 
-		const client = createOpencodeClient(
-			getProjectPreviewPathFromRoot(project.pathOnDisk),
-		);
 		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
+		const client = createOpencodeClient(projectDirectory);
 
 		yield* Effect.tryPromise({
 			try: () =>

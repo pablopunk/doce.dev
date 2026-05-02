@@ -41,26 +41,21 @@ export async function checkHealthEndpoint(
 		expectedStatus = (status) => status >= 100 && status < 600,
 	} = options;
 
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+	const url =
+		typeof hostOrPort === "string"
+			? `http://${hostOrPort}${path}`
+			: `http://127.0.0.1:${hostOrPort}${path}`;
+
 	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-		// Support both hostname (string) and port (number)
-		const url =
-			typeof hostOrPort === "string"
-				? `http://${hostOrPort}${path}`
-				: `http://127.0.0.1:${hostOrPort}${path}`;
-
-		const response = await fetch(url, {
-			signal: controller.signal,
-		});
-
-		clearTimeout(timeout);
-
+		const response = await fetch(url, { signal: controller.signal });
 		return expectedStatus(response.status);
 	} catch {
-		// Network error, timeout, or abort
 		return false;
+	} finally {
+		clearTimeout(timeout);
 	}
 }
 

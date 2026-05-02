@@ -4,7 +4,7 @@ import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
 import type { OpencodeClient } from "@/server/opencode/client";
-import { getOpencodeClient } from "@/server/opencode/client";
+import { createOpencodeClient } from "@/server/opencode/client";
 import { getAvailableModels } from "@/server/opencode/models";
 import {
 	getSettingsProviders,
@@ -77,7 +77,7 @@ export const providers = {
 			apiKey: z.string().min(1, "API key is required"),
 		}),
 		handler: async (input) => {
-			const client = getOpencodeClient();
+			const client = createOpencodeClient();
 			const authPayload = { type: "api" as const, key: input.apiKey };
 
 			const result = await client.auth.set({
@@ -106,7 +106,7 @@ export const providers = {
 			providerId: z.string().min(1, "Provider ID is required"),
 		}),
 		handler: async (input) => {
-			const client = getOpencodeClient();
+			const client = createOpencodeClient();
 			const result = await client.auth.remove({ providerID: input.providerId });
 
 			if (result.error) {
@@ -131,7 +131,7 @@ export const providers = {
 			methodIndex: z.number().int().min(0, "Method index is required"),
 		}),
 		handler: async (input) => {
-			const client = getOpencodeClient();
+			const client = createOpencodeClient();
 			const result = await client.provider.oauth.authorize({
 				providerID: input.providerId,
 				method: input.methodIndex,
@@ -155,7 +155,7 @@ export const providers = {
 			code: z.string().optional(),
 		}),
 		handler: async (input) => {
-			const client = getOpencodeClient();
+			const client = createOpencodeClient();
 			const result = await client.provider.oauth.callback({
 				providerID: input.providerId,
 				method: input.methodIndex,
