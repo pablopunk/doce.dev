@@ -30,8 +30,8 @@ importers:
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@opencode-ai/sdk':
-        specifier: ^1.4.6
-        version: 1.14.24
+        specifier: ^1.14.31
+        version: 1.14.31
       '@openrouter/ai-sdk-provider':
         specifier: ^1.5.4
         version: 1.5.4(ai@6.0.97(zod@4.3.6))(zod@4.3.6)
@@ -1274,8 +1274,8 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
-  '@opencode-ai/sdk@1.14.24':
-    resolution: {integrity: sha512-hZWc1jx+gtZBM6Mff9iOMlXM1at9BbAGg0uNrQk8DuXpd8K19fu942emojdInO2zy0jC5/wWggsi7GJu7HMp/w==}
+  '@opencode-ai/sdk@1.14.31':
+    resolution: {integrity: sha512-QaV+ti3NYUITmgIDqtNMqGIYBXJOx2zheN1g+7w4HC8QQsbaW1c7glxXExQHRbdUzcQPP2vUQhnXOcEsTw5CcQ==}
 
   '@openrouter/ai-sdk-provider@1.5.4':
     resolution: {integrity: sha512-xrSQPUIH8n9zuyYZR0XK7Ba0h2KsjJcMkxnwaYfmv13pKs3sDkjPzVPPhlhzqBGddHb5cFEwJ9VFuFeDcxCDSw==}
@@ -5583,7 +5583,7 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@opencode-ai/sdk@1.14.24':
+  '@opencode-ai/sdk@1.14.31':
     dependencies:
       cross-spawn: 7.0.6
 
