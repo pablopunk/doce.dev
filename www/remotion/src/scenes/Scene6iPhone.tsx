@@ -142,7 +142,7 @@ export const Scene6iPhone: React.FC = () => {
 							style={{
 								fontSize: 10,
 								fontWeight: 600,
-								color: t.textPrimary,
+								color: "#ffffff",
 								letterSpacing: "0.5px",
 							}}
 						>
@@ -170,6 +170,7 @@ export const Scene6iPhone: React.FC = () => {
 									fontWeight: 700,
 									color: t.textPrimary,
 									margin: 0,
+									marginTop: 20,
 									marginBottom: 2,
 								}}
 							>
@@ -274,8 +275,7 @@ export const Scene6iPhone: React.FC = () => {
 										style={{
 											flex: 1,
 											height: `${h}%`,
-											background:
-												`linear-gradient(180deg, ${t.textPrimary} 0%, ${t.textMuted} 100%)`,
+											background: `linear-gradient(180deg, ${t.textPrimary} 0%, ${t.textMuted} 100%)`,
 											borderRadius: "3px 3px 0 0",
 											opacity: 0.9,
 										}}
