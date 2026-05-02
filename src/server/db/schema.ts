@@ -67,6 +67,7 @@ export const projects = sqliteTable(
 		slug: text("slug").notNull().unique(),
 		prompt: text("prompt").notNull(),
 		devPort: integer("dev_port").notNull(),
+		// Deprecated: use desired_status instead. Kept for backward compatibility.
 		status: text("status", {
 			enum: [
 				"created",
@@ -80,6 +81,19 @@ export const projects = sqliteTable(
 		})
 			.notNull()
 			.default("created"),
+		// Desired state: what we want the project to be
+		desiredStatus: text("desired_status", {
+			enum: ["created", "running", "stopped", "deleting"],
+		})
+			.notNull()
+			.default("created"),
+		// Observed state: what we actually observe
+		observedStatus: text("observed_status", {
+			enum: ["unknown", "healthy", "unhealthy", "missing", "crashed"],
+		})
+			.notNull()
+			.default("unknown"),
+		lastReconciledAt: integer("last_reconciled_at", { mode: "timestamp" }),
 		pathOnDisk: text("path_on_disk").notNull(),
 		initialPromptSent: integer("initial_prompt_sent", { mode: "boolean" })
 			.notNull()
@@ -95,6 +109,16 @@ export const projects = sqliteTable(
 		userPromptCompleted: integer("user_prompt_completed", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		// Agent status during bootstrap: processing, idle, completed, failed, error
+		bootstrapAgentStatus: text("bootstrap_agent_status", {
+			enum: ["idle", "processing", "completed", "failed", "error"],
+		})
+			.notNull()
+			.default("idle"),
+		// When the agent last produced activity
+		bootstrapAgentLastActivityAt: integer("bootstrap_agent_last_activity_at", {
+			mode: "timestamp",
+		}),
 		// Production deployment fields
 		productionPort: integer("production_port").notNull(),
 		productionUrl: text("production_url"),
@@ -142,6 +166,9 @@ export const queueJobs = sqliteTable(
 		lockedBy: text("locked_by"),
 		dedupeKey: text("dedupe_key"),
 		dedupeActive: text("dedupe_active"),
+		// Self-healing tracking
+		healedAt: integer("healed_at", { mode: "timestamp" }),
+		healReason: text("heal_reason"),
 		cancelRequestedAt: integer("cancel_requested_at", { mode: "timestamp" }),
 		cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
 		lastError: text("last_error"),
@@ -193,8 +220,49 @@ export type ModelFavorite = typeof modelFavorites.$inferSelect;
 export type NewModelFavorite = typeof modelFavorites.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
+// System health snapshot for monitoring and diagnostics
+export const systemHealthSnapshots = sqliteTable(
+	"system_health_snapshots",
+	{
+		id: text("id").primaryKey(),
+		takenAt: integer("taken_at", { mode: "timestamp" }).notNull(),
+
+		// Queue health
+		queueJobsQueued: integer("queue_jobs_queued"),
+		queueJobsRunning: integer("queue_jobs_running"),
+		queueJobsFailed: integer("queue_jobs_failed"),
+		queueOrphanedJobs: integer("queue_orphaned_jobs"),
+		queueImpossibleJobs: integer("queue_impossible_jobs"),
+
+		// Project health
+		projectsTotal: integer("projects_total"),
+		projectsRunning: integer("projects_running"),
+		projectsError: integer("projects_error"),
+		projectsHealthyMismatch: integer("projects_healthy_mismatch"),
+
+		// Infrastructure health
+		opencodeHealthy: integer("opencode_healthy", { mode: "boolean" }),
+		dockerNetworkExists: integer("docker_network_exists", { mode: "boolean" }),
+		dockerVolumeExists: integer("docker_volume_exists", { mode: "boolean" }),
+
+		// Violations
+		violationsFound: integer("violations_found"),
+		violationsHealed: integer("violations_healed"),
+
+		// Performance
+		reconciliationDurationMs: integer("reconciliation_duration_ms"),
+
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	},
+	(table) => ({
+		takenAtIdx: index("system_health_snapshots_taken_at_idx").on(table.takenAt),
+	}),
+);
+
 export type QueueJob = typeof queueJobs.$inferSelect;
 export type NewQueueJob = typeof queueJobs.$inferInsert;
+export type SystemHealthSnapshot = typeof systemHealthSnapshots.$inferSelect;
+export type NewSystemHealthSnapshot = typeof systemHealthSnapshots.$inferInsert;
 export type QueueSettings = typeof queueSettings.$inferSelect;
 export type NewQueueSettings = typeof queueSettings.$inferInsert;
 export type InstanceSettings = typeof instanceSettings.$inferSelect;
