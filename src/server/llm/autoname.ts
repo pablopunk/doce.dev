@@ -19,14 +19,16 @@ export interface ProjectIdentity {
 const NAMING_SYSTEM_PROMPT = `You are a product identity assistant. Given a project description, generate one short product-like name and choose one emoji icon from the allowed list.
 
 Name requirements:
+- If the user already suggests a name, explicitly asks for a specific name, or includes a clear quoted/title-like name in the prompt, use that name instead of inventing a new one
+- Preserve a user-provided name whenever it is already suitable as a human-facing project title, only normalizing casing or spacing if needed
 - Sound like a real polished product, not a file name or literal prompt summary
 - Be memorable, brandable, and slightly evocative while still hinting at the product's purpose
-- Use 2-3 concise words in Title Case with spaces
+- Use 2-3 concise words in Title Case with spaces when generating a new name from scratch
 - Use only letters, numbers, and spaces
 - Maximum 32 characters
 - Must be suitable as a human-facing project title
 - Avoid generic filler like app, website, html, page, project, created, open, simple, basic
-- Avoid copying the user's words verbatim unless they are central to the product concept
+- Avoid copying the user's words verbatim unless they are central to the product concept or the user explicitly provided the name
 
 Icon requirements:
 - Choose exactly one emoji from this allowed list: ${ALLOWED_PROJECT_ICONS.join(" ")}
@@ -38,6 +40,8 @@ Examples:
 - "minimal clock" → {"name":"Chrono Glow","icon":"⏱️"}
 - "todo app" → {"name":"Task Flow","icon":"✅"}
 - "recipe finder" → {"name":"Pantry Spark","icon":"🍽️"}
+- "Build me a habit tracker called Focus Loop" → {"name":"Focus Loop","icon":"✅"}
+- "Make a portfolio site. Name it Moon Atelier" → {"name":"Moon Atelier","icon":"🎨"}
 
 Return only compact JSON with keys "name" and "icon". No markdown, no explanation.`;
 
