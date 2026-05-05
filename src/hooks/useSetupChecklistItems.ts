@@ -1,20 +1,9 @@
-import { actions } from "astro:actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CheckStatus } from "@/components/setup/CheckRow";
 import type { ChecklistItem } from "@/components/setup/SetupChecklist";
+import { useLiveState } from "./useLiveState";
 
-const POLL_INTERVAL_MS = 2500;
 const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
-
-type JobState =
-	| "pending"
-	| "queued"
-	| "running"
-	| "succeeded"
-	| "failed"
-	| "exhausted";
-type SetupJob = { type: string; state: JobState; error?: string };
-type SetupJobs = Record<string, SetupJob>;
 
 interface UseSetupChecklistItemsResult {
 	items: ChecklistItem[];
@@ -27,56 +16,35 @@ interface UseSetupChecklistItemsResult {
 export function useSetupChecklistItems(
 	projectId: string,
 ): UseSetupChecklistItemsResult {
-	const [setupJobs, setSetupJobs] = useState<SetupJobs>({});
-	const [hasError, setHasError] = useState(false);
-	const [errorMessage, setErrorMessage] = useState<string | null>(null);
-	const [allReady, setAllReady] = useState(false);
-	const [jobTimeoutWarning, setJobTimeoutWarning] = useState<string | null>(
-		null,
-	);
+	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
 	const [agentMessage, setAgentMessage] = useState<string>("");
 	const [agentTimedOut, setAgentTimedOut] = useState(false);
 	const promptSentAtRef = useRef<number | null>(null);
 
-	// Poll queue status
+	const allReady = liveData?.userPromptCompleted ?? false;
+	const hasError =
+		liveData?.status === "error" || Boolean(liveData?.setupError);
+	const errorMessage =
+		liveData?.setupError ??
+		(liveData?.status === "error"
+			? (liveData.message ?? "Setup failed")
+			: null);
+	const jobTimeoutWarning = null;
+
 	useEffect(() => {
-		if (allReady) return;
-		let cancelled = false;
+		if (liveData?.initialPromptSent && !promptSentAtRef.current) {
+			promptSentAtRef.current = Date.now();
+		}
+	}, [liveData?.initialPromptSent]);
 
-		const poll = async () => {
-			try {
-				const { data, error } = await actions.projects.getQueueStatus({
-					projectId,
-				});
-				if (cancelled) return;
-				if (error) {
-					setHasError(true);
-					setErrorMessage("Failed to check setup status");
-					return;
-				}
-				setSetupJobs(data.setupJobs as SetupJobs);
-				setHasError(data.hasError);
-				setErrorMessage(data.errorMessage ?? null);
-				setJobTimeoutWarning(data.jobTimeoutWarning ?? null);
-				if (data.promptSentAt && !promptSentAtRef.current) {
-					promptSentAtRef.current = data.promptSentAt;
-				}
-				if (data.currentStep >= 4) {
-					setAllReady(true);
-					setTimeout(() => window.location.reload(), 1000);
-				}
-			} catch {
-				// ignore transient errors
-			}
-		};
+	useEffect(() => {
+		if (!allReady) {
+			return;
+		}
 
-		poll();
-		const id = setInterval(poll, POLL_INTERVAL_MS);
-		return () => {
-			cancelled = true;
-			clearInterval(id);
-		};
-	}, [projectId, allReady]);
+		const timeoutId = setTimeout(() => window.location.reload(), 1000);
+		return () => clearTimeout(timeoutId);
+	}, [allReady]);
 
 	// SSE for agent streaming detail
 	const handleEvent = useCallback(
@@ -104,20 +72,22 @@ export function useSetupChecklistItems(
 		return () => es.close();
 	}, [projectId, allReady, handleEvent]);
 
-	// Agent slow warning after 5 min
 	useEffect(() => {
-		const id = setInterval(() => {
-			if (
-				promptSentAtRef.current &&
-				Date.now() - promptSentAtRef.current > AGENT_TIMEOUT_MS
-			) {
-				setAgentTimedOut(true);
-			}
-		}, 30_000);
-		return () => clearInterval(id);
-	}, []);
+		if (!promptSentAtRef.current || agentTimedOut) {
+			return;
+		}
 
-	const items = buildItems(setupJobs, {
+		const remainingMs = Math.max(
+			0,
+			AGENT_TIMEOUT_MS - (Date.now() - promptSentAtRef.current),
+		);
+		const timeoutId = setTimeout(() => {
+			setAgentTimedOut(true);
+		}, remainingMs);
+		return () => clearTimeout(timeoutId);
+	}, [agentTimedOut]);
+
+	const items = buildItems(liveData, {
 		agentMessage,
 		agentTimedOut,
 	});
@@ -131,21 +101,6 @@ export function useSetupChecklistItems(
 	};
 }
 
-function jobStatus(state: JobState | undefined): CheckStatus {
-	if (!state || state === "pending" || state === "queued") return "pending";
-	if (state === "running") return "running";
-	if (state === "succeeded") return "ready";
-	return "error";
-}
-
-function combineStatus(...statuses: CheckStatus[]): CheckStatus {
-	if (statuses.includes("error")) return "error";
-	if (statuses.includes("running")) return "running";
-	if (statuses.every((s) => s === "ready")) return "ready";
-	if (statuses.includes("ready")) return "running";
-	return "pending";
-}
-
 function lastTrimmedLine(text: string): string | undefined {
 	const trimmed = text.trim();
 	if (!trimmed) return undefined;
@@ -154,80 +109,62 @@ function lastTrimmedLine(text: string): string | undefined {
 }
 
 function buildItems(
-	jobs: SetupJobs,
+	liveData: {
+		status?: string;
+		previewReady?: boolean;
+		initialPromptSent?: boolean;
+		userPromptCompleted?: boolean;
+		setupError?: string | null;
+		message?: string | null;
+	} | null,
 	ctx: { agentMessage: string; agentTimedOut: boolean },
 ): ChecklistItem[] {
-	const filesJob = jobs["project.create"];
-	const composeJob = jobs["docker.composeUp"];
-	const ensureJob = jobs["docker.ensureRunning"];
-	const waitJob = jobs["docker.waitReady"];
-	const sessionJob = jobs["opencode.sessionCreate"];
-	const promptJob = jobs["opencode.sendUserPrompt"];
-
-	// Files
-	const filesStatus = jobStatus(filesJob?.state);
 	const filesItem: ChecklistItem = {
 		id: "files",
 		label: "Project files",
-		status: filesStatus,
-		detail:
-			filesStatus === "error"
-				? (filesJob?.error ?? "Failed to create project files")
-				: filesStatus === "running"
-					? "Creating project files..."
-					: undefined,
+		status: "ready",
 	};
 
-	// Docker — composeUp/ensureRunning + waitReady combined.
-	// ensureRunning supersedes composeUp/waitReady when active.
-	const ensureState = ensureJob?.state;
-	const ensureActive =
-		ensureState === "queued" ||
-		ensureState === "running" ||
-		ensureState === "succeeded";
-	const dockerBringup = ensureActive
-		? jobStatus(ensureJob?.state)
-		: jobStatus(composeJob?.state);
-	const dockerHealth =
-		ensureState === "succeeded"
-			? ("ready" as CheckStatus)
-			: jobStatus(waitJob?.state);
-	const dockerStatus = combineStatus(dockerBringup, dockerHealth);
-	const dockerError =
-		(ensureActive ? ensureJob?.error : composeJob?.error) ?? waitJob?.error;
+	const dockerStatus: CheckStatus =
+		liveData?.status === "error"
+			? "error"
+			: liveData?.previewReady
+				? "ready"
+				: "running";
 	const dockerItem: ChecklistItem = {
 		id: "docker",
 		label: "Docker",
 		status: dockerStatus,
 		detail:
 			dockerStatus === "error"
-				? (dockerError ?? "Docker failed to start")
+				? (liveData?.setupError ??
+					liveData?.message ??
+					"Docker failed to start")
 				: dockerStatus === "running"
-					? dockerBringup === "ready"
-						? "Waiting for containers to be healthy..."
-						: "Starting containers..."
+					? (liveData?.message ?? "Starting containers...")
 					: undefined,
 	};
 
-	// Agent — session + prompt combined.
-	const sessionStatus = jobStatus(sessionJob?.state);
-	const promptStatus = jobStatus(promptJob?.state);
-	const agentStatus = combineStatus(sessionStatus, promptStatus);
-	const agentError = sessionJob?.error ?? promptJob?.error;
+	const streamed = lastTrimmedLine(ctx.agentMessage);
+	const agentStatus: CheckStatus =
+		liveData?.status === "error"
+			? "error"
+			: liveData?.userPromptCompleted
+				? "ready"
+				: liveData?.previewReady || liveData?.initialPromptSent
+					? "running"
+					: "pending";
 	let agentDetail: string | undefined;
 	if (agentStatus === "error") {
-		agentDetail = agentError ?? "Agent failed";
+		agentDetail = liveData?.setupError ?? "Agent failed";
 	} else if (agentStatus === "running") {
-		if (sessionStatus !== "ready") {
-			agentDetail = "Creating agent session...";
-		} else {
-			const streamed = lastTrimmedLine(ctx.agentMessage);
-			agentDetail =
-				streamed ??
-				(ctx.agentTimedOut
-					? "Agent is taking longer than expected. Still waiting..."
-					: "Leveraging agent...");
-		}
+		agentDetail =
+			streamed ??
+			(liveData?.initialPromptSent
+				? ctx.agentTimedOut
+					? "Agent is taking longer than expected. Still working..."
+					: "Leveraging agent..."
+				: "Preparing agent session...");
 	}
 	const agentItem: ChecklistItem = {
 		id: "agent",

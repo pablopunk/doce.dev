@@ -12,31 +12,30 @@ export function CheckRow({ label, status, detail }: CheckRowProps) {
 	const showDetail = status === "running" || status === "error";
 
 	return (
-		<div className="flex items-start gap-3 py-1.5">
+		<div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 py-1.5">
 			<div className="mt-0.5 flex-shrink-0">
 				<StatusIcon status={status} />
 			</div>
-			<div className="flex flex-col min-w-0 flex-1">
-				<span
-					className={`text-sm font-medium leading-tight ${
-						status === "pending"
-							? "text-muted-foreground"
-							: status === "error"
-								? "text-status-error"
-								: "text-foreground"
-					}`}
-				>
-					{label}
-				</span>
-				<span
-					className={`text-xs leading-tight mt-0.5 line-clamp-1 transition-opacity ${
-						showDetail && detail ? "opacity-100" : "opacity-0"
-					} ${status === "error" ? "text-status-error" : "text-muted-foreground"}`}
-					aria-hidden={!showDetail || !detail}
-				>
-					{detail ?? "\u00A0"}
-				</span>
-			</div>
+			<span
+				className={`text-sm font-medium leading-5 ${
+					status === "pending"
+						? "text-muted-foreground"
+						: status === "error"
+							? "text-status-error"
+							: "text-foreground"
+				}`}
+			>
+				{label}
+			</span>
+			<div />
+			<span
+				className={`text-xs leading-4 line-clamp-1 transition-opacity ${
+					showDetail && detail ? "opacity-100" : "opacity-0"
+				} ${status === "error" ? "text-status-error" : "text-muted-foreground"}`}
+				aria-hidden={!showDetail || !detail}
+			>
+				{detail ?? "\u00A0"}
+			</span>
 		</div>
 	);
 }

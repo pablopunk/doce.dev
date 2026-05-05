@@ -178,11 +178,24 @@ export function useCreateProject({
 		});
 	};
 
+	const ensureMinimumLoadingTime = async (startedAt: number) => {
+		const MIN_LOADING_MS = 1800;
+		const elapsed = Date.now() - startedAt;
+		if (elapsed >= MIN_LOADING_MS) {
+			return;
+		}
+
+		await new Promise((resolve) =>
+			setTimeout(resolve, MIN_LOADING_MS - elapsed),
+		);
+	};
+
 	const handleCreate = async () => {
 		if (!prompt.trim()) return;
 
 		setIsLoading(true);
 		setError("");
+		const loadingStartedAt = Date.now();
 
 		try {
 			const result = await actions.projects.create({
@@ -213,6 +226,7 @@ export function useCreateProject({
 			}
 
 			const projectExists = await waitForProjectToExist(result.data.projectId);
+			await ensureMinimumLoadingTime(loadingStartedAt);
 
 			if (!projectExists) {
 				setError("Project creation is taking longer than expected");
