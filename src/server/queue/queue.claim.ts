@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, sqlite } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
+import { emitQueueEvent } from "./events";
 import { isQueuePaused } from "./queue.settings";
 
 export interface ClaimOptions {
@@ -122,7 +123,7 @@ export async function claimNextJob(
 		return null;
 	}
 
-	return {
+	const job = {
 		...stmt,
 		runAt: new Date(stmt.runAt * 1000),
 		lockedAt: stmt.lockedAt ? new Date(stmt.lockedAt * 1000) : null,
@@ -136,6 +137,15 @@ export async function claimNextJob(
 		createdAt: new Date(stmt.createdAt * 1000),
 		updatedAt: new Date(stmt.updatedAt * 1000),
 	};
+
+	emitQueueEvent({
+		jobId: job.id,
+		projectId: job.projectId,
+		type: job.type,
+		state: job.state,
+	});
+
+	return job;
 }
 
 export async function getRunningJobForProject(

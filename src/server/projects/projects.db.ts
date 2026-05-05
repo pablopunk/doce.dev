@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type NewProject, type Project, projects } from "@/server/db/schema";
 import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
+import { emitProjectEvent } from "./events";
 
 export type ProjectStatus = Project["status"];
 
@@ -14,6 +15,7 @@ export async function createProject(data: NewProject): Promise<Project> {
 	if (!project) {
 		throw new Error("Failed to create project");
 	}
+	emitProjectEvent(project.id);
 	return project;
 }
 
@@ -97,6 +99,7 @@ export async function updateProjectStatus(
 		.update(projects)
 		.set({ status, desiredStatus })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -107,6 +110,7 @@ export async function updateProjectIdentity(
 	identity: { name: string; icon: string; slug: string },
 ): Promise<void> {
 	await db.update(projects).set(identity).where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -117,6 +121,7 @@ export async function updateProjectDisplayIdentity(
 	identity: { name: string; icon: string },
 ): Promise<void> {
 	await db.update(projects).set(identity).where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 export async function updateProjectModelInDb(
@@ -127,6 +132,7 @@ export async function updateProjectModelInDb(
 		.update(projects)
 		.set({ preferredModel: model })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -137,6 +143,7 @@ export async function softDeleteProject(id: string): Promise<void> {
 		.update(projects)
 		.set({ deletedAt: new Date() })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -144,6 +151,7 @@ export async function softDeleteProject(id: string): Promise<void> {
  */
 export async function hardDeleteProject(id: string): Promise<void> {
 	await db.delete(projects).where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -186,6 +194,7 @@ export async function markInitialPromptSent(id: string): Promise<void> {
 		.update(projects)
 		.set({ initialPromptSent: true })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -196,6 +205,7 @@ export async function markInitialPromptCompleted(id: string): Promise<void> {
 		.update(projects)
 		.set({ initialPromptCompleted: true })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -214,6 +224,7 @@ export async function resetPromptStateForSessionRecovery(
 			userPromptMessageId: null,
 		})
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -227,6 +238,7 @@ export async function updateBootstrapSessionId(
 		.update(projects)
 		.set({ bootstrapSessionId: sessionId })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -240,6 +252,7 @@ export async function updateUserPromptMessageId(
 		.update(projects)
 		.set({ userPromptMessageId: messageId })
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 /**
@@ -253,6 +266,7 @@ export async function markUserPromptCompleted(id: string): Promise<void> {
 			initialPromptCompleted: true,
 		})
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 export async function updateProjectOpencodeError(
@@ -269,6 +283,7 @@ export async function updateProjectOpencodeError(
 			opencodeErrorAt: new Date(),
 		})
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
 export async function clearProjectOpencodeError(id: string): Promise<void> {
@@ -282,4 +297,5 @@ export async function clearProjectOpencodeError(id: string): Promise<void> {
 			opencodeErrorAt: null,
 		})
 		.where(eq(projects.id, id));
+	emitProjectEvent(id);
 }

@@ -1,6 +1,7 @@
 import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
+import { emitQueueEvent } from "./events";
 import { enqueueJob } from "./queue.model";
 import { type QueueJobType, queueJobTypeSchema } from "./types";
 
@@ -138,7 +139,17 @@ export async function cancelQueuedJob(jobId: string): Promise<QueueJob | null> {
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
 		.returning();
 
-	return result[0] ?? null;
+	const job = result[0] ?? null;
+	if (job) {
+		emitQueueEvent({
+			jobId: job.id,
+			projectId: job.projectId,
+			type: job.type,
+			state: job.state,
+		});
+	}
+
+	return job;
 }
 
 export async function deleteJob(jobId: string): Promise<number> {
@@ -151,6 +162,10 @@ export async function deleteJob(jobId: string): Promise<number> {
 			),
 		)
 		.returning({ id: queueJobs.id });
+
+	if (result.length > 0) {
+		emitQueueEvent({ jobId, settingsChanged: true });
+	}
 
 	return result.length;
 }
@@ -165,6 +180,10 @@ export async function deleteJobsByState(state: QueueJobState): Promise<number> {
 		.delete(queueJobs)
 		.where(eq(queueJobs.state, state))
 		.returning({ id: queueJobs.id });
+
+	if (result.length > 0) {
+		emitQueueEvent({ settingsChanged: true, state });
+	}
 
 	return result.length;
 }

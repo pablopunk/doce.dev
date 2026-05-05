@@ -2,6 +2,11 @@ import type { APIRoute } from "astro";
 import type { QueueJob } from "@/server/db/schema";
 import { logger } from "@/server/logger";
 import {
+	matchesQueueFilters,
+	type QueueStreamFilters,
+	subscribeQueueEvents,
+} from "@/server/queue/events";
+import {
 	countJobs,
 	getConcurrency,
 	isQueuePaused,
@@ -59,151 +64,77 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	}
 
 	const url = new URL(request.url);
-	const stateParam = url.searchParams.get("state") ?? "";
-	const typeParam = url.searchParams.get("type") ?? "";
-	const projectIdParam = url.searchParams.get("projectId") ?? "";
-	const qParam = url.searchParams.get("q") ?? "";
-	const pageParam = url.searchParams.get("page") ?? "1";
-
-	const page = Math.max(1, parseInt(pageParam, 10) || 1);
+	const page = Math.max(
+		1,
+		parseInt(url.searchParams.get("page") ?? "1", 10) || 1,
+	);
 	const offset = (page - 1) * PAGE_SIZE;
+	const filters: QueueStreamFilters & { limit: number; offset: number } = {
+		limit: PAGE_SIZE,
+		offset,
+	};
 
-	const state = validateJobState(stateParam);
-	const type = validateJobType(typeParam);
+	const state = validateJobState(url.searchParams.get("state") ?? "");
+	const type = validateJobType(url.searchParams.get("type") ?? "");
+	const projectId = url.searchParams.get("projectId") ?? "";
+	const q = url.searchParams.get("q") ?? "";
+	if (state) filters.state = state;
+	if (type) filters.type = type;
+	if (projectId) filters.projectId = projectId;
+	if (q) filters.q = q;
 
+	const encoder = new TextEncoder();
 	const headers = new Headers({
 		"Content-Type": "text/event-stream",
 		"Cache-Control": "no-cache",
 		Connection: "keep-alive",
+		"X-Accel-Buffering": "no",
 	});
 
-	const encoder = new TextEncoder();
-	let isClosed = false;
-	let pollInterval: NodeJS.Timeout | null = null;
-	const KEEP_ALIVE_INTERVAL_MS = 15_000;
-	let closeStream: (() => void) | null = null;
-
 	const stream = new ReadableStream({
-		async start(controller) {
-			const sendKeepAlive = () => {
+		start(controller) {
+			let isClosed = false;
+			const sendSnapshot = async (type: "init" | "update") => {
+				const [jobs, totalCount, paused, concurrency] = await Promise.all([
+					listJobs(filters),
+					countJobs(filters),
+					isQueuePaused(),
+					getConcurrency(),
+				]);
 				if (isClosed) return;
-				try {
-					controller.enqueue(encoder.encode(": keep-alive\n\n"));
-				} catch {
-					// Stream closed
-				}
+				const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+				controller.enqueue(
+					encoder.encode(
+						`data: ${JSON.stringify({ type, jobs, paused, concurrency, pagination: { page, pageSize: PAGE_SIZE, totalCount, totalPages }, timestamp: new Date().toISOString() })}\n\n`,
+					),
+				);
 			};
 
-			const keepAliveTimer = setInterval(sendKeepAlive, KEEP_ALIVE_INTERVAL_MS);
-			closeStream = () => {
+			void sendSnapshot("init");
+
+			const keepAliveTimer = setInterval(() => {
+				if (isClosed) return;
+				controller.enqueue(encoder.encode(": keep-alive\n\n"));
+			}, 15_000);
+
+			const unsubscribe = subscribeQueueEvents((event) => {
+				if (!matchesQueueFilters(filters, event)) return;
+				void sendSnapshot("update").catch((error) => {
+					logger.error({ error, filters }, "Failed to push queue jobs update");
+				});
+			});
+
+			const cleanup = () => {
 				if (isClosed) return;
 				isClosed = true;
-				if (pollInterval) {
-					clearInterval(pollInterval);
-					pollInterval = null;
-				}
+				unsubscribe();
 				clearInterval(keepAliveTimer);
 				try {
 					controller.close();
-				} catch {
-					// Already closed
-				}
+				} catch {}
 			};
 
-			try {
-				const filters: {
-					limit: number;
-					offset: number;
-					state?: QueueJob["state"];
-					type?: QueueJobType;
-					projectId?: string;
-					q?: string;
-				} = { limit: PAGE_SIZE, offset };
-				if (state) filters.state = state;
-				if (type) filters.type = type;
-				if (projectIdParam) filters.projectId = projectIdParam;
-				if (qParam) filters.q = qParam;
-
-				const jobs = await listJobs(filters);
-				const totalCount = await countJobs(filters);
-				const paused = await isQueuePaused();
-				const concurrency = await getConcurrency();
-				const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-
-				const data = {
-					type: "init",
-					jobs,
-					paused,
-					concurrency,
-					pagination: { page, pageSize: PAGE_SIZE, totalCount, totalPages },
-					timestamp: new Date().toISOString(),
-				};
-
-				try {
-					controller.enqueue(
-						encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
-					);
-				} catch (err) {
-					if (err instanceof TypeError && err.message.includes("closed"))
-						return;
-					throw err;
-				}
-
-				pollInterval = setInterval(async () => {
-					if (isClosed) {
-						if (pollInterval) {
-							clearInterval(pollInterval);
-							pollInterval = null;
-						}
-						return;
-					}
-
-					try {
-						const updatedJobs = await listJobs(filters);
-						const updatedTotalCount = await countJobs(filters);
-						const updatedPaused = await isQueuePaused();
-						const updatedConcurrency = await getConcurrency();
-						const updatedTotalPages = Math.ceil(updatedTotalCount / PAGE_SIZE);
-
-						const updateData = {
-							type: "update",
-							jobs: updatedJobs,
-							paused: updatedPaused,
-							concurrency: updatedConcurrency,
-							pagination: {
-								page,
-								pageSize: PAGE_SIZE,
-								totalCount: updatedTotalCount,
-								totalPages: updatedTotalPages,
-							},
-							timestamp: new Date().toISOString(),
-						};
-
-						if (!isClosed) {
-							try {
-								controller.enqueue(
-									encoder.encode(`data: ${JSON.stringify(updateData)}\n\n`),
-								);
-							} catch (err) {
-								if (err instanceof TypeError && err.message.includes("closed"))
-									return;
-								throw err;
-							}
-						}
-					} catch (err) {
-						logger.error({ err }, "Error polling queue jobs");
-					}
-				}, 2000);
-
-				request.signal?.addEventListener("abort", () => closeStream?.());
-			} catch (err) {
-				logger.error({ err }, "Error in queue jobs stream");
-				controller.error(err);
-			}
-		},
-
-		cancel() {
-			closeStream?.();
+			request.signal.addEventListener("abort", cleanup);
 		},
 	});
 

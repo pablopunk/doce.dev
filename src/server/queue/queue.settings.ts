@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { queueSettings } from "@/server/db/schema";
+import { emitQueueEvent } from "./events";
 
 const QUEUE_SETTINGS_ROW_ID = 1;
 
@@ -41,6 +42,8 @@ export async function setQueuePaused(paused: boolean): Promise<void> {
 		.update(queueSettings)
 		.set({ paused, updatedAt: new Date() })
 		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID));
+
+	emitQueueEvent({ settingsChanged: true });
 }
 
 export async function getConcurrency(): Promise<number> {
@@ -62,4 +65,6 @@ export async function setConcurrency(concurrency: number): Promise<void> {
 		.update(queueSettings)
 		.set({ concurrency, updatedAt: new Date() })
 		.where(eq(queueSettings.id, QUEUE_SETTINGS_ROW_ID));
+
+	emitQueueEvent({ settingsChanged: true });
 }

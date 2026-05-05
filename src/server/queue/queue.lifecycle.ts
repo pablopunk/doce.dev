@@ -1,6 +1,7 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { queueJobs } from "@/server/db/schema";
+import { emitQueueEvent } from "./events";
 
 export async function completeJob(
 	jobId: string,
@@ -19,8 +20,15 @@ export async function completeJob(
 			updatedAt: now,
 		})
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
@@ -42,8 +50,15 @@ export async function cancelRunningJob(
 			updatedAt: now,
 		})
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
@@ -67,8 +82,15 @@ export async function scheduleRetry(
 			updatedAt: now,
 		})
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
@@ -91,8 +113,15 @@ export async function rescheduleJob(
 			attempts: sql`attempts - 1`,
 		})
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
@@ -115,18 +144,33 @@ export async function failJob(
 			updatedAt: now,
 		})
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.lockedBy, workerId)))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
 export async function requestCancel(jobId: string): Promise<void> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({ cancelRequestedAt: now, updatedAt: now })
-		.where(eq(queueJobs.id, jobId));
+		.where(eq(queueJobs.id, jobId))
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 }
 
 export async function runNow(jobId: string): Promise<boolean> {
@@ -136,8 +180,15 @@ export async function runNow(jobId: string): Promise<boolean> {
 		.update(queueJobs)
 		.set({ runAt: now, updatedAt: now })
 		.where(and(eq(queueJobs.id, jobId), eq(queueJobs.state, "queued")))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
@@ -156,15 +207,22 @@ export async function forceUnlock(jobId: string): Promise<boolean> {
 			updatedAt: now,
 		})
 		.where(eq(queueJobs.id, jobId))
-		.returning({ id: queueJobs.id });
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
 
+	const job = result[0];
+	if (job) emitQueueEvent(job);
 	return result.length > 0;
 }
 
 export async function recoverExpiredJobs(): Promise<void> {
 	const now = new Date();
 
-	await db
+	const result = await db
 		.update(queueJobs)
 		.set({
 			state: "queued",
@@ -175,5 +233,14 @@ export async function recoverExpiredJobs(): Promise<void> {
 		})
 		.where(
 			and(eq(queueJobs.state, "running"), lt(queueJobs.lockExpiresAt, now)),
-		);
+		)
+		.returning({
+			id: queueJobs.id,
+			projectId: queueJobs.projectId,
+			type: queueJobs.type,
+			state: queueJobs.state,
+		});
+	for (const job of result) {
+		emitQueueEvent(job);
+	}
 }

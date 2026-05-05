@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type QueueJob, queueJobs } from "@/server/db/schema";
 import { logger } from "@/server/logger";
+import { emitQueueEvent } from "./events";
 import { cancelQueuedJob, listJobs } from "./queue.crud";
 import { requestCancel } from "./queue.lifecycle";
 import type { QueueJobType } from "./types";
@@ -74,6 +75,13 @@ export async function enqueueJob<TPayload extends object>(
 		if (!job) {
 			throw new Error("Failed to enqueue job");
 		}
+
+		emitQueueEvent({
+			jobId: job.id,
+			projectId: job.projectId,
+			type: job.type,
+			state: job.state,
+		});
 
 		return job;
 	} catch (err) {

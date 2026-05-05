@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { type Project, projects, queueJobs } from "@/server/db/schema";
 import { logger } from "@/server/logger";
+import { emitProjectEvent } from "@/server/projects/events";
 import { getProductionCurrentSymlink } from "@/server/projects/paths";
 
 export type ProductionStatus = Project["productionStatus"];
@@ -195,6 +196,7 @@ export async function updateProductionStatus(
 		.where(eq(projects.id, projectId))
 		.returning();
 
+	emitProjectEvent(projectId);
 	return result[0] ?? null;
 }
 
