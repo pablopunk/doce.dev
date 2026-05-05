@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Terminal, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useOffsetEventSource } from "@/hooks/useOffsetEventSource";
 import { cn } from "@/lib/utils";
 
 interface LogLine {
@@ -24,7 +25,6 @@ export function TerminalDock({
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 	const [lines, setLines] = useState<LogLine[]>([]);
 	const terminalRef = useRef<HTMLDivElement>(null);
-	const eventSourceRef = useRef<EventSource | null>(null);
 	const lineIdRef = useRef(0);
 
 	const scrollToBottom = useCallback(() => {
@@ -33,128 +33,104 @@ export function TerminalDock({
 		}
 	}, []);
 
-	// Connect to logs SSE.
-	// IMPORTANT: nextOffset is tracked in a closure variable (not state) so we don't
-	// tear down and recreate the EventSource on every chunk — that would cause a
-	// reconnect storm and the server would only replay from the latest offset (i.e.
-	// nothing new), so the UI would appear empty even when logs are flowing.
-	useEffect(() => {
-		if (!isOpen) return;
+	const shownTruncationIndicatorRef = useRef(false);
 
-		let eventSource: EventSource | null = null;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let isUnmounted = false;
-		let nextOffset = 0;
-		let shownTruncationIndicator = false;
-
-		const createLogLine = (
+	const createLogLine = useCallback(
+		(
 			text: string,
 			type: "docker" | "app",
 			streamType: "out" | "err",
 		): LogLine => {
 			lineIdRef.current += 1;
 			return { id: lineIdRef.current, text, type, streamType };
-		};
+		},
+		[],
+	);
 
-		const connect = () => {
-			if (isUnmounted) return;
+	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+		shownTruncationIndicatorRef.current = false;
+	}, [isOpen]);
 
-			const url =
-				nextOffset > 0
-					? `/api/projects/${projectId}/logs?offset=${nextOffset}`
-					: `/api/projects/${projectId}/logs`;
-
-			eventSource = new EventSource(url);
-			eventSourceRef.current = eventSource;
-
-			eventSource.addEventListener("log.chunk", (e) => {
-				try {
-					const data = JSON.parse(e.data);
-					const { text, nextOffset: newOffset, truncated } = data;
-
-					if (typeof newOffset === "number") {
-						nextOffset = newOffset;
-					}
-
-					if (truncated && !shownTruncationIndicator) {
-						shownTruncationIndicator = true;
-						setLines((prev) =>
-							prev.length === 0
-								? [
-										createLogLine(
-											"[...showing last portion of logs...]",
-											logType,
-											"out",
-										),
-									]
-								: prev,
-						);
-					}
-
-					if (!text) return;
-
-					const rawLines = text.split("\n").filter((l: string) => l.trim());
-					const newLines = rawLines
-						.map((line: string): LogLine | null => {
-							let type: "docker" | "app" = "docker";
-							let streamType: "out" | "err" = "out";
-							let displayText = line;
-
-							if (line.startsWith("[docker-err]")) {
-								type = "docker";
-								streamType = "err";
-								displayText = line.replace("[docker-err] ", "");
-							} else if (line.startsWith("[docker-out]")) {
-								type = "docker";
-								streamType = "out";
-								displayText = line.replace("[docker-out] ", "");
-							} else if (line.startsWith("[app-err]")) {
-								type = "app";
-								streamType = "err";
-								displayText = line.replace("[app-err] ", "");
-							} else if (line.startsWith("[app-out]")) {
-								type = "app";
-								streamType = "out";
-								displayText = line.replace("[app-out] ", "");
-							}
-
-							// Filter to only show logs matching this dock's type
-							if (type !== logType) {
-								return null;
-							}
-
-							return createLogLine(displayText, type, streamType);
-						})
-						.filter((line: LogLine | null): line is LogLine => line !== null);
-
-					if (newLines.length > 0) {
-						setLines((prev) => [...prev, ...newLines]);
-						requestAnimationFrame(scrollToBottom);
-					}
-				} catch {
-					// Ignore parse errors
+	useOffsetEventSource({
+		enabled: isOpen,
+		resetKey: `${projectId}:${logType}:${isOpen}`,
+		eventName: "log.chunk",
+		buildUrl: (offset) =>
+			offset > 0
+				? `/api/projects/${projectId}/logs?offset=${offset}`
+				: `/api/projects/${projectId}/logs`,
+		parseEvent: (event) => {
+			const data = JSON.parse(event.data) as {
+				text: string;
+				nextOffset: number;
+				truncated?: boolean;
+			};
+			return { data, nextOffset: data.nextOffset };
+		},
+		onData: (data) => {
+			try {
+				if (data.truncated && !shownTruncationIndicatorRef.current) {
+					shownTruncationIndicatorRef.current = true;
+					setLines((prev) =>
+						prev.length === 0
+							? [
+									createLogLine(
+										"[...showing last portion of logs...]",
+										logType,
+										"out",
+									),
+								]
+							: prev,
+					);
 				}
-			});
 
-			eventSource.addEventListener("error", () => {
-				eventSource?.close();
-				eventSource = null;
-				eventSourceRef.current = null;
-				if (!isUnmounted) {
-					reconnectTimer = setTimeout(connect, 1000);
+				if (!data.text) return;
+
+				const rawLines = data.text.split("\n").filter((l: string) => l.trim());
+				const newLines = rawLines
+					.map((line: string): LogLine | null => {
+						let type: "docker" | "app" = "docker";
+						let streamType: "out" | "err" = "out";
+						let displayText = line;
+
+						if (line.startsWith("[docker-err]")) {
+							type = "docker";
+							streamType = "err";
+							displayText = line.replace("[docker-err] ", "");
+						} else if (line.startsWith("[docker-out]")) {
+							type = "docker";
+							streamType = "out";
+							displayText = line.replace("[docker-out] ", "");
+						} else if (line.startsWith("[app-err]")) {
+							type = "app";
+							streamType = "err";
+							displayText = line.replace("[app-err] ", "");
+						} else if (line.startsWith("[app-out]")) {
+							type = "app";
+							streamType = "out";
+							displayText = line.replace("[app-out] ", "");
+						}
+
+						if (type !== logType) {
+							return null;
+						}
+
+						return createLogLine(displayText, type, streamType);
+					})
+					.filter((line: LogLine | null): line is LogLine => line !== null);
+
+				if (newLines.length > 0) {
+					setLines((prev) => [...prev, ...newLines]);
+					requestAnimationFrame(scrollToBottom);
 				}
-			});
-		};
-
-		connect();
-
-		return () => {
-			isUnmounted = true;
-			if (reconnectTimer) clearTimeout(reconnectTimer);
-			eventSource?.close();
-			eventSourceRef.current = null;
-		};
-	}, [projectId, isOpen, scrollToBottom, logType]);
+			} catch {
+				// Ignore parse errors
+			}
+		},
+	});
 
 	// Scroll when lines change
 	useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useEventSource } from "@/hooks/useEventSource";
 import type { QueueJob } from "@/server/db/schema";
 
 interface PaginationData {
@@ -43,58 +44,52 @@ export function useQueueStream(
 	const [hasNewJobs, setHasNewJobs] = useState(false);
 	const totalCountRef = useRef(initialJobs.length);
 
+	const streamKey = [
+		pagination.page,
+		filters.state ?? "",
+		filters.type ?? "",
+		filters.projectId ?? "",
+		filters.q ?? "",
+	].join("|");
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: stream key changes intentionally clear the new-jobs indicator
 	useEffect(() => {
 		setHasNewJobs(false);
+	}, [streamKey]);
 
-		const params = new URLSearchParams();
-		params.set("page", String(pagination.page));
-		if (filters.state) params.set("state", filters.state);
-		if (filters.type) params.set("type", filters.type);
-		if (filters.projectId) params.set("projectId", filters.projectId);
-		if (filters.q) params.set("q", filters.q);
+	const params = new URLSearchParams();
+	params.set("page", String(pagination.page));
+	if (filters.state) params.set("state", filters.state);
+	if (filters.type) params.set("type", filters.type);
+	if (filters.projectId) params.set("projectId", filters.projectId);
+	if (filters.q) params.set("q", filters.q);
 
-		const eventSource = new EventSource(
-			`/api/queue/jobs-stream?${params.toString()}`,
-		);
+	useEventSource({
+		url: `/api/queue/jobs-stream?${params.toString()}`,
+		listeners: {
+			message: (event) => {
+				try {
+					const data = JSON.parse(event.data) as QueueStreamData;
+					setJobs(data.jobs);
+					setPaused(data.paused);
+					setConcurrency(data.concurrency);
 
-		eventSource.addEventListener("message", (event) => {
-			try {
-				const data = JSON.parse(event.data) as QueueStreamData;
-				setJobs(data.jobs);
-				setPaused(data.paused);
-				setConcurrency(data.concurrency);
+					const previousTotalCount = totalCountRef.current;
+					if (
+						pagination.page === 1 &&
+						data.pagination.totalCount > previousTotalCount
+					) {
+						setHasNewJobs(true);
+					}
 
-				const previousTotalCount = totalCountRef.current;
-
-				if (
-					pagination.page === 1 &&
-					data.pagination.totalCount > previousTotalCount
-				) {
-					setHasNewJobs(true);
+					totalCountRef.current = data.pagination.totalCount;
+					setPagination(data.pagination);
+				} catch (err) {
+					console.error("Failed to parse queue update:", err);
 				}
-
-				totalCountRef.current = data.pagination.totalCount;
-				setPagination(data.pagination);
-			} catch (err) {
-				console.error("Failed to parse queue update:", err);
-			}
-		});
-
-		eventSource.addEventListener("error", (err) => {
-			console.error("Queue stream error:", err);
-			eventSource.close();
-		});
-
-		return () => {
-			eventSource.close();
-		};
-	}, [
-		pagination.page,
-		filters.state,
-		filters.type,
-		filters.projectId,
-		filters.q,
-	]);
+			},
+		},
+	});
 
 	return {
 		jobs,

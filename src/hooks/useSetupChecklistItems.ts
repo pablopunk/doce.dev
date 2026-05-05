@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CheckStatus } from "@/components/setup/CheckRow";
 import type { ChecklistItem } from "@/components/setup/SetupChecklist";
+import { useEventSource } from "./useEventSource";
 import { useLiveState } from "./useLiveState";
 
 const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -58,19 +59,24 @@ export function useSetupChecklistItems(
 		[],
 	);
 
-	useEffect(() => {
-		if (allReady) return;
-		const es = new EventSource(`/api/projects/${projectId}/opencode/event`);
-		es.addEventListener("chat.event", (e) => {
-			try {
-				handleEvent(JSON.parse((e as MessageEvent).data));
-			} catch {
-				// ignore
-			}
-		});
-		es.onerror = () => es.close();
-		return () => es.close();
-	}, [projectId, allReady, handleEvent]);
+	useEventSource({
+		enabled: !allReady,
+		url: `/api/projects/${projectId}/opencode/event`,
+		listeners: {
+			"chat.event": (event) => {
+				try {
+					handleEvent(
+						JSON.parse(event.data) as {
+							type: string;
+							payload: Record<string, unknown>;
+						},
+					);
+				} catch {
+					// ignore malformed chat events
+				}
+			},
+		},
+	});
 
 	useEffect(() => {
 		if (!promptSentAtRef.current || agentTimedOut) {

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useEventSource } from "@/hooks/useEventSource";
 
 const CONFIRMATION_TEXT = "delete all projects";
 
@@ -75,43 +76,32 @@ export function DeleteAllProjectsSection() {
 		}
 	};
 
-	useEffect(() => {
-		if (!deleteJobId) return;
+	useEventSource({
+		enabled: Boolean(deleteJobId),
+		url: deleteJobId ? `/api/queue/job-stream?jobId=${deleteJobId}` : null,
+		listeners: {
+			message: (event) => {
+				try {
+					const data = JSON.parse(event.data) as {
+						job?: { state: string; lastError?: string | null };
+					};
+					const state = data.job?.state;
 
-		let isCancelled = false;
+					if (state === "succeeded") {
+						toast.success("All projects deleted successfully.");
+						window.location.reload();
+					}
 
-		const interval = setInterval(async () => {
-			if (isCancelled) return;
-
-			try {
-				const res = await fetch(`/api/queue/jobs/${deleteJobId}`);
-				if (!res.ok) return;
-
-				const data = (await res.json()) as {
-					job?: { state: string; lastError?: string | null };
-				};
-
-				const state = data.job?.state;
-
-				if (state === "succeeded") {
-					toast.success("All projects deleted successfully.");
-					window.location.reload();
+					if (state === "failed" || state === "cancelled") {
+						toast.error(data.job?.lastError || `Deletion job ${state}`);
+						setDeleteJobId(null);
+					}
+				} catch {
+					// ignore malformed events
 				}
-
-				if (state === "failed" || state === "cancelled") {
-					toast.error(data.job?.lastError || `Deletion job ${state}`);
-					setDeleteJobId(null);
-				}
-			} catch {
-				// ignore
-			}
-		}, 2000);
-
-		return () => {
-			isCancelled = true;
-			clearInterval(interval);
-		};
-	}, [deleteJobId]);
+			},
+		},
+	});
 
 	const handleOpenChange = (open: boolean) => {
 		setIsOpen(open);

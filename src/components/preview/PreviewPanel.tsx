@@ -135,9 +135,12 @@ export function PreviewPanel({
 	const [productionVersions, setProductionVersions] = useState<
 		ProductionVersion[]
 	>([]);
-	const productionHistoryPollRef = useRef<ReturnType<
-		typeof setInterval
-	> | null>(null);
+	const previousProductionStatusRef = useRef<ProductionStatus["status"] | null>(
+		null,
+	);
+	const previousProductionJobRef = useRef<ProductionStatus["activeJob"] | null>(
+		null,
+	);
 
 	// Live state from SSE — replaces all presence heartbeat polling
 	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
@@ -378,7 +381,7 @@ export function PreviewPanel({
 		}
 	})();
 
-	const pollProductionHistory = useCallback(async () => {
+	const refreshProductionHistory = useCallback(async () => {
 		try {
 			const { data, error } = await actions.projects.getProductionHistory({
 				projectId,
@@ -388,33 +391,35 @@ export function PreviewPanel({
 				setProductionVersions(history.versions);
 			}
 		} catch {
-			// Non-critical — versions will refresh next cycle
+			// Non-critical — versions will refresh on the next live transition
 		}
 	}, [projectId]);
 
-	// Poll production history when deployed
 	useEffect(() => {
-		let mounted = true;
+		void refreshProductionHistory();
+	}, [refreshProductionHistory]);
 
-		const poll = async () => {
-			if (!mounted) return;
-			await pollProductionHistory();
-			if (mounted) {
-				productionHistoryPollRef.current = setTimeout(poll, 5_000);
-			}
-		};
+	useEffect(() => {
+		const previousStatus = previousProductionStatusRef.current;
+		const previousJob = previousProductionJobRef.current;
+		const currentStatus = productionStatus?.status ?? null;
+		const currentJob = productionStatus?.activeJob ?? null;
 
-		if (productionStatus?.status === "running") {
-			poll();
+		const jobCompleted = previousJob !== null && currentJob === null;
+		const statusChanged =
+			previousStatus !== null && previousStatus !== currentStatus;
+		const reachedStableStatus =
+			currentStatus === "running" ||
+			currentStatus === "stopped" ||
+			currentStatus === "failed";
+
+		previousProductionStatusRef.current = currentStatus;
+		previousProductionJobRef.current = currentJob;
+
+		if ((jobCompleted || statusChanged) && reachedStableStatus) {
+			void refreshProductionHistory();
 		}
-
-		return () => {
-			mounted = false;
-			if (productionHistoryPollRef.current) {
-				clearTimeout(productionHistoryPollRef.current);
-			}
-		};
-	}, [productionStatus?.status, pollProductionHistory]);
+	}, [productionStatus, refreshProductionHistory]);
 
 	const handleDeploy = async () => {
 		markDeploying(projectId);
@@ -490,7 +495,7 @@ export function PreviewPanel({
 				clearPending(projectId);
 				throw new Error(error.message);
 			}
-			await pollProductionHistory();
+			await refreshProductionHistory();
 		} catch (error) {
 			clearPending(projectId);
 			throw error;

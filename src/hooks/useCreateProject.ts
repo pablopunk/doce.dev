@@ -1,6 +1,7 @@
 import { actions } from "astro:actions";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { waitForEventSource } from "@/hooks/useEventSource";
 import {
 	createImagePartFromFile,
 	type ImagePart,
@@ -149,33 +150,14 @@ export function useCreateProject({
 	};
 
 	const waitForProjectToExist = async (projectId: string) => {
-		return await new Promise<boolean>((resolve) => {
-			const eventSource = new EventSource(`/api/projects/${projectId}/ready`);
-
-			const cleanup = () => {
-				eventSource.close();
-			};
-
-			eventSource.addEventListener("ready", () => {
-				cleanup();
-				resolve(true);
-			});
-
-			eventSource.addEventListener("timeout", () => {
-				cleanup();
-				resolve(false);
-			});
-
-			eventSource.addEventListener("error", () => {
-				cleanup();
-				resolve(false);
-			});
-
-			eventSource.onerror = () => {
-				cleanup();
-				resolve(false);
-			};
-		});
+		const result = await waitForEventSource(
+			`/api/projects/${projectId}/ready`,
+			{
+				successEvents: ["ready"],
+				failureEvents: ["timeout", "error"],
+			},
+		);
+		return result === "ready";
 	};
 
 	const ensureMinimumLoadingTime = async (startedAt: number) => {

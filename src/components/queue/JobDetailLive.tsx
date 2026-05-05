@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useEventSource } from "@/hooks/useEventSource";
+import { useOffsetEventSource } from "@/hooks/useOffsetEventSource";
 import type { QueueJob } from "@/server/db/schema";
 import { ConfirmQueueActionDialog } from "./ConfirmQueueActionDialog";
 import { QueueDiagnostic } from "./QueueDiagnostic";
@@ -60,104 +62,71 @@ export function JobDetailLive({
 	const [logsConnected, setLogsConnected] = useState(false);
 	const logsContainerRef = useRef<HTMLDivElement>(null);
 
+	useEventSource({
+		url: `/api/queue/job-stream?jobId=${initialJob.id}`,
+		listeners: {
+			message: (event) => {
+				try {
+					const data = JSON.parse(event.data) as JobStreamData;
+					setJob(data.job);
+				} catch (err) {
+					console.error("Failed to parse job update:", err);
+				}
+			},
+		},
+	});
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: job id change intentionally resets log state
 	useEffect(() => {
-		const eventSource = new EventSource(
-			`/api/queue/job-stream?jobId=${initialJob.id}`,
-		);
-
-		eventSource.addEventListener("message", (event) => {
-			try {
-				const data = JSON.parse(event.data) as JobStreamData;
-				setJob(data.job);
-			} catch (err) {
-				console.error("Failed to parse job update:", err);
-			}
-		});
-
-		eventSource.addEventListener("error", (err) => {
-			console.error("Job stream error:", err);
-			eventSource.close();
-		});
-
-		return () => {
-			eventSource.close();
-		};
-	}, [initialJob.id]);
-
-	useEffect(() => {
-		let eventSource: EventSource | null = null;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let isUnmounted = false;
-		let nextOffset = 0;
-
 		setJobLogs([]);
 		setLogsTruncated(false);
-
-		const connect = () => {
-			if (isUnmounted) return;
-
-			const params = new URLSearchParams({ jobId: initialJob.id });
-			if (nextOffset > 0) {
-				params.set("offset", String(nextOffset));
-			}
-
-			eventSource = new EventSource(
-				`/api/queue/job-logs-stream?${params.toString()}`,
-			);
-			eventSource.addEventListener("open", () => {
-				setLogsConnected(true);
-			});
-
-			eventSource.addEventListener("log.chunk", (event) => {
-				try {
-					const data = JSON.parse(event.data) as JobLogChunkEvent;
-					nextOffset = data.nextOffset;
-
-					if (data.truncated) {
-						setLogsTruncated(true);
-					}
-
-					if (!data.text) {
-						return;
-					}
-
-					const newLines = parseJobLogChunk(data.text);
-					setJobLogs((prev) => {
-						const merged = [...prev, ...newLines];
-						const MAX_LOG_LINES = 1_000;
-						return merged.length > MAX_LOG_LINES
-							? merged.slice(-MAX_LOG_LINES)
-							: merged;
-					});
-					requestAnimationFrame(() => {
-						if (!logsContainerRef.current) return;
-						logsContainerRef.current.scrollTop =
-							logsContainerRef.current.scrollHeight;
-					});
-				} catch {
-					toast.error("Failed to parse job log stream data");
-				}
-			});
-
-			eventSource.addEventListener("error", () => {
-				setLogsConnected(false);
-				eventSource?.close();
-				eventSource = null;
-				if (!isUnmounted) {
-					reconnectTimer = setTimeout(connect, 1_000);
-				}
-			});
-		};
-
-		connect();
-
-		return () => {
-			isUnmounted = true;
-			setLogsConnected(false);
-			if (reconnectTimer) clearTimeout(reconnectTimer);
-			eventSource?.close();
-		};
 	}, [initialJob.id]);
+
+	useOffsetEventSource({
+		enabled: true,
+		resetKey: initialJob.id,
+		eventName: "log.chunk",
+		buildUrl: (offset) => {
+			const params = new URLSearchParams({ jobId: initialJob.id });
+			if (offset > 0) {
+				params.set("offset", String(offset));
+			}
+			return `/api/queue/job-logs-stream?${params.toString()}`;
+		},
+		onOpen: () => setLogsConnected(true),
+		onError: () => setLogsConnected(false),
+		parseEvent: (event) => {
+			const data = JSON.parse(event.data) as JobLogChunkEvent;
+			return { data, nextOffset: data.nextOffset };
+		},
+		onData: (data) => {
+			try {
+				if (data.truncated) {
+					setLogsTruncated(true);
+				}
+
+				if (!data.text) {
+					return;
+				}
+
+				const newLines = parseJobLogChunk(data.text);
+				setJobLogs((prev) => {
+					const merged = [...prev, ...newLines];
+					const MAX_LOG_LINES = 1_000;
+					return merged.length > MAX_LOG_LINES
+						? merged.slice(-MAX_LOG_LINES)
+						: merged;
+				});
+				requestAnimationFrame(() => {
+					if (!logsContainerRef.current) return;
+					logsContainerRef.current.scrollTop =
+						logsContainerRef.current.scrollHeight;
+				});
+			} catch {
+				toast.error("Failed to parse job log stream data");
+			}
+		},
+	});
 
 	const isExhaustedQueueJob =
 		job.state === "queued" &&

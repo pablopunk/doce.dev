@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { useOffsetEventSource } from "@/hooks/useOffsetEventSource";
 import { cn } from "@/lib/utils";
 
 interface LogsSettingsProps {
@@ -139,81 +140,50 @@ export function LogsSettings({ logFilePath }: LogsSettingsProps) {
 	const logsContainerRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		let eventSource: EventSource | null = null;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let isUnmounted = false;
-		let nextOffset = 0;
-
 		setLogLines([]);
 		setLogsTruncated(false);
 		setLogsConnected(false);
+	}, []);
 
-		const connect = () => {
-			if (isUnmounted) return;
-
-			const params = new URLSearchParams();
-			if (nextOffset > 0) {
-				params.set("offset", String(nextOffset));
+	useOffsetEventSource({
+		enabled: true,
+		resetKey: "host-logs",
+		eventName: "log.chunk",
+		buildUrl: (offset) =>
+			`/api/settings/host-logs${offset > 0 ? `?offset=${offset}` : ""}`,
+		onOpen: () => setLogsConnected(true),
+		onError: () => setLogsConnected(false),
+		parseEvent: (event) => {
+			const data = JSON.parse(event.data) as LogChunkEvent;
+			return { data, nextOffset: data.nextOffset };
+		},
+		onData: (data) => {
+			setLogsTruncated(data.truncated);
+			if (!data.text) {
+				return;
 			}
 
-			const query = params.toString();
-			eventSource = new EventSource(
-				`/api/settings/host-logs${query ? `?${query}` : ""}`,
-			);
-
-			eventSource.addEventListener("open", () => {
-				setLogsConnected(true);
+			setLogLines((prev) => {
+				const nextLines = [
+					...prev,
+					...data.text
+						.split("\n")
+						.filter((line) => line.trim().length > 0)
+						.map(parseLogLine),
+				];
+				const maxLines = 2000;
+				return nextLines.length > maxLines
+					? nextLines.slice(-maxLines)
+					: nextLines;
 			});
 
-			eventSource.addEventListener("log.chunk", (event) => {
-				const data = JSON.parse(event.data) as LogChunkEvent;
-				nextOffset = data.nextOffset;
-				setLogsTruncated(data.truncated);
-
-				if (!data.text) {
-					return;
-				}
-
-				setLogLines((prev) => {
-					const nextLines = [
-						...prev,
-						...data.text
-							.split("\n")
-							.filter((line) => line.trim().length > 0)
-							.map(parseLogLine),
-					];
-					const maxLines = 2000;
-					return nextLines.length > maxLines
-						? nextLines.slice(-maxLines)
-						: nextLines;
-				});
-
-				requestAnimationFrame(() => {
-					if (!logsContainerRef.current) return;
-					logsContainerRef.current.scrollTop =
-						logsContainerRef.current.scrollHeight;
-				});
+			requestAnimationFrame(() => {
+				if (!logsContainerRef.current) return;
+				logsContainerRef.current.scrollTop =
+					logsContainerRef.current.scrollHeight;
 			});
-
-			eventSource.addEventListener("error", () => {
-				setLogsConnected(false);
-				eventSource?.close();
-				eventSource = null;
-				if (!isUnmounted) {
-					reconnectTimer = setTimeout(connect, 1000);
-				}
-			});
-		};
-
-		connect();
-
-		return () => {
-			isUnmounted = true;
-			setLogsConnected(false);
-			if (reconnectTimer) clearTimeout(reconnectTimer);
-			eventSource?.close();
-		};
-	}, []);
+		},
+	});
 
 	return (
 		<div className="space-y-6">
