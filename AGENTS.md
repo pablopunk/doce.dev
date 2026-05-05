@@ -9,9 +9,10 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 ## Rules for agentic development
 
 * All code modifications/additions should adhere to clean code principles defined below
+* When changing code or introducing new code, Always explore similar implementations on the code base to adhere to the same conventions.
 * Always use `pnpm` for everything, never `npm` nor `yarn` nor `bun`
 * When debugging problems, be proactive (with read-only actions please), i.e. you can always get more info running DB queries yourself, checking docker logs from the CLI, running the server yourself in the background piping the logs to a file... Be creative, without making destructive operations just for debugging.
-* For CRUD operations, prefer React hooks or programmatic fetch calls (stil, astro actions) over HTML forms.
+* For CRUD operations, prefer React hooks or programmatic fetch calls (still, astro actions) over HTML forms.
 * Avoid success/error/info callouts in components, always use `sonner` component for feedback after actions.
 * Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
 * Use Biome (`pnpm format`) for formatting/linting, not ESLint/Prettier.
@@ -19,6 +20,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Use `@/server/logger` (Pino) instead of `console.*` in server code.
 * API routes handle their own auth via cookies; don't assume middleware auth for `/_actions` and `/api`.
 * When changing database models, we should consider if we need to create a migration.
+* Polling in the Frontend is completely forbidden, use SSE instead, explore other use cases on the repo.
 
 ## Clean code
 

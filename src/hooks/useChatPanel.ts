@@ -365,8 +365,7 @@ export function useChatPanel({
 				// Resolve session id without an extra roundtrip when possible.
 				// liveData hands us bootstrapSessionId; fall back to the list call only
 				// for legacy projects that predate that field.
-				let latestSessionId =
-					sessionId ?? liveData?.bootstrapSessionId ?? null;
+				let latestSessionId = sessionId ?? liveData?.bootstrapSessionId ?? null;
 
 				if (!latestSessionId) {
 					type SessionListItem = { id?: string } | string;

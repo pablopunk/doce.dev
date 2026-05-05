@@ -79,9 +79,7 @@ export async function getJobCancelRequestedAt(
 	return result[0]?.cancelRequestedAt ?? null;
 }
 
-function buildJobsWhere(
-	filters: Omit<ListJobsFilters, "limit" | "offset">,
-) {
+function buildJobsWhere(filters: Omit<ListJobsFilters, "limit" | "offset">) {
 	const parts = [];
 
 	if (filters.state) parts.push(eq(queueJobs.state, filters.state));

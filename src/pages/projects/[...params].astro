@@ -37,7 +37,9 @@ if (slug && slug !== project.slug) {
 // when opencode is already warm.
 const [availableModels, initialChat] = await Promise.all([
 	getAvailableModels(),
-	project.userPromptCompleted ? getInitialChatState(project) : Promise.resolve(null),
+	project.userPromptCompleted
+		? getInitialChatState(project)
+		: Promise.resolve(null),
 ]);
 
 const allModels = availableModels;

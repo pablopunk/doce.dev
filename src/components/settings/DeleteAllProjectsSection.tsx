@@ -1,5 +1,6 @@
 "use client";
 
+import { actions } from "astro:actions";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -31,14 +32,8 @@ export function DeleteAllProjectsSection() {
 
 	const fetchCount = useCallback(async () => {
 		try {
-			const res = await fetch("/_actions/projects.list", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
-			const data = await res.json();
-			const projects = Array.isArray(data) ? data[0] : data.data;
-			setProjectCount(Array.isArray(projects) ? projects.length : 0);
+			const result = await actions.projects.list();
+			setProjectCount(result.data?.projects.length ?? 0);
 		} catch {
 			setProjectCount(0);
 		}
@@ -61,29 +56,16 @@ export function DeleteAllProjectsSection() {
 		setIsDeleting(true);
 
 		try {
-			const response = await fetch("/_actions/projects.deleteAll", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({}),
-			});
-
-			const data = await response.json();
-			// Astro Actions return [data, ok, error] format
-			const resultData = Array.isArray(data) ? data[0] : data.data;
-
-			if (resultData?.success) {
-				const jobId = resultData.jobId as string | undefined;
-				if (!jobId) {
-					throw new Error("Missing jobId from server");
-				}
-
-				setDeleteJobId(jobId);
-				toast.success(
-					`Deletion scheduled (job ${jobId}). Monitor progress in Settings > Status.`,
-				);
-			} else {
+			const result = await actions.projects.deleteAll();
+			const jobId = result.data?.jobId;
+			if (!result.data?.success || !jobId) {
 				throw new Error("Failed to delete projects");
 			}
+
+			setDeleteJobId(jobId);
+			toast.success(
+				`Deletion scheduled (job ${jobId}). Monitor progress in Settings > Status.`,
+			);
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete projects",
