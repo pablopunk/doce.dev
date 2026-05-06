@@ -11,27 +11,6 @@ import { spawnCommand } from "@/server/utils/execAsync";
 const START_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_INTERVAL_MS = 250;
 
-function toMiB(bytes: number): number {
-	return Math.round((bytes / 1024 / 1024) * 100) / 100;
-}
-
-export function logOpencodeMemorySnapshot(stage: string): void {
-	const memory = process.memoryUsage();
-	logger.info(
-		{
-			stage,
-			memory: {
-				rssMiB: toMiB(memory.rss),
-				heapTotalMiB: toMiB(memory.heapTotal),
-				heapUsedMiB: toMiB(memory.heapUsed),
-				externalMiB: toMiB(memory.external),
-				arrayBuffersMiB: toMiB(memory.arrayBuffers),
-			},
-		},
-		"OpenCode runtime memory snapshot",
-	);
-}
-
 declare global {
 	// eslint-disable-next-line no-var
 	var __DOCE_OPENCODE_PROCESS__: ChildProcess | undefined;
@@ -250,11 +229,9 @@ async function waitForOpencodeReady(): Promise<void> {
 }
 
 async function startOpencodeProcess(): Promise<void> {
-	logOpencodeMemorySnapshot("runtime.start.before-version-check");
 	await ensureRequiredOpencodeVersion();
 
 	if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
-		logOpencodeMemorySnapshot("runtime.start.reuse-existing");
 		logger.info(
 			{
 				baseUrl: getOpencodeBaseUrl(),
@@ -266,7 +243,6 @@ async function startOpencodeProcess(): Promise<void> {
 	}
 
 	await ensureOpencodeDirectories();
-	logOpencodeMemorySnapshot("runtime.start.before-spawn");
 
 	const child = spawn(
 		getOpencodeCommand(),
@@ -299,7 +275,6 @@ async function startOpencodeProcess(): Promise<void> {
 	});
 
 	child.on("exit", (code, signal) => {
-		logOpencodeMemorySnapshot("runtime.process.exit");
 		logger.warn({ code, signal }, "Central OpenCode runtime exited");
 		if (globalThis.__DOCE_OPENCODE_PROCESS__ === child) {
 			globalThis.__DOCE_OPENCODE_PROCESS__ = undefined;
@@ -311,7 +286,6 @@ async function startOpencodeProcess(): Promise<void> {
 	});
 
 	await Promise.race([waitForOpencodeReady(), startupError]);
-	logOpencodeMemorySnapshot("runtime.start.ready");
 	logger.info(
 		{ baseUrl: getOpencodeBaseUrl() },
 		"Central OpenCode runtime ready",
@@ -319,11 +293,9 @@ async function startOpencodeProcess(): Promise<void> {
 }
 
 export async function ensureGlobalOpencodeStarted(): Promise<void> {
-	logOpencodeMemorySnapshot("runtime.ensureGlobalOpencodeStarted.enter");
 	const existing = globalThis.__DOCE_OPENCODE_PROCESS__;
 	if (existing && existing.exitCode === null && !existing.killed) {
 		if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
-			logOpencodeMemorySnapshot("runtime.ensureGlobalOpencodeStarted.already-healthy");
 			return;
 		}
 	}
