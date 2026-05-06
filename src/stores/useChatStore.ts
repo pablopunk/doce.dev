@@ -197,7 +197,8 @@ export function createChatStore() {
 		setUserPromptMessageId: (id) => set({ userPromptMessageId: id }),
 		setProjectPrompt: (prompt) => set({ projectPrompt: prompt }),
 		setSessionTitle: (title) => set({ sessionTitle: title }),
-		setSessionContextUsage: (sessionContextUsage) => set({ sessionContextUsage }),
+		setSessionContextUsage: (sessionContextUsage) =>
+			set({ sessionContextUsage }),
 		setCurrentModel: (model) => set({ currentModel: model }),
 		setHistoryLoaded: (loaded) => set({ historyLoaded: loaded }),
 		setIsStreaming: (streaming) => set({ isStreaming: streaming }),

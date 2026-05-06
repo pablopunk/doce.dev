@@ -35,7 +35,11 @@ export function ChatContextUsage({
 			<TooltipTrigger
 				render={
 					<div className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground">
-						<svg className="h-4 w-4 -rotate-90" viewBox="0 0 16 16" aria-hidden="true">
+						<svg
+							className="h-4 w-4 -rotate-90"
+							viewBox="0 0 16 16"
+							aria-hidden="true"
+						>
 							<circle
 								cx="8"
 								cy="8"
@@ -63,7 +67,9 @@ export function ChatContextUsage({
 			/>
 			<TooltipContent side="bottom">
 				<div className="flex items-center gap-2 text-xs text-background/80">
-					<span className="font-medium text-background">{totalTokensLabel}</span>
+					<span className="font-medium text-background">
+						{totalTokensLabel}
+					</span>
 					<span>tokens</span>
 					{limitLabel && (
 						<>

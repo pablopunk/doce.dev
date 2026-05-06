@@ -163,7 +163,11 @@ function ContainerRow({ container }: { container: ContainerStats }) {
 				</span>
 			</div>
 			<div className="grid grid-cols-[1fr_2fr] gap-4">
-				<MetricBar label="CPU" value={container.cpuPercent} colorClass={cpuColor} />
+				<MetricBar
+					label="CPU"
+					value={container.cpuPercent}
+					colorClass={cpuColor}
+				/>
 				<MetricBar
 					label="Mem"
 					value={container.memPercent}

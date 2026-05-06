@@ -42,7 +42,8 @@ export function FloatingChatPanel({
 }: FloatingChatPanelProps) {
 	const { isDetached, position, size, setPosition, setSize, setDetached } =
 		useChatLayout();
-	const { sessionTitle, sessionId, sessionContextUsage } = useChatStore(projectId);
+	const { sessionTitle, sessionId, sessionContextUsage } =
+		useChatStore(projectId);
 
 	const panelRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);

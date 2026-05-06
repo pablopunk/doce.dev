@@ -46,6 +46,8 @@ export function getSessionContextUsage(
 	return {
 		total,
 		limit: modelContextLimit,
-		usage: modelContextLimit ? Math.round((total / modelContextLimit) * 100) : null,
+		usage: modelContextLimit
+			? Math.round((total / modelContextLimit) * 100)
+			: null,
 	};
 }

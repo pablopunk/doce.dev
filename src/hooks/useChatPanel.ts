@@ -146,6 +146,8 @@ export function useChatPanel({
 		() => sessionTitle !== null,
 	);
 	const [sessionContextLoaded, setSessionContextLoaded] = useState(false);
+	const [restoreEnabled, setRestoreEnabled] = useState<boolean>(true);
+	const [restoreGuardLoaded, setRestoreGuardLoaded] = useState(false);
 	const [draftSeed, setDraftSeed] = useState<{
 		key: number;
 		text: string;
@@ -946,6 +948,35 @@ export function useChatPanel({
 		});
 	};
 
+	// Fetch restore safety status when session is available
+	useEffect(() => {
+		if (!sessionId) {
+			setRestoreEnabled(false);
+			setRestoreGuardLoaded(true);
+			return;
+		}
+		let cancelled = false;
+		void (async () => {
+			try {
+				const result = await actions.chat.getRestoreStatus({ projectId });
+				if (cancelled) return;
+				if (result.error) {
+					setRestoreEnabled(false);
+				} else {
+					setRestoreEnabled(result.data?.canRestore ?? false);
+				}
+			} catch (error) {
+				if (cancelled) return;
+				setRestoreEnabled(false);
+			} finally {
+				if (!cancelled) setRestoreGuardLoaded(true);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [sessionId, projectId]);
+
 	const handleRestore = useCallback(
 		async ({
 			messageId,
@@ -1018,6 +1049,8 @@ export function useChatPanel({
 		revertMessageId,
 		handleRestore,
 		handleUnrevert,
+		restoreEnabled,
+		restoreGuardLoaded,
 		draftSeed,
 		clearDraftSeed,
 		opencodeReady,

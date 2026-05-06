@@ -63,13 +63,16 @@ function useDebugChat() {
 	return ctx;
 }
 
+import { Loader2 } from "lucide-react";
 import { AgentThinkingIndicator } from "@/components/chat/AgentThinkingIndicator";
 import { ChatDetachToggle } from "@/components/chat/ChatDetachToggle";
 import { ChatSessionTitle } from "@/components/chat/ChatSessionTitle";
+import {
+	buildRolledMessages,
+	RevertDock,
+} from "@/components/chat/composer/RevertDock";
 import { FloatingChatPanel } from "@/components/chat/FloatingChatPanel";
-import { buildRolledMessages, RevertDock } from "@/components/chat/composer/RevertDock";
 import { useChatLayout } from "@/stores/useChatLayout";
-import { Loader2 } from "lucide-react";
 
 // Pure ChatPanel implementation using context instead of store
 function DebugChatPanel({

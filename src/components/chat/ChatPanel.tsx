@@ -75,6 +75,8 @@ export function ChatPanel({
 		clearDiagnostic,
 		rawItems,
 		revertMessageId,
+		restoreEnabled,
+		restoreGuardLoaded,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
 
 	const rolledMessages = useMemo(
@@ -173,7 +175,9 @@ export function ChatPanel({
 							expandedTools={expandedTools}
 							onToggleTool={toggleToolExpanded}
 							onOpenFile={onOpenFile}
-							onRestore={handleRestore}
+							onRestore={
+								restoreGuardLoaded && restoreEnabled ? handleRestore : undefined
+							}
 						/>
 						<AgentThinkingIndicator
 							projectId={projectId}
@@ -207,14 +211,17 @@ export function ChatPanel({
 
 				return (
 					<>
-						{rolledMessages.length > 0 && !isBlocked && (
-							<RevertDock
-								items={rolledMessages}
-								disabled={isStreaming}
-								onRestoreUpTo={handleRestoreUpTo}
-								onCancel={handleUnrevert}
-							/>
-						)}
+						{rolledMessages.length > 0 &&
+							!isBlocked &&
+							restoreGuardLoaded &&
+							restoreEnabled && (
+								<RevertDock
+									items={rolledMessages}
+									disabled={isStreaming}
+									onRestoreUpTo={handleRestoreUpTo}
+									onCancel={handleUnrevert}
+								/>
+							)}
 						{todos.length > 0 && !isBlocked && <TodoDock todos={todos} />}
 						{pendingQuestion && (
 							<QuestionDock
