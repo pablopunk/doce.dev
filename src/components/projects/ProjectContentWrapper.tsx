@@ -39,7 +39,7 @@ export function ProjectContentWrapper({
 	// Seed the chat store synchronously before any child mounts so SSR-loaded
 	// history paints on the first frame.
 	useChatStoreSeed(projectId, initialChat);
-	const [showStartupDisplay, setShowStartupDisplay] = useState(true);
+	const [showStartupDisplay, setShowStartupDisplay] = useState(false);
 	const [fileToOpen, setFileToOpen] = useState<string | null>(null);
 	const [userMessageCount, setUserMessageCount] = useState(0);
 	const [isStreaming, setIsStreaming] = useState(false);
@@ -102,6 +102,16 @@ export function ProjectContentWrapper({
 		liveData?.status,
 	]);
 
+	useEffect(() => {
+		if (!pendingAction) return;
+		if (
+			pendingAction.action === "starting" ||
+			pendingAction.action === "restarting"
+		) {
+			setShowStartupDisplay(true);
+		}
+	}, [pendingAction]);
+
 	// Auto-clear optimistic restart/start/stop when SSE catches up
 	useEffect(() => {
 		if (!liveData || !pendingAction) return;
@@ -121,7 +131,9 @@ export function ProjectContentWrapper({
 				<ErrorBoundary componentName="ContainerStartupDisplay">
 					<ContainerStartupDisplay
 						projectId={projectId}
-						reason="restart"
+						reason={
+							pendingAction?.action === "starting" ? "initial" : "restart"
+						}
 						onComplete={() => setShowStartupDisplay(false)}
 					/>
 				</ErrorBoundary>

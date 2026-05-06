@@ -38,21 +38,22 @@ const availableModels = await getAvailableModels();
 const initialChat = null;
 
 const allModels = availableModels;
+const shouldShowProjectContent =
+	project.userPromptCompleted ||
+	project.initialPromptSent ||
+	Boolean(project.bootstrapSessionId);
 ---
 
 <AppLayout title={`${project.icon} ${project.name}`} projectName={project.name} projectIcon={project.icon} projectId={project.id}>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- Main content -->
-    {/* Show setup display until user prompt is complete (session.init is pre-done in template) */}
-    {!project.userPromptCompleted ? (
-      <!-- Setup phase: show setup status display -->
+    {shouldShowProjectContent ? (
+      <ProjectContentWrapper projectId={project.id} projectSlug={project.slug} models={allModels} initialChat={initialChat} client:load />
+    ) : (
       <SetupStatusDisplay
         projectId={project.id}
         client:load
       />
-    ) : (
-      <!-- Setup complete: show chat + preview (with container startup overlay) -->
-      <ProjectContentWrapper projectId={project.id} projectSlug={project.slug} models={allModels} initialChat={initialChat} client:load />
     )}
    </div>
 </AppLayout>
