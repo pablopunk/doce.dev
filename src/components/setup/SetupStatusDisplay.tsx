@@ -1,5 +1,6 @@
 import { actions } from "astro:actions";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLiveState } from "@/hooks/useLiveState";
 import { useSetupChecklistItems } from "@/hooks/useSetupChecklistItems";
 import { SetupChecklist } from "./SetupChecklist";
 
@@ -10,8 +11,10 @@ interface SetupStatusDisplayProps {
 export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 	const { items, hasError, errorMessage, jobTimeoutWarning } =
 		useSetupChecklistItems(projectId);
+	const { data: liveData } = useLiveState(`/api/projects/${projectId}/live`);
 	const [isRestarting, setIsRestarting] = useState(false);
 	const [restartError, setRestartError] = useState<string | null>(null);
+	const projectContentOpenedRef = useRef(false);
 
 	const handleRestart = async () => {
 		setIsRestarting(true);
@@ -29,6 +32,23 @@ export function SetupStatusDisplay({ projectId }: SetupStatusDisplayProps) {
 			setIsRestarting(false);
 		}
 	};
+
+	useEffect(() => {
+		if (projectContentOpenedRef.current) return;
+		if (
+			liveData?.initialPromptSent ||
+			liveData?.bootstrapSessionId ||
+			(liveData?.status === "running" && liveData?.opencodeReady)
+		) {
+			projectContentOpenedRef.current = true;
+			window.location.reload();
+		}
+	}, [
+		liveData?.bootstrapSessionId,
+		liveData?.initialPromptSent,
+		liveData?.opencodeReady,
+		liveData?.status,
+	]);
 
 	const error =
 		hasError || restartError
