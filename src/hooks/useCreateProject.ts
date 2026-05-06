@@ -3,11 +3,14 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { waitForEventSource } from "@/hooks/useEventSource";
 import {
-	createImagePartFromFile,
-	type ImagePart,
-	MAX_IMAGES_PER_MESSAGE,
-	VALID_IMAGE_MIME_TYPES,
+	CHAT_ATTACHMENT_ACCEPT,
+	createPromptAttachmentFromFile,
+	isImageAttachmentFile,
+	isTextAttachmentFile,
+	MAX_ATTACHMENTS_PER_MESSAGE,
+	type PromptAttachmentPart,
 	validateImageFile,
+	validateTextAttachmentFile,
 } from "@/types/message";
 
 interface Model {
@@ -16,6 +19,7 @@ interface Model {
 	provider: string;
 	vendor: string;
 	supportsImages?: boolean;
+	supportsAttachments?: boolean;
 }
 
 interface UseCreateProjectOptions {
@@ -31,8 +35,10 @@ export function useCreateProject({
 	const [selectedModel, setSelectedModel] = useState(defaultModel);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
-	const [selectedImages, setSelectedImages] = useState<ImagePart[]>([]);
-	const [imageError, setImageError] = useState<string | null>(null);
+	const [selectedAttachments, setSelectedAttachments] = useState<
+		PromptAttachmentPart[]
+	>([]);
+	const [attachmentError, setAttachmentError] = useState<string | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,37 +53,37 @@ export function useCreateProject({
 		textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
 	};
 
-	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {
-		setImageError(null);
+		setAttachmentError(null);
 		const fileArray = Array.from(files);
 
-		// Check total count
-		const totalCount = selectedImages.length + fileArray.length;
-		if (totalCount > MAX_IMAGES_PER_MESSAGE) {
-			setImageError(`Max ${MAX_IMAGES_PER_MESSAGE} images allowed`);
+		const totalCount = selectedAttachments.length + fileArray.length;
+		if (totalCount > MAX_ATTACHMENTS_PER_MESSAGE) {
+			setAttachmentError(
+				`Max ${MAX_ATTACHMENTS_PER_MESSAGE} attachments allowed`,
+			);
 			return;
 		}
 
-		// Validate and process each file
-		const newImages: ImagePart[] = [];
+		const newAttachments: PromptAttachmentPart[] = [];
 		for (const file of fileArray) {
-			const validation = validateImageFile(file);
+			const validation = isImageAttachmentFile(file)
+				? validateImageFile(file)
+				: validateTextAttachmentFile(file);
 			if (!validation.valid) {
-				setImageError(validation.error || "Invalid file");
+				setAttachmentError(validation.error || "Invalid file");
 				return;
 			}
 
 			try {
-				const imagePart = await createImagePartFromFile(file);
-				newImages.push(imagePart);
+				newAttachments.push(await createPromptAttachmentFromFile(file));
 			} catch {
-				setImageError(`Failed to read ${file.name}`);
+				setAttachmentError(`Failed to read ${file.name}`);
 				return;
 			}
 		}
 
-		setSelectedImages((prev) => [...prev, ...newImages]);
+		setSelectedAttachments((prev) => [...prev, ...newAttachments]);
 	};
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,15 +100,15 @@ export function useCreateProject({
 
 		const imageFiles: File[] = [];
 		for (const item of items) {
-			if (item.type.startsWith("image/")) {
-				const file = item.getAsFile();
-				if (file) imageFiles.push(file);
+			const file = item.getAsFile();
+			if (file && isImageAttachmentFile(file)) {
+				imageFiles.push(file);
 			}
 		}
 
 		if (imageFiles.length > 0) {
 			e.preventDefault();
-			processFiles(imageFiles);
+			void processFiles(imageFiles);
 		}
 	};
 
@@ -125,28 +131,26 @@ export function useCreateProject({
 
 		const files = e.dataTransfer?.files;
 		if (files && files.length > 0) {
-			// Filter only images
-			const imageFiles = Array.from(files).filter((file) =>
-				VALID_IMAGE_MIME_TYPES.includes(
-					file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
-				),
+			const supportedFiles = Array.from(files).filter(
+				(file) => isImageAttachmentFile(file) || isTextAttachmentFile(file),
 			);
-			if (imageFiles.length > 0) {
-				// Show error if images aren't supported
-				if (!currentModelSupportsImages) {
-					toast.error("Images not supported", {
-						description: "The selected model doesn't support image input",
+			if (supportedFiles.length > 0) {
+				if (!currentModelSupportsAttachments) {
+					toast.error("Attachments not supported", {
+						description: "The selected model doesn't support file attachments",
 					});
 					return;
 				}
-				processFiles(imageFiles);
+				void processFiles(supportedFiles);
 			}
 		}
 	};
 
-	const removeImage = (id: string) => {
-		setSelectedImages((prev) => prev.filter((img) => img.id !== id));
-		setImageError(null);
+	const removeAttachment = (id: string) => {
+		setSelectedAttachments((prev) =>
+			prev.filter((attachment) => attachment.id !== id),
+		);
+		setAttachmentError(null);
 	};
 
 	const waitForProjectToExist = async (projectId: string) => {
@@ -183,14 +187,22 @@ export function useCreateProject({
 			const result = await actions.projects.create({
 				prompt: prompt.trim(),
 				model: selectedModel ? buildFullModelId(selectedModel) : undefined,
-				images:
-					selectedImages.length > 0
+				attachments:
+					selectedAttachments.length > 0
 						? JSON.stringify(
-								selectedImages.map((img) => ({
-									filename: img.filename,
-									mime: img.mime,
-									dataUrl: img.dataUrl,
-								})),
+								selectedAttachments
+									.filter(
+										(
+											attachment,
+										): attachment is PromptAttachmentPart & {
+											dataUrl: string;
+										} => typeof attachment.dataUrl === "string",
+									)
+									.map((attachment) => ({
+										filename: attachment.filename,
+										mime: attachment.mime,
+										dataUrl: attachment.dataUrl,
+									})),
 							)
 						: undefined,
 			});
@@ -245,14 +257,14 @@ export function useCreateProject({
 		const newModelConfig = models.find(
 			(m) => m.id === modelId && m.provider === providerId,
 		);
-		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
+		const newModelSupportsAttachments =
+			newModelConfig?.supportsAttachments ?? true;
 
-		// Clear pending images if switching to a model that doesn't support them
-		if (selectedImages.length > 0 && !newModelSupportsImages) {
-			setSelectedImages([]);
-			setImageError(null);
-			toast.info("Images cleared", {
-				description: "The selected model doesn't support image input",
+		if (selectedAttachments.length > 0 && !newModelSupportsAttachments) {
+			setSelectedAttachments([]);
+			setAttachmentError(null);
+			toast.info("Attachments cleared", {
+				description: "The selected model doesn't support file attachments",
 			});
 		}
 
@@ -273,14 +285,13 @@ export function useCreateProject({
 	};
 
 	// Check if the current model supports images
-	const currentModelSupportsImages = (() => {
+	const currentModelSupportsAttachments = (() => {
 		if (!selectedModel) return true;
-		// Parse composite key if present
 		const [providerId, ...modelIdParts] = selectedModel.split(":");
 		const modelId = modelIdParts.join(":");
 		return (
 			models.find((m) => m.id === modelId && m.provider === providerId)
-				?.supportsImages ?? true
+				?.supportsAttachments ?? true
 		);
 	})();
 
@@ -307,8 +318,8 @@ export function useCreateProject({
 		selectedModel,
 		isLoading,
 		error,
-		selectedImages,
-		imageError,
+		selectedAttachments,
+		attachmentError,
 		isDragging,
 
 		// Refs
@@ -321,7 +332,7 @@ export function useCreateProject({
 		handleDragOver,
 		handleDragLeave,
 		handleDrop,
-		removeImage,
+		removeAttachment,
 		handleCreate,
 		handleKeyDown,
 		handleModelChange,
@@ -329,7 +340,8 @@ export function useCreateProject({
 		adjustTextareaHeight,
 
 		// Computed values
-		currentModelSupportsImages,
+		currentModelSupportsAttachments,
 		hasModels,
+		attachmentAccept: CHAT_ATTACHMENT_ACCEPT,
 	};
 }

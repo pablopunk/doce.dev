@@ -29,20 +29,20 @@ export type QueueJobType = z.infer<typeof queueJobTypeSchema>;
 
 // --- Payload schemas ---
 
-export const imageAttachmentSchema = z.object({
+export const promptAttachmentSchema = z.object({
 	filename: z.string(),
 	mime: z.string(),
 	dataUrl: z.string(),
 });
 
-export type ImageAttachment = z.infer<typeof imageAttachmentSchema>;
+export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
 
 export const projectCreatePayloadSchema = z.object({
 	projectId: z.string().min(1),
 	ownerUserId: z.string().min(1),
 	prompt: z.string().min(1),
 	model: z.string().nullable(),
-	images: z.array(imageAttachmentSchema).optional(),
+	attachments: z.array(promptAttachmentSchema).optional(),
 });
 
 export type ProjectCreatePayload = z.infer<typeof projectCreatePayloadSchema>;

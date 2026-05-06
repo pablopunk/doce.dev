@@ -1,6 +1,7 @@
 import type { ChatItem } from "@/stores/useChatStore";
 import {
 	createErrorPart,
+	createPromptAttachmentPart,
 	createTextPart,
 	type MessagePart,
 } from "@/types/message";
@@ -18,6 +19,10 @@ export interface RawSessionMessage {
 		text?: string;
 		tool?: string;
 		callID?: string;
+		mime?: string;
+		filename?: string;
+		url?: string;
+		size?: number;
 		state?: {
 			input?: unknown;
 			output?: unknown;
@@ -67,6 +72,18 @@ export function buildHistoryItems(
 		for (const part of msg.parts ?? []) {
 			if (part.type === "text" && part.text) {
 				messageParts.push(createTextPart(part.text, part.id));
+			}
+			if (part.type === "file" && part.filename && part.mime) {
+				messageParts.push(
+					createPromptAttachmentPart({
+						filename: part.filename,
+						mime: part.mime,
+						kind: part.mime.startsWith("image/") ? "image" : "text",
+						...(part.url ? { dataUrl: part.url } : {}),
+						...(part.size !== undefined ? { size: part.size } : {}),
+						...(part.id ? { id: part.id } : {}),
+					}),
+				);
 			}
 			if (part.type === "tool" && part.tool && part.callID) {
 				out.push({

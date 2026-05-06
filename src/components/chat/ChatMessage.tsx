@@ -1,4 +1,4 @@
-import { Bot, RotateCcw, User } from "lucide-react";
+import { Bot, FileText, ImageIcon, RotateCcw, User } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -21,16 +21,18 @@ import type {
 	FilePart,
 	ImagePart,
 	Message,
+	PromptAttachmentPart,
 	ReasoningPart,
 	TextPart,
 } from "@/types/message";
+import { formatFileSize } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 export interface RestoreRequest {
 	messageId: string;
 	role: "user" | "assistant";
 	text: string;
-	images: ImagePart[];
+	attachments: PromptAttachmentPart[];
 }
 
 interface ChatMessageProps {
@@ -54,8 +56,8 @@ export function ChatMessage({ message, onRestore }: ChatMessageProps) {
 			.filter((p): p is TextPart => p.type === "text")
 			.map((p) => p.text)
 			.join("\n\n");
-		const images = message.parts.filter(
-			(p): p is ImagePart => p.type === "image",
+		const attachments = message.parts.filter(
+			(p): p is PromptAttachmentPart => p.type === "attachment",
 		);
 		setRestoring(true);
 		try {
@@ -63,7 +65,7 @@ export function ChatMessage({ message, onRestore }: ChatMessageProps) {
 				messageId: message.id,
 				role: message.role,
 				text,
-				images,
+				attachments,
 			});
 			setConfirmOpen(false);
 		} finally {
@@ -220,6 +222,43 @@ export function ChatMessage({ message, onRestore }: ChatMessageProps) {
 											({(filePart.size / 1024).toFixed(1)} KB)
 										</span>
 									)}
+								</div>
+							);
+						}
+
+						if (part.type === "attachment") {
+							const attachmentPart = part as PromptAttachmentPart;
+							const isImage =
+								attachmentPart.kind === "image" && attachmentPart.dataUrl;
+							return (
+								<div
+									key={part.id || idx}
+									className="flex max-w-md items-center gap-3 rounded-lg border border-input bg-muted/50 p-2 text-sm"
+								>
+									<div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+										{isImage ? (
+											<img
+												src={attachmentPart.dataUrl}
+												alt={attachmentPart.filename}
+												className="h-full w-full object-cover"
+											/>
+										) : attachmentPart.kind === "image" ? (
+											<ImageIcon className="h-4 w-4 text-muted-foreground" />
+										) : (
+											<FileText className="h-4 w-4 text-muted-foreground" />
+										)}
+									</div>
+									<div className="min-w-0 flex-1">
+										<p className="truncate font-medium">
+											{attachmentPart.filename}
+										</p>
+										<p className="truncate text-muted-foreground text-xs">
+											{attachmentPart.mime}
+											{attachmentPart.size
+												? ` • ${formatFileSize(attachmentPart.size)}`
+												: ""}
+										</p>
+									</div>
 								</div>
 							);
 						}

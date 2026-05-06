@@ -64,9 +64,9 @@ export function createMockChatStore(
 		presenceLoaded: true,
 		isStreaming: options.initialStreaming ?? false,
 
-		// State: Pending images
-		pendingImages: [],
-		pendingImageError: null,
+		// State: Pending attachments
+		pendingAttachments: [],
+		pendingAttachmentError: null,
 
 		// State: Diagnostics
 		latestDiagnostic: null,
@@ -132,13 +132,15 @@ export function createMockChatStore(
 			notifyListeners();
 		},
 
-		// Actions: Images
-		setPendingImages: (images: import("@/types/message").ImagePart[]) => {
-			state.pendingImages = images;
+		// Actions: Attachments
+		setPendingAttachments: (
+			attachments: import("@/types/message").PromptAttachmentPart[],
+		) => {
+			state.pendingAttachments = attachments;
 			notifyListeners();
 		},
-		setPendingImageError: (error: string | null) => {
-			state.pendingImageError = error;
+		setPendingAttachmentError: (error: string | null) => {
+			state.pendingAttachmentError = error;
 			notifyListeners();
 		},
 

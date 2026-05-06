@@ -1,13 +1,11 @@
 /**
  * Message and Part types for structured message handling.
  *
- * Re-exports SDK types and adds doce.dev-specific extensions (like ImagePart for UI).
+ * Re-exports SDK types and adds doce.dev-specific extensions for UI rendering.
  */
 
-// Re-export SDK types directly - these are the canonical types from OpenCode
 export type {
 	AssistantMessage as SDKAssistantMessage,
-	// Event types
 	Event,
 	EventFileEdited,
 	EventMessagePartUpdated,
@@ -28,22 +26,30 @@ export type {
 	UserMessage as SDKUserMessage,
 } from "@opencode-ai/sdk";
 
-/**
- * Simplified message part types for UI rendering.
- * These are doce.dev-specific types that are easier to work with in React components.
- */
 export type MessagePartType =
 	| "text"
 	| "tool"
 	| "reasoning"
 	| "error"
 	| "file"
-	| "image";
+	| "image"
+	| "attachment";
+
+export type PromptAttachmentKind = "image" | "text";
+
+export interface PromptAttachmentPart {
+	type: "attachment";
+	id: string;
+	filename: string;
+	mime: string;
+	dataUrl?: string;
+	size?: number;
+	kind: PromptAttachmentKind;
+	textPreview?: string;
+}
 
 /**
- * Image attachment part for user messages (doce.dev specific).
- * OpenCode uses FilePart with data URLs for images, but we need a separate
- * type for UI rendering that includes the base64 data URL.
+ * Image attachment part for backwards-compatible UI rendering.
  */
 export interface ImagePart {
 	type: "image";
@@ -54,9 +60,6 @@ export interface ImagePart {
 	size?: number;
 }
 
-/**
- * Simplified text part for UI (minimal fields needed for rendering).
- */
 export interface TextPart {
 	type: "text";
 	id: string;
@@ -64,9 +67,6 @@ export interface TextPart {
 	isStreaming?: boolean;
 }
 
-/**
- * Simplified tool part for UI rendering.
- */
 export interface ToolPart {
 	type: "tool";
 	id: string;
@@ -77,18 +77,12 @@ export interface ToolPart {
 	error?: string;
 }
 
-/**
- * Reasoning part for AI thinking display.
- */
 export interface ReasoningPart {
 	type: "reasoning";
 	id: string;
 	text: string;
 }
 
-/**
- * Error part for displaying errors in messages.
- */
 export interface ErrorPart {
 	type: "error";
 	id: string;
@@ -96,9 +90,6 @@ export interface ErrorPart {
 	stack?: string;
 }
 
-/**
- * File part for displaying file references.
- */
 export interface FilePart {
 	type: "file";
 	id: string;
@@ -106,20 +97,15 @@ export interface FilePart {
 	size?: number;
 }
 
-/**
- * Union of all UI message part types.
- */
 export type MessagePart =
 	| TextPart
 	| ToolPart
 	| ReasoningPart
 	| ErrorPart
 	| FilePart
-	| ImagePart;
+	| ImagePart
+	| PromptAttachmentPart;
 
-/**
- * Simplified message type for UI rendering.
- */
 export interface Message {
 	id: string;
 	role: "user" | "assistant";
@@ -129,17 +115,10 @@ export interface Message {
 	localError?: string;
 }
 
-// ============================================================================
-// Helper functions for creating parts
-// ============================================================================
-
 function generateId(prefix: string): string {
 	return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/**
- * Helper to create a text part
- */
 export function createTextPart(text: string, id?: string): TextPart {
 	return {
 		type: "text",
@@ -148,9 +127,6 @@ export function createTextPart(text: string, id?: string): TextPart {
 	};
 }
 
-/**
- * Helper to create a tool part
- */
 export function createToolPart(
 	name: string,
 	input?: unknown,
@@ -165,9 +141,6 @@ export function createToolPart(
 	};
 }
 
-/**
- * Helper to create a reasoning part
- */
 export function createReasoningPart(text: string, id?: string): ReasoningPart {
 	return {
 		type: "reasoning",
@@ -176,9 +149,6 @@ export function createReasoningPart(text: string, id?: string): ReasoningPart {
 	};
 }
 
-/**
- * Helper to create an error part
- */
 export function createErrorPart(
 	message: string,
 	stack?: string,
@@ -192,9 +162,6 @@ export function createErrorPart(
 	};
 }
 
-/**
- * Helper to create a file part
- */
 export function createFilePart(
 	path: string,
 	size?: number,
@@ -208,9 +175,6 @@ export function createFilePart(
 	};
 }
 
-/**
- * Helper to create an image part
- */
 export function createImagePart(
 	dataUrl: string,
 	filename: string,
@@ -228,13 +192,27 @@ export function createImagePart(
 	};
 }
 
-// ============================================================================
-// Image handling utilities
-// ============================================================================
+export function createPromptAttachmentPart(input: {
+	filename: string;
+	mime: string;
+	kind: PromptAttachmentKind;
+	dataUrl?: string;
+	size?: number;
+	textPreview?: string;
+	id?: string;
+}): PromptAttachmentPart {
+	return {
+		type: "attachment",
+		id: input.id || generateId("attachment"),
+		filename: input.filename,
+		mime: input.mime,
+		kind: input.kind,
+		...(input.dataUrl ? { dataUrl: input.dataUrl } : {}),
+		...(input.size !== undefined ? { size: input.size } : {}),
+		...(input.textPreview ? { textPreview: input.textPreview } : {}),
+	};
+}
 
-/**
- * Valid image MIME types
- */
 export const VALID_IMAGE_MIME_TYPES = [
 	"image/png",
 	"image/jpeg",
@@ -242,19 +220,73 @@ export const VALID_IMAGE_MIME_TYPES = [
 	"image/webp",
 ] as const;
 
-/**
- * Max image file size (5MB)
- */
-export const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024;
+export const TEXT_ATTACHMENT_MIME_TYPES = [
+	"text/plain",
+	"text/markdown",
+	"text/csv",
+	"text/tab-separated-values",
+	"text/x-log",
+	"application/json",
+	"application/ld+json",
+	"application/x-ndjson",
+	"application/xml",
+	"text/xml",
+	"application/yaml",
+	"application/x-yaml",
+	"text/yaml",
+	"text/x-yaml",
+	"application/javascript",
+	"text/javascript",
+	"application/x-javascript",
+] as const;
 
-/**
- * Max number of images per message
- */
-export const MAX_IMAGES_PER_MESSAGE = 5;
+export const TEXT_ATTACHMENT_EXTENSIONS = [
+	"txt",
+	"md",
+	"mdx",
+	"csv",
+	"tsv",
+	"json",
+	"jsonl",
+	"ndjson",
+	"yaml",
+	"yml",
+	"xml",
+	"log",
+	"ts",
+	"tsx",
+	"js",
+	"jsx",
+	"mjs",
+	"cjs",
+	"css",
+	"html",
+	"htm",
+	"py",
+	"rb",
+	"go",
+	"rs",
+	"sh",
+	"bash",
+	"zsh",
+	"env",
+	"toml",
+	"ini",
+	"conf",
+] as const;
 
-/**
- * Read a File as base64 data URL
- */
+export const CHAT_ATTACHMENT_ACCEPT = [
+	...VALID_IMAGE_MIME_TYPES,
+	...TEXT_ATTACHMENT_MIME_TYPES,
+	...TEXT_ATTACHMENT_EXTENSIONS.map((extension) => `.${extension}`),
+].join(",");
+
+export const MAX_ATTACHMENT_FILE_SIZE = 1024 * 1024;
+export const MAX_TEXT_ATTACHMENT_FILE_SIZE = 512 * 1024;
+export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
+export const MAX_IMAGES_PER_MESSAGE = MAX_ATTACHMENTS_PER_MESSAGE;
+export const MAX_TEXT_PREVIEW_LENGTH = 500;
+
 export function readFileAsBase64(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
@@ -264,48 +296,117 @@ export function readFileAsBase64(file: File): Promise<string> {
 	});
 }
 
-/**
- * Create an image part from a File object
- */
+export function readFileAsText(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result ?? ""));
+		reader.onerror = reject;
+		reader.readAsText(file);
+	});
+}
+
 export async function createImagePartFromFile(file: File): Promise<ImagePart> {
 	const dataUrl = await readFileAsBase64(file);
 	return createImagePart(dataUrl, file.name, file.type, file.size);
 }
 
-/**
- * Validate an image file
- */
+function getFileExtension(filename: string): string {
+	const ext = filename.split(".").pop()?.toLowerCase();
+	return ext ?? "";
+}
+
+export function isTextAttachmentFile(file: File): boolean {
+	const extension = getFileExtension(file.name);
+	return (
+		file.type.startsWith("text/") ||
+		TEXT_ATTACHMENT_MIME_TYPES.includes(
+			file.type as (typeof TEXT_ATTACHMENT_MIME_TYPES)[number],
+		) ||
+		TEXT_ATTACHMENT_EXTENSIONS.includes(
+			extension as (typeof TEXT_ATTACHMENT_EXTENSIONS)[number],
+		)
+	);
+}
+
+export function isImageAttachmentFile(file: File): boolean {
+	return VALID_IMAGE_MIME_TYPES.includes(
+		file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
+	);
+}
+
 export function validateImageFile(file: File): {
 	valid: boolean;
 	error?: string;
 } {
-	if (
-		!VALID_IMAGE_MIME_TYPES.includes(
-			file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
-		)
-	) {
+	if (!isImageAttachmentFile(file)) {
 		return {
 			valid: false,
-			error: `Invalid format. Accepted: PNG, JPEG, GIF, WebP`,
+			error: "Invalid format. Accepted: PNG, JPEG, GIF, WebP",
 		};
 	}
-	if (file.size > MAX_IMAGE_FILE_SIZE) {
+	if (file.size > MAX_ATTACHMENT_FILE_SIZE) {
 		return {
 			valid: false,
-			error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 5MB.`,
+			error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 1MB.`,
 		};
 	}
 	return { valid: true };
 }
 
-// ============================================================================
-// Message utilities
-// ============================================================================
+export function validateTextAttachmentFile(file: File): {
+	valid: boolean;
+	error?: string;
+} {
+	if (!isTextAttachmentFile(file)) {
+		return {
+			valid: false,
+			error:
+				"Unsupported file type. Accepted: text, markdown, CSV, JSON, YAML, XML, logs, and source files.",
+		};
+	}
+	if (file.size > MAX_TEXT_ATTACHMENT_FILE_SIZE) {
+		return {
+			valid: false,
+			error: `File too large (${(file.size / 1024).toFixed(1)}KB). Max 512KB for text files.`,
+		};
+	}
+	return { valid: true };
+}
 
-/**
- * Merge consecutive text parts into a single string
- * Useful for extracting all text content from a message
- */
+export async function createPromptAttachmentFromFile(
+	file: File,
+): Promise<PromptAttachmentPart> {
+	if (isImageAttachmentFile(file)) {
+		const dataUrl = await readFileAsBase64(file);
+		return createPromptAttachmentPart({
+			filename: file.name,
+			mime: file.type,
+			kind: "image",
+			dataUrl,
+			size: file.size,
+		});
+	}
+
+	const [dataUrl, text] = await Promise.all([
+		readFileAsBase64(file),
+		readFileAsText(file),
+	]);
+	return createPromptAttachmentPart({
+		filename: file.name,
+		mime: file.type || "text/plain",
+		kind: "text",
+		dataUrl,
+		size: file.size,
+		textPreview: text.slice(0, MAX_TEXT_PREVIEW_LENGTH),
+	});
+}
+
+export function formatFileSize(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function combineTextParts(parts: MessagePart[]): string {
 	return parts
 		.filter((p): p is TextPart => p.type === "text")
@@ -313,29 +414,20 @@ export function combineTextParts(parts: MessagePart[]): string {
 		.join("");
 }
 
-/**
- * Extract all text from a message as fallback
- * Handles both new (parts) and old (content) formats
- */
 export function getMessageText(
 	message: Message | { content?: string; parts?: MessagePart[] },
 ): string {
 	if ("parts" in message && Array.isArray(message.parts)) {
 		return combineTextParts(message.parts);
 	}
-	// Fallback for legacy content field
 	if ("content" in message && typeof message.content === "string") {
 		return message.content;
 	}
 	return "";
 }
 
-/**
- * Determine if a message is currently streaming
- */
 export function isMessageStreaming(message: Message): boolean {
 	if (message.isStreaming) return true;
-	// Check if last part is streaming
 	const lastPart = message.parts[message.parts.length - 1];
 	return lastPart?.type === "text" && lastPart.isStreaming === true;
 }

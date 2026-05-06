@@ -18,6 +18,7 @@ interface FloatingChatPanelProps {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}>;
 	onOpenFile?: (filePath: string) => void;
 	onStreamingStateChange?: (

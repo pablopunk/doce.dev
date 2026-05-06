@@ -19,20 +19,20 @@ export const QueueJobType = Schema.Literal(
 
 export type QueueJobType = Schema.Schema.Type<typeof QueueJobType>;
 
-export const ImageAttachment = Schema.Struct({
+export const PromptAttachment = Schema.Struct({
 	filename: Schema.String,
 	mime: Schema.String,
 	dataUrl: Schema.String,
 });
 
-export type ImageAttachment = Schema.Schema.Type<typeof ImageAttachment>;
+export type PromptAttachment = Schema.Schema.Type<typeof PromptAttachment>;
 
 export const ProjectCreatePayload = Schema.Struct({
 	projectId: Schema.String.pipe(Schema.minLength(1)),
 	ownerUserId: Schema.String.pipe(Schema.minLength(1)),
 	prompt: Schema.String.pipe(Schema.minLength(1)),
 	model: Schema.NullOr(Schema.String),
-	images: Schema.optional(Schema.Array(ImageAttachment)),
+	attachments: Schema.optional(Schema.Array(PromptAttachment)),
 });
 
 export type ProjectCreatePayload = Schema.Schema.Type<

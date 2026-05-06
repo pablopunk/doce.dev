@@ -70,6 +70,7 @@ interface ModelSelectorProps {
 		description?: string;
 		tier?: "fast" | "top";
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 		available?: boolean;
 		unavailableReason?: string;
 	}>;

@@ -24,6 +24,7 @@ interface ProjectContentWrapperProps {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}>;
 	initialChat?: InitialChatState | null;
 }

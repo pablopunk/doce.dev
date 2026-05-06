@@ -36,7 +36,7 @@ export const projects = {
 		input: z.object({
 			prompt: z.string().min(1, "Please describe your website"),
 			model: z.string().optional(),
-			images: z.string().optional(),
+			attachments: z.string().optional(),
 		}),
 		handler: async (input, context) => {
 			const user = context.locals.user;
@@ -55,12 +55,12 @@ export const projects = {
 				});
 			}
 
-			let images:
+			let attachments:
 				| Array<{ filename: string; mime: string; dataUrl: string }>
 				| undefined;
-			if (input.images) {
+			if (input.attachments) {
 				try {
-					images = JSON.parse(input.images);
+					attachments = JSON.parse(input.attachments);
 				} catch {}
 			}
 
@@ -72,7 +72,7 @@ export const projects = {
 					ownerUserId: user.id,
 					prompt: input.prompt,
 					model: input.model ?? null,
-					images,
+					attachments,
 				});
 			} catch (err) {
 				logger.error({ err }, "Failed to enqueue project creation");

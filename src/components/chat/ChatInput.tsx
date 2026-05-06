@@ -13,16 +13,19 @@ import { toast } from "sonner";
 import { ModelSelector } from "@/components/dashboard/ModelSelector";
 import { Button } from "@/components/ui/button";
 import {
-	createImagePartFromFile,
-	type ImagePart,
-	MAX_IMAGES_PER_MESSAGE,
-	VALID_IMAGE_MIME_TYPES,
+	CHAT_ATTACHMENT_ACCEPT,
+	createPromptAttachmentFromFile,
+	isImageAttachmentFile,
+	isTextAttachmentFile,
+	MAX_ATTACHMENTS_PER_MESSAGE,
+	type PromptAttachmentPart,
 	validateImageFile,
+	validateTextAttachmentFile,
 } from "@/types/message";
-import { ImagePreview } from "./ImagePreview";
+import { AttachmentPreview } from "./AttachmentPreview";
 
 interface ChatInputProps {
-	onSend: (message: string, images?: ImagePart[]) => void;
+	onSend: (message: string, attachments?: PromptAttachmentPart[]) => void;
 	disabled?: boolean;
 	placeholder?: string;
 	model?: string | null;
@@ -32,15 +35,19 @@ interface ChatInputProps {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}>;
 	onModelChange?: (modelId: string) => void;
-	// Image state lifted from parent
-	images?: ImagePart[];
-	onImagesChange?: (images: ImagePart[]) => void;
-	imageError?: string | null;
-	onImageError?: (error: string | null) => void;
-	supportsImages?: boolean;
-	seedDraft?: { key: number; text: string; images: ImagePart[] } | null;
+	attachments?: PromptAttachmentPart[];
+	onAttachmentsChange?: (attachments: PromptAttachmentPart[]) => void;
+	attachmentError?: string | null;
+	onAttachmentError?: (error: string | null) => void;
+	supportsAttachments?: boolean;
+	seedDraft?: {
+		key: number;
+		text: string;
+		attachments: PromptAttachmentPart[];
+	} | null;
 	onSeedConsumed?: () => void;
 }
 
@@ -51,46 +58,47 @@ export function ChatInput({
 	model = null,
 	models = [],
 	onModelChange,
-	images: externalImages,
-	onImagesChange,
-	imageError: externalImageError,
-	onImageError,
-	supportsImages = true,
+	attachments: externalAttachments,
+	onAttachmentsChange,
+	attachmentError: externalAttachmentError,
+	onAttachmentError,
+	supportsAttachments = true,
 	seedDraft = null,
 	onSeedConsumed,
 }: ChatInputProps) {
 	const [message, setMessage] = useState("");
-	// Internal state (used when external state is not provided)
-	const [internalImages, setInternalImages] = useState<ImagePart[]>([]);
-	const [internalImageError, setInternalImageError] = useState<string | null>(
-		null,
-	);
+	const [internalAttachments, setInternalAttachments] = useState<
+		PromptAttachmentPart[]
+	>([]);
+	const [internalAttachmentError, setInternalAttachmentError] = useState<
+		string | null
+	>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	// Use external state if provided, otherwise use internal state
-	const selectedImages = externalImages ?? internalImages;
-	const imageError = externalImageError ?? internalImageError;
+	const selectedAttachments = externalAttachments ?? internalAttachments;
+	const attachmentError = externalAttachmentError ?? internalAttachmentError;
 
-	// Wrapper to handle both external and internal state updates
-	const updateImages = (
-		updater: ImagePart[] | ((prev: ImagePart[]) => ImagePart[]),
+	const updateAttachments = (
+		updater:
+			| PromptAttachmentPart[]
+			| ((prev: PromptAttachmentPart[]) => PromptAttachmentPart[]),
 	) => {
-		const newImages =
-			typeof updater === "function" ? updater(selectedImages) : updater;
-		if (onImagesChange) {
-			onImagesChange(newImages);
+		const newAttachments =
+			typeof updater === "function" ? updater(selectedAttachments) : updater;
+		if (onAttachmentsChange) {
+			onAttachmentsChange(newAttachments);
 		} else {
-			setInternalImages(newImages);
+			setInternalAttachments(newAttachments);
 		}
 	};
 
-	const updateImageError = (error: string | null) => {
-		if (onImageError) {
-			onImageError(error);
+	const updateAttachmentError = (error: string | null) => {
+		if (onAttachmentError) {
+			onAttachmentError(error);
 		} else {
-			setInternalImageError(error);
+			setInternalAttachmentError(error);
 		}
 	};
 
@@ -109,15 +117,15 @@ export function ChatInput({
 	}, [adjustTextareaHeight]);
 
 	const lastSeedKeyRef = useRef<number | null>(null);
-	// updateImages closes over selectedImages; we deliberately re-run only on key change.
+	// updateAttachments closes over selectedAttachments; we deliberately re-run only on key change.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: see comment
 	useEffect(() => {
 		if (!seedDraft) return;
 		if (lastSeedKeyRef.current === seedDraft.key) return;
 		lastSeedKeyRef.current = seedDraft.key;
 		setMessage(seedDraft.text);
-		if (seedDraft.images.length > 0 && supportsImages) {
-			updateImages(seedDraft.images);
+		if (seedDraft.attachments.length > 0 && supportsAttachments) {
+			updateAttachments(seedDraft.attachments);
 		}
 		onSeedConsumed?.();
 		requestAnimationFrame(() => {
@@ -128,77 +136,72 @@ export function ChatInput({
 			}
 			adjustTextareaHeight();
 		});
-	}, [seedDraft, supportsImages, onSeedConsumed, adjustTextareaHeight]);
+	}, [seedDraft, supportsAttachments, onSeedConsumed, adjustTextareaHeight]);
 
-	// Process files and add as image attachments
 	const processFiles = async (files: FileList | File[]) => {
-		// Don't process if images aren't supported
-		if (!supportsImages) return;
+		if (!supportsAttachments) return;
 
-		updateImageError(null);
+		updateAttachmentError(null);
 		const fileArray = Array.from(files);
-
-		// Check total count
-		const totalCount = selectedImages.length + fileArray.length;
-		if (totalCount > MAX_IMAGES_PER_MESSAGE) {
-			updateImageError(`Max ${MAX_IMAGES_PER_MESSAGE} images allowed`);
+		const totalCount = selectedAttachments.length + fileArray.length;
+		if (totalCount > MAX_ATTACHMENTS_PER_MESSAGE) {
+			updateAttachmentError(
+				`Max ${MAX_ATTACHMENTS_PER_MESSAGE} attachments allowed`,
+			);
 			return;
 		}
 
-		// Validate and process each file
-		const newImages: ImagePart[] = [];
+		const newAttachments: PromptAttachmentPart[] = [];
 		for (const file of fileArray) {
-			const validation = validateImageFile(file);
+			const isImage = isImageAttachmentFile(file);
+			const validation = isImage
+				? validateImageFile(file)
+				: validateTextAttachmentFile(file);
 			if (!validation.valid) {
-				updateImageError(validation.error || "Invalid file");
+				updateAttachmentError(validation.error || "Invalid file");
 				return;
 			}
 
 			try {
-				const imagePart = await createImagePartFromFile(file);
-				newImages.push(imagePart);
+				newAttachments.push(await createPromptAttachmentFromFile(file));
 			} catch {
-				updateImageError(`Failed to read ${file.name}`);
+				updateAttachmentError(`Failed to read ${file.name}`);
 				return;
 			}
 		}
 
-		updateImages((prev) => [...prev, ...newImages]);
+		updateAttachments((prev) => [...prev, ...newAttachments]);
 	};
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && e.target.files.length > 0) {
-			processFiles(e.target.files);
+			void processFiles(e.target.files);
 		}
-		// Reset input so same file can be selected again
 		e.target.value = "";
 	};
 
 	const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-		// Don't process image pastes if images aren't supported
-		if (!supportsImages) return;
+		if (!supportsAttachments) return;
 
 		const items = e.clipboardData?.items;
 		if (!items) return;
 
-		const imageFiles: File[] = [];
+		const files: File[] = [];
 		for (const item of items) {
-			if (item.type.startsWith("image/")) {
-				const file = item.getAsFile();
-				if (file) imageFiles.push(file);
+			const file = item.getAsFile();
+			if (file && isImageAttachmentFile(file)) {
+				files.push(file);
 			}
 		}
 
-		if (imageFiles.length > 0) {
+		if (files.length > 0) {
 			e.preventDefault();
-			processFiles(imageFiles);
+			void processFiles(files);
 		}
 	};
 
 	const handleDragOver = (e: DragEvent<HTMLElement>) => {
-		// Don't show drag state if images aren't supported
-		if (!supportsImages) return;
-
+		if (!supportsAttachments) return;
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragging(true);
@@ -215,53 +218,51 @@ export function ChatInput({
 		e.stopPropagation();
 		setIsDragging(false);
 
-		// Show error if images aren't supported
-		if (!supportsImages) {
-			const imageFiles = e.dataTransfer?.files
-				? Array.from(e.dataTransfer.files).filter((file) =>
-						file.type.startsWith("image/"),
-					)
-				: [];
+		const files = e.dataTransfer?.files;
+		if (!files || files.length === 0) return;
 
-			if (imageFiles && imageFiles.length > 0) {
-				toast.error("Images not supported", {
-					description: "The selected model doesn't support image input",
-				});
-			}
+		if (!supportsAttachments) {
+			toast.error("Attachments not supported", {
+				description: "The selected model doesn't support file attachments",
+			});
 			return;
 		}
 
-		const files = e.dataTransfer?.files;
-		if (files && files.length > 0) {
-			// Filter only images
-			const imageFiles = Array.from(files).filter((file) =>
-				VALID_IMAGE_MIME_TYPES.includes(
-					file.type as (typeof VALID_IMAGE_MIME_TYPES)[number],
-				),
-			);
-			if (imageFiles.length > 0) {
-				processFiles(imageFiles);
-			}
+		const supportedFiles = Array.from(files).filter(
+			(file) => isImageAttachmentFile(file) || isTextAttachmentFile(file),
+		);
+		if (supportedFiles.length === 0) {
+			toast.error("Unsupported file type", {
+				description:
+					"Drop a text file, markdown, CSV, JSON, YAML, XML, log, source file, or image.",
+			});
+			return;
 		}
+
+		void processFiles(supportedFiles);
 	};
 
-	const removeImage = (id: string) => {
-		updateImages((prev) => prev.filter((img) => img.id !== id));
-		updateImageError(null);
+	const removeAttachment = (id: string) => {
+		updateAttachments((prev) =>
+			prev.filter((attachment) => attachment.id !== id),
+		);
+		updateAttachmentError(null);
 	};
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
 		const trimmed = message.trim();
-		const hasContent = trimmed || selectedImages.length > 0;
+		const hasContent = trimmed || selectedAttachments.length > 0;
 		if (!hasContent || disabled) return;
 
-		onSend(trimmed, selectedImages.length > 0 ? selectedImages : undefined);
+		onSend(
+			trimmed,
+			selectedAttachments.length > 0 ? selectedAttachments : undefined,
+		);
 		setMessage("");
-		updateImages([]);
-		updateImageError(null);
+		updateAttachments([]);
+		updateAttachmentError(null);
 
-		// Reset textarea height
 		if (textareaRef.current) {
 			textareaRef.current.style.height = "auto";
 		}
@@ -271,28 +272,23 @@ export function ChatInput({
 		if (e.key !== "Enter") return;
 
 		const hasModifier = e.ctrlKey || e.metaKey || e.shiftKey;
+		if (hasModifier) return;
 
-		if (hasModifier) {
-			// Modifier+Enter inserts a newline (default textarea behavior)
-			return;
-		}
-
-		// Plain Enter sends the message
 		e.preventDefault();
-		const hasContent = message.trim() || selectedImages.length > 0;
+		const hasContent = message.trim() || selectedAttachments.length > 0;
 		if (hasContent && !disabled) {
 			handleSubmit(e);
 		}
 	};
 
-	const hasContent = message.trim() || selectedImages.length > 0;
+	const hasContent = message.trim() || selectedAttachments.length > 0;
 
 	return (
 		<div className="w-full px-2 pb-2 pt-1">
 			<div className="flex flex-col gap-2">
 				<form
 					className={`flex flex-col gap-2 rounded-lg border bg-card p-2 transition-colors ${
-						isDragging && supportsImages
+						isDragging && supportsAttachments
 							? "border-primary bg-primary/5"
 							: "border-input"
 					}`}
@@ -314,17 +310,15 @@ export function ChatInput({
 						style={{ minHeight: "56px" }}
 						disabled={disabled}
 					/>
-					{/* Image Preview */}
-					{selectedImages.length > 0 && (
-						<ImagePreview
-							images={selectedImages}
-							onRemove={removeImage}
+					{selectedAttachments.length > 0 && (
+						<AttachmentPreview
+							attachments={selectedAttachments}
+							onRemove={removeAttachment}
 							disabled={disabled}
 						/>
 					)}
-					{/* Error Message */}
-					{imageError && (
-						<p className="text-sm text-destructive">{imageError}</p>
+					{attachmentError && (
+						<p className="text-sm text-destructive">{attachmentError}</p>
 					)}
 					<div className="flex items-center justify-between gap-2">
 						{models.length > 0 && onModelChange && (
@@ -335,38 +329,36 @@ export function ChatInput({
 							/>
 						)}
 						<div className="flex items-center gap-2">
-							{/* Hidden File Input - only render when images are supported */}
-							{supportsImages && (
+							{supportsAttachments && (
 								<input
 									ref={fileInputRef}
 									type="file"
-									accept={VALID_IMAGE_MIME_TYPES.join(",")}
+									accept={CHAT_ATTACHMENT_ACCEPT}
 									multiple
 									onChange={handleFileSelect}
 									className="hidden"
 								/>
 							)}
-							{/* Attachment Button - only show when images are supported */}
-							{supportsImages && (
+							{supportsAttachments && (
 								<Button
 									variant="ghost"
 									size="icon"
 									onClick={() => fileInputRef.current?.click()}
 									disabled={
-										disabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+										disabled ||
+										selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
 									}
-									title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+									title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
 									type="button"
 								>
 									<Paperclip className="w-5 h-5" />
-									{selectedImages.length > 0 && (
-										<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-											{selectedImages.length}
+									{selectedAttachments.length > 0 && (
+										<span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+											{selectedAttachments.length}
 										</span>
 									)}
 								</Button>
 							)}
-							{/* Send Button */}
 							<Button
 								onClick={(e) => {
 									e.preventDefault();

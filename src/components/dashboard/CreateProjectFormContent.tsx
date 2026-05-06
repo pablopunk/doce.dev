@@ -1,11 +1,9 @@
 import { Loader2, Paperclip, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
-import { ImagePreview } from "@/components/chat/ImagePreview";
+import { AttachmentPreview } from "@/components/chat/AttachmentPreview";
 import { Button } from "@/components/ui/button";
-import {
-	MAX_IMAGES_PER_MESSAGE,
-	VALID_IMAGE_MIME_TYPES,
-} from "@/types/message";
+import type { PromptAttachmentPart } from "@/types/message";
+import { MAX_ATTACHMENTS_PER_MESSAGE } from "@/types/message";
 import { ModelSelector } from "./ModelSelector";
 
 interface Model {
@@ -14,20 +12,20 @@ interface Model {
 	provider: string;
 	vendor: string;
 	supportsImages?: boolean;
+	supportsAttachments?: boolean;
 }
-
-import type { ImagePart } from "@/types/message";
 
 interface CreateProjectFormContentProps {
 	prompt: string;
 	selectedModel: string | undefined;
 	models: Model[];
-	selectedImages: ImagePart[];
+	selectedAttachments: PromptAttachmentPart[];
 	isDragging: boolean;
 	isLoading: boolean;
 	error: string;
-	imageError: string | null;
-	currentModelSupportsImages: boolean;
+	attachmentError: string | null;
+	currentModelSupportsAttachments: boolean;
+	attachmentAccept: string;
 	textareaRef: React.RefObject<HTMLTextAreaElement | null>;
 	fileInputRef: React.RefObject<HTMLInputElement | null>;
 	onPromptChange: (value: string) => void;
@@ -38,7 +36,7 @@ interface CreateProjectFormContentProps {
 	onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 	onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
 	onFileButtonClick: () => void;
-	onRemoveImage: (id: string) => void;
+	onRemoveAttachment: (id: string) => void;
 	onCreate: () => void;
 	onModelChange: (compositeKey: string) => void;
 }
@@ -47,12 +45,13 @@ export function CreateProjectFormContent({
 	prompt,
 	selectedModel,
 	models,
-	selectedImages,
+	selectedAttachments,
 	isDragging,
 	isLoading,
 	error,
-	imageError,
-	currentModelSupportsImages,
+	attachmentError,
+	currentModelSupportsAttachments,
+	attachmentAccept,
 	textareaRef,
 	fileInputRef,
 	onPromptChange,
@@ -63,7 +62,7 @@ export function CreateProjectFormContent({
 	onDrop,
 	onFileSelect,
 	onFileButtonClick,
-	onRemoveImage,
+	onRemoveAttachment,
 	onCreate,
 	onModelChange,
 }: CreateProjectFormContentProps) {
@@ -76,7 +75,7 @@ export function CreateProjectFormContent({
 							className="absolute -inset-[2px] rounded-2xl blur-lg opacity-50"
 							animate={{ backgroundPositionX: ["0%", "200%"] }}
 							transition={{
-								repeat: Infinity,
+								repeat: Number.POSITIVE_INFINITY,
 								duration: 10,
 								ease: "linear",
 							}}
@@ -89,7 +88,7 @@ export function CreateProjectFormContent({
 					)}
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: This is a drop zone container */}
 					<div
-						className={`relative z-10 flex flex-col gap-3 p-4 rounded-2xl border bg-card transition-colors ${
+						className={`relative z-10 flex flex-col gap-3 rounded-2xl border bg-card p-4 transition-colors ${
 							isDragging ? "border-primary bg-primary/5" : "border-input"
 						}`}
 						onDragOver={onDragOver}
@@ -105,8 +104,8 @@ export function CreateProjectFormContent({
 								onPaste={onPaste}
 								placeholder="It all starts here..."
 								title="Use Ctrl+Enter (or Cmd+Enter on Mac) to create a project"
-								className={`w-full h-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none ${
-									isLoading ? "text-transparent caret-transparent" : ""
+								className={`h-full w-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground focus:outline-none ${
+									isLoading ? "caret-transparent text-transparent" : ""
 								}`}
 								rows={1}
 								style={{ minHeight: "80px" }}
@@ -114,10 +113,10 @@ export function CreateProjectFormContent({
 							/>
 							{isLoading && (
 								<motion.div
-									className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words overflow-hidden text-base"
+									className="absolute inset-0 pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-base"
 									animate={{ backgroundPositionX: ["0%", "200%"] }}
 									transition={{
-										repeat: Infinity,
+										repeat: Number.POSITIVE_INFINITY,
 										duration: 10,
 										ease: "linear",
 									}}
@@ -134,76 +133,74 @@ export function CreateProjectFormContent({
 								</motion.div>
 							)}
 						</div>
-						{/* Image Preview */}
-						{selectedImages.length > 0 && (
-							<ImagePreview
-								images={selectedImages}
-								onRemove={onRemoveImage}
+						{selectedAttachments.length > 0 && (
+							<AttachmentPreview
+								attachments={selectedAttachments}
+								onRemove={onRemoveAttachment}
 								disabled={isLoading}
 							/>
 						)}
-						{/* Image Error */}
-						{imageError && (
-							<p className="text-sm text-destructive">{imageError}</p>
+						{attachmentError && (
+							<p className="text-sm text-destructive">{attachmentError}</p>
 						)}
-						<div className="flex items-center justify-between gap-2 min-w-0">
+						<div className="flex min-w-0 items-center justify-between gap-2">
 							<ModelSelector
 								models={models}
 								selectedModelId={selectedModel || ""}
 								onModelChange={onModelChange}
 								triggerClassName="max-w-[150px] min-[420px]:max-w-[200px] min-w-0"
 							/>
-							<div className="flex items-center gap-1.5 shrink-0">
-								{/* Hidden File Input - only render when images are supported */}
-								{currentModelSupportsImages && (
+							<div className="shrink-0 flex items-center gap-1.5">
+								{currentModelSupportsAttachments && (
 									<input
 										ref={fileInputRef}
 										type="file"
-										accept={VALID_IMAGE_MIME_TYPES.join(",")}
+										accept={attachmentAccept}
 										multiple
 										onChange={onFileSelect}
 										className="hidden"
 									/>
 								)}
-								{/* Attachment Button - only show when images are supported */}
-								{currentModelSupportsImages && (
+								{currentModelSupportsAttachments && (
 									<Button
 										variant="ghost"
 										size="icon"
 										onClick={onFileButtonClick}
 										disabled={
 											isLoading ||
-											selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+											selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
 										}
-										title={`Attach images (${selectedImages.length}/${MAX_IMAGES_PER_MESSAGE})`}
+										title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
 										type="button"
 									>
-										<Paperclip className="w-5 h-5" />
-										{selectedImages.length > 0 && (
-											<span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-												{selectedImages.length}
+										<Paperclip className="h-5 w-5" />
+										{selectedAttachments.length > 0 && (
+											<span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+												{selectedAttachments.length}
 											</span>
 										)}
 									</Button>
 								)}
-								{/* Create Button */}
 								<Button
 									onClick={(e) => {
 										e.preventDefault();
 										e.stopPropagation();
 										onCreate();
 									}}
-									disabled={isLoading || !prompt.trim()}
+									disabled={
+										isLoading ||
+										(!prompt.trim() && selectedAttachments.length === 0)
+									}
 									title="Create project (or press Ctrl+Enter in textarea)"
 									type="button"
 									className="px-2.5 min-[380px]:px-3"
 								>
 									{isLoading ? (
-										<Loader2 className="w-5 h-5 animate-spin" />
+										<Loader2 className="h-5 w-5 animate-spin" />
 									) : (
-										<Sparkles className="w-5 h-5 text-cta-accent-start" />
+										<Sparkles className="h-5 w-5 text-cta-accent-start" />
 									)}
-									<span className="hidden min-[380px]:inline bg-gradient-to-r from-cta-accent-start via-cta-accent-mid to-cta-accent-end bg-clip-text text-transparent font-semibold">
+									<span className="hidden min-[380px]:inline bg-gradient-to-r from-cta-accent-start via-cta-accent-mid to-cta-accent-end bg-clip-text font-semibold text-transparent">
 										Create
 									</span>
 								</Button>

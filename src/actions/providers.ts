@@ -24,6 +24,7 @@ interface AvailableModel {
 	provider: string;
 	vendor: string;
 	supportsImages: boolean;
+	supportsAttachments: boolean;
 }
 
 async function syncOpencodeCredentials(

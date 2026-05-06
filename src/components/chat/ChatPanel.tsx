@@ -21,6 +21,7 @@ interface ChatPanelProps {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}>;
 	onOpenFile?: ((filePath: string) => void) | undefined;
 	onStreamingStateChange?:
@@ -44,14 +45,14 @@ export function ChatPanel({
 		pendingPermission,
 		pendingQuestion,
 		todos,
-		pendingImages,
-		pendingImageError,
+		pendingAttachments,
+		pendingAttachmentError,
 		currentModel,
 		expandedTools,
 		scrollRef,
 		latestDiagnostic,
-		setPendingImages,
-		setPendingImageError,
+		setPendingAttachments,
+		setPendingAttachmentError,
 		handleSend,
 		handleModelChange,
 		handlePermissionDecision,
@@ -88,14 +89,15 @@ export function ChatPanel({
 		const data = item?.data as Message | undefined;
 		if (!data) return;
 		const text = next.text;
-		const images = data.parts.filter(
-			(p): p is import("@/types/message").ImagePart => p.type === "image",
+		const attachments = data.parts.filter(
+			(p): p is import("@/types/message").PromptAttachmentPart =>
+				p.type === "attachment",
 		);
 		await handleRestore({
 			messageId: next.id,
 			role: "user",
 			text,
-			images,
+			attachments,
 		});
 	};
 
@@ -181,7 +183,7 @@ export function ChatPanel({
 							currentModel &&
 							m.id === currentModel.modelID &&
 							m.provider === currentModel.providerID,
-					)?.supportsImages ?? true;
+					)?.supportsAttachments ?? true;
 
 				return (
 					<>
@@ -223,11 +225,11 @@ export function ChatPanel({
 								model={compositeModelKey}
 								models={models}
 								onModelChange={handleModelChange}
-								images={pendingImages}
-								onImagesChange={setPendingImages}
-								imageError={pendingImageError}
-								onImageError={setPendingImageError}
-								supportsImages={modelSupport}
+								attachments={pendingAttachments}
+								onAttachmentsChange={setPendingAttachments}
+								attachmentError={pendingAttachmentError}
+								onAttachmentError={setPendingAttachmentError}
+								supportsAttachments={modelSupport}
 							/>
 						)}
 					</>

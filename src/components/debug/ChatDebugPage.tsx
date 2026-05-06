@@ -33,6 +33,7 @@ const mockModels = [
 		provider: "anthropic",
 		vendor: "Anthropic",
 		supportsImages: true,
+		supportsAttachments: true,
 	},
 ];
 
@@ -143,11 +144,11 @@ function DebugChatPanel({
 					model={models[0]?.id || null}
 					models={models}
 					onModelChange={() => {}}
-					images={[]}
-					onImagesChange={() => {}}
-					imageError={null}
-					onImageError={() => {}}
-					supportsImages={models[0]?.supportsImages ?? true}
+					attachments={[]}
+					onAttachmentsChange={() => {}}
+					attachmentError={null}
+					onAttachmentError={() => {}}
+					supportsAttachments={models[0]?.supportsAttachments ?? true}
 				/>
 			)}
 		</div>

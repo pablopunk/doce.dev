@@ -19,7 +19,7 @@ import {
 	enqueueDockerComposeUp,
 	enqueueProjectIdentityGenerate,
 } from "../enqueue";
-import type { ImageAttachment } from "../types";
+import type { PromptAttachment } from "../types";
 import { parsePayload } from "../types";
 
 const toFilesystemError = (
@@ -53,15 +53,15 @@ const toQueueError = (error: unknown, jobId?: string): QueueError =>
 		...(jobId ? { jobId } : {}),
 	});
 
-const writeProjectImages = (
+const writeProjectAttachments = (
 	projectPath: string,
-	images: Array<ImageAttachment>,
+	attachments: Array<PromptAttachment>,
 ): Effect.Effect<void, FilesystemError> =>
 	Effect.gen(function* () {
-		const imagesPath = path.join(projectPath, ".doce-images.json");
+		const attachmentsPath = path.join(projectPath, ".doce-attachments.json");
 		yield* Effect.tryPromise({
-			try: () => fs.writeFile(imagesPath, JSON.stringify(images)),
-			catch: (error) => toFilesystemError(error, "write", imagesPath),
+			try: () => fs.writeFile(attachmentsPath, JSON.stringify(attachments)),
+			catch: (error) => toFilesystemError(error, "write", attachmentsPath),
 		});
 	});
 
@@ -154,7 +154,7 @@ const checkCancelEffect = (
 
 export const handleProjectCreate: LegacyHandler = async (ctx) => {
 	const payload = parsePayload("project.create", ctx.job.payloadJson);
-	const { projectId, ownerUserId, prompt, model, images } = payload;
+	const { projectId, ownerUserId, prompt, model, attachments } = payload;
 
 	logger.info({ projectId, prompt: prompt.slice(0, 100) }, "Creating project");
 
@@ -184,11 +184,11 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 
 		yield* checkCancelEffect(ctx.throwIfCancelRequested);
 
-		if (images && images.length > 0) {
-			yield* writeProjectImages(projectPath, images);
+		if (attachments && attachments.length > 0) {
+			yield* writeProjectAttachments(projectPath, attachments);
 			logger.debug(
-				{ projectId, imageCount: images.length },
-				"Saved images for initial prompt",
+				{ projectId, attachmentCount: attachments.length },
+				"Saved attachments for initial prompt",
 			);
 		}
 

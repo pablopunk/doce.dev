@@ -6,10 +6,12 @@ import type {
 	ErrorPart,
 	FilePart,
 	MessagePart,
+	PromptAttachmentPart,
 	ReasoningPart,
 	TextPart,
 	ToolPart,
 } from "@/types/message";
+import { formatFileSize } from "@/types/message";
 import "highlight.js/styles/atom-one-dark.css";
 
 interface PartRendererProps {
@@ -83,6 +85,26 @@ export function PartRenderer({ part, isStreaming }: PartRendererProps) {
 							({(filePart.size / 1024).toFixed(1)} KB)
 						</span>
 					)}
+				</div>
+			);
+		}
+
+		case "attachment": {
+			const attachmentPart = part as PromptAttachmentPart;
+			return (
+				<div className="p-2 bg-muted rounded text-sm inline-flex items-center gap-2 max-w-md">
+					<span>{attachmentPart.kind === "image" ? "🖼" : "📄"}</span>
+					<div className="min-w-0">
+						<div className="truncate font-medium">
+							{attachmentPart.filename}
+						</div>
+						<div className="truncate text-xs text-muted-foreground">
+							{attachmentPart.mime}
+							{attachmentPart.size
+								? ` • ${formatFileSize(attachmentPart.size)}`
+								: ""}
+						</div>
+					</div>
 				</div>
 			);
 		}

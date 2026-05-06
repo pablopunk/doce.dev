@@ -10,11 +10,11 @@ import type { InitialChatState } from "@/server/opencode/initialChat";
 import { useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
-	createImagePart,
+	createPromptAttachmentPart,
 	createTextPart,
-	type ImagePart,
 	type Message,
 	type MessagePart,
+	type PromptAttachmentPart,
 } from "@/types/message";
 
 const MAX_SSE_RECONNECT_DELAY_MS = 10_000;
@@ -70,6 +70,7 @@ interface UseChatPanelOptions {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}>;
 	onStreamingStateChange?:
 		| ((userMessageCount: number, isStreaming: boolean) => void)
@@ -101,8 +102,8 @@ export function useChatPanel({
 		historyLoaded,
 		presenceLoaded,
 		isStreaming,
-		pendingImages,
-		pendingImageError,
+		pendingAttachments,
+		pendingAttachmentError,
 		latestDiagnostic,
 		pendingPermission,
 		pendingQuestion,
@@ -117,8 +118,8 @@ export function useChatPanel({
 		setHistoryLoaded,
 		setPresenceLoaded,
 		setIsStreaming,
-		setPendingImages,
-		setPendingImageError,
+		setPendingAttachments,
+		setPendingAttachmentError,
 		setItems,
 		addItem,
 		updateItem,
@@ -134,7 +135,7 @@ export function useChatPanel({
 	const [draftSeed, setDraftSeed] = useState<{
 		key: number;
 		text: string;
-		images: ImagePart[];
+		attachments: PromptAttachmentPart[];
 	} | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
@@ -637,18 +638,25 @@ export function useChatPanel({
 		onStreamingStateChange?.(userMessageCount, isStreaming);
 	}, [items, isStreaming, onStreamingStateChange]);
 
-	const handleSend = async (content: string, images?: ImagePart[]) => {
+	const handleSend = async (
+		content: string,
+		attachments?: PromptAttachmentPart[],
+	) => {
 		const messageParts: MessagePart[] = [];
-		if (images) {
-			for (const img of images) {
+		if (attachments) {
+			for (const attachment of attachments) {
 				messageParts.push(
-					createImagePart(
-						img.dataUrl,
-						img.filename,
-						img.mime,
-						img.size,
-						img.id,
-					),
+					createPromptAttachmentPart({
+						filename: attachment.filename,
+						mime: attachment.mime,
+						kind: attachment.kind,
+						...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
+						...(attachment.size !== undefined ? { size: attachment.size } : {}),
+						...(attachment.textPreview
+							? { textPreview: attachment.textPreview }
+							: {}),
+						id: attachment.id,
+					}),
 				);
 			}
 		}
@@ -695,13 +703,14 @@ export function useChatPanel({
 
 			const apiParts: ApiPromptPart[] = [];
 			if (content) apiParts.push({ type: "text", text: content });
-			if (images) {
-				for (const img of images) {
+			if (attachments) {
+				for (const attachment of attachments) {
+					if (!attachment.dataUrl) continue;
 					apiParts.push({
 						type: "file",
-						mime: img.mime,
-						url: img.dataUrl,
-						filename: img.filename,
+						mime: attachment.mime,
+						url: attachment.dataUrl,
+						filename: attachment.filename,
 					});
 				}
 			}
@@ -719,8 +728,8 @@ export function useChatPanel({
 			);
 			updateItem(userMessageId, { localStatus: "sent" });
 			setIsStreaming(true);
-			setPendingImages([]);
-			setPendingImageError(null);
+			setPendingAttachments([]);
+			setPendingAttachmentError(null);
 			// Sending a new prompt branches from the revert point; the visible-items
 			// slice should no longer hide the new message + its response.
 			if (revertMessageId) setRevertMessageId(null);
@@ -743,13 +752,14 @@ export function useChatPanel({
 		const newModelConfig = models.find(
 			(m) => m.id === modelId && m.provider === providerId,
 		);
-		const newModelSupportsImages = newModelConfig?.supportsImages ?? true;
+		const newModelSupportsAttachments =
+			newModelConfig?.supportsAttachments ?? true;
 
-		if (pendingImages.length > 0 && !newModelSupportsImages) {
-			setPendingImages([]);
-			setPendingImageError(null);
-			toast.info("Images cleared", {
-				description: "The selected model doesn't support image input",
+		if (pendingAttachments.length > 0 && !newModelSupportsAttachments) {
+			setPendingAttachments([]);
+			setPendingAttachmentError(null);
+			toast.info("Attachments cleared", {
+				description: "The selected model doesn't support file attachments",
 			});
 		}
 
@@ -863,18 +873,18 @@ export function useChatPanel({
 			messageId,
 			role,
 			text,
-			images,
+			attachments,
 		}: {
 			messageId: string;
 			role: "user" | "assistant";
 			text: string;
-			images: ImagePart[];
+			attachments: PromptAttachmentPart[];
 		}) => {
 			// Optimistic: snapshot prev state, apply, roll back on failure.
 			const prevRevert = revertMessageId;
 			setRevertMessageId(messageId);
 			if (role === "user") {
-				setDraftSeed({ key: Date.now(), text, images });
+				setDraftSeed({ key: Date.now(), text, attachments });
 			}
 			try {
 				const result = await actions.chat.revertToMessage({
@@ -936,14 +946,14 @@ export function useChatPanel({
 		pendingPermission,
 		pendingQuestion,
 		todos,
-		pendingImages,
-		pendingImageError,
+		pendingAttachments,
+		pendingAttachmentError,
 		currentModel,
 		expandedTools,
 		scrollRef,
 		latestDiagnostic,
-		setPendingImages,
-		setPendingImageError,
+		setPendingAttachments,
+		setPendingAttachmentError,
 		handleSend,
 		handleModelChange,
 		handlePermissionDecision,

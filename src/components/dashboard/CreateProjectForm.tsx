@@ -10,6 +10,7 @@ interface CreateProjectFormProps {
 		provider: string;
 		vendor: string;
 		supportsImages?: boolean;
+		supportsAttachments?: boolean;
 	}[];
 	defaultModel?: string | undefined;
 }
@@ -24,8 +25,8 @@ export function CreateProjectForm({
 		selectedModel,
 		isLoading,
 		error,
-		selectedImages,
-		imageError,
+		selectedAttachments,
+		attachmentError,
 		isDragging,
 		textareaRef,
 		fileInputRef,
@@ -34,14 +35,15 @@ export function CreateProjectForm({
 		handleDragOver,
 		handleDragLeave,
 		handleDrop,
-		removeImage,
+		removeAttachment,
 		handleCreate,
 		handleKeyDown,
 		handleModelChange,
 		handleGoToSettings,
 		adjustTextareaHeight,
-		currentModelSupportsImages,
+		currentModelSupportsAttachments,
 		hasModels,
+		attachmentAccept,
 	} = useCreateProject({ models, defaultModel });
 
 	useEffect(() => {
@@ -75,12 +77,12 @@ export function CreateProjectForm({
 			prompt={prompt}
 			selectedModel={selectedModel}
 			models={models}
-			selectedImages={selectedImages}
+			selectedAttachments={selectedAttachments}
 			isDragging={isDragging}
 			isLoading={isLoading}
 			error={error}
-			imageError={imageError}
-			currentModelSupportsImages={currentModelSupportsImages}
+			attachmentError={attachmentError}
+			currentModelSupportsAttachments={currentModelSupportsAttachments}
 			textareaRef={textareaRef}
 			fileInputRef={fileInputRef}
 			onPromptChange={setPrompt}
@@ -91,9 +93,10 @@ export function CreateProjectForm({
 			onDrop={handleDrop}
 			onFileSelect={handleFileSelect}
 			onFileButtonClick={() => fileInputRef.current?.click()}
-			onRemoveImage={removeImage}
+			onRemoveAttachment={removeAttachment}
 			onCreate={handleCreate}
 			onModelChange={handleModelChange}
+			attachmentAccept={attachmentAccept}
 		/>
 	);
 }

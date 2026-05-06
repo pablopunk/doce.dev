@@ -3,8 +3,8 @@ import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
 import {
 	createErrorPart,
 	createTextPart,
-	type ImagePart,
 	type Message,
+	type PromptAttachmentPart,
 } from "@/types/message";
 
 /**
@@ -87,9 +87,9 @@ export interface ChatStore {
 	presenceLoaded: boolean;
 	isStreaming: boolean;
 
-	// State: Pending images
-	pendingImages: ImagePart[];
-	pendingImageError: string | null;
+	// State: Pending attachments
+	pendingAttachments: PromptAttachmentPart[];
+	pendingAttachmentError: string | null;
 
 	// State: Diagnostics
 	latestDiagnostic: OpencodeDiagnostic | null;
@@ -118,9 +118,9 @@ export interface ChatStore {
 	setHistoryLoaded: (loaded: boolean) => void;
 	setIsStreaming: (streaming: boolean) => void;
 
-	// Actions: Images
-	setPendingImages: (images: ImagePart[]) => void;
-	setPendingImageError: (error: string | null) => void;
+	// Actions: Attachments
+	setPendingAttachments: (attachments: PromptAttachmentPart[]) => void;
+	setPendingAttachmentError: (error: string | null) => void;
 
 	// Actions: Diagnostics
 	setLatestDiagnostic: (diagnostic: OpencodeDiagnostic | null) => void;
@@ -160,8 +160,8 @@ const initialState = {
 	historyLoaded: false,
 	presenceLoaded: false,
 	isStreaming: false,
-	pendingImages: [] as ImagePart[],
-	pendingImageError: null as string | null,
+	pendingAttachments: [] as PromptAttachmentPart[],
+	pendingAttachmentError: null as string | null,
 	latestDiagnostic: null as OpencodeDiagnostic | null,
 	diagnosticHistory: [] as OpencodeDiagnostic[],
 	pendingQuestion: null as PendingQuestionRequest | null,
@@ -187,8 +187,10 @@ export function createChatStore() {
 		setCurrentModel: (model) => set({ currentModel: model }),
 		setHistoryLoaded: (loaded) => set({ historyLoaded: loaded }),
 		setIsStreaming: (streaming) => set({ isStreaming: streaming }),
-		setPendingImages: (images) => set({ pendingImages: images }),
-		setPendingImageError: (error) => set({ pendingImageError: error }),
+		setPendingAttachments: (attachments) =>
+			set({ pendingAttachments: attachments }),
+		setPendingAttachmentError: (error) =>
+			set({ pendingAttachmentError: error }),
 		setPendingQuestion: (request) => set({ pendingQuestion: request }),
 		setPendingPermission: (request) => set({ pendingPermission: request }),
 		setTodos: (todos) => set({ todos }),

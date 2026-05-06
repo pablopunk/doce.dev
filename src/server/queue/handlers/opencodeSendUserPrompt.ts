@@ -19,7 +19,7 @@ import {
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
 import { enqueueDockerEnsureRunning } from "../enqueue";
-import { type ImageAttachment, parsePayload } from "../types";
+import { type PromptAttachment, parsePayload } from "../types";
 
 export function handleOpencodeSendUserPrompt(
 	ctx: QueueJobContext,
@@ -102,13 +102,16 @@ export function handleOpencodeSendUserPrompt(
 				}),
 		});
 
-		let images: ImageAttachment[] = [];
-		const imagesPath = path.join(normalizedProjectPath, ".doce-images.json");
+		let attachments: PromptAttachment[] = [];
+		const attachmentsPath = path.join(
+			normalizedProjectPath,
+			".doce-attachments.json",
+		);
 
-		const imagesContent = yield* Effect.tryPromise({
+		const attachmentsContent = yield* Effect.tryPromise({
 			try: async () => {
 				try {
-					return await fs.readFile(imagesPath, "utf-8");
+					return await fs.readFile(attachmentsPath, "utf-8");
 				} catch {
 					return null;
 				}
@@ -122,10 +125,10 @@ export function handleOpencodeSendUserPrompt(
 				}),
 		});
 
-		if (imagesContent) {
-			images = yield* Effect.tryPromise({
+		if (attachmentsContent) {
+			attachments = yield* Effect.tryPromise({
 				try: () =>
-					Promise.resolve(JSON.parse(imagesContent) as ImageAttachment[]),
+					Promise.resolve(JSON.parse(attachmentsContent) as PromptAttachment[]),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,
@@ -135,7 +138,7 @@ export function handleOpencodeSendUserPrompt(
 					}),
 			});
 			yield* Effect.tryPromise({
-				try: () => fs.unlink(imagesPath).catch(() => Promise.resolve()),
+				try: () => fs.unlink(attachmentsPath).catch(() => Promise.resolve()),
 				catch: (error) =>
 					new ProjectError({
 						projectId: project.id,
@@ -145,8 +148,8 @@ export function handleOpencodeSendUserPrompt(
 					}),
 			});
 			logger.debug(
-				{ projectId: project.id, imageCount: images.length },
-				"Loaded images for initial prompt",
+				{ projectId: project.id, attachmentCount: attachments.length },
+				"Loaded attachments for initial prompt",
 			);
 		}
 
@@ -155,12 +158,12 @@ export function handleOpencodeSendUserPrompt(
 			| { type: "file"; mime: string; url: string; filename?: string }
 		> = [{ type: "text", text: project.prompt }];
 
-		for (const img of images) {
+		for (const attachment of attachments) {
 			parts.push({
 				type: "file",
-				mime: img.mime,
-				url: img.dataUrl,
-				filename: img.filename,
+				mime: attachment.mime,
+				url: attachment.dataUrl,
+				filename: attachment.filename,
 			});
 		}
 
