@@ -139,8 +139,6 @@ export function ChatInput({
 	}, [seedDraft, supportsAttachments, onSeedConsumed, adjustTextareaHeight]);
 
 	const processFiles = async (files: FileList | File[]) => {
-		if (!supportsAttachments) return;
-
 		updateAttachmentError(null);
 		const fileArray = Array.from(files);
 		const totalCount = selectedAttachments.length + fileArray.length;
@@ -154,6 +152,10 @@ export function ChatInput({
 		const newAttachments: PromptAttachmentPart[] = [];
 		for (const file of fileArray) {
 			const isImage = isImageAttachmentFile(file);
+			if (isImage && !supportsAttachments) {
+				updateAttachmentError("Images not supported by the selected model");
+				return;
+			}
 			const validation = isImage
 				? validateImageFile(file)
 				: validateTextAttachmentFile(file);
@@ -181,8 +183,6 @@ export function ChatInput({
 	};
 
 	const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-		if (!supportsAttachments) return;
-
 		const items = e.clipboardData?.items;
 		if (!items) return;
 
@@ -201,7 +201,6 @@ export function ChatInput({
 	};
 
 	const handleDragOver = (e: DragEvent<HTMLElement>) => {
-		if (!supportsAttachments) return;
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragging(true);
@@ -221,13 +220,6 @@ export function ChatInput({
 		const files = e.dataTransfer?.files;
 		if (!files || files.length === 0) return;
 
-		if (!supportsAttachments) {
-			toast.error("Attachments not supported", {
-				description: "The selected model doesn't support file attachments",
-			});
-			return;
-		}
-
 		const supportedFiles = Array.from(files).filter(
 			(file) => isImageAttachmentFile(file) || isTextAttachmentFile(file),
 		);
@@ -236,6 +228,18 @@ export function ChatInput({
 				description:
 					"Drop a text file, markdown, CSV, JSON, YAML, XML, log, source file, or image.",
 			});
+			return;
+		}
+
+		const hasImages = supportedFiles.some(isImageAttachmentFile);
+		if (hasImages && !supportsAttachments) {
+			toast.error("Images not supported", {
+				description: "The selected model doesn't support image input",
+			});
+			const textFiles = supportedFiles.filter((f) => !isImageAttachmentFile(f));
+			if (textFiles.length > 0) {
+				void processFiles(textFiles);
+			}
 			return;
 		}
 
@@ -288,9 +292,7 @@ export function ChatInput({
 			<div className="flex flex-col gap-2">
 				<form
 					className={`flex flex-col gap-2 rounded-lg border bg-card p-2 transition-colors ${
-						isDragging && supportsAttachments
-							? "border-primary bg-primary/5"
-							: "border-input"
+						isDragging ? "border-primary bg-primary/5" : "border-input"
 					}`}
 					onSubmit={(e) => e.preventDefault()}
 					onDragOver={handleDragOver}
@@ -329,36 +331,32 @@ export function ChatInput({
 							/>
 						)}
 						<div className="flex items-center gap-2">
-							{supportsAttachments && (
-								<input
-									ref={fileInputRef}
-									type="file"
-									accept={CHAT_ATTACHMENT_ACCEPT}
-									multiple
-									onChange={handleFileSelect}
-									className="hidden"
-								/>
-							)}
-							{supportsAttachments && (
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => fileInputRef.current?.click()}
-									disabled={
-										disabled ||
-										selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
-									}
-									title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
-									type="button"
-								>
-									<Paperclip className="w-5 h-5" />
-									{selectedAttachments.length > 0 && (
-										<span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
-											{selectedAttachments.length}
-										</span>
-									)}
-								</Button>
-							)}
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept={CHAT_ATTACHMENT_ACCEPT}
+								multiple
+								onChange={handleFileSelect}
+								className="hidden"
+							/>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => fileInputRef.current?.click()}
+								disabled={
+									disabled ||
+									selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
+								}
+								title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
+								type="button"
+							>
+								<Paperclip className="w-5 h-5" />
+								{selectedAttachments.length > 0 && (
+									<span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+										{selectedAttachments.length}
+									</span>
+								)}
+							</Button>
 							<Button
 								onClick={(e) => {
 									e.preventDefault();

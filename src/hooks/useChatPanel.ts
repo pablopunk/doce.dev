@@ -9,6 +9,7 @@ import {
 import type { InitialChatState } from "@/server/opencode/initialChat";
 
 const CHAT_HISTORY_PAGE_LIMIT = 50;
+
 import { useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
@@ -758,11 +759,19 @@ export function useChatPanel({
 			newModelConfig?.supportsAttachments ?? true;
 
 		if (pendingAttachments.length > 0 && !newModelSupportsAttachments) {
-			setPendingAttachments([]);
-			setPendingAttachmentError(null);
-			toast.info("Attachments cleared", {
-				description: "The selected model doesn't support file attachments",
-			});
+			const textAttachments = pendingAttachments.filter(
+				(a) => a.kind !== "image",
+			);
+			const imageAttachments = pendingAttachments.filter(
+				(a) => a.kind === "image",
+			);
+			if (imageAttachments.length > 0) {
+				setPendingAttachments(textAttachments);
+				setPendingAttachmentError(null);
+				toast.info("Images cleared", {
+					description: "The selected model doesn't support image input",
+				});
+			}
 		}
 
 		const newModel = newModelConfig

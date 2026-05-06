@@ -41,7 +41,6 @@ export function CreateProjectForm({
 		handleModelChange,
 		handleGoToSettings,
 		adjustTextareaHeight,
-		currentModelSupportsAttachments,
 		hasModels,
 		attachmentAccept,
 	} = useCreateProject({ models, defaultModel });
@@ -82,7 +81,6 @@ export function CreateProjectForm({
 			isLoading={isLoading}
 			error={error}
 			attachmentError={attachmentError}
-			currentModelSupportsAttachments={currentModelSupportsAttachments}
 			textareaRef={textareaRef}
 			fileInputRef={fileInputRef}
 			onPromptChange={setPrompt}
