@@ -6,7 +6,10 @@ import {
 	normalizeEvent,
 	parseSSEData,
 } from "@/server/opencode/normalize";
-import { getOpencodeBaseUrl } from "@/server/opencode/runtime";
+import {
+	getOpencodeBaseUrl,
+	logOpencodeMemorySnapshot,
+} from "@/server/opencode/runtime";
 import { getProjectPreviewPathFromRoot } from "@/server/projects/paths";
 import {
 	getProjectById,
@@ -19,6 +22,7 @@ const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 10_000;
 
 export const GET: APIRoute = async ({ params, cookies }) => {
+	logOpencodeMemorySnapshot(`event-route:${params.id ?? "unknown"}:enter`);
 	const auth = await requireAuth(cookies);
 	if (!auth.ok) return auth.response;
 
@@ -56,6 +60,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 
 	let upstreamResponse: Response;
 	try {
+		logOpencodeMemorySnapshot(`event-route:${projectId}:before-upstream-connect`);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
 
@@ -79,6 +84,7 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		if (!upstreamResponse.body) {
 			return new Response("No response body", { status: 502 });
 		}
+		logOpencodeMemorySnapshot(`event-route:${projectId}:after-upstream-connect`);
 	} catch (error) {
 		ensureRuntimeRunning();
 		logger.warn({ error, projectId }, "Failed to connect to opencode SSE");

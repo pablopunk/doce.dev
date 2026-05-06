@@ -6,6 +6,7 @@ import {
 import { logger } from "@/server/logger";
 import type { ChatItem } from "@/stores/useChatStore";
 import { createOpencodeClient, isOpencodeHealthy } from "./client";
+import { logOpencodeMemorySnapshot } from "./runtime";
 
 export interface InitialChatState {
 	sessionId: string;
@@ -26,25 +27,39 @@ export async function getInitialChatState(project: {
 	bootstrapSessionId: string | null;
 	userPromptMessageId: string | null;
 }): Promise<InitialChatState | null> {
+	logOpencodeMemorySnapshot(`initialChat:${project.id}:enter`);
 	const sessionId = project.bootstrapSessionId;
 	if (!sessionId) return null;
 
 	const healthy = await isOpencodeHealthy();
 	if (!healthy) return null;
+	logOpencodeMemorySnapshot(`initialChat:${project.id}:after-health-check`);
 
 	try {
 		const client = createOpencodeClient();
+		logOpencodeMemorySnapshot(`initialChat:${project.id}:before-fetch`);
 		const [infoRes, messagesRes] = await Promise.all([
 			client.session.get({ sessionID: sessionId }),
 			client.session.messages({ sessionID: sessionId }),
 		]);
 
+		logOpencodeMemorySnapshot(`initialChat:${project.id}:after-fetch`);
 		const info = infoRes.data as
 			| { revert?: { messageID?: string } }
 			| undefined;
 		const rawMessages = (messagesRes.data ?? []) as RawSessionMessage[];
 
+		logger.info(
+			{
+				projectId: project.id,
+				sessionId,
+				messageCount: rawMessages.length,
+			},
+			"Initial chat state fetched",
+		);
+
 		const items = buildHistoryItems(rawMessages, project.userPromptMessageId);
+		logOpencodeMemorySnapshot(`initialChat:${project.id}:after-buildHistoryItems`);
 		const revertMessageId = info?.revert?.messageID ?? null;
 		const model = pickLastModel(rawMessages);
 
