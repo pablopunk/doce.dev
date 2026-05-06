@@ -7,6 +7,8 @@ import {
 	type RawSessionMessage,
 } from "@/lib/chat/buildHistoryItems";
 import type { InitialChatState } from "@/server/opencode/initialChat";
+
+const CHAT_HISTORY_PAGE_LIMIT = 50;
 import { useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
@@ -396,7 +398,7 @@ export function useChatPanel({
 						`/api/projects/${projectId}/opencode/session/${latestSessionId}`,
 					),
 					fetchJson<RawSessionMessage[] | { messages?: RawSessionMessage[] }>(
-						`/api/projects/${projectId}/opencode/session/${latestSessionId}/message`,
+						`/api/projects/${projectId}/opencode/session/${latestSessionId}/message?limit=${CHAT_HISTORY_PAGE_LIMIT}`,
 					),
 				]);
 
