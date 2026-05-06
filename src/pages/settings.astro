@@ -1,13 +1,7 @@
 ---
 import { SettingsWorkspace } from "@/components/settings/SettingsWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { canUserAccessQueueJob } from "@/server/queue/access";
-import { getJobById } from "@/server/queue/queue.model";
 import { getSettingsLogsPageData } from "@/server/settings/logs";
-import {
-	getQueueStatusPageData,
-	getSettingsStatusDiagnostics,
-} from "@/server/settings/status";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -17,6 +11,11 @@ if (!user) {
 const tabParam = Astro.url.searchParams.get("tab");
 // Legacy tab IDs redirect to "general"
 const legacyGeneralTabs = ["base-url", "account", "danger"];
+// Status tab moved to Monitor page
+if (tabParam === "status") {
+	return Astro.redirect("/monitor?tab=queue");
+}
+
 const isProduction =
 	import.meta.env.PROD || process.env.NODE_ENV === "production";
 const initialTab =
@@ -24,42 +23,13 @@ const initialTab =
 	tabParam === "providers" ||
 	tabParam === "mcps" ||
 	tabParam === "skills" ||
-	tabParam === "status" ||
 	(tabParam === "logs" && isProduction)
 		? tabParam
 		: legacyGeneralTabs.includes(tabParam ?? "")
 			? "general"
 			: "providers";
 
-const queueFilters: import("@/server/settings/status").QueueStatusFilters = {};
-const stateParam = Astro.url.searchParams.get("state");
-const typeParam = Astro.url.searchParams.get("type");
-const projectIdParam = Astro.url.searchParams.get("projectId");
-const qParam = Astro.url.searchParams.get("q");
-const pageParam = Astro.url.searchParams.get("page");
-
-if (stateParam) queueFilters.state = stateParam;
-if (typeParam) queueFilters.type = typeParam;
-if (projectIdParam) queueFilters.projectId = projectIdParam;
-if (qParam) queueFilters.q = qParam;
-if (pageParam) queueFilters.page = pageParam;
-
-const statusData = await getQueueStatusPageData(queueFilters);
-const diagnostics = await getSettingsStatusDiagnostics();
 const logsData = isProduction ? await getSettingsLogsPageData() : undefined;
-
-// Fetch selected job if jobId param present (for status tab)
-let selectedJob: Awaited<ReturnType<typeof getJobById>> | undefined;
-const jobIdParam = Astro.url.searchParams.get("jobId");
-if (initialTab === "status" && jobIdParam) {
-	const job = await getJobById(jobIdParam);
-	if (job) {
-		const canAccess = await canUserAccessQueueJob(user.id, job);
-		if (canAccess) {
-			selectedJob = job;
-		}
-	}
-}
 ---
 
 <AppLayout title="Settings">
@@ -74,7 +44,6 @@ if (initialTab === "status" && jobIdParam) {
 		<SettingsWorkspace
 			initialTab={initialTab}
 			isProduction={isProduction}
-			statusData={{ ...statusData, diagnostics, selectedJob }}
 			logsData={logsData}
 			client:load
 		/>

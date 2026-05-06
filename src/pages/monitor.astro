@@ -1,0 +1,75 @@
+---
+import { isNull } from "drizzle-orm";
+import { MonitorWorkspace } from "@/components/monitor/MonitorWorkspace";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { db } from "@/server/db/client";
+import { projects } from "@/server/db/schema";
+import { canUserAccessQueueJob } from "@/server/queue/access";
+import { getJobById } from "@/server/queue/queue.model";
+import {
+	getQueueStatusPageData,
+	getSettingsStatusDiagnostics,
+} from "@/server/settings/status";
+
+const user = Astro.locals.user;
+if (!user) {
+	return Astro.redirect("/login");
+}
+
+const tabParam = Astro.url.searchParams.get("tab");
+const initialTab: import("@/components/monitor/MonitorWorkspace").MonitorTabId =
+	tabParam === "activity" || tabParam === "queue" ? tabParam : "activity";
+
+const queueFilters: import("@/server/settings/status").QueueStatusFilters = {};
+const stateParam = Astro.url.searchParams.get("state");
+const typeParam = Astro.url.searchParams.get("type");
+const projectIdParam = Astro.url.searchParams.get("projectId");
+const qParam = Astro.url.searchParams.get("q");
+const pageParam = Astro.url.searchParams.get("page");
+
+if (stateParam) queueFilters.state = stateParam;
+if (typeParam) queueFilters.type = typeParam;
+if (projectIdParam) queueFilters.projectId = projectIdParam;
+if (qParam) queueFilters.q = qParam;
+if (pageParam) queueFilters.page = pageParam;
+
+const statusData = await getQueueStatusPageData(queueFilters);
+const diagnostics = await getSettingsStatusDiagnostics();
+
+// Fetch selected job if jobId param present (for queue tab)
+let selectedJob: Awaited<ReturnType<typeof getJobById>> | undefined;
+const jobIdParam = Astro.url.searchParams.get("jobId");
+if (initialTab === "queue" && jobIdParam) {
+	const job = await getJobById(jobIdParam);
+	if (job) {
+		const canAccess = await canUserAccessQueueJob(user.id, job);
+		if (canAccess) {
+			selectedJob = job;
+		}
+	}
+}
+
+// Fetch projects for container-to-project mapping
+const allProjects = await db
+	.select({ id: projects.id, name: projects.name, icon: projects.icon })
+	.from(projects)
+	.where(isNull(projects.deletedAt));
+---
+
+<AppLayout title="Monitor">
+	<main class="container mx-auto max-w-6xl p-4 md:p-8">
+		<div class="mb-6 md:mb-8 flex items-center justify-between">
+			<div>
+				<h1 class="text-2xl md:text-3xl font-bold">Monitor</h1>
+				<p class="text-muted-foreground text-sm md:text-base">Live container activity and queue status</p>
+			</div>
+		</div>
+
+		<MonitorWorkspace
+			initialTab={initialTab}
+			queueData={{ ...statusData, diagnostics, selectedJob }}
+			projects={allProjects}
+			client:load
+		/>
+	</main>
+</AppLayout>
