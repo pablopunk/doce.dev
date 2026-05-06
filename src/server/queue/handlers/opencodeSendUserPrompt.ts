@@ -21,6 +21,28 @@ import {
 import { enqueueDockerEnsureRunning } from "../enqueue";
 import { type PromptAttachment, parsePayload } from "../types";
 
+function toMiB(bytes: number): number {
+	return Math.round((bytes / 1024 / 1024) * 100) / 100;
+}
+
+function logMemorySnapshot(projectId: string, stage: string): void {
+	const memory = process.memoryUsage();
+	logger.info(
+		{
+			projectId,
+			stage,
+			memory: {
+				rssMiB: toMiB(memory.rss),
+				heapTotalMiB: toMiB(memory.heapTotal),
+				heapUsedMiB: toMiB(memory.heapUsed),
+				externalMiB: toMiB(memory.external),
+				arrayBuffersMiB: toMiB(memory.arrayBuffers),
+			},
+		},
+		"OpenCode prompt memory snapshot",
+	);
+}
+
 export function handleOpencodeSendUserPrompt(
 	ctx: QueueJobContext,
 ): Effect.Effect<void, ProjectError | OpenCodeError> {
@@ -191,6 +213,8 @@ export function handleOpencodeSendUserPrompt(
 		const client = createOpencodeClient(projectPreviewPath);
 		const projectDirectory = projectPreviewPath;
 
+		logMemorySnapshot(project.id, "before-promptAsync");
+
 		const promptResponse = yield* Effect.tryPromise({
 			try: () =>
 				client.session.promptAsync({
@@ -223,6 +247,7 @@ export function handleOpencodeSendUserPrompt(
 			{ projectId: project.id, sessionId, modelInfo },
 			"Sent user prompt with model",
 		);
+		logMemorySnapshot(project.id, "after-promptAsync");
 
 		yield* ctx.throwIfCancelRequested();
 		yield* Effect.sleep(1000);
@@ -231,6 +256,8 @@ export function handleOpencodeSendUserPrompt(
 			info?: { id?: string; role?: string };
 			parts?: Array<{ type?: string; text?: string }>;
 		}> = [];
+
+		logMemorySnapshot(project.id, "before-session.messages");
 
 		const messagesResponse = yield* Effect.tryPromise({
 			try: async () =>
@@ -256,12 +283,17 @@ export function handleOpencodeSendUserPrompt(
 				}),
 		});
 
+		logMemorySnapshot(project.id, "after-session.messages");
+
 		if (messagesResponse) {
 			logger.info(
 				{
 					projectId: project.id,
 					sessionId,
-					responseData: JSON.stringify(messagesResponse),
+					hasData: Boolean(messagesResponse.data),
+					messageCount: Array.isArray(messagesResponse.data)
+						? messagesResponse.data.length
+						: null,
 				},
 				"Messages response received",
 			);
