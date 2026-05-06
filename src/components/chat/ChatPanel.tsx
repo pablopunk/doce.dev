@@ -4,12 +4,12 @@ import { useChatPanel } from "@/hooks/useChatPanel";
 import type { Message } from "@/types/message";
 import { AgentThinkingIndicator } from "./AgentThinkingIndicator";
 import { AgentUnreachableBanner } from "./AgentUnreachableBanner";
-import { ChatDetachToggle } from "./ChatDetachToggle";
 import { ChatContextUsage } from "./ChatContextUsage";
+import { ChatDetachToggle } from "./ChatDetachToggle";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
-import { ChatSessionTitle } from "./ChatSessionTitle";
 import { ChatMessages } from "./ChatMessages";
+import { ChatSessionTitle } from "./ChatSessionTitle";
 import { PermissionDock } from "./composer/PermissionDock";
 import { QuestionDock } from "./composer/QuestionDock";
 import { buildRolledMessages, RevertDock } from "./composer/RevertDock";
@@ -61,6 +61,7 @@ export function ChatPanel({
 		setPendingAttachments,
 		setPendingAttachmentError,
 		handleSend,
+		handleStop,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,
@@ -233,6 +234,8 @@ export function ChatPanel({
 								seedDraft={draftSeed}
 								onSeedConsumed={clearDraftSeed}
 								onSend={handleSend}
+								onStop={handleStop}
+								isStreaming={isStreaming}
 								disabled={!opencodeReady || isStreaming}
 								placeholder={
 									!opencodeReady

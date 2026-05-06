@@ -1,4 +1,4 @@
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, Paperclip, Send, Square } from "lucide-react";
 import {
 	type ClipboardEvent,
 	type DragEvent,
@@ -26,6 +26,8 @@ import { AttachmentPreview } from "./AttachmentPreview";
 
 interface ChatInputProps {
 	onSend: (message: string, attachments?: PromptAttachmentPart[]) => void;
+	onStop?: () => void;
+	isStreaming?: boolean;
 	disabled?: boolean;
 	placeholder?: string;
 	model?: string | null;
@@ -53,6 +55,8 @@ interface ChatInputProps {
 
 export function ChatInput({
 	onSend,
+	onStop,
+	isStreaming = false,
 	disabled = false,
 	placeholder = "Type a message...",
 	model = null,
@@ -357,22 +361,37 @@ export function ChatInput({
 									</span>
 								)}
 							</Button>
-							<Button
-								onClick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									handleSubmit(e);
-								}}
-								disabled={disabled || !hasContent}
-								title="Send message (Enter)"
-								type="button"
-							>
-								{disabled ? (
-									<Loader2 className="w-5 h-5 animate-spin" />
-								) : (
-									<Send className="w-5 h-5" />
-								)}
-							</Button>
+							{isStreaming ? (
+								<Button
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										onStop?.();
+									}}
+									title="Stop response"
+									type="button"
+									variant="destructive"
+								>
+									<Square className="w-4 h-4 fill-current" />
+								</Button>
+							) : (
+								<Button
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										handleSubmit(e);
+									}}
+									disabled={disabled || !hasContent}
+									title="Send message (Enter)"
+									type="button"
+								>
+									{disabled ? (
+										<Loader2 className="w-5 h-5 animate-spin" />
+									) : (
+										<Send className="w-5 h-5" />
+									)}
+								</Button>
+							)}
 						</div>
 					</div>
 				</form>

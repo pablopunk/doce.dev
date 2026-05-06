@@ -368,7 +368,6 @@ export function useChatPanel({
 		void loadSessionMetadata();
 	}, [
 		fetchJson,
-		isStreaming,
 		projectId,
 		sessionId,
 		setSessionContextUsage,
@@ -528,6 +527,7 @@ export function useChatPanel({
 		setItems,
 		scrollToBottom,
 		showRequestError,
+		setSessionContextUsage,
 	]);
 
 	// React to live state for readiness
@@ -803,6 +803,19 @@ export function useChatPanel({
 		}
 	};
 
+	const handleStop = useCallback(async () => {
+		if (!sessionId || !isStreaming) return;
+
+		try {
+			await fetchJson<boolean>(
+				`/api/projects/${projectId}/opencode/session/${sessionId}/abort`,
+				{ method: "POST" },
+			);
+		} catch (error) {
+			showRequestError("Failed to stop response", error);
+		}
+	}, [fetchJson, isStreaming, projectId, sessionId, showRequestError]);
+
 	const handleModelChange = async (compositeKey: string) => {
 		const [providerId, ...modelIdParts] = compositeKey.split(":");
 		const modelId = modelIdParts.join(":");
@@ -1021,6 +1034,7 @@ export function useChatPanel({
 		setPendingAttachments,
 		setPendingAttachmentError,
 		handleSend,
+		handleStop,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,
