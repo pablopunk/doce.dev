@@ -56,7 +56,13 @@ export const projects = {
 			}
 
 			let attachments:
-				| Array<{ filename: string; mime: string; dataUrl: string }>
+				| Array<{
+						filename: string;
+						mime: string;
+						dataUrl: string;
+						kind?: "image" | "text";
+						textContent?: string;
+				  }>
 				| undefined;
 			if (input.attachments) {
 				try {

@@ -214,6 +214,8 @@ export function useCreateProject({
 										filename: attachment.filename,
 										mime: attachment.mime,
 										dataUrl: attachment.dataUrl,
+										kind: attachment.kind,
+										textContent: attachment.textContent,
 									})),
 							)
 						: undefined,

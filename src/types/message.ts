@@ -46,6 +46,7 @@ export interface PromptAttachmentPart {
 	size?: number;
 	kind: PromptAttachmentKind;
 	textPreview?: string;
+	textContent?: string;
 }
 
 /**
@@ -199,6 +200,7 @@ export function createPromptAttachmentPart(input: {
 	dataUrl?: string;
 	size?: number;
 	textPreview?: string;
+	textContent?: string;
 	id?: string;
 }): PromptAttachmentPart {
 	return {
@@ -210,6 +212,7 @@ export function createPromptAttachmentPart(input: {
 		...(input.dataUrl ? { dataUrl: input.dataUrl } : {}),
 		...(input.size !== undefined ? { size: input.size } : {}),
 		...(input.textPreview ? { textPreview: input.textPreview } : {}),
+		...(input.textContent ? { textContent: input.textContent } : {}),
 	};
 }
 
@@ -398,6 +401,7 @@ export async function createPromptAttachmentFromFile(
 		dataUrl,
 		size: file.size,
 		textPreview: text.slice(0, MAX_TEXT_PREVIEW_LENGTH),
+		textContent: text,
 	});
 }
 

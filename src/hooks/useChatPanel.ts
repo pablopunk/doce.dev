@@ -2,6 +2,7 @@ import { actions } from "astro:actions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLiveState } from "@/hooks/useLiveState";
+import { promptAttachmentToPromptParts } from "@/lib/chat/attachmentPromptText";
 import {
 	buildHistoryItems,
 	type RawSessionMessage,
@@ -365,7 +366,16 @@ export function useChatPanel({
 		};
 
 		void loadSessionMetadata();
-	}, [fetchJson, isStreaming, projectId, sessionId, setSessionContextUsage, setSessionTitle, currentModel, models]);
+	}, [
+		fetchJson,
+		isStreaming,
+		projectId,
+		sessionId,
+		setSessionContextUsage,
+		setSessionTitle,
+		currentModel,
+		models,
+	]);
 
 	// Load model from OpenCode config
 	useEffect(() => {
@@ -705,6 +715,9 @@ export function useChatPanel({
 						...(attachment.textPreview
 							? { textPreview: attachment.textPreview }
 							: {}),
+						...(attachment.textContent
+							? { textContent: attachment.textContent }
+							: {}),
 						id: attachment.id,
 					}),
 				);
@@ -755,13 +768,7 @@ export function useChatPanel({
 			if (content) apiParts.push({ type: "text", text: content });
 			if (attachments) {
 				for (const attachment of attachments) {
-					if (!attachment.dataUrl) continue;
-					apiParts.push({
-						type: "file",
-						mime: attachment.mime,
-						url: attachment.dataUrl,
-						filename: attachment.filename,
-					});
+					apiParts.push(...promptAttachmentToPromptParts(attachment));
 				}
 			}
 

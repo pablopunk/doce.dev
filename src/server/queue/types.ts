@@ -33,6 +33,8 @@ export const promptAttachmentSchema = z.object({
 	filename: z.string(),
 	mime: z.string(),
 	dataUrl: z.string(),
+	kind: z.enum(["image", "text"]).optional(),
+	textContent: z.string().optional(),
 });
 
 export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
