@@ -2,7 +2,6 @@
 import { ProjectContentWrapper } from "@/components/projects/ProjectContentWrapper";
 import { SetupStatusDisplay } from "@/components/setup/SetupStatusDisplay";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getInitialChatState } from "@/server/opencode/initialChat";
 import { getAvailableModels } from "@/server/opencode/models";
 import { getProjectById } from "@/server/projects/projects.model";
 
@@ -32,15 +31,11 @@ if (slug && slug !== project.slug) {
 	return Astro.redirect(`/projects/${project.id}/${project.slug}`);
 }
 
-// Build models list from the dedicated OpenCode runtime
-// Kick off chat history fetch in parallel so SSR gives us instant chat
-// when opencode is already warm.
-const [availableModels, initialChat] = await Promise.all([
-	getAvailableModels(),
-	project.userPromptCompleted
-		? getInitialChatState(project)
-		: Promise.resolve(null),
-]);
+// Build models list from the dedicated OpenCode runtime.
+// Chat history is hydrated on the client to avoid materializing large
+// OpenCode session payloads during SSR in the Astro server process.
+const availableModels = await getAvailableModels();
+const initialChat = null;
 
 const allModels = availableModels;
 ---

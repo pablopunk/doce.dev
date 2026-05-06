@@ -19,6 +19,8 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * Use `defineAction` with Zod `input` schemas for all server actions.
 * Use `@/server/logger` (Pino) instead of `console.*` in server code.
 * API routes handle their own auth via cookies; don't assume middleware auth for `/_actions` and `/api`.
+* Prefer client-side fetching/hydration for large or potentially unbounded payloads (e.g. chat history, logs, session/event data) when SSR would duplicate parsing or retain large in-memory structures on the server.
+* Keep heavy API/proxy paths as thin as possible: prefer streaming and pagination over server-side materialization of large payloads.
 * When changing database models, we should consider if we need to create a migration.
 * Polling in the Frontend is completely forbidden, use SSE instead, explore other use cases on the repo.
 
