@@ -33,6 +33,14 @@ function getOpencodePort(): number {
 	}
 }
 
+function isOpencodeExternallyExposed(): boolean {
+	return process.env.EXPOSE_OPENCODE === "1";
+}
+
+function getOpencodeHost(): string {
+	return isOpencodeExternallyExposed() ? "0.0.0.0" : "127.0.0.1";
+}
+
 function getOpencodeBaseUrl(): string {
 	return `http://127.0.0.1:${getOpencodePort()}`;
 }
@@ -244,9 +252,10 @@ async function startOpencodeProcess(): Promise<void> {
 
 	await ensureOpencodeDirectories();
 
+	const host = getOpencodeHost();
 	const child = spawn(
 		getOpencodeCommand(),
-		["serve", "--hostname", "127.0.0.1", "--port", String(getOpencodePort())],
+		["serve", "--hostname", host, "--port", String(getOpencodePort())],
 		{
 			cwd: getDataPath(),
 			env: getOpencodeEnvironment(),
@@ -287,7 +296,11 @@ async function startOpencodeProcess(): Promise<void> {
 
 	await Promise.race([waitForOpencodeReady(), startupError]);
 	logger.info(
-		{ baseUrl: getOpencodeBaseUrl() },
+		{
+			baseUrl: getOpencodeBaseUrl(),
+			host,
+			externallyExposed: isOpencodeExternallyExposed(),
+		},
 		"Central OpenCode runtime ready",
 	);
 }
