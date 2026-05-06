@@ -17,6 +17,8 @@ export function useChatStoreSeed(
 		seedChatStoreOnce(projectId, {
 			items: initialChat.items,
 			sessionId: initialChat.sessionId,
+			sessionTitle: initialChat.sessionTitle,
+			sessionContextUsage: initialChat.sessionContextUsage,
 			revertMessageId: initialChat.revertMessageId,
 			currentModel: initialChat.model,
 			historyLoaded: true,

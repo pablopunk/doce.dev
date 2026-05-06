@@ -5,8 +5,10 @@ import type { Message } from "@/types/message";
 import { AgentThinkingIndicator } from "./AgentThinkingIndicator";
 import { AgentUnreachableBanner } from "./AgentUnreachableBanner";
 import { ChatDetachToggle } from "./ChatDetachToggle";
+import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
+import { ChatSessionTitle } from "./ChatSessionTitle";
 import { ChatMessages } from "./ChatMessages";
 import { PermissionDock } from "./composer/PermissionDock";
 import { QuestionDock } from "./composer/QuestionDock";
@@ -40,6 +42,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
 	const {
 		items,
+		sessionId,
 		opencodeReady,
 		isStreaming,
 		pendingPermission,
@@ -48,6 +51,10 @@ export function ChatPanel({
 		pendingAttachments,
 		pendingAttachmentError,
 		currentModel,
+		sessionTitle,
+		sessionTitleLoaded,
+		sessionContextUsage,
+		sessionContextLoaded,
 		expandedTools,
 		scrollRef,
 		latestDiagnostic,
@@ -126,8 +133,20 @@ export function ChatPanel({
 	return (
 		<div className="flex flex-col h-full">
 			{!hideDetachToggle && (
-				<div className="flex items-center justify-end px-2 py-1 border-b bg-muted/30 shrink-0">
-					<ChatDetachToggle />
+				<div className="flex items-center justify-between gap-3 px-3 py-1.5 border-b bg-muted/30 shrink-0">
+					<div className="min-w-0 flex-1">
+						<ChatSessionTitle
+							title={sessionTitle}
+							isLoading={Boolean(sessionId) && !sessionTitleLoaded}
+						/>
+					</div>
+					<div className="flex items-center gap-2 shrink-0">
+						<ChatContextUsage
+							usage={sessionContextUsage}
+							isLoading={Boolean(sessionId) && !sessionContextLoaded}
+						/>
+						<ChatDetachToggle />
+					</div>
 				</div>
 			)}
 			<div

@@ -8,7 +8,10 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useChatLayout } from "@/stores/useChatLayout";
+import { useChatStore } from "@/stores/useChatStore";
+import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPanel } from "./ChatPanel";
+import { ChatSessionTitle } from "./ChatSessionTitle";
 
 interface FloatingChatPanelProps {
 	projectId: string;
@@ -39,6 +42,7 @@ export function FloatingChatPanel({
 }: FloatingChatPanelProps) {
 	const { isDetached, position, size, setPosition, setSize, setDetached } =
 		useChatLayout();
+	const { sessionTitle, sessionId, sessionContextUsage } = useChatStore(projectId);
 
 	const panelRef = useRef<HTMLDivElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
@@ -208,28 +212,36 @@ export function FloatingChatPanel({
 						onPointerMove={handleDragMove}
 						onPointerUp={handleDragEnd}
 					>
-						<div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-							<GripVertical className="h-3.5 w-3.5" />
-							<span>Chat</span>
+						<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+							<GripVertical className="h-3.5 w-3.5 shrink-0" />
+							<div className="min-w-0 text-foreground">
+								<ChatSessionTitle
+									title={sessionTitle}
+									isLoading={Boolean(sessionId) && !sessionTitle}
+								/>
+							</div>
 						</div>
-						<Tooltip>
-							<TooltipTrigger
-								render={
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-6 w-6 text-muted-foreground hover:text-foreground"
-										onPointerDown={(e: React.PointerEvent) =>
-											e.stopPropagation()
-										}
-										onClick={() => setDetached(false)}
-									/>
-								}
-							>
-								<Minimize2 className="h-3.5 w-3.5" />
-							</TooltipTrigger>
-							<TooltipContent side="bottom">Dock chat</TooltipContent>
-						</Tooltip>
+						<div className="flex items-center gap-2 shrink-0">
+							<ChatContextUsage usage={sessionContextUsage} />
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-6 w-6 text-muted-foreground hover:text-foreground"
+											onPointerDown={(e: React.PointerEvent) =>
+												e.stopPropagation()
+											}
+											onClick={() => setDetached(false)}
+										/>
+									}
+								>
+									<Minimize2 className="h-3.5 w-3.5" />
+								</TooltipTrigger>
+								<TooltipContent side="bottom">Dock chat</TooltipContent>
+							</Tooltip>
+						</div>
 					</div>
 
 					{/* Chat content */}

@@ -3,6 +3,7 @@ import {
 	pickLastModel,
 	type RawSessionMessage,
 } from "@/lib/chat/buildHistoryItems";
+import { getSessionContextUsage } from "@/lib/chat/sessionContextUsage";
 import { logger } from "@/server/logger";
 import type { ChatItem } from "@/stores/useChatStore";
 import { createOpencodeClient, isOpencodeHealthy } from "./client";
@@ -11,6 +12,12 @@ const INITIAL_CHAT_PAGE_LIMIT = 50;
 
 export interface InitialChatState {
 	sessionId: string;
+	sessionTitle: string | null;
+	sessionContextUsage: {
+		total: number;
+		limit: number | null;
+		usage: number | null;
+	} | null;
 	items: ChatItem[];
 	revertMessageId: string | null;
 	model: { providerID: string; modelID: string } | null;
@@ -45,16 +52,19 @@ export async function getInitialChatState(project: {
 		]);
 
 		const info = infoRes.data as
-			| { revert?: { messageID?: string } }
+			| { revert?: { messageID?: string }; title?: string | null }
 			| undefined;
 		const rawMessages = (messagesRes.data ?? []) as RawSessionMessage[];
 
 		const items = buildHistoryItems(rawMessages, project.userPromptMessageId);
 		const revertMessageId = info?.revert?.messageID ?? null;
 		const model = pickLastModel(rawMessages);
+		const sessionContextUsage = getSessionContextUsage(rawMessages, model);
 
 		return {
 			sessionId,
+			sessionTitle: info?.title ?? null,
+			sessionContextUsage,
 			items,
 			revertMessageId,
 			model,

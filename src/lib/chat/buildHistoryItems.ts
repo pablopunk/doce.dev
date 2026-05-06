@@ -11,6 +11,12 @@ export interface RawSessionMessage {
 		id?: string;
 		role?: "user" | "assistant";
 		model?: { providerID: string; modelID: string };
+		tokens?: {
+			input: number;
+			output: number;
+			reasoning: number;
+			cache: { read: number; write: number };
+		};
 		error?: { name?: string; data?: { message?: string } };
 	};
 	parts?: Array<{

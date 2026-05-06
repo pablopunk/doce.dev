@@ -6,6 +6,7 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -51,6 +52,7 @@ interface DebugChatContextType {
 	pendingQuestion:
 		| import("@/stores/useChatStore").PendingQuestionRequest
 		| null;
+	revertMessageId: string | null;
 }
 
 const DebugChatContext = createContext<DebugChatContextType | null>(null);
@@ -61,15 +63,25 @@ function useDebugChat() {
 	return ctx;
 }
 
+import { AgentThinkingIndicator } from "@/components/chat/AgentThinkingIndicator";
+import { ChatDetachToggle } from "@/components/chat/ChatDetachToggle";
+import { ChatSessionTitle } from "@/components/chat/ChatSessionTitle";
+import { FloatingChatPanel } from "@/components/chat/FloatingChatPanel";
+import { buildRolledMessages, RevertDock } from "@/components/chat/composer/RevertDock";
+import { useChatLayout } from "@/stores/useChatLayout";
+import { Loader2 } from "lucide-react";
+
 // Pure ChatPanel implementation using context instead of store
 function DebugChatPanel({
 	models,
 	onOpenFile,
 	onStreamingStateChange,
+	hideDetachToggle = false,
 }: {
 	models: typeof mockModels;
 	onOpenFile?: (path: string) => void;
 	onStreamingStateChange?: (count: number, streaming: boolean) => void;
+	hideDetachToggle?: boolean;
 }) {
 	const {
 		items,
@@ -80,6 +92,7 @@ function DebugChatPanel({
 		todos,
 		pendingPermission,
 		pendingQuestion,
+		revertMessageId,
 	} = useDebugChat();
 	const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -95,8 +108,32 @@ function DebugChatPanel({
 
 	const isBlocked = Boolean(pendingPermission || pendingQuestion);
 
+	const rolledMessages = useMemo(
+		() => buildRolledMessages(items, revertMessageId),
+		[items, revertMessageId],
+	);
+
+	const isWaitingForAgent = useMemo(() => {
+		if (items.length === 0) return false;
+		const lastItem = items[items.length - 1];
+		if (!lastItem) return false;
+		if (lastItem.type === "message") {
+			const msg = lastItem.data as import("@/types/message").Message;
+			if (msg.role === "user") return true;
+		}
+		return false;
+	}, [items]);
+
 	return (
 		<div className="flex flex-col h-full">
+			{!hideDetachToggle && (
+				<div className="flex items-center justify-between gap-3 px-3 py-1.5 border-b bg-muted/30 shrink-0">
+					<div className="min-w-0 flex-1">
+						<ChatSessionTitle title="Landing page redesign" />
+					</div>
+					<ChatDetachToggle />
+				</div>
+			)}
 			<div className="flex-1 overflow-y-auto" ref={scrollRef}>
 				{items.length === 0 ? (
 					<div className="flex items-center justify-center h-full text-muted-foreground">
@@ -104,21 +141,36 @@ function DebugChatPanel({
 							<p>Send a message to start chatting</p>
 						) : (
 							<div className="flex items-center gap-2">
-								<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								<Loader2 className="h-4 w-4 animate-spin" />
 								<p>Waiting for opencode...</p>
 							</div>
 						)}
 					</div>
 				) : (
-					<ChatMessages
-						items={items}
-						expandedTools={expandedTools}
-						onToggleTool={toggleToolExpanded}
-						onOpenFile={onOpenFile}
-					/>
+					<>
+						<ChatMessages
+							items={items}
+							expandedTools={expandedTools}
+							onToggleTool={toggleToolExpanded}
+							onOpenFile={onOpenFile}
+						/>
+						<AgentThinkingIndicator
+							projectId={DEBUG_PROJECT_ID}
+							isWaiting={isWaitingForAgent}
+							opencodeReady={opencodeReady}
+						/>
+					</>
 				)}
 			</div>
 
+			{rolledMessages.length > 0 && !isBlocked && (
+				<RevertDock
+					items={rolledMessages}
+					disabled={isStreaming}
+					onRestoreUpTo={() => {}}
+					onCancel={() => {}}
+				/>
+			)}
 			{todos.length > 0 && !isBlocked && <TodoDock todos={todos} />}
 			{pendingQuestion && (
 				<QuestionDock
@@ -171,7 +223,9 @@ export function ChatDebugPage() {
 	const [pendingQuestion, setPendingQuestion] = useState<
 		import("@/stores/useChatStore").PendingQuestionRequest | null
 	>(null);
+	const [revertMessageId, setRevertMessageId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const { isDetached } = useChatLayout();
 
 	const {
 		leftPercent,
@@ -206,6 +260,7 @@ export function ChatDebugPage() {
 		setTodos(scenario.todos);
 		setPendingPermission(scenario.pendingPermission);
 		setPendingQuestion(scenario.pendingQuestion);
+		setRevertMessageId((scenario as any).revertMessageId || null);
 		setExpandedTools(new Set());
 	}, [activeScenario]);
 
@@ -218,6 +273,7 @@ export function ChatDebugPage() {
 		todos,
 		pendingPermission,
 		pendingQuestion,
+		revertMessageId,
 	};
 
 	return (
@@ -235,19 +291,26 @@ export function ChatDebugPage() {
 				>
 					{isMobile ? (
 						<div className="flex-1 flex flex-col h-full w-full min-w-0 overflow-hidden">
-							<DebugChatPanel
-								models={mockModels}
-								onOpenFile={(path) => console.log("Open file:", path)}
-								onStreamingStateChange={(count, streaming) =>
-									console.log("Streaming state:", count, streaming)
-								}
-							/>
+							{!isDetached && (
+								<DebugChatPanel
+									models={mockModels}
+									onOpenFile={(path) => console.log("Open file:", path)}
+									onStreamingStateChange={(count, streaming) =>
+										console.log("Streaming state:", count, streaming)
+									}
+								/>
+							)}
 						</div>
 					) : (
 						<>
 							<div
-								className="flex flex-col h-full border-r overflow-hidden"
-								style={{ width: `${leftPercent}%` }}
+								className="flex flex-col h-full border-r overflow-hidden transition-all duration-300"
+								style={{
+									width: isDetached ? "0%" : `${leftPercent}%`,
+									opacity: isDetached ? 0 : 1,
+									pointerEvents: isDetached ? "none" : "auto",
+									borderRightWidth: isDetached ? 0 : 1,
+								}}
 							>
 								<DebugChatPanel
 									models={mockModels}
@@ -258,18 +321,24 @@ export function ChatDebugPage() {
 								/>
 							</div>
 
-							{isResizable && (
+							{isResizable && !isDetached && (
 								<ResizableSeparator onMouseDown={onSeparatorMouseDown} />
 							)}
 
 							<div
 								className="flex flex-col h-full overflow-hidden"
-								style={{ width: `${rightPercent}%` }}
+								style={{ width: isDetached ? "100%" : `${rightPercent}%` }}
 							>
 								<MockPreviewPanel />
 							</div>
 						</>
 					)}
+
+					<FloatingChatPanel
+						projectId={DEBUG_PROJECT_ID}
+						models={mockModels}
+						onOpenFile={(path) => console.log("Open file:", path)}
+					/>
 
 					{isDragging && (
 						<div

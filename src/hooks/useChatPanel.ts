@@ -6,6 +6,7 @@ import {
 	buildHistoryItems,
 	type RawSessionMessage,
 } from "@/lib/chat/buildHistoryItems";
+import { getSessionContextUsage } from "@/lib/chat/sessionContextUsage";
 import type { InitialChatState } from "@/server/opencode/initialChat";
 
 const CHAT_HISTORY_PAGE_LIMIT = 50;
@@ -74,6 +75,7 @@ interface UseChatPanelOptions {
 		vendor: string;
 		supportsImages?: boolean;
 		supportsAttachments?: boolean;
+		contextLimit?: number;
 	}>;
 	onStreamingStateChange?:
 		| ((userMessageCount: number, isStreaming: boolean) => void)
@@ -101,6 +103,8 @@ export function useChatPanel({
 		initialPromptSent,
 		userPromptMessageId,
 		projectPrompt,
+		sessionTitle,
+		sessionContextUsage,
 		currentModel,
 		historyLoaded,
 		presenceLoaded,
@@ -117,6 +121,8 @@ export function useChatPanel({
 		setInitialPromptSent,
 		setUserPromptMessageId,
 		setProjectPrompt,
+		setSessionTitle,
+		setSessionContextUsage,
 		setCurrentModel,
 		setHistoryLoaded,
 		setPresenceLoaded,
@@ -135,6 +141,10 @@ export function useChatPanel({
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 	const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+	const [sessionTitleLoaded, setSessionTitleLoaded] = useState(
+		() => sessionTitle !== null,
+	);
+	const [sessionContextLoaded, setSessionContextLoaded] = useState(false);
 	const [draftSeed, setDraftSeed] = useState<{
 		key: number;
 		text: string;
@@ -326,6 +336,37 @@ export function useChatPanel({
 		[fetchJson, projectId, setPendingPermission, setPendingQuestion, setTodos],
 	);
 
+	useEffect(() => {
+		if (!sessionId) return;
+
+		const loadSessionMetadata = async () => {
+			try {
+				const [session, messagesData] = await Promise.all([
+					fetchJson<{ title?: string | null }>(
+						`/api/projects/${projectId}/opencode/session/${sessionId}`,
+					),
+					fetchJson<RawSessionMessage[] | { messages?: RawSessionMessage[] }>(
+						`/api/projects/${projectId}/opencode/session/${sessionId}/message?limit=${CHAT_HISTORY_PAGE_LIMIT}`,
+					),
+				]);
+				setSessionTitle(session.title ?? null);
+				const messages = Array.isArray(messagesData)
+					? messagesData
+					: (messagesData.messages ?? []);
+				setSessionContextUsage(
+					getSessionContextUsage(messages, currentModel, models),
+				);
+			} catch {
+				// Best-effort only. The chat works fine without this metadata.
+			} finally {
+				setSessionTitleLoaded(true);
+				setSessionContextLoaded(true);
+			}
+		};
+
+		void loadSessionMetadata();
+	}, [fetchJson, isStreaming, projectId, sessionId, setSessionContextUsage, setSessionTitle, currentModel, models]);
+
 	// Load model from OpenCode config
 	useEffect(() => {
 		if (!opencodeReady || configLoadedRef.current) return;
@@ -432,11 +473,17 @@ export function useChatPanel({
 					)
 					.pop();
 
-				if (lastUserMessageWithModel?.info?.model) {
-					setCurrentModel(
-						normalizeMessageModel(lastUserMessageWithModel.info.model, models),
-					);
+				const resolvedModel = lastUserMessageWithModel?.info?.model
+					? normalizeMessageModel(lastUserMessageWithModel.info.model, models)
+					: null;
+
+				if (resolvedModel) {
+					setCurrentModel(resolvedModel);
 				}
+				setSessionContextUsage(
+					getSessionContextUsage(messages, resolvedModel, models),
+				);
+				setSessionContextLoaded(true);
 
 				const historyItems = buildHistoryItems(
 					messages,
@@ -947,6 +994,7 @@ export function useChatPanel({
 	return {
 		items: visibleItems,
 		rawItems: items,
+		sessionId,
 		revertMessageId,
 		handleRestore,
 		handleUnrevert,
@@ -973,5 +1021,9 @@ export function useChatPanel({
 		toggleToolExpanded,
 		handleScroll,
 		clearDiagnostic: () => setLatestDiagnostic(null),
+		sessionTitle,
+		sessionTitleLoaded,
+		sessionContextUsage,
+		sessionContextLoaded,
 	};
 }

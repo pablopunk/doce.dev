@@ -77,6 +77,7 @@ export function collectAvailableModelsFromProviders(
 	vendor: string;
 	supportsImages: boolean;
 	supportsAttachments: boolean;
+	contextLimit: number;
 }> {
 	const available: Array<{
 		id: string;
@@ -85,6 +86,7 @@ export function collectAvailableModelsFromProviders(
 		vendor: string;
 		supportsImages: boolean;
 		supportsAttachments: boolean;
+		contextLimit: number;
 		cost: number;
 	}> = [];
 
@@ -102,6 +104,7 @@ export function collectAvailableModelsFromProviders(
 				vendor,
 				supportsImages: model.capabilities?.input?.image ?? false,
 				supportsAttachments: model.capabilities?.attachment ?? false,
+				contextLimit: model.limit?.context ?? 0,
 				cost: model.cost?.input ?? 0,
 			});
 		}
@@ -110,13 +113,22 @@ export function collectAvailableModelsFromProviders(
 	available.sort((a, b) => a.cost - b.cost);
 
 	return available.map(
-		({ id, name, provider, vendor, supportsImages, supportsAttachments }) => ({
+		({
 			id,
 			name,
 			provider,
 			vendor,
 			supportsImages,
 			supportsAttachments,
+			contextLimit,
+		}) => ({
+			id,
+			name,
+			provider,
+			vendor,
+			supportsImages,
+			supportsAttachments,
+			contextLimit,
 		}),
 	);
 }
@@ -132,6 +144,7 @@ export async function getAvailableModels(): Promise<
 		vendor: string;
 		supportsImages: boolean;
 		supportsAttachments: boolean;
+		contextLimit: number;
 	}>
 > {
 	return Effect.runPromise(
