@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import type { ChatItem } from "@/stores/useChatStore";
 import type { Message } from "@/types/message";
@@ -25,41 +24,22 @@ export function ChatMessages({
 
 	return (
 		<div className="divide-y">
-			<AnimatePresence mode="popLayout">
-				{grouped.map((item) =>
-					item.type === "message" ? (
-						<motion.div
-							key={item.id}
-							layout
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0 }}
-							transition={{ duration: 0.15, ease: "easeOut" }}
-						>
-							<ChatMessage
-								message={item.data as Message}
-								onRestore={onRestore}
-							/>
-						</motion.div>
-					) : item.type === "toolGroup" ? (
-						<motion.div
-							key={item.id}
-							layout
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0 }}
-							transition={{ duration: 0.15, ease: "easeOut" }}
-						>
-							<ToolCallGroup
-								toolCalls={item.data as ToolCall[]}
-								expandedTools={expandedTools}
-								onToggle={onToggleTool}
-								onFileOpen={onOpenFile}
-							/>
-						</motion.div>
-					) : null,
-				)}
-			</AnimatePresence>
+			{grouped.map((item) =>
+				item.type === "message" ? (
+					<div key={item.id}>
+						<ChatMessage message={item.data as Message} onRestore={onRestore} />
+					</div>
+				) : item.type === "toolGroup" ? (
+					<div key={item.id}>
+						<ToolCallGroup
+							toolCalls={item.data as ToolCall[]}
+							expandedTools={expandedTools}
+							onToggle={onToggleTool}
+							onFileOpen={onOpenFile}
+						/>
+					</div>
+				) : null,
+			)}
 		</div>
 	);
 }
