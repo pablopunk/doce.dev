@@ -321,3 +321,35 @@ registerTool("context7_get-library-docs", {
 		return typeof obj.topic === "string" ? obj.topic : null;
 	},
 });
+
+// Doce Preview tools (internal)
+registerTool("get_doce_preview_status", {
+	name: "Preview Status",
+	icon: Search,
+	iconClass: "text-blue-500",
+	getContext: (input) => {
+		if (!input || typeof input !== "object") return null;
+		return (input as Record<string, unknown>).projectId as string | null;
+	},
+});
+
+registerTool("read_doce_preview_logs", {
+	name: "Preview Logs",
+	icon: FileText,
+	iconClass: "text-amber-500",
+	getContext: (input) => {
+		if (!input || typeof input !== "object") return null;
+		const mode = (input as Record<string, unknown>).mode as string;
+		return mode ?? "summary";
+	},
+});
+
+registerTool("restart_doce_preview", {
+	name: "Restart Preview",
+	icon: RefreshCw,
+	iconClass: "text-green-500",
+	getContext: (input) => {
+		if (!input || typeof input !== "object") return null;
+		return (input as Record<string, unknown>).projectId as string | null;
+	},
+});
