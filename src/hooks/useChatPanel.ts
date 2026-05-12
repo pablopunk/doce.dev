@@ -2,13 +2,16 @@ import { actions } from "astro:actions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLiveState } from "@/hooks/useLiveState";
+import { promptAttachmentToPromptParts } from "@/lib/chat/attachmentPromptText";
 import {
 	buildHistoryItems,
 	type RawSessionMessage,
 } from "@/lib/chat/buildHistoryItems";
+import { getSessionContextUsage } from "@/lib/chat/sessionContextUsage";
 import type { InitialChatState } from "@/server/opencode/initialChat";
 
 const CHAT_HISTORY_PAGE_LIMIT = 50;
+
 import { useChatStore } from "@/stores/useChatStore";
 import {
 	createErrorPart,
@@ -73,6 +76,7 @@ interface UseChatPanelOptions {
 		vendor: string;
 		supportsImages?: boolean;
 		supportsAttachments?: boolean;
+		contextLimit?: number;
 	}>;
 	onStreamingStateChange?:
 		| ((userMessageCount: number, isStreaming: boolean) => void)
@@ -100,6 +104,8 @@ export function useChatPanel({
 		initialPromptSent,
 		userPromptMessageId,
 		projectPrompt,
+		sessionTitle,
+		sessionContextUsage,
 		currentModel,
 		historyLoaded,
 		presenceLoaded,
@@ -116,6 +122,8 @@ export function useChatPanel({
 		setInitialPromptSent,
 		setUserPromptMessageId,
 		setProjectPrompt,
+		setSessionTitle,
+		setSessionContextUsage,
 		setCurrentModel,
 		setHistoryLoaded,
 		setPresenceLoaded,
@@ -134,6 +142,12 @@ export function useChatPanel({
 
 	const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 	const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+	const [sessionTitleLoaded, setSessionTitleLoaded] = useState(
+		() => sessionTitle !== null,
+	);
+	const [sessionContextLoaded, setSessionContextLoaded] = useState(false);
+	const [restoreEnabled, setRestoreEnabled] = useState<boolean>(true);
+	const [restoreGuardLoaded, setRestoreGuardLoaded] = useState(false);
 	const [draftSeed, setDraftSeed] = useState<{
 		key: number;
 		text: string;
@@ -325,6 +339,45 @@ export function useChatPanel({
 		[fetchJson, projectId, setPendingPermission, setPendingQuestion, setTodos],
 	);
 
+	useEffect(() => {
+		if (!sessionId) return;
+
+		const loadSessionMetadata = async () => {
+			try {
+				const [session, messagesData] = await Promise.all([
+					fetchJson<{ title?: string | null }>(
+						`/api/projects/${projectId}/opencode/session/${sessionId}`,
+					),
+					fetchJson<RawSessionMessage[] | { messages?: RawSessionMessage[] }>(
+						`/api/projects/${projectId}/opencode/session/${sessionId}/message?limit=${CHAT_HISTORY_PAGE_LIMIT}`,
+					),
+				]);
+				setSessionTitle(session.title ?? null);
+				const messages = Array.isArray(messagesData)
+					? messagesData
+					: (messagesData.messages ?? []);
+				setSessionContextUsage(
+					getSessionContextUsage(messages, currentModel, models),
+				);
+			} catch {
+				// Best-effort only. The chat works fine without this metadata.
+			} finally {
+				setSessionTitleLoaded(true);
+				setSessionContextLoaded(true);
+			}
+		};
+
+		void loadSessionMetadata();
+	}, [
+		fetchJson,
+		projectId,
+		sessionId,
+		setSessionContextUsage,
+		setSessionTitle,
+		currentModel,
+		models,
+	]);
+
 	// Load model from OpenCode config
 	useEffect(() => {
 		if (!opencodeReady || configLoadedRef.current) return;
@@ -431,11 +484,17 @@ export function useChatPanel({
 					)
 					.pop();
 
-				if (lastUserMessageWithModel?.info?.model) {
-					setCurrentModel(
-						normalizeMessageModel(lastUserMessageWithModel.info.model, models),
-					);
+				const resolvedModel = lastUserMessageWithModel?.info?.model
+					? normalizeMessageModel(lastUserMessageWithModel.info.model, models)
+					: null;
+
+				if (resolvedModel) {
+					setCurrentModel(resolvedModel);
 				}
+				setSessionContextUsage(
+					getSessionContextUsage(messages, resolvedModel, models),
+				);
+				setSessionContextLoaded(true);
 
 				const historyItems = buildHistoryItems(
 					messages,
@@ -470,6 +529,7 @@ export function useChatPanel({
 		setItems,
 		scrollToBottom,
 		showRequestError,
+		setSessionContextUsage,
 	]);
 
 	// React to live state for readiness
@@ -657,6 +717,9 @@ export function useChatPanel({
 						...(attachment.textPreview
 							? { textPreview: attachment.textPreview }
 							: {}),
+						...(attachment.textContent
+							? { textContent: attachment.textContent }
+							: {}),
 						id: attachment.id,
 					}),
 				);
@@ -707,13 +770,7 @@ export function useChatPanel({
 			if (content) apiParts.push({ type: "text", text: content });
 			if (attachments) {
 				for (const attachment of attachments) {
-					if (!attachment.dataUrl) continue;
-					apiParts.push({
-						type: "file",
-						mime: attachment.mime,
-						url: attachment.dataUrl,
-						filename: attachment.filename,
-					});
+					apiParts.push(...promptAttachmentToPromptParts(attachment));
 				}
 			}
 
@@ -748,6 +805,19 @@ export function useChatPanel({
 		}
 	};
 
+	const handleStop = useCallback(async () => {
+		if (!sessionId || !isStreaming) return;
+
+		try {
+			await fetchJson<boolean>(
+				`/api/projects/${projectId}/opencode/session/${sessionId}/abort`,
+				{ method: "POST" },
+			);
+		} catch (error) {
+			showRequestError("Failed to stop response", error);
+		}
+	}, [fetchJson, isStreaming, projectId, sessionId, showRequestError]);
+
 	const handleModelChange = async (compositeKey: string) => {
 		const [providerId, ...modelIdParts] = compositeKey.split(":");
 		const modelId = modelIdParts.join(":");
@@ -758,11 +828,19 @@ export function useChatPanel({
 			newModelConfig?.supportsAttachments ?? true;
 
 		if (pendingAttachments.length > 0 && !newModelSupportsAttachments) {
-			setPendingAttachments([]);
-			setPendingAttachmentError(null);
-			toast.info("Attachments cleared", {
-				description: "The selected model doesn't support file attachments",
-			});
+			const textAttachments = pendingAttachments.filter(
+				(a) => a.kind !== "image",
+			);
+			const imageAttachments = pendingAttachments.filter(
+				(a) => a.kind === "image",
+			);
+			if (imageAttachments.length > 0) {
+				setPendingAttachments(textAttachments);
+				setPendingAttachmentError(null);
+				toast.info("Images cleared", {
+					description: "The selected model doesn't support image input",
+				});
+			}
 		}
 
 		const newModel = newModelConfig
@@ -870,6 +948,35 @@ export function useChatPanel({
 		});
 	};
 
+	// Fetch restore safety status when session is available
+	useEffect(() => {
+		if (!sessionId) {
+			setRestoreEnabled(false);
+			setRestoreGuardLoaded(true);
+			return;
+		}
+		let cancelled = false;
+		void (async () => {
+			try {
+				const result = await actions.chat.getRestoreStatus({ projectId });
+				if (cancelled) return;
+				if (result.error) {
+					setRestoreEnabled(false);
+				} else {
+					setRestoreEnabled(result.data?.canRestore ?? false);
+				}
+			} catch (error) {
+				if (cancelled) return;
+				setRestoreEnabled(false);
+			} finally {
+				if (!cancelled) setRestoreGuardLoaded(true);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [sessionId, projectId]);
+
 	const handleRestore = useCallback(
 		async ({
 			messageId,
@@ -938,9 +1045,12 @@ export function useChatPanel({
 	return {
 		items: visibleItems,
 		rawItems: items,
+		sessionId,
 		revertMessageId,
 		handleRestore,
 		handleUnrevert,
+		restoreEnabled,
+		restoreGuardLoaded,
 		draftSeed,
 		clearDraftSeed,
 		opencodeReady,
@@ -957,6 +1067,7 @@ export function useChatPanel({
 		setPendingAttachments,
 		setPendingAttachmentError,
 		handleSend,
+		handleStop,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,
@@ -964,5 +1075,9 @@ export function useChatPanel({
 		toggleToolExpanded,
 		handleScroll,
 		clearDiagnostic: () => setLatestDiagnostic(null),
+		sessionTitle,
+		sessionTitleLoaded,
+		sessionContextUsage,
+		sessionContextLoaded,
 	};
 }

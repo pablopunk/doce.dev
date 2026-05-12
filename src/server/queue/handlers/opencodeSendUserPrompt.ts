@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Effect } from "effect";
+import { storedAttachmentToPromptParts } from "@/lib/chat/attachmentPromptText";
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { OpenCodeError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
@@ -181,12 +182,7 @@ export function handleOpencodeSendUserPrompt(
 		> = [{ type: "text", text: project.prompt }];
 
 		for (const attachment of attachments) {
-			parts.push({
-				type: "file",
-				mime: attachment.mime,
-				url: attachment.dataUrl,
-				filename: attachment.filename,
-			});
+			parts.push(...storedAttachmentToPromptParts(attachment));
 		}
 
 		const config = yield* Effect.tryPromise({

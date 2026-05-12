@@ -24,7 +24,6 @@ interface CreateProjectFormContentProps {
 	isLoading: boolean;
 	error: string;
 	attachmentError: string | null;
-	currentModelSupportsAttachments: boolean;
 	attachmentAccept: string;
 	textareaRef: React.RefObject<HTMLTextAreaElement | null>;
 	fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -50,7 +49,6 @@ export function CreateProjectFormContent({
 	isLoading,
 	error,
 	attachmentError,
-	currentModelSupportsAttachments,
 	attachmentAccept,
 	textareaRef,
 	fileInputRef,
@@ -151,36 +149,32 @@ export function CreateProjectFormContent({
 								triggerClassName="max-w-[150px] min-[420px]:max-w-[200px] min-w-0"
 							/>
 							<div className="shrink-0 flex items-center gap-1.5">
-								{currentModelSupportsAttachments && (
-									<input
-										ref={fileInputRef}
-										type="file"
-										accept={attachmentAccept}
-										multiple
-										onChange={onFileSelect}
-										className="hidden"
-									/>
-								)}
-								{currentModelSupportsAttachments && (
-									<Button
-										variant="ghost"
-										size="icon"
-										onClick={onFileButtonClick}
-										disabled={
-											isLoading ||
-											selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
-										}
-										title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
-										type="button"
-									>
-										<Paperclip className="h-5 w-5" />
-										{selectedAttachments.length > 0 && (
-											<span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
-												{selectedAttachments.length}
-											</span>
-										)}
-									</Button>
-								)}
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept={attachmentAccept}
+									multiple
+									onChange={onFileSelect}
+									className="hidden"
+								/>
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={onFileButtonClick}
+									disabled={
+										isLoading ||
+										selectedAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE
+									}
+									title={`Attach files (${selectedAttachments.length}/${MAX_ATTACHMENTS_PER_MESSAGE})`}
+									type="button"
+								>
+									<Paperclip className="h-5 w-5" />
+									{selectedAttachments.length > 0 && (
+										<span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+											{selectedAttachments.length}
+										</span>
+									)}
+								</Button>
 								<Button
 									onClick={(e) => {
 										e.preventDefault();

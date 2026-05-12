@@ -67,7 +67,12 @@ export function useCreateProject({
 
 		const newAttachments: PromptAttachmentPart[] = [];
 		for (const file of fileArray) {
-			const validation = isImageAttachmentFile(file)
+			const isImage = isImageAttachmentFile(file);
+			if (isImage && !currentModelSupportsAttachments) {
+				setAttachmentError("Images not supported by the selected model");
+				return;
+			}
+			const validation = isImage
 				? validateImageFile(file)
 				: validateTextAttachmentFile(file);
 			if (!validation.valid) {
@@ -135,10 +140,17 @@ export function useCreateProject({
 				(file) => isImageAttachmentFile(file) || isTextAttachmentFile(file),
 			);
 			if (supportedFiles.length > 0) {
-				if (!currentModelSupportsAttachments) {
-					toast.error("Attachments not supported", {
-						description: "The selected model doesn't support file attachments",
+				const hasImages = supportedFiles.some(isImageAttachmentFile);
+				if (hasImages && !currentModelSupportsAttachments) {
+					toast.error("Images not supported", {
+						description: "The selected model doesn't support image input",
 					});
+					const textFiles = supportedFiles.filter(
+						(f) => !isImageAttachmentFile(f),
+					);
+					if (textFiles.length > 0) {
+						void processFiles(textFiles);
+					}
 					return;
 				}
 				void processFiles(supportedFiles);
@@ -202,6 +214,8 @@ export function useCreateProject({
 										filename: attachment.filename,
 										mime: attachment.mime,
 										dataUrl: attachment.dataUrl,
+										kind: attachment.kind,
+										textContent: attachment.textContent,
 									})),
 							)
 						: undefined,
@@ -261,11 +275,19 @@ export function useCreateProject({
 			newModelConfig?.supportsAttachments ?? true;
 
 		if (selectedAttachments.length > 0 && !newModelSupportsAttachments) {
-			setSelectedAttachments([]);
-			setAttachmentError(null);
-			toast.info("Attachments cleared", {
-				description: "The selected model doesn't support file attachments",
-			});
+			const textAttachments = selectedAttachments.filter(
+				(a) => a.kind !== "image",
+			);
+			const imageAttachments = selectedAttachments.filter(
+				(a) => a.kind === "image",
+			);
+			if (imageAttachments.length > 0) {
+				setSelectedAttachments(textAttachments);
+				setAttachmentError(null);
+				toast.info("Images cleared", {
+					description: "The selected model doesn't support image input",
+				});
+			}
 		}
 
 		// Store composite key in state

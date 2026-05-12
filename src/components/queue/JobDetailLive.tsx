@@ -49,7 +49,7 @@ function parseJobLogChunk(text: string): ParsedJobLogLine[] {
 
 export function JobDetailLive({
 	initialJob,
-	backHref = "/settings?tab=status",
+	backHref = "/monitor?tab=queue",
 }: JobDetailLiveProps) {
 	const [job, setJob] = useState<QueueJob>(initialJob);
 	const [dialogOpen, setDialogOpen] = useState(false);

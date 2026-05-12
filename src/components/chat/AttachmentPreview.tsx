@@ -43,9 +43,9 @@ export function AttachmentPreview({
 								{attachment.mime}
 								{attachment.size ? ` • ${formatFileSize(attachment.size)}` : ""}
 							</p>
-							{attachment.kind === "text" && attachment.textPreview && (
-								<p className="mt-1 line-clamp-2 max-w-64 text-muted-foreground text-xs">
-									{attachment.textPreview}
+							{attachment.kind === "text" && (
+								<p className="mt-1 line-clamp-1 max-w-64 text-muted-foreground text-xs">
+									Text file attached
 								</p>
 							)}
 						</div>

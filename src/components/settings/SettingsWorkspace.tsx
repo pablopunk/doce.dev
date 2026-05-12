@@ -1,5 +1,4 @@
 import {
-	Activity,
 	Cable,
 	FileText,
 	Settings,
@@ -12,42 +11,19 @@ import { LogsSettings } from "@/components/settings/LogsSettings";
 import { McpSettings } from "@/components/settings/McpSettings";
 import { ProvidersSettings } from "@/components/settings/ProvidersSettings";
 import { SkillsSettings } from "@/components/settings/SkillsSettings";
-import { StatusSettings } from "@/components/settings/StatusSettings";
 import { cn } from "@/lib/utils";
-import type { QueueJob } from "@/server/db/schema";
 import type { SettingsLogsPageData } from "@/server/settings/logs";
-import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
 export type SettingsTabId =
 	| "general"
 	| "providers"
 	| "mcps"
 	| "skills"
-	| "status"
 	| "logs";
 
 interface SettingsWorkspaceProps {
 	initialTab?: SettingsTabId;
 	isProduction: boolean;
-	statusData: {
-		jobs: QueueJob[];
-		paused: boolean;
-		concurrency: number;
-		pagination: {
-			page: number;
-			pageSize: number;
-			totalCount: number;
-			totalPages: number;
-		};
-		filters: {
-			state?: string;
-			type?: string;
-			projectId?: string;
-			q?: string;
-		};
-		diagnostics: SettingsStatusDiagnostics;
-		selectedJob: QueueJob | undefined;
-	};
 	logsData?: SettingsLogsPageData;
 }
 
@@ -76,12 +52,6 @@ const baseTabs = [
 		description: "Agent skills from skills.sh",
 		icon: Sparkles,
 	},
-	{
-		id: "status",
-		label: "Status",
-		description: "Instance health and queue",
-		icon: Activity,
-	},
 ] as const satisfies Array<{
 	id: Exclude<SettingsTabId, "logs">;
 	label: string;
@@ -92,7 +62,6 @@ const baseTabs = [
 export function SettingsWorkspace({
 	initialTab = "providers",
 	isProduction,
-	statusData,
 	logsData,
 }: SettingsWorkspaceProps) {
 	const tabs = useMemo(
@@ -131,22 +100,11 @@ export function SettingsWorkspace({
 				return <McpSettings />;
 			case "skills":
 				return <SkillsSettings />;
-			case "status":
-				return (
-					<StatusSettings
-						initialJobs={statusData.jobs}
-						initialPaused={statusData.paused}
-						initialConcurrency={statusData.concurrency}
-						initialPagination={statusData.pagination}
-						filters={statusData.filters}
-						diagnostics={statusData.diagnostics}
-						selectedJob={statusData.selectedJob}
-					/>
-				);
+
 			case "logs":
 				return <LogsSettings logFilePath={logsData?.logFilePath ?? ""} />;
 		}
-	}, [activeTab, logsData?.logFilePath, statusData]);
+	}, [activeTab, logsData?.logFilePath]);
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">

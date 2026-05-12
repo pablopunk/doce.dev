@@ -4,10 +4,12 @@ import { useChatPanel } from "@/hooks/useChatPanel";
 import type { Message } from "@/types/message";
 import { AgentThinkingIndicator } from "./AgentThinkingIndicator";
 import { AgentUnreachableBanner } from "./AgentUnreachableBanner";
+import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatDetachToggle } from "./ChatDetachToggle";
 import { ChatDiagnostic } from "./ChatDiagnostic";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
+import { ChatSessionTitle } from "./ChatSessionTitle";
 import { PermissionDock } from "./composer/PermissionDock";
 import { QuestionDock } from "./composer/QuestionDock";
 import { buildRolledMessages, RevertDock } from "./composer/RevertDock";
@@ -40,6 +42,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
 	const {
 		items,
+		sessionId,
 		opencodeReady,
 		isStreaming,
 		pendingPermission,
@@ -48,12 +51,17 @@ export function ChatPanel({
 		pendingAttachments,
 		pendingAttachmentError,
 		currentModel,
+		sessionTitle,
+		sessionTitleLoaded,
+		sessionContextUsage,
+		sessionContextLoaded,
 		expandedTools,
 		scrollRef,
 		latestDiagnostic,
 		setPendingAttachments,
 		setPendingAttachmentError,
 		handleSend,
+		handleStop,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,
@@ -67,6 +75,8 @@ export function ChatPanel({
 		clearDiagnostic,
 		rawItems,
 		revertMessageId,
+		restoreEnabled,
+		restoreGuardLoaded,
 	} = useChatPanel({ projectId, models, onStreamingStateChange });
 
 	const rolledMessages = useMemo(
@@ -126,8 +136,20 @@ export function ChatPanel({
 	return (
 		<div className="flex flex-col h-full">
 			{!hideDetachToggle && (
-				<div className="flex items-center justify-end px-2 py-1 border-b bg-muted/30 shrink-0">
-					<ChatDetachToggle />
+				<div className="flex items-center justify-between gap-3 px-3 py-1.5 border-b bg-muted/30 shrink-0">
+					<div className="min-w-0 flex-1">
+						<ChatSessionTitle
+							title={sessionTitle}
+							isLoading={Boolean(sessionId) && !sessionTitleLoaded}
+						/>
+					</div>
+					<div className="flex items-center gap-2 shrink-0">
+						<ChatContextUsage
+							usage={sessionContextUsage}
+							isLoading={Boolean(sessionId) && !sessionContextLoaded}
+						/>
+						<ChatDetachToggle />
+					</div>
 				</div>
 			)}
 			<div
@@ -153,7 +175,9 @@ export function ChatPanel({
 							expandedTools={expandedTools}
 							onToggleTool={toggleToolExpanded}
 							onOpenFile={onOpenFile}
-							onRestore={handleRestore}
+							onRestore={
+								restoreGuardLoaded && restoreEnabled ? handleRestore : undefined
+							}
 						/>
 						<AgentThinkingIndicator
 							projectId={projectId}
@@ -187,14 +211,17 @@ export function ChatPanel({
 
 				return (
 					<>
-						{rolledMessages.length > 0 && !isBlocked && (
-							<RevertDock
-								items={rolledMessages}
-								disabled={isStreaming}
-								onRestoreUpTo={handleRestoreUpTo}
-								onCancel={handleUnrevert}
-							/>
-						)}
+						{rolledMessages.length > 0 &&
+							!isBlocked &&
+							restoreGuardLoaded &&
+							restoreEnabled && (
+								<RevertDock
+									items={rolledMessages}
+									disabled={isStreaming}
+									onRestoreUpTo={handleRestoreUpTo}
+									onCancel={handleUnrevert}
+								/>
+							)}
 						{todos.length > 0 && !isBlocked && <TodoDock todos={todos} />}
 						{pendingQuestion && (
 							<QuestionDock
@@ -214,6 +241,8 @@ export function ChatPanel({
 								seedDraft={draftSeed}
 								onSeedConsumed={clearDraftSeed}
 								onSend={handleSend}
+								onStop={handleStop}
+								isStreaming={isStreaming}
 								disabled={!opencodeReady || isStreaming}
 								placeholder={
 									!opencodeReady

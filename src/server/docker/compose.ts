@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import { hostname } from "node:os";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
-import { normalizeProjectPath } from "@/server/projects/paths";
+import { getTemplatePath, normalizeProjectPath } from "@/server/projects/paths";
 import { getProjectById } from "@/server/projects/projects.db";
 import { injectTailscaleSidecar } from "@/server/tailscale/compose";
 import { isRunningInDocker } from "@/server/utils/docker";
@@ -24,6 +24,11 @@ let composeCommand: string[] | null = null;
 const COMPOSE_UP_TIMEOUT_MS = 15 * 60 * 1000;
 const COMPOSE_LIFECYCLE_TIMEOUT_MS = 2 * 60 * 1000;
 const COMPOSE_PS_TIMEOUT_MS = 30 * 1000;
+const PREVIEW_INFRASTRUCTURE_FILES = [
+	"docker-compose.yml",
+	"Dockerfile.preview",
+	"scripts/start-preview-dev.sh",
+] as const;
 
 async function loadProjectEnvFile(
 	envFilePath: string,
@@ -52,6 +57,27 @@ async function loadProjectEnvFile(
 	} catch {
 		return {};
 	}
+}
+
+async function syncPreviewInfrastructure(projectPath: string): Promise<void> {
+	const templatePath = getTemplatePath();
+
+	await Promise.all(
+		PREVIEW_INFRASTRUCTURE_FILES.map(async (relativeFilePath) => {
+			const sourcePath = path.join(templatePath, relativeFilePath);
+			const targetPath = path.join(projectPath, relativeFilePath);
+
+			try {
+				await fs.mkdir(path.dirname(targetPath), { recursive: true });
+				await fs.copyFile(sourcePath, targetPath);
+			} catch (error) {
+				logger.warn(
+					{ error, projectPath, relativeFilePath },
+					"Failed to sync preview infrastructure file",
+				);
+			}
+		}),
+	);
 }
 
 /**
@@ -154,6 +180,8 @@ export async function runComposeCommand(
 	filePath?: string,
 	options?: RunComposeOptions,
 ): Promise<ComposeResult> {
+	await syncPreviewInfrastructure(projectPath);
+
 	const compose = await detectComposeCommand();
 	const baseArgs = buildComposeArgs(projectId);
 
@@ -410,9 +438,9 @@ export async function composeUp(
 	projectId: string,
 	projectPath: string,
 	preserveProduction: boolean = true,
-	/** Skip --build for restarts. Source is bind-mounted and node_modules is a named volume,
-	 *  so the image layers are shadowed at runtime anyway. Compose will still auto-build
-	 *  if the image is missing (e.g. after `docker image prune`). */
+	/** Skip --build for fast restarts when the preview image itself did not change.
+	 *  Source code and package manifests are handled at runtime by the preview bootstrap
+	 *  script, but Dockerfile/base-image changes still require a compose build. */
 	skipBuild: boolean = false,
 ): Promise<ComposeResult> {
 	const normalizedProjectPath = normalizeProjectPath(projectPath);
@@ -425,9 +453,9 @@ export async function composeUp(
 		"preview",
 	);
 
-	// Don't use --remove-orphans when production might be running with a separate compose file
-	// --build forces a full image rebuild; skip it for restarts since bind mount + named volume
-	// overlay everything the Dockerfile copies in. Compose auto-builds if the image is missing.
+	// Don't use --remove-orphans when production might be running with a separate compose file.
+	// --build refreshes preview image changes (base image, build tooling, bootstrap scripts).
+	// Runtime dependency sync still happens inside the preview container on startup/file changes.
 	const buildFlag = skipBuild ? [] : ["--build"];
 	const args = preserveProduction
 		? ["up", "-d", ...buildFlag]

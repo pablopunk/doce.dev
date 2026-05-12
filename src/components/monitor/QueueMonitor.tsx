@@ -21,7 +21,7 @@ import {
 import type { QueueJob } from "@/server/db/schema";
 import type { SettingsStatusDiagnostics } from "@/server/settings/status";
 
-interface StatusSettingsProps {
+interface QueueMonitorProps {
 	initialJobs: QueueJob[];
 	initialPaused: boolean;
 	initialConcurrency: number;
@@ -43,7 +43,7 @@ interface StatusSettingsProps {
 
 const checkIcons = [Cpu, Activity, Layers3, Package] as const;
 
-export function StatusSettings({
+export function QueueMonitor({
 	initialJobs,
 	initialPaused,
 	initialConcurrency,
@@ -51,7 +51,7 @@ export function StatusSettings({
 	filters,
 	diagnostics,
 	selectedJob,
-}: StatusSettingsProps) {
+}: QueueMonitorProps) {
 	const checklistItems = [
 		{
 			label: "App version",
@@ -78,7 +78,7 @@ export function StatusSettings({
 
 	if (selectedJob) {
 		return (
-			<JobDetailLive initialJob={selectedJob} backHref="/settings?tab=status" />
+			<JobDetailLive initialJob={selectedJob} backHref="/monitor?tab=queue" />
 		);
 	}
 
@@ -218,7 +218,7 @@ export function StatusSettings({
 			<div className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm">
 				<QueueTableLive
 					initialJobs={initialJobs}
-					jobDetailHref={(jobId) => `/settings?tab=status&jobId=${jobId}`}
+					jobDetailHref={(jobId) => `/monitor?tab=queue&jobId=${jobId}`}
 					initialPaused={initialPaused}
 					initialConcurrency={initialConcurrency}
 					initialPagination={initialPagination}

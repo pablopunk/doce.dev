@@ -1,4 +1,4 @@
-import { LayoutGrid, Settings } from "lucide-react";
+import { BarChart3, LayoutGrid, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,10 @@ export const NavLinks = () => {
 			<a href="/" className={navLinkClasses(pathname === "/")}>
 				<LayoutGrid className="w-4 h-4" />
 				Projects
+			</a>
+			<a href="/monitor" className={navLinkClasses(pathname === "/monitor")}>
+				<BarChart3 className="w-4 h-4" />
+				Monitor
 			</a>
 			<a href="/settings" className={navLinkClasses(pathname === "/settings")}>
 				<Settings className="w-4 h-4" />

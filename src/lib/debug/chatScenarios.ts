@@ -339,6 +339,20 @@ export const chatScenarios: Record<ChatDebugScenario, ChatScenario> = {
 		pendingPermission: null,
 		pendingQuestion: null,
 	},
+	revert: {
+		items: [
+			createMockTextMessage("user_1", "user", "Add a new feature"),
+			createMockTextMessage("assistant_1", "assistant", "Sure, what feature?"),
+			createMockTextMessage("user_2", "user", "A login page"),
+			createMockTextMessage("assistant_2", "assistant", "Working on it..."),
+		],
+		opencodeReady: true,
+		isStreaming: false,
+		todos: [],
+		pendingPermission: null,
+		pendingQuestion: null,
+		revertMessageId: "user_2",
+	} as any,
 };
 
 // Diagnostic scenarios for testing error display

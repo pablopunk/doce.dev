@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile.preview
       args:
-        PREVIEW_BASE_IMAGE: ${DOCE_PREVIEW_BASE_IMAGE:-node:22-alpine}
+        PREVIEW_BASE_IMAGE: ${DOCE_PREVIEW_BASE_IMAGE:-node:22-slim}
+    command: ["/bin/sh", "/app/scripts/start-preview-dev.sh"]
     volumes:
       - type: bind
         source: ${PROJECT_PREVIEW_BIND_MOUNT}

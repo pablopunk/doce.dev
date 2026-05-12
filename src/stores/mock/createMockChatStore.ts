@@ -52,6 +52,8 @@ export function createMockChatStore(
 		initialPromptSent: true,
 		userPromptMessageId: null,
 		projectPrompt: null,
+		sessionTitle: "Mock conversation",
+		sessionContextUsage: null,
 
 		// State: Model selection
 		currentModel: {
@@ -111,6 +113,14 @@ export function createMockChatStore(
 		},
 		setProjectPrompt: (prompt: string | null) => {
 			state.projectPrompt = prompt;
+			notifyListeners();
+		},
+		setSessionTitle: (title: string | null) => {
+			state.sessionTitle = title;
+			notifyListeners();
+		},
+		setSessionContextUsage: (usage) => {
+			state.sessionContextUsage = usage;
 			notifyListeners();
 		},
 

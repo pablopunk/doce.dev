@@ -64,6 +64,12 @@ export interface TodoItem {
 	priority: string;
 }
 
+export interface SessionContextUsage {
+	total: number;
+	limit: number | null;
+	usage: number | null;
+}
+
 /**
  * ChatStore manages all chat state for a project
  */
@@ -78,6 +84,8 @@ export interface ChatStore {
 	initialPromptSent: boolean;
 	userPromptMessageId: string | null;
 	projectPrompt: string | null;
+	sessionTitle: string | null;
+	sessionContextUsage: SessionContextUsage | null;
 
 	// State: Model selection (using OpenCode's format)
 	currentModel: { providerID: string; modelID: string } | null;
@@ -108,6 +116,8 @@ export interface ChatStore {
 	setInitialPromptSent: (sent: boolean) => void;
 	setUserPromptMessageId: (id: string | null) => void;
 	setProjectPrompt: (prompt: string | null) => void;
+	setSessionTitle: (title: string | null) => void;
+	setSessionContextUsage: (usage: SessionContextUsage | null) => void;
 
 	// Actions: Model
 	setCurrentModel: (
@@ -156,6 +166,8 @@ const initialState = {
 	initialPromptSent: true, // Assume sent until we know otherwise
 	userPromptMessageId: null as string | null,
 	projectPrompt: null as string | null,
+	sessionTitle: null as string | null,
+	sessionContextUsage: null as SessionContextUsage | null,
 	currentModel: null as { providerID: string; modelID: string } | null,
 	historyLoaded: false,
 	presenceLoaded: false,
@@ -184,6 +196,9 @@ export function createChatStore() {
 		setInitialPromptSent: (sent) => set({ initialPromptSent: sent }),
 		setUserPromptMessageId: (id) => set({ userPromptMessageId: id }),
 		setProjectPrompt: (prompt) => set({ projectPrompt: prompt }),
+		setSessionTitle: (title) => set({ sessionTitle: title }),
+		setSessionContextUsage: (sessionContextUsage) =>
+			set({ sessionContextUsage }),
 		setCurrentModel: (model) => set({ currentModel: model }),
 		setHistoryLoaded: (loaded) => set({ historyLoaded: loaded }),
 		setIsStreaming: (streaming) => set({ isStreaming: streaming }),

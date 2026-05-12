@@ -1,5 +1,7 @@
+import { expandHiddenTextAttachments } from "@/lib/chat/hiddenTextAttachments";
 import type { ChatItem } from "@/stores/useChatStore";
 import {
+	combineTextParts,
 	createErrorPart,
 	createPromptAttachmentPart,
 	createTextPart,
@@ -11,6 +13,12 @@ export interface RawSessionMessage {
 		id?: string;
 		role?: "user" | "assistant";
 		model?: { providerID: string; modelID: string };
+		tokens?: {
+			input: number;
+			output: number;
+			reasoning: number;
+			cache: { read: number; write: number };
+		};
 		error?: { name?: string; data?: { message?: string } };
 	};
 	parts?: Array<{
@@ -71,7 +79,11 @@ export function buildHistoryItems(
 
 		for (const part of msg.parts ?? []) {
 			if (part.type === "text" && part.text) {
-				messageParts.push(createTextPart(part.text, part.id));
+				if (role === "user") {
+					messageParts.push(...expandHiddenTextAttachments(part.text));
+				} else {
+					messageParts.push(createTextPart(part.text, part.id));
+				}
 			}
 			if (part.type === "file" && part.filename && part.mime) {
 				messageParts.push(
@@ -97,6 +109,16 @@ export function buildHistoryItems(
 						status: part.state?.status === "error" ? "error" : "success",
 					},
 				});
+			}
+		}
+
+		if (role === "user") {
+			const visibleText = combineTextParts(messageParts);
+			if (
+				!visibleText &&
+				messageParts.some((part) => part.type === "attachment")
+			) {
+				messageParts.unshift(createTextPart("Attached text file"));
 			}
 		}
 
