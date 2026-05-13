@@ -31,6 +31,16 @@ export interface ToolInfo {
 	openFileOnClick?: boolean;
 	/** Extract file path from tool input for openFileOnClick */
 	getFilePath?: (input: unknown) => string | null;
+	/**
+	 * Short text shown when the tool call is expanded. Should be a few short
+	 * lines at most. Return null/empty to render nothing extra (errors are
+	 * always shown by the host).
+	 */
+	getDetails?: (args: {
+		input: unknown;
+		output: unknown;
+		status: "running" | "success" | "error";
+	}) => string | null;
 }
 
 /**
@@ -323,33 +333,44 @@ registerTool("context7_get-library-docs", {
 });
 
 // Doce Preview tools (internal)
+function readField(value: unknown, key: string): string | null {
+	if (!value || typeof value !== "object") return null;
+	const v = (value as Record<string, unknown>)[key];
+	return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
 registerTool("get_doce_preview_status", {
 	name: "Preview Status",
 	icon: Search,
-	iconClass: "text-blue-500",
-	getContext: (input) => {
-		if (!input || typeof input !== "object") return null;
-		return (input as Record<string, unknown>).projectId as string | null;
-	},
+	getDetails: ({ output }) =>
+		readField(output, "summary") ?? readField(output, "error"),
 });
 
 registerTool("read_doce_preview_logs", {
 	name: "Preview Logs",
 	icon: FileText,
-	iconClass: "text-amber-500",
 	getContext: (input) => {
 		if (!input || typeof input !== "object") return null;
 		const mode = (input as Record<string, unknown>).mode as string;
 		return mode ?? "summary";
+	},
+	getDetails: ({ output }) => {
+		const signal = readField(output, "extractedSignal");
+		const summary = readField(output, "summary");
+		const error = readField(output, "error");
+		if (signal && summary) return `${summary}\n${signal}`;
+		return summary ?? signal ?? error;
 	},
 });
 
 registerTool("restart_doce_preview", {
 	name: "Restart Preview",
 	icon: RefreshCw,
-	iconClass: "text-green-500",
-	getContext: (input) => {
-		if (!input || typeof input !== "object") return null;
-		return (input as Record<string, unknown>).projectId as string | null;
+	getDetails: ({ input, output }) => {
+		const reason = readField(input, "reason");
+		const summary = readField(output, "summary");
+		const error = readField(output, "error");
+		const parts = [reason, summary ?? error].filter(Boolean);
+		return parts.length ? parts.join("\n") : null;
 	},
 });

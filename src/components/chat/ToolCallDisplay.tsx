@@ -106,38 +106,41 @@ export function ToolCallDisplay({
 							{formatOutput(toolCall.output)}
 						</pre>
 					) : (
-						<>
-							{toolCall.input !== undefined && toolCall.input !== null && (
-								<div>
-									<div className="font-medium text-muted-foreground mb-1">
-										Input:
-									</div>
-									<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-										{formatOutput(toolCall.input)}
-									</pre>
-								</div>
-							)}
-							{toolCall.output !== undefined && toolCall.output !== null && (
-								<div>
-									<div className="font-medium text-muted-foreground mb-1">
-										Output:
-									</div>
-									<pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
-										{formatOutput(toolCall.output).slice(0, 500)}
-									</pre>
-								</div>
-							)}
-							{toolCall.error !== undefined && (
-								<div>
-									<div className="font-medium text-status-error mb-1">
-										Error:
-									</div>
-									<pre className="bg-status-error-light p-2 rounded overflow-x-auto max-h-32 text-status-error">
-										{formatOutput(toolCall.error)}
-									</pre>
-								</div>
-							)}
-						</>
+						(() => {
+							const details = toolInfo.getDetails?.({
+								input: toolCall.input,
+								output: toolCall.output,
+								status: toolCall.status,
+							});
+							return (
+								<>
+									{details && (
+										<pre className="whitespace-pre-wrap text-muted-foreground">
+											{details}
+										</pre>
+									)}
+									{toolCall.error !== undefined && (
+										<pre className="whitespace-pre-wrap text-status-error">
+											{formatOutput(toolCall.error)}
+										</pre>
+									)}
+									{!details && toolCall.error === undefined && (
+										<>
+											{toolCall.output !== undefined &&
+											toolCall.output !== null ? (
+												<pre className="whitespace-pre-wrap text-muted-foreground text-xs opacity-60">
+													{formatOutput(toolCall.output).slice(0, 600)}
+												</pre>
+											) : (
+												<div className="text-muted-foreground italic">
+													No additional details.
+												</div>
+											)}
+										</>
+									)}
+								</>
+							);
+						})()
 					)}
 				</div>
 			)}
