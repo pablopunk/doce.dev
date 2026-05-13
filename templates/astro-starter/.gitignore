@@ -17,6 +17,9 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
+# Doce internal
+.doce-internal-token
+
 # IDE
 .vscode/
 .idea/
