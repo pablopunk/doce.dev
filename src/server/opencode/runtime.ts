@@ -242,6 +242,11 @@ async function waitForOpencodeReady(): Promise<void> {
 async function startOpencodeProcess(): Promise<void> {
 	await ensureRequiredOpencodeVersion();
 
+	// Always ensure our config + custom tools + plugins are up-to-date on disk
+	// so a reused opencode picks them up on its next reload, and a fresh spawn
+	// sees them immediately.
+	await ensureOpencodeDirectories();
+
 	if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
 		logger.info(
 			{

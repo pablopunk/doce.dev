@@ -1,8 +1,8 @@
 const SHARED_HELPER = `
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 
 const TOKEN_FILENAME = ".doce-internal-token";
+const SEP = "/";
 
 function resolveDirectory(context) {
 	if (!context) return null;
@@ -17,7 +17,7 @@ function resolveDirectory(context) {
 
 async function readToken(directory) {
 	try {
-		const tokenPath = path.join(directory, TOKEN_FILENAME);
+		const tokenPath = directory.replace(/\\/+$/, "") + SEP + TOKEN_FILENAME;
 		const content = await fs.readFile(tokenPath, "utf-8");
 		return content.trim() || null;
 	} catch {
@@ -27,7 +27,7 @@ async function readToken(directory) {
 
 function extractProjectId(directory) {
 	if (!directory || typeof directory !== "string") return null;
-	const segments = directory.split(path.sep).filter(Boolean);
+	const segments = directory.split(SEP).filter(Boolean);
 	const previewIndex = segments.lastIndexOf("preview");
 	if (previewIndex < 1) return null;
 	return segments[previewIndex - 1] ?? null;
@@ -90,11 +90,18 @@ function toolFile(body: string): string {
 	return `import { tool } from "@opencode-ai/plugin";\n${SHARED_HELPER}\n\n${body}\n`;
 }
 
+// NOTE: We intentionally do NOT declare an "args" field on these tool
+// definitions. OpenCode 1.14.48 has a bug where any tool that declares an
+// "args" field (even an empty {}) fails its first call with
+// 'undefined is not an object (evaluating "g.split")' inside the runtime
+// wrapper. Tools without "args" execute correctly. So these tools take no
+// arguments from the model and read sensible defaults from the session
+// context (directory + project token).
+
 export const GET_DOCE_PREVIEW_STATUS_SOURCE = toolFile(`
 export default tool({
 	description:
-		"Check whether the doce preview server is healthy and reachable. Returns container state and a human-readable summary. Use this first when the preview seems broken.",
-	args: {},
+		"Check whether the doce preview server is healthy and reachable. Returns container state and a human-readable summary. Use this first when the preview seems broken. Takes no arguments.",
 	async execute(_args, context) {
 		return callDoceInternal("status", context);
 	},
@@ -104,18 +111,9 @@ export default tool({
 export const READ_DOCE_PREVIEW_LOGS_SOURCE = toolFile(`
 export default tool({
 	description:
-		"Read recent logs from the doce preview server. Use mode 'summary' to get the last error line (cheapest), 'tail' for the most recent log bytes, or 'sinceOffset' to read incrementally. Prefer 'summary' first.",
-	args: {
-		mode: tool.schema.enum(["summary", "tail", "sinceOffset"]).default("summary").describe("Read mode"),
-		maxBytes: tool.schema.number().int().min(256).max(16384).optional().describe("Max bytes to return for 'tail' mode"),
-		offset: tool.schema.number().int().min(0).optional().describe("Byte offset for 'sinceOffset' mode"),
-	},
-	async execute(args, context) {
-		return callDoceInternal("logs", context, {
-			mode: args.mode,
-			maxBytes: args.maxBytes,
-			offset: args.offset,
-		});
+		"Read recent doce preview logs (last error line + a tail of recent log bytes). Use this to diagnose preview issues. Takes no arguments.",
+	async execute(_args, context) {
+		return callDoceInternal("logs", context, { mode: "tail", maxBytes: 4096 });
 	},
 });
 `.trim());
@@ -123,12 +121,9 @@ export default tool({
 export const RESTART_DOCE_PREVIEW_SOURCE = toolFile(`
 export default tool({
 	description:
-		"Restart the doce preview container. Only use after confirming via get_doce_preview_status and read_doce_preview_logs that the preview is actually unhealthy. Provide a short 'reason'.",
-	args: {
-		reason: tool.schema.string().max(300).optional().describe("Why the restart is needed"),
-	},
-	async execute(args, context) {
-		return callDoceInternal("restart", context, { reason: args.reason });
+		"Restart the doce preview container. Only call this after confirming via get_doce_preview_status and read_doce_preview_logs that the preview is actually unhealthy. Takes no arguments.",
+	async execute(_args, context) {
+		return callDoceInternal("restart", context, { reason: "Agent-triggered preview restart" });
 	},
 });
 `.trim());
