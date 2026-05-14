@@ -818,6 +818,58 @@ export function useChatPanel({
 		}
 	}, [fetchJson, isStreaming, projectId, sessionId, showRequestError]);
 
+	const handleCompact = useCallback(async () => {
+		if (!sessionId) return;
+		if (!currentModel) {
+			toast.info("Select a model before compacting the conversation");
+			return;
+		}
+
+		setIsStreaming(true);
+		setSessionContextLoaded(false);
+		try {
+			await fetchJson<boolean>(
+				`/api/projects/${projectId}/opencode/session/${sessionId}/summarize`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						providerID: currentModel.providerID,
+						modelID: currentModel.modelID,
+						auto: false,
+					}),
+				},
+			);
+
+			const messagesData = await fetchJson<
+				RawSessionMessage[] | { messages?: RawSessionMessage[] }
+			>(
+				`/api/projects/${projectId}/opencode/session/${sessionId}/message?limit=${CHAT_HISTORY_PAGE_LIMIT}`,
+			);
+			const messages = Array.isArray(messagesData)
+				? messagesData
+				: (messagesData.messages ?? []);
+			setSessionContextUsage(
+				getSessionContextUsage(messages, currentModel, models),
+			);
+			toast.success("Conversation compacted");
+		} catch (error) {
+			showRequestError("Failed to compact conversation", error);
+		} finally {
+			setIsStreaming(false);
+			setSessionContextLoaded(true);
+		}
+	}, [
+		currentModel,
+		fetchJson,
+		models,
+		projectId,
+		sessionId,
+		setIsStreaming,
+		setSessionContextUsage,
+		showRequestError,
+	]);
+
 	const handleModelChange = async (compositeKey: string) => {
 		const [providerId, ...modelIdParts] = compositeKey.split(":");
 		const modelId = modelIdParts.join(":");
@@ -965,7 +1017,7 @@ export function useChatPanel({
 				} else {
 					setRestoreEnabled(result.data?.canRestore ?? false);
 				}
-			} catch (error) {
+			} catch (_error) {
 				if (cancelled) return;
 				setRestoreEnabled(false);
 			} finally {
@@ -1068,6 +1120,7 @@ export function useChatPanel({
 		setPendingAttachmentError,
 		handleSend,
 		handleStop,
+		handleCompact,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,

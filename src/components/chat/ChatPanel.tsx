@@ -24,6 +24,7 @@ interface ChatPanelProps {
 		vendor: string;
 		supportsImages?: boolean;
 		supportsAttachments?: boolean;
+		contextLimit?: number;
 	}>;
 	onOpenFile?: ((filePath: string) => void) | undefined;
 	onStreamingStateChange?:
@@ -62,6 +63,7 @@ export function ChatPanel({
 		setPendingAttachmentError,
 		handleSend,
 		handleStop,
+		handleCompact,
 		handleModelChange,
 		handlePermissionDecision,
 		handleQuestionSubmit,
@@ -147,6 +149,8 @@ export function ChatPanel({
 						<ChatContextUsage
 							usage={sessionContextUsage}
 							isLoading={Boolean(sessionId) && !sessionContextLoaded}
+							onCompact={handleCompact}
+							compactDisabled={!sessionId || !opencodeReady || isStreaming}
 						/>
 						<ChatDetachToggle />
 					</div>

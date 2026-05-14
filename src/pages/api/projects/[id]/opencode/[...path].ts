@@ -149,9 +149,12 @@ export const ALL: APIRoute = async ({ params, request, cookies }) => {
 
 	try {
 		const controller = new AbortController();
-		// Use longer timeout for message endpoints (LLM responses can take a while)
-		const isMessageEndpoint = proxyPath.includes("/message");
-		const timeoutMs = isMessageEndpoint
+		// Use longer timeout for endpoints that can wait on LLM work.
+		const isLongRunningEndpoint =
+			proxyPath.includes("/message") ||
+			proxyPath.endsWith("/summarize") ||
+			proxyPath.endsWith("/compact");
+		const timeoutMs = isLongRunningEndpoint
 			? MESSAGE_TIMEOUT_MS
 			: REQUEST_TIMEOUT_MS;
 		const timeout = setTimeout(() => controller.abort(), timeoutMs);
