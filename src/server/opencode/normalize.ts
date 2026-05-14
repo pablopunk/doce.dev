@@ -34,6 +34,7 @@ import { createSseDiagnostic, type OpencodeDiagnostic } from "./diagnostics";
 
 export type NormalizedEventType =
 	| "chat.session.status"
+	| "chat.session.updated"
 	| "chat.message.user"
 	| "chat.message.part.added"
 	| "chat.message.final"
@@ -60,6 +61,10 @@ export interface NormalizedEventEnvelope {
 export interface SessionStatusPayload {
 	status: string;
 	cost?: number;
+}
+
+export interface SessionUpdatedPayload {
+	title: string | null;
 }
 
 export interface MessagePartPayload {
@@ -514,8 +519,22 @@ export function normalizeEvent(
 			};
 		}
 
+		case "session.updated": {
+			const properties = event.properties as
+				| { info?: { id?: string; title?: string | null } }
+				| undefined;
+			return {
+				type: "chat.session.updated",
+				projectId,
+				sessionId: properties?.info?.id,
+				time,
+				payload: {
+					title: properties?.info?.title ?? null,
+				} satisfies SessionUpdatedPayload,
+			};
+		}
+
 		// Session events we can ignore
-		case "session.updated":
 		case "session.created":
 		case "session.deleted":
 		case "session.idle":

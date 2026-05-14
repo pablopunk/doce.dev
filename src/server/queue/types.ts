@@ -4,6 +4,7 @@ export const queueJobTypeSchema = z.enum([
 	// Project lifecycle
 	"project.create",
 	"project.identityGenerate",
+	"project.descriptionSync",
 	"project.delete",
 	"projects.deleteAllForUser",
 	// Docker lifecycle (fine-grained)
@@ -57,6 +58,14 @@ export const projectIdentityGeneratePayloadSchema = z.object({
 
 export type ProjectIdentityGeneratePayload = z.infer<
 	typeof projectIdentityGeneratePayloadSchema
+>;
+
+export const projectDescriptionSyncPayloadSchema = z.object({
+	projectId: z.string().min(1),
+});
+
+export type ProjectDescriptionSyncPayload = z.infer<
+	typeof projectDescriptionSyncPayloadSchema
 >;
 
 export const projectDeletePayloadSchema = z.object({
@@ -183,6 +192,7 @@ export type AppRestartPayload = z.infer<typeof appRestartPayloadSchema>;
 const payloadSchemaByType = {
 	"project.create": projectCreatePayloadSchema,
 	"project.identityGenerate": projectIdentityGeneratePayloadSchema,
+	"project.descriptionSync": projectDescriptionSyncPayloadSchema,
 	"project.delete": projectDeletePayloadSchema,
 	"projects.deleteAllForUser": projectsDeleteAllForUserPayloadSchema,
 	"docker.composeUp": dockerComposeUpPayloadSchema,
@@ -203,6 +213,7 @@ const payloadSchemaByType = {
 export type PayloadByType = {
 	"project.create": ProjectCreatePayload;
 	"project.identityGenerate": ProjectIdentityGeneratePayload;
+	"project.descriptionSync": ProjectDescriptionSyncPayload;
 	"project.delete": ProjectDeletePayload;
 	"projects.deleteAllForUser": ProjectsDeleteAllForUserPayload;
 	"docker.composeUp": DockerComposeUpPayload;

@@ -321,7 +321,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 				</a>
 				<CardContent>
 					<p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-						{project.prompt}
+						{project.description || project.prompt}
 					</p>
 					<div className="flex items-center justify-between gap-2 flex-wrap">
 						<div className="flex gap-2 flex-wrap items-center min-w-0">

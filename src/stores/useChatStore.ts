@@ -240,11 +240,26 @@ export function createChatStore() {
 			const { type, sessionId: eventSessionId, payload } = event;
 
 			// Update session ID if provided
-			if (eventSessionId) {
+			if (eventSessionId && type !== "chat.session.updated") {
 				set({ sessionId: eventSessionId as string });
 			}
 
 			switch (type) {
+				case "chat.session.updated": {
+					const { title } = payload as { title?: string | null };
+					set((state) => {
+						if (
+							eventSessionId &&
+							state.sessionId &&
+							eventSessionId !== state.sessionId
+						) {
+							return {};
+						}
+						return { sessionTitle: title ?? null };
+					});
+					break;
+				}
+
 				case "chat.message.user": {
 					const { messageId } = payload as { messageId: string };
 					set((state) => ({

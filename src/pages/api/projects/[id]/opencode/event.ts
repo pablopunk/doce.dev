@@ -13,6 +13,7 @@ import {
 	isProjectOwnedByUser,
 	markUserPromptCompleted,
 } from "@/server/projects/projects.model";
+import { updateProjectDescriptionFromSessionTitle } from "@/server/projects/sessionDescription";
 import { enqueueDockerEnsureRunning } from "@/server/queue/enqueue";
 
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
@@ -150,6 +151,20 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 		}
 	};
 
+	const syncProjectDescription = async (parsed: {
+		type: string;
+		properties?: Record<string, unknown>;
+	}) => {
+		if (parsed.type !== "session.updated") return;
+
+		const info = parsed.properties?.info as
+			| { id?: unknown; title?: unknown }
+			| undefined;
+		if (info?.id !== project.bootstrapSessionId) return;
+
+		await updateProjectDescriptionFromSessionTitle(projectId, info.title);
+	};
+
 	// Callback to send events from within the stream
 	let sendEventFn: ((event: object) => void) | null = null;
 
@@ -232,6 +247,15 @@ export const GET: APIRoute = async ({ params, cookies }) => {
 										},
 									);
 								}
+
+								syncProjectDescription(eventForCheck).catch(
+									(error: unknown) => {
+										logger.error(
+											{ error, projectId },
+											"Error syncing project description from session title",
+										);
+									},
+								);
 
 								const normalized = normalizeEvent(projectId, parsed, state);
 								if (normalized) {

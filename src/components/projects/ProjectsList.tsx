@@ -102,9 +102,7 @@ function CreatingDraftCard({ prompt }: { prompt: string }) {
 			<CardHeader className="pb-2">
 				<div className="flex items-center gap-2 overflow-hidden">
 					<div className="min-w-0 flex-1">
-						<CardTitle className="text-lg truncate">
-							Creating project...
-						</CardTitle>
+						<CardTitle className="text-lg truncate">New project</CardTitle>
 					</div>
 					<div className="shrink-0">
 						<span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap bg-accent text-accent-foreground">

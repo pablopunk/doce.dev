@@ -2,6 +2,7 @@ import { Schema } from "effect";
 
 export const QueueJobType = Schema.Literal(
 	"project.create",
+	"project.descriptionSync",
 	"project.delete",
 	"projects.deleteAllForUser",
 	"docker.composeUp",
@@ -37,6 +38,14 @@ export const ProjectCreatePayload = Schema.Struct({
 
 export type ProjectCreatePayload = Schema.Schema.Type<
 	typeof ProjectCreatePayload
+>;
+
+export const ProjectDescriptionSyncPayload = Schema.Struct({
+	projectId: Schema.String.pipe(Schema.minLength(1)),
+});
+
+export type ProjectDescriptionSyncPayload = Schema.Schema.Type<
+	typeof ProjectDescriptionSyncPayload
 >;
 
 export const ProjectDeletePayload = Schema.Struct({
@@ -164,6 +173,11 @@ export type ProductionStopPayload = Schema.Schema.Type<
 
 const payloadSchemas: Record<string, Schema.Schema<unknown, unknown, never>> = {
 	"project.create": ProjectCreatePayload as Schema.Schema<
+		unknown,
+		unknown,
+		never
+	>,
+	"project.descriptionSync": ProjectDescriptionSyncPayload as Schema.Schema<
 		unknown,
 		unknown,
 		never

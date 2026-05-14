@@ -66,6 +66,7 @@ export const projects = sqliteTable(
 		icon: text("icon").notNull().default("✨"),
 		slug: text("slug").notNull().unique(),
 		prompt: text("prompt").notNull(),
+		description: text("description").notNull().default(""),
 		devPort: integer("dev_port").notNull(),
 		// Deprecated: use desired_status instead. Kept for backward compatibility.
 		status: text("status", {
