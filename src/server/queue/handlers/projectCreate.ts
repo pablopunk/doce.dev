@@ -104,6 +104,7 @@ const createProjectEffect = (params: {
 	icon: string;
 	slug: string;
 	prompt: string;
+	description: string;
 	devPort: number;
 	productionPort: number;
 	projectPath: string;
@@ -118,6 +119,7 @@ const createProjectEffect = (params: {
 				icon: params.icon,
 				slug: params.slug,
 				prompt: params.prompt,
+				description: params.description,
 				devPort: params.devPort,
 				productionPort: params.productionPort,
 				status: "created",
@@ -212,6 +214,7 @@ export const handleProjectCreate: LegacyHandler = async (ctx) => {
 			icon,
 			slug,
 			prompt,
+			description: prompt,
 			devPort,
 			productionPort,
 			projectPath,

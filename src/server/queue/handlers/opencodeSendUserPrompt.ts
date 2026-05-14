@@ -19,7 +19,10 @@ import {
 	parseModelString,
 	updateUserPromptMessageId,
 } from "@/server/projects/projects.model";
-import { enqueueDockerEnsureRunning } from "../enqueue";
+import {
+	enqueueDockerEnsureRunning,
+	enqueueProjectDescriptionSync,
+} from "../enqueue";
 import { type PromptAttachment, parsePayload } from "../types";
 
 function toMiB(bytes: number): number {
@@ -445,9 +448,20 @@ export function handleOpencodeSendUserPrompt(
 				}),
 		});
 
+		yield* Effect.tryPromise({
+			try: () => enqueueProjectDescriptionSync({ projectId: project.id }),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "enqueueProjectDescriptionSync",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
+
 		logger.info(
 			{ projectId: project.id },
-			"Enqueued docker.ensureRunning after initial prompt",
+			"Enqueued post-prompt follow-up jobs",
 		);
 
 		logger.info(

@@ -14,6 +14,7 @@ import type {
 	ProductionWaitReadyPayload,
 	ProjectCreatePayload,
 	ProjectDeletePayload,
+	ProjectDescriptionSyncPayload,
 	ProjectIdentityGeneratePayload,
 	ProjectsDeleteAllForUserPayload,
 } from "./types";
@@ -41,6 +42,19 @@ export async function enqueueProjectIdentityGenerate(
 		projectId: input.projectId,
 		payload: input,
 		dedupeKey: `project.identityGenerate:${input.projectId}`,
+	});
+}
+
+export async function enqueueProjectDescriptionSync(
+	input: ProjectDescriptionSyncPayload,
+): Promise<QueueJob> {
+	return enqueueJob({
+		id: randomBytes(16).toString("hex"),
+		type: "project.descriptionSync",
+		projectId: input.projectId,
+		payload: input,
+		dedupeKey: `project.descriptionSync:${input.projectId}`,
+		maxAttempts: 120,
 	});
 }
 

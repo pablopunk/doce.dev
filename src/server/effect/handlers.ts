@@ -13,6 +13,7 @@ import { handleProductionStop } from "@/server/queue/handlers/productionStop";
 import { handleProductionWaitReady } from "@/server/queue/handlers/productionWaitReady";
 import { handleProjectCreate } from "@/server/queue/handlers/projectCreate";
 import { handleProjectDelete } from "@/server/queue/handlers/projectDelete";
+import { handleProjectDescriptionSync } from "@/server/queue/handlers/projectDescriptionSync";
 import { handleProjectIdentityGenerate } from "@/server/queue/handlers/projectIdentityGenerate";
 import { handleDeleteAllForUser } from "@/server/queue/handlers/projectsDeleteAllForUser";
 import { wrapLegacyHandler } from "./handler-adapter";
@@ -24,6 +25,7 @@ export function registerAllHandlers(): void {
 		"project.identityGenerate",
 		wrapLegacyHandler(handleProjectIdentityGenerate),
 	);
+	registerHandler("project.descriptionSync", handleProjectDescriptionSync);
 	registerHandler("project.delete", wrapLegacyHandler(handleProjectDelete));
 	registerHandler("docker.composeUp", handleDockerComposeUp);
 	registerHandler("docker.waitReady", handleDockerWaitReady);

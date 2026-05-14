@@ -124,6 +124,14 @@ export async function updateProjectDisplayIdentity(
 	emitProjectEvent(id);
 }
 
+export async function updateProjectDescription(
+	id: string,
+	description: string,
+): Promise<void> {
+	await db.update(projects).set({ description }).where(eq(projects.id, id));
+	emitProjectEvent(id);
+}
+
 export async function updateProjectModelInDb(
 	id: string,
 	model: string | null,
