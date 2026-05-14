@@ -47,6 +47,21 @@ function logMemorySnapshot(projectId: string, stage: string): void {
 	);
 }
 
+function enqueueProjectDescriptionSyncEffect(
+	projectId: string,
+): Effect.Effect<void, ProjectError> {
+	return Effect.tryPromise({
+		try: () => enqueueProjectDescriptionSync({ projectId }),
+		catch: (error) =>
+			new ProjectError({
+				projectId,
+				operation: "enqueueProjectDescriptionSync",
+				message: error instanceof Error ? error.message : String(error),
+				cause: error,
+			}),
+	}).pipe(Effect.map(() => undefined));
+}
+
 export function handleOpencodeSendUserPrompt(
 	ctx: QueueJobContext,
 ): Effect.Effect<void, ProjectError | OpenCodeError> {
@@ -84,9 +99,10 @@ export function handleOpencodeSendUserPrompt(
 		}
 
 		if (project.initialPromptSent) {
+			yield* enqueueProjectDescriptionSyncEffect(project.id);
 			logger.info(
 				{ projectId: project.id },
-				"User prompt already sent, skipping",
+				"User prompt already sent, ensured description sync is queued",
 			);
 			return;
 		}
@@ -448,16 +464,7 @@ export function handleOpencodeSendUserPrompt(
 				}),
 		});
 
-		yield* Effect.tryPromise({
-			try: () => enqueueProjectDescriptionSync({ projectId: project.id }),
-			catch: (error) =>
-				new ProjectError({
-					projectId: project.id,
-					operation: "enqueueProjectDescriptionSync",
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
+		yield* enqueueProjectDescriptionSyncEffect(project.id);
 
 		logger.info(
 			{ projectId: project.id },
