@@ -217,6 +217,9 @@ function getOpencodeEnvironment(): NodeJS.ProcessEnv {
 		// Use the real HOME so the runtime shares auth and data with the CLI
 		XDG_CONFIG_HOME: dataPath,
 		XDG_CACHE_HOME: `${dataPath}/cache`,
+		// Base URL used by internal OpenCode custom tools to reach the doce API
+		DOCE_INTERNAL_BASE_URL:
+			process.env.DOCE_INTERNAL_BASE_URL || "http://127.0.0.1:4321",
 	};
 }
 
@@ -238,6 +241,11 @@ async function waitForOpencodeReady(): Promise<void> {
 
 async function startOpencodeProcess(): Promise<void> {
 	await ensureRequiredOpencodeVersion();
+
+	// Always ensure our config + custom tools + plugins are up-to-date on disk
+	// so a reused opencode picks them up on its next reload, and a fresh spawn
+	// sees them immediately.
+	await ensureOpencodeDirectories();
 
 	if (await checkOpencodeServerReady(getOpencodePort(), 1_000)) {
 		logger.info(

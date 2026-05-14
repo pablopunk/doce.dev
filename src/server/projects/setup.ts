@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { ensureProjectInternalToken } from "@/server/ai-tools/projectToken";
 import { logger } from "@/server/logger";
 import { allocateProjectProductionPort } from "@/server/ports/allocate";
 import { resolveHostPath } from "./hostPaths";
@@ -56,6 +57,9 @@ export async function setupProjectFilesystem(
 	// Create logs directories
 	await fs.mkdir(path.join(previewPath, "logs"), { recursive: true });
 	await fs.mkdir(path.join(productionPath, "logs"), { recursive: true });
+
+	// Generate per-project token used by internal OpenCode tools
+	await ensureProjectInternalToken(projectId);
 
 	return { projectPath, productionPort };
 }

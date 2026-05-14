@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { logger } from "@/server/logger";
 import { DOCE_COMPACTION_PLUGIN_SOURCE } from "@/server/opencode/doceCompactionPluginSource";
+import { DOCE_PREVIEW_TOOL_FILES } from "@/server/opencode/docePreviewToolsSource";
 import {
 	getDataPath,
 	getGlobalOpencodeConfigPath,
@@ -105,6 +106,21 @@ async function ensureGlobalDoceCompactionPlugin(): Promise<void> {
 	);
 }
 
+async function ensureGlobalDocePreviewTools(): Promise<void> {
+	const toolsDirectory = path.join(getDataPath(), "opencode", "tools");
+	await fs.mkdir(toolsDirectory, { recursive: true });
+
+	for (const { filename, source } of DOCE_PREVIEW_TOOL_FILES) {
+		const filePath = path.join(toolsDirectory, filename);
+		await fs.writeFile(filePath, source);
+	}
+
+	logger.debug(
+		{ toolsDirectory, count: DOCE_PREVIEW_TOOL_FILES.length },
+		"Ensured doce preview OpenCode custom tools",
+	);
+}
+
 export async function ensureGlobalOpencodeConfig(): Promise<void> {
 	const configPath = getGlobalOpencodeConfigPath();
 	await fs.mkdir(path.dirname(configPath), { recursive: true });
@@ -118,5 +134,6 @@ export async function ensureGlobalOpencodeConfig(): Promise<void> {
 
 	await fs.writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`);
 	await ensureGlobalDoceCompactionPlugin();
+	await ensureGlobalDocePreviewTools();
 	logger.debug({ configPath }, "Ensured permissive global OpenCode config");
 }

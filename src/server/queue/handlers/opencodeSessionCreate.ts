@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { ensureProjectInternalToken } from "@/server/ai-tools/projectToken";
 import { FALLBACK_MODEL } from "@/server/config/models";
 import { OpenCodeSessionError, ProjectError } from "@/server/effect/errors";
 import type { QueueJobContext } from "@/server/effect/queue.worker";
@@ -50,6 +51,18 @@ export function handleOpencodeSessionCreate(
 
 		let isSessionRecovery = false;
 		const projectDirectory = getProjectPreviewPathFromRoot(project.pathOnDisk);
+
+		// Ensure the internal token exists so OpenCode custom tools can authenticate
+		yield* Effect.tryPromise({
+			try: () => ensureProjectInternalToken(project.id),
+			catch: (error) =>
+				new ProjectError({
+					projectId: project.id,
+					operation: "ensureProjectInternalToken",
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
+		});
 
 		if (project.bootstrapSessionId) {
 			const hasExistingSession = yield* Effect.tryPromise({
