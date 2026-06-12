@@ -11,9 +11,8 @@ type ChatStoreSet = (
 
 export function handlePermissionRequested(
 	set: ChatStoreSet,
-	payload: Record<string, unknown>,
+	request: PendingPermissionRequest,
 ) {
-	const request = payload as unknown as PendingPermissionRequest;
 	set({ pendingPermission: request });
 }
 
@@ -23,9 +22,8 @@ export function handlePermissionResolved(set: ChatStoreSet) {
 
 export function handleQuestionRequested(
 	set: ChatStoreSet,
-	payload: Record<string, unknown>,
+	request: PendingQuestionRequest,
 ) {
-	const request = payload as unknown as PendingQuestionRequest;
 	set({ pendingQuestion: request });
 }
 
@@ -35,8 +33,7 @@ export function handleQuestionResolved(set: ChatStoreSet) {
 
 export function handleTodoUpdated(
 	set: ChatStoreSet,
-	payload: Record<string, unknown>,
+	payload: { todos: TodoItem[] },
 ) {
-	const todoPayload = payload as { todos: TodoItem[] };
-	set({ todos: todoPayload.todos ?? [] });
+	set({ todos: payload.todos ?? [] });
 }

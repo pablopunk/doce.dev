@@ -55,12 +55,12 @@ export const deploy = defineAction({
 			});
 		}
 
-		await updateProductionStatus(input.projectId, "queued", {
-			productionError: null,
-		});
-
 		const job = await enqueueProductionBuild({
 			projectId: input.projectId,
+		});
+
+		await updateProductionStatus(input.projectId, "queued", {
+			productionError: null,
 		});
 
 		return { success: true, jobId: job.id };

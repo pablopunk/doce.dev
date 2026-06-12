@@ -40,8 +40,21 @@ export const create = defineAction({
 			| undefined;
 		if (input.attachments) {
 			try {
-				attachments = JSON.parse(input.attachments);
-			} catch {}
+				const parsed = JSON.parse(input.attachments);
+				if (!Array.isArray(parsed)) {
+					throw new ActionError({
+						code: "BAD_REQUEST",
+						message: "Invalid attachments format",
+					});
+				}
+				attachments = parsed;
+			} catch (err) {
+				if (err instanceof ActionError) throw err;
+				throw new ActionError({
+					code: "BAD_REQUEST",
+					message: "Invalid attachments JSON",
+				});
+			}
 		}
 
 		const projectId = randomBytes(12).toString("hex");

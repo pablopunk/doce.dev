@@ -143,7 +143,9 @@ export function useChatHistory({
 	const [sessionTitleLoaded, setSessionTitleLoaded] = useState(
 		() => sessionTitle !== null,
 	);
-	const [sessionContextLoaded, setSessionContextLoaded] = useState(false);
+	const [sessionContextLoaded, setSessionContextLoaded] = useState(
+		() => sessionTitle !== null,
+	);
 	const loadingHistoryRef = useRef(false);
 	const configLoadedRef = useRef(false);
 

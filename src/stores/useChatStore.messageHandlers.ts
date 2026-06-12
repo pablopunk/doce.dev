@@ -41,7 +41,9 @@ export function handleMessagePartAdded(
 
 		if (existing && existing.type === "message") {
 			const msg = existing.data as Message;
-			const textPartIdx = msg.parts.findIndex((p) => p.type === "text");
+			const textPartIdx = msg.parts.findIndex(
+				(p) => p.type === "text" && (partId ? p.id === partId : true),
+			);
 
 			if (textPartIdx !== -1 && (deltaText || text)) {
 				// Replace if full text available, otherwise append delta
@@ -223,7 +225,7 @@ export function handleMessageFinal(
 					...msg,
 					parts: nextParts,
 					isStreaming: false,
-					localStatus: "sent",
+					localStatus: error ? "failed" : "sent",
 					...(error ? { localError: error.message } : {}),
 				};
 				return {

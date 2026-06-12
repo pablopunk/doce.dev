@@ -71,12 +71,12 @@ export const restart = defineAction({
 			"@/server/projects/projects.model"
 		);
 
-		await updateProjectStatus(input.projectId, "starting");
-
 		const job = await enqueueDockerEnsureRunning({
 			projectId: input.projectId,
 			reason: "user",
 		});
+
+		await updateProjectStatus(input.projectId, "starting");
 
 		return { success: true, jobId: job.id };
 	},

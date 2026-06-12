@@ -107,6 +107,7 @@ export function useChatSse({
 								"Please refresh the page if reconnection does not recover shortly.",
 						});
 					}
+					return;
 				}
 
 				reconnectTimeoutRef.current = setTimeout(() => {

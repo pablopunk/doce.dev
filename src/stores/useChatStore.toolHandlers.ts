@@ -29,18 +29,20 @@ export function handleToolUpdate(
 		);
 
 		if (existingIdx !== -1) {
-			// Update existing tool
+			// Update existing tool — merge fields so undefined payload values
+			// don't overwrite previously received input/output/error
 			const items = [...state.items];
 			const toolItem = items[existingIdx];
 			if (toolItem && toolItem.type === "tool") {
+				const existing = toolItem.data as ToolCall;
 				items[existingIdx] = {
 					type: "tool",
 					id: toolItem.id,
 					data: {
-						...(toolItem.data as ToolCall),
-						input,
-						output,
-						error,
+						...existing,
+						...(input !== undefined ? { input } : {}),
+						...(output !== undefined ? { output } : {}),
+						...(error !== undefined ? { error } : {}),
 						status,
 					},
 				};

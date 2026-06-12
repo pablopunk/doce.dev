@@ -134,6 +134,8 @@ export function useChatActions({
 		const newModelSupportsAttachments =
 			newModelConfig?.supportsAttachments ?? true;
 
+		const previousAttachments = pendingAttachments;
+
 		if (pendingAttachments.length > 0 && !newModelSupportsAttachments) {
 			const textAttachments = pendingAttachments.filter(
 				(a) => a.kind !== "image",
@@ -164,9 +166,13 @@ export function useChatActions({
 				projectId,
 				model: modelString || "",
 			});
-			if (!result.data?.success) setCurrentModel(previousModel);
+			if (!result.data?.success) {
+				setCurrentModel(previousModel);
+				setPendingAttachments(previousAttachments);
+			}
 		} catch {
 			setCurrentModel(previousModel);
+			setPendingAttachments(previousAttachments);
 		}
 	};
 

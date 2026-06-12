@@ -58,7 +58,18 @@ export function useChatSend({
 		content: string,
 		attachments?: PromptAttachmentPart[],
 	) => {
+		// Build local message parts and API payload from a single ordered source
 		const messageParts: MessagePart[] = [];
+		type ApiPromptPart =
+			| { type: "text"; text: string }
+			| {
+					type: "file";
+					mime: string;
+					url: string;
+					filename: string;
+			  };
+		const apiParts: ApiPromptPart[] = [];
+
 		if (attachments) {
 			for (const attachment of attachments) {
 				messageParts.push(
@@ -77,9 +88,13 @@ export function useChatSend({
 						id: attachment.id,
 					}),
 				);
+				apiParts.push(...promptAttachmentToPromptParts(attachment));
 			}
 		}
-		if (content) messageParts.push(createTextPart(content));
+		if (content) {
+			messageParts.push(createTextPart(content));
+			apiParts.push({ type: "text", text: content });
+		}
 
 		const userMessageId = `user_${Date.now()}`;
 		addItem({
@@ -109,23 +124,6 @@ export function useChatSend({
 			}
 			if (!currentSessionId) {
 				throw new Error("Session could not be created");
-			}
-
-			type ApiPromptPart =
-				| { type: "text"; text: string }
-				| {
-						type: "file";
-						mime: string;
-						url: string;
-						filename: string;
-				  };
-
-			const apiParts: ApiPromptPart[] = [];
-			if (content) apiParts.push({ type: "text", text: content });
-			if (attachments) {
-				for (const attachment of attachments) {
-					apiParts.push(...promptAttachmentToPromptParts(attachment));
-				}
 			}
 
 			await fetchJson(
