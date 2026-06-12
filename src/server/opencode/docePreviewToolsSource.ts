@@ -98,7 +98,8 @@ function toolFile(body: string): string {
 // arguments from the model and read sensible defaults from the session
 // context (directory + project token).
 
-export const GET_DOCE_PREVIEW_STATUS_SOURCE = toolFile(`
+export const GET_DOCE_PREVIEW_STATUS_SOURCE = toolFile(
+	`
 export default tool({
 	description:
 		"Check whether the doce preview server is healthy and reachable. Returns container state and a human-readable summary. Use this first when the preview seems broken. Takes no arguments.",
@@ -106,9 +107,11 @@ export default tool({
 		return callDoceInternal("status", context);
 	},
 });
-`.trim());
+`.trim(),
+);
 
-export const READ_DOCE_PREVIEW_LOGS_SOURCE = toolFile(`
+export const READ_DOCE_PREVIEW_LOGS_SOURCE = toolFile(
+	`
 export default tool({
 	description:
 		"Read recent doce preview logs (last error line + a tail of recent log bytes). Use this to diagnose preview issues. Takes no arguments.",
@@ -116,9 +119,11 @@ export default tool({
 		return callDoceInternal("logs", context, { mode: "tail", maxBytes: 4096 });
 	},
 });
-`.trim());
+`.trim(),
+);
 
-export const RESTART_DOCE_PREVIEW_SOURCE = toolFile(`
+export const RESTART_DOCE_PREVIEW_SOURCE = toolFile(
+	`
 export default tool({
 	description:
 		"Restart the doce preview container. Only call this after confirming via get_doce_preview_status and read_doce_preview_logs that the preview is actually unhealthy. Takes no arguments.",
@@ -126,13 +131,20 @@ export default tool({
 		return callDoceInternal("restart", context, { reason: "Agent-triggered preview restart" });
 	},
 });
-`.trim());
+`.trim(),
+);
 
 export const DOCE_PREVIEW_TOOL_FILES: Array<{
 	filename: string;
 	source: string;
 }> = [
-	{ filename: "get_doce_preview_status.ts", source: GET_DOCE_PREVIEW_STATUS_SOURCE },
-	{ filename: "read_doce_preview_logs.ts", source: READ_DOCE_PREVIEW_LOGS_SOURCE },
+	{
+		filename: "get_doce_preview_status.ts",
+		source: GET_DOCE_PREVIEW_STATUS_SOURCE,
+	},
+	{
+		filename: "read_doce_preview_logs.ts",
+		source: READ_DOCE_PREVIEW_LOGS_SOURCE,
+	},
 	{ filename: "restart_doce_preview.ts", source: RESTART_DOCE_PREVIEW_SOURCE },
 ];
