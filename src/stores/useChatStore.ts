@@ -1,11 +1,28 @@
 import { create } from "zustand";
 import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
+import type { Message, PromptAttachmentPart } from "@/types/message";
 import {
-	createErrorPart,
-	createTextPart,
-	type Message,
-	type PromptAttachmentPart,
-} from "@/types/message";
+	handlePermissionRequested,
+	handlePermissionResolved,
+	handleQuestionRequested,
+	handleQuestionResolved,
+	handleTodoUpdated,
+} from "./useChatStore.interactionHandlers";
+import {
+	handleMessageDelta,
+	handleMessageFinal,
+	handleMessagePartAdded,
+	handleMessageUser,
+} from "./useChatStore.messageHandlers";
+import {
+	handleSessionStatus,
+	handleSessionUpdated,
+} from "./useChatStore.sessionHandlers";
+import {
+	handleDiagnostic,
+	handleReasoningPart,
+	handleToolUpdate,
+} from "./useChatStore.toolHandlers";
 
 /**
  * ToolCall type (moved from ToolCallDisplay for reuse)
@@ -246,358 +263,72 @@ export function createChatStore() {
 
 			switch (type) {
 				case "chat.session.updated": {
-					const { title } = payload as { title?: string | null };
-					set((state) => {
-						if (
-							eventSessionId &&
-							state.sessionId &&
-							eventSessionId !== state.sessionId
-						) {
-							return {};
-						}
-						return { sessionTitle: title ?? null };
-					});
+					handleSessionUpdated(set, payload, eventSessionId);
 					break;
 				}
 
 				case "chat.message.user": {
-					const { messageId } = payload as { messageId: string };
-					set((state) => ({
-						items: state.items.filter(
-							(item) =>
-								!(
-									item.type === "message" &&
-									item.id === messageId &&
-									(item.data as Message).role === "assistant"
-								),
-						),
-					}));
+					handleMessageUser(set, payload);
 					break;
 				}
 
 				case "chat.message.part.added": {
-					const { messageId, partId, partType, deltaText, text } = payload as {
-						messageId: string;
-						partId: string;
-						partType: string;
-						deltaText?: string;
-						text?: string;
-					};
-
-					set((state) => {
-						const existing = state.items.find(
-							(item) => item.type === "message" && item.id === messageId,
-						);
-
-						if (existing && existing.type === "message") {
-							const msg = existing.data as Message;
-							const textPartIdx = msg.parts.findIndex((p) => p.type === "text");
-
-							if (textPartIdx !== -1 && (deltaText || text)) {
-								// Replace if full text available, otherwise append delta
-								const updatedParts = [...msg.parts];
-								const part = updatedParts[textPartIdx];
-								if (part && part.type === "text") {
-									if (typeof text === "string") {
-										part.text = text;
-									} else if (deltaText) {
-										part.text = part.text + deltaText;
-									}
-								}
-								return {
-									items: state.items.map((item) =>
-										item.id === messageId
-											? {
-													...item,
-													data: {
-														...msg,
-														parts: updatedParts,
-														isStreaming: true,
-													},
-												}
-											: item,
-									),
-									isStreaming: true,
-								};
-							} else if (deltaText || text) {
-								// Create new text part
-								const partText = text ?? deltaText ?? "";
-								const updatedParts = [
-									...msg.parts,
-									createTextPart(partText, partId),
-								];
-								return {
-									items: state.items.map((item) =>
-										item.id === messageId
-											? {
-													...item,
-													data: {
-														...msg,
-														parts: updatedParts,
-														isStreaming: true,
-													},
-												}
-											: item,
-									),
-									isStreaming: true,
-								};
-							}
-						} else if (partType === "text" && (deltaText || text)) {
-							// New message
-							const partText = text ?? deltaText ?? "";
-							const newItem: ChatItem = {
-								type: "message",
-								id: messageId,
-								data: {
-									id: messageId,
-									role: "assistant",
-									parts: [createTextPart(partText, partId)],
-									isStreaming: true,
-								},
-							};
-							return {
-								items: [...state.items, newItem],
-								isStreaming: true,
-							};
-						}
-
-						return { isStreaming: true };
-					});
+					handleMessagePartAdded(set, payload);
 					break;
 				}
 
 				case "chat.message.delta": {
-					// Backward compatibility: handle old-style delta events
-					const { messageId, deltaText } = payload as {
-						messageId: string;
-						deltaText: string;
-					};
-
-					set((state) => {
-						const existing = state.items.find(
-							(item) => item.type === "message" && item.id === messageId,
-						);
-
-						if (existing && existing.type === "message") {
-							const msg = existing.data as Message;
-							const textPart = msg.parts[msg.parts.length - 1];
-
-							if (textPart && textPart.type === "text") {
-								// Append to existing text part
-								const updatedParts = [...msg.parts];
-								const lastPart = updatedParts[updatedParts.length - 1];
-								if (lastPart && lastPart.type === "text") {
-									lastPart.text = textPart.text + deltaText;
-								}
-								return {
-									items: state.items.map((item) =>
-										item.id === messageId
-											? {
-													...item,
-													data: {
-														...msg,
-														parts: updatedParts,
-														isStreaming: true,
-													},
-												}
-											: item,
-									),
-									isStreaming: true,
-								};
-							} else {
-								// Create new text part
-								const updatedParts = [...msg.parts, createTextPart(deltaText)];
-								return {
-									items: state.items.map((item) =>
-										item.id === messageId
-											? {
-													...item,
-													data: {
-														...msg,
-														parts: updatedParts,
-														isStreaming: true,
-													},
-												}
-											: item,
-									),
-									isStreaming: true,
-								};
-							}
-						} else {
-							// New message
-							const newItem: ChatItem = {
-								type: "message",
-								id: messageId,
-								data: {
-									id: messageId,
-									role: "assistant",
-									parts: [createTextPart(deltaText)],
-									isStreaming: true,
-								},
-							};
-							return {
-								items: [...state.items, newItem],
-								isStreaming: true,
-							};
-						}
-					});
+					handleMessageDelta(set, payload);
 					break;
 				}
 
 				case "chat.message.final": {
-					const { messageId, error } = payload as {
-						messageId: string;
-						error?: { message: string; details?: unknown };
-					};
-
-					set((state) => {
-						const items = state.items.map((item) => {
-							if (item.type === "message" && item.id === messageId) {
-								const msg = item.data as Message;
-								const hasErrorPart = msg.parts.some(
-									(part) =>
-										part.type === "error" &&
-										error &&
-										part.message === error.message,
-								);
-								const nextParts =
-									error && !hasErrorPart
-										? [
-												...msg.parts,
-												createErrorPart(
-													error.message,
-													typeof error.details === "string"
-														? error.details
-														: undefined,
-												),
-											]
-										: msg.parts;
-								const nextMessage: Message = {
-									...msg,
-									parts: nextParts,
-									isStreaming: false,
-									localStatus: "sent",
-									...(error ? { localError: error.message } : {}),
-								};
-								return {
-									...item,
-									data: nextMessage,
-								};
-							}
-							return item;
-						});
-
-						return {
-							items,
-							isStreaming: false,
-						};
-					});
+					handleMessageFinal(set, payload);
 					break;
 				}
 
 				case "chat.permission.requested": {
-					const request = payload as unknown as PendingPermissionRequest;
-					set({ pendingPermission: request });
+					handlePermissionRequested(set, payload);
 					break;
 				}
 
 				case "chat.permission.resolved": {
-					set({ pendingPermission: null });
+					handlePermissionResolved(set);
 					break;
 				}
 
 				case "chat.question.requested": {
-					const request = payload as unknown as PendingQuestionRequest;
-					set({ pendingQuestion: request });
+					handleQuestionRequested(set, payload);
 					break;
 				}
 
 				case "chat.question.resolved": {
-					set({ pendingQuestion: null });
+					handleQuestionResolved(set);
 					break;
 				}
 
 				case "chat.todo.updated": {
-					const todoPayload = payload as { todos: TodoItem[] };
-					set({ todos: todoPayload.todos ?? [] });
+					handleTodoUpdated(set, payload);
 					break;
 				}
 
 				case "chat.reasoning.part": {
-					// Reasoning parts handled as visual elements
-					// Can be enhanced later to nest within messages
+					handleReasoningPart();
 					break;
 				}
 
 				case "chat.tool.update": {
-					const { toolCallId, name, input, status, output, error } =
-						payload as {
-							toolCallId: string;
-							name: string;
-							input?: unknown;
-							status: "running" | "success" | "error";
-							output?: unknown;
-							error?: unknown;
-						};
-
-					set((state) => {
-						const existingIdx = state.items.findIndex(
-							(item) => item.type === "tool" && item.id === toolCallId,
-						);
-
-						if (existingIdx !== -1) {
-							// Update existing tool
-							const items = [...state.items];
-							const toolItem = items[existingIdx];
-							if (toolItem && toolItem.type === "tool") {
-								items[existingIdx] = {
-									type: "tool",
-									id: toolItem.id,
-									data: {
-										...(toolItem.data as ToolCall),
-										input,
-										output,
-										error,
-										status,
-									},
-								};
-							}
-							return { items };
-						} else {
-							// Create new tool item
-							const newItem: ChatItem = {
-								type: "tool",
-								id: toolCallId,
-								data: {
-									id: toolCallId,
-									name,
-									input,
-									output,
-									error,
-									status,
-								},
-							};
-							return { items: [...state.items, newItem] };
-						}
-					});
+					handleToolUpdate(set, payload);
 					break;
 				}
 
 				case "chat.session.status": {
-					const { status } = payload as { status: string };
-					if (status === "completed" || status === "idle") {
-						set({ isStreaming: false });
-					}
+					handleSessionStatus(set, payload);
 					break;
 				}
 
 				case "chat.diagnostic": {
-					const { diagnostic } = payload as { diagnostic: OpencodeDiagnostic };
-					set((state) => ({
-						latestDiagnostic: diagnostic,
-						diagnosticHistory: [...state.diagnosticHistory, diagnostic],
-						isStreaming: false,
-					}));
+					handleDiagnostic(set, payload);
 					break;
 				}
 			}
