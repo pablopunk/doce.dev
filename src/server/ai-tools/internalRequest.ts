@@ -22,13 +22,17 @@ export interface InternalRequestBody {
 export async function parseInternalRequest(
 	request: Request,
 ): Promise<
-	{ ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+	| { ok: true; body: Record<string, unknown> }
+	| { ok: false; response: Response }
 > {
 	let raw: unknown;
 	try {
 		raw = await request.json();
 	} catch {
-		return { ok: false, response: jsonResponse(400, { error: "Invalid JSON" }) };
+		return {
+			ok: false,
+			response: jsonResponse(400, { error: "Invalid JSON" }),
+		};
 	}
 
 	if (typeof raw !== "object" || raw === null) {

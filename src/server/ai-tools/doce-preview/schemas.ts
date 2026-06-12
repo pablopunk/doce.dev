@@ -57,9 +57,7 @@ export const readDocePreviewLogsOutput = z.object({
 	summary: z.string(),
 });
 
-export type ReadDocePreviewLogsInput = z.infer<
-	typeof readDocePreviewLogsInput
->;
+export type ReadDocePreviewLogsInput = z.infer<typeof readDocePreviewLogsInput>;
 export type ReadDocePreviewLogsOutput = z.infer<
 	typeof readDocePreviewLogsOutput
 >;
@@ -83,9 +81,5 @@ export const restartDocePreviewOutput = z.object({
 	error: z.string().optional(),
 });
 
-export type RestartDocePreviewInput = z.infer<
-	typeof restartDocePreviewInput
->;
-export type RestartDocePreviewOutput = z.infer<
-	typeof restartDocePreviewOutput
->;
+export type RestartDocePreviewInput = z.infer<typeof restartDocePreviewInput>;
+export type RestartDocePreviewOutput = z.infer<typeof restartDocePreviewOutput>;

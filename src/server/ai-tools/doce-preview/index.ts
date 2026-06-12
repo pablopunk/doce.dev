@@ -1,8 +1,11 @@
-export {
-	getDocePreviewStatus,
-	readDocePreviewLogs,
-	restartDocePreview,
-} from "./service";
+export type {
+	GetDocePreviewStatusInput,
+	GetDocePreviewStatusOutput,
+	ReadDocePreviewLogsInput,
+	ReadDocePreviewLogsOutput,
+	RestartDocePreviewInput,
+	RestartDocePreviewOutput,
+} from "./schemas";
 
 export {
 	getDocePreviewStatusInput,
@@ -12,12 +15,8 @@ export {
 	restartDocePreviewInput,
 	restartDocePreviewOutput,
 } from "./schemas";
-
-export type {
-	GetDocePreviewStatusInput,
-	GetDocePreviewStatusOutput,
-	ReadDocePreviewLogsInput,
-	ReadDocePreviewLogsOutput,
-	RestartDocePreviewInput,
-	RestartDocePreviewOutput,
-} from "./schemas";
+export {
+	getDocePreviewStatus,
+	readDocePreviewLogs,
+	restartDocePreview,
+} from "./service";

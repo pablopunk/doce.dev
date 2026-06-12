@@ -1,5 +1,9 @@
 import * as path from "node:path";
-import { composePs, parseComposePs, runComposeCommand } from "@/server/docker/compose";
+import {
+	composePs,
+	parseComposePs,
+	runComposeCommand,
+} from "@/server/docker/compose";
 import {
 	extractLastErrorLine,
 	readLogFromOffset,
@@ -110,7 +114,11 @@ export async function readDocePreviewLogs(
 
 	const project = await loadAndVerifyProject(projectId, userId);
 	if (!project) {
-		return buildErrorLogs(projectId, mode, "Project not found or access denied");
+		return buildErrorLogs(
+			projectId,
+			mode,
+			"Project not found or access denied",
+		);
 	}
 
 	const previewPath = getProjectPreviewPath(projectId);
@@ -129,7 +137,11 @@ export async function readDocePreviewLogs(
 			return await readLogsSince(projectId, logsDir, offset);
 		}
 
-		return buildErrorLogs(projectId, mode, "Invalid offset for sinceOffset mode");
+		return buildErrorLogs(
+			projectId,
+			mode,
+			"Invalid offset for sinceOffset mode",
+		);
 	} catch (error) {
 		logger.error({ error, projectId, mode }, "Failed to read preview logs");
 		return buildErrorLogs(
