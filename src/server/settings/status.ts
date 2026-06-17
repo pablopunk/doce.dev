@@ -87,6 +87,7 @@ function validateJobType(typeParam: string): QueueJobType | undefined {
 	const allowedTypes = [
 		"project.create",
 		"project.identityGenerate",
+		"project.descriptionSync",
 		"project.delete",
 		"projects.deleteAllForUser",
 		"docker.composeUp",

@@ -17,7 +17,13 @@ async function authorizeSession(projectId: string, userId: string) {
 		});
 	}
 	const project = await getProjectById(projectId);
-	if (!project?.bootstrapSessionId) {
+	if (!project) {
+		throw new ActionError({
+			code: "NOT_FOUND",
+			message: "Project not found",
+		});
+	}
+	if (!project.bootstrapSessionId) {
 		throw new ActionError({
 			code: "NOT_FOUND",
 			message: "No active session for this project",
@@ -28,6 +34,13 @@ async function authorizeSession(projectId: string, userId: string) {
 
 async function assertRestoreAllowed(projectId: string, userId: string) {
 	const project = await authorizeSession(projectId, userId);
+	const sessionId = project.bootstrapSessionId;
+	if (!sessionId) {
+		throw new ActionError({
+			code: "NOT_FOUND",
+			message: "No active session for this project",
+		});
+	}
 	const restoreSafety = await getRestoreSafetyStatus(project);
 	if (!restoreSafety.canRestore) {
 		throw new ActionError({
@@ -39,7 +52,7 @@ async function assertRestoreAllowed(projectId: string, userId: string) {
 	}
 	return {
 		project,
-		sessionId: project.bootstrapSessionId,
+		sessionId,
 		restoreSafety,
 	};
 }
@@ -98,24 +111,26 @@ export const chat = {
 				messageID: messageId,
 			});
 
-			let serverRevertMessageId: string | null = messageId;
+			let revertMessageId = messageId;
 			try {
 				const info = await client.session.get({ sessionID: sessionId });
 				const data = (info as { data?: { revert?: { messageID?: string } } })
 					.data;
-				serverRevertMessageId = data?.revert?.messageID ?? messageId;
+				if (data?.revert?.messageID) {
+					revertMessageId = data.revert.messageID;
+				}
 			} catch (error) {
 				logger.debug({ error }, "Failed to refetch session after revert");
 			}
 
 			logger.debug(
-				{ projectId, sessionId, messageId, serverRevertMessageId },
+				{ projectId, sessionId, messageId, revertMessageId },
 				"Reverted session to message",
 			);
 
 			return {
 				success: true as const,
-				revertMessageId: serverRevertMessageId,
+				revertMessageId,
 			};
 		},
 	}),

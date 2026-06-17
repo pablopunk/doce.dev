@@ -52,7 +52,7 @@ export type NormalizedEventType =
 export interface NormalizedEventEnvelope {
 	type: NormalizedEventType;
 	projectId: string;
-	sessionId?: string;
+	sessionId?: string | undefined;
 	time: string;
 	payload: unknown;
 }

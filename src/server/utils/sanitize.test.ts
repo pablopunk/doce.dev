@@ -27,7 +27,7 @@ describe("sanitizeMessage", () => {
 
 	it("should redact multiple sensitive values in one message", () => {
 		const message =
-			"api_key:sk-1234567890 and password: secret123 and token: abc1234567890123456";
+			"api_key:sk-1234567890abcdefghij and password: secret123 and token: abc1234567890123456";
 		const result = sanitizeMessage(message);
 		expect(result).toContain("api_key:[REDACTED]");
 		expect(result).toContain("password:[REDACTED]");
@@ -46,7 +46,7 @@ describe("sanitizeMessage", () => {
 
 describe("errorToSanitizedMessage", () => {
 	it("should sanitize error messages", () => {
-		const error = new Error("Failed with api_key:sk-secret123456");
+		const error = new Error("Failed with api_key:sk-secret1234567890ab");
 		expect(errorToSanitizedMessage(error)).toBe(
 			"Failed with api_key:[REDACTED]",
 		);

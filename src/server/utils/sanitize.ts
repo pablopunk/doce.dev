@@ -174,7 +174,7 @@ export function errorToSanitizedMessage(error: unknown): string {
 	// For other types, convert to string and sanitize
 	try {
 		const str = JSON.stringify(error);
-		return sanitizeMessage(str);
+		return sanitizeMessage(str ?? String(error));
 	} catch {
 		return "[Unable to serialize error]";
 	}
