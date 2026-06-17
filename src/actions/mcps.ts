@@ -1,5 +1,6 @@
-import { ActionError, defineAction } from "astro:actions";
+import { defineAction } from "astro:actions";
 import { z } from "astro/zod";
+import { requireUser } from "@/server/auth/requireUser";
 import {
 	addMcpServer,
 	listMcpServers,
@@ -7,19 +8,10 @@ import {
 	toggleMcpServer,
 } from "@/server/mcps/mcps.service";
 
-function ensureAuthenticated(context: { locals: { user: unknown } }): void {
-	if (!context.locals.user) {
-		throw new ActionError({
-			code: "UNAUTHORIZED",
-			message: "You must be logged in",
-		});
-	}
-}
-
 export const mcps = {
 	list: defineAction({
 		handler: async (_input, context) => {
-			ensureAuthenticated(context);
+			requireUser(context);
 			return listMcpServers();
 		},
 	}),
@@ -36,7 +28,7 @@ export const mcps = {
 			headers: z.record(z.string(), z.string()).optional(),
 		}),
 		handler: async (input, context) => {
-			ensureAuthenticated(context);
+			requireUser(context);
 			const { name, ...config } = input;
 			await addMcpServer(name, config);
 			return { success: true };
@@ -47,7 +39,7 @@ export const mcps = {
 		accept: "json",
 		input: z.object({ name: z.string().min(1) }),
 		handler: async (input, context) => {
-			ensureAuthenticated(context);
+			requireUser(context);
 			await removeMcpServer(input.name);
 			return { success: true };
 		},
@@ -60,7 +52,7 @@ export const mcps = {
 			enabled: z.boolean(),
 		}),
 		handler: async (input, context) => {
-			ensureAuthenticated(context);
+			requireUser(context);
 			await toggleMcpServer(input.name, input.enabled);
 			return { success: true };
 		},

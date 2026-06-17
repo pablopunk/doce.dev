@@ -1,10 +1,14 @@
 import type { APIRoute } from "astro";
 import { count, desc, isNull } from "drizzle-orm";
+import { requireAuth } from "@/server/auth/requireAuth";
 import { db } from "@/server/db/client";
 import { projects, queueJobs, systemHealthSnapshots } from "@/server/db/schema";
 import { isGlobalOpencodeHealthy } from "@/server/opencode/runtime";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ cookies }) => {
+	const auth = await requireAuth(cookies);
+	if (!auth.ok) return auth.response;
+
 	// Queue stats
 	const queueStats = await db
 		.select({
