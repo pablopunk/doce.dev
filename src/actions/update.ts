@@ -1,5 +1,6 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro/zod";
+import { requireUser } from "@/server/auth/requireUser";
 import { logger } from "@/server/logger";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { VERSION } from "@/server/version";
@@ -232,7 +233,8 @@ export const update = {
 	checkForUpdate: defineAction({
 		accept: "json",
 		input: z.object({}),
-		handler: async () => {
+		handler: async (_input, context) => {
+			requireUser(context);
 			try {
 				if (VERSION === "unknown" || VERSION === "dev") {
 					logger.warn("No VERSION env var set in container");
@@ -308,7 +310,8 @@ export const update = {
 	pull: defineAction({
 		accept: "json",
 		input: z.object({}),
-		handler: async () => {
+		handler: async (_input, context) => {
+			requireUser(context);
 			try {
 				const containerName = await getContainerName();
 				logger.info({ containerName }, "Pulling latest image");
@@ -344,7 +347,8 @@ export const update = {
 	restart: defineAction({
 		accept: "json",
 		input: z.object({}),
-		handler: async () => {
+		handler: async (_input, context) => {
+			requireUser(context);
 			try {
 				const containerName = await getContainerName();
 				logger.info({ containerName }, "Restarting container");

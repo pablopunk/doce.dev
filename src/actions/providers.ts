@@ -1,5 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
+import { requireUser } from "@/server/auth/requireUser";
 import { cachedAction } from "@/server/cache/actionCache";
 import { invalidatePrefix } from "@/server/cache/memory";
 import { logger } from "@/server/logger";
@@ -26,6 +27,26 @@ interface AvailableModel {
 	supportsImages: boolean;
 	supportsAttachments: boolean;
 }
+
+const cachedProvidersList = cachedAction(
+	"providers.list",
+	{ ttlMs: PROVIDERS_LIST_TTL_MS },
+	async () => ({ providers: await getSettingsProviders() }),
+);
+
+const cachedAvailableModelsForUser = cachedAction(
+	"providers.getAvailableModelsForUser",
+	{ ttlMs: AVAILABLE_MODELS_TTL_MS },
+	async (): Promise<{ models: AvailableModel[] }> => {
+		try {
+			const availableModels = await getAvailableModels();
+			return { models: availableModels };
+		} catch (error) {
+			logger.error({ error }, "Failed to get available models for user");
+			return { models: [] };
+		}
+	},
+);
 
 async function syncOpencodeCredentials(
 	client: OpencodeClient,
@@ -65,11 +86,10 @@ async function reloadRuntimeAfterAuthChange(
 
 export const providers = {
 	list: defineAction({
-		handler: cachedAction(
-			"providers.list",
-			{ ttlMs: PROVIDERS_LIST_TTL_MS },
-			async () => ({ providers: await getSettingsProviders() }),
-		),
+		handler: async (input, context) => {
+			requireUser(context);
+			return cachedProvidersList(input, context);
+		},
 	}),
 
 	connect: defineAction({
@@ -77,7 +97,8 @@ export const providers = {
 			providerId: z.string().min(1, "Provider ID is required"),
 			apiKey: z.string().min(1, "API key is required"),
 		}),
-		handler: async (input) => {
+		handler: async (input, context) => {
+			requireUser(context);
 			const client = createOpencodeClient();
 			const authPayload = { type: "api" as const, key: input.apiKey };
 
@@ -106,7 +127,8 @@ export const providers = {
 		input: z.object({
 			providerId: z.string().min(1, "Provider ID is required"),
 		}),
-		handler: async (input) => {
+		handler: async (input, context) => {
+			requireUser(context);
 			const client = createOpencodeClient();
 			const result = await client.auth.remove({ providerID: input.providerId });
 
@@ -131,7 +153,8 @@ export const providers = {
 			providerId: z.string().min(1, "Provider ID is required"),
 			methodIndex: z.number().int().min(0, "Method index is required"),
 		}),
-		handler: async (input) => {
+		handler: async (input, context) => {
+			requireUser(context);
 			const client = createOpencodeClient();
 			const result = await client.provider.oauth.authorize({
 				providerID: input.providerId,
@@ -155,7 +178,8 @@ export const providers = {
 			methodIndex: z.number().int().min(0, "Method index is required"),
 			code: z.string().optional(),
 		}),
-		handler: async (input) => {
+		handler: async (input, context) => {
+			requireUser(context);
 			const client = createOpencodeClient();
 			const result = await client.provider.oauth.callback({
 				providerID: input.providerId,
@@ -179,18 +203,9 @@ export const providers = {
 	}),
 
 	getAvailableModelsForUser: defineAction({
-		handler: cachedAction(
-			"providers.getAvailableModelsForUser",
-			{ ttlMs: AVAILABLE_MODELS_TTL_MS },
-			async (): Promise<{ models: AvailableModel[] }> => {
-				try {
-					const availableModels = await getAvailableModels();
-					return { models: availableModels };
-				} catch (error) {
-					logger.error({ error }, "Failed to get available models for user");
-					return { models: [] };
-				}
-			},
-		),
+		handler: async (input, context) => {
+			requireUser(context);
+			return cachedAvailableModelsForUser(input, context);
+		},
 	}),
 };
