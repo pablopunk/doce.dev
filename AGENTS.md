@@ -42,6 +42,19 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 * **API calls** should be abstracted into service functions rather than scattered directly in components.
 * **State management** should use `zustand` to create domain-specific stores for complex state on components, or custom hooks if a store is not needed.
 
+## Verification Commands
+
+Run these commands to verify your changes before pushing:
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Start the dev server |
+| `pnpm test` | Run vitest test suites (`src/**/*.test.ts`) |
+| `pnpm typecheck` | Run TypeScript type checking |
+| `pnpm check` | Full verification (biome lint + typecheck + tests + build) |
+| `pnpm format` | Auto-format and fix lint issues with Biome |
+| `pnpm build` | Production build |
+
 ## Tech Stack
 
 ### Package Manager
@@ -51,7 +64,7 @@ An open-source, self-hostable web UI for building and deploying websites with AI
 **TypeScript** - Used throughout for type safety. Strict mode enabled.
 
 ### Framework
-**Astro v5** - Full-stack framework providing:
+**Astro v6** - Full-stack framework providing:
 - Astro Pages for file-based routing
 - Astro Actions for type-safe server-side operations like CRUD
 - React integration for interactive components

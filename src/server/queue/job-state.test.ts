@@ -1,35 +1,10 @@
+import { describe, expect, it } from "vitest";
 import type { QueueJob } from "@/server/db/schema";
 import {
 	getQueueJobDerivedError,
 	getQueueJobDerivedState,
 	isQueueJobExhausted,
 } from "./job-state";
-
-interface TestResult {
-	test: string;
-	passed: boolean;
-	error?: string;
-}
-
-const results: TestResult[] = [];
-
-function test(name: string, fn: () => void): void {
-	try {
-		fn();
-		results.push({ test: name, passed: true });
-		console.log(`PASS ${name}`);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		results.push({ test: name, passed: false, error: message });
-		console.log(`FAIL ${name}: ${message}`);
-	}
-}
-
-function assertEqual(actual: unknown, expected: unknown): void {
-	if (actual !== expected) {
-		throw new Error(`Expected ${String(expected)}, got ${String(actual)}`);
-	}
-}
 
 function buildJob(overrides: Partial<QueueJob>): QueueJob {
 	const now = new Date();
@@ -60,51 +35,52 @@ function buildJob(overrides: Partial<QueueJob>): QueueJob {
 	};
 }
 
-test("queued jobs at max attempts are exhausted", () => {
-	const job = buildJob({ attempts: 3, maxAttempts: 3, state: "queued" });
-	assertEqual(isQueueJobExhausted(job), true);
-	assertEqual(getQueueJobDerivedState(job), "exhausted");
-});
+describe("job-state", () => {
+	describe("isQueueJobExhausted", () => {
+		it("returns true for queued jobs at max attempts", () => {
+			const job = buildJob({ attempts: 3, maxAttempts: 3, state: "queued" });
+			expect(isQueueJobExhausted(job)).toBe(true);
+			expect(getQueueJobDerivedState(job)).toBe("exhausted");
+		});
 
-test("running jobs are not exhausted", () => {
-	const job = buildJob({ attempts: 3, maxAttempts: 3, state: "running" });
-	assertEqual(isQueueJobExhausted(job), false);
-	assertEqual(getQueueJobDerivedState(job), "running");
-});
+		it("returns false for running jobs even at max attempts", () => {
+			const job = buildJob({ attempts: 3, maxAttempts: 3, state: "running" });
+			expect(isQueueJobExhausted(job)).toBe(false);
+			expect(getQueueJobDerivedState(job)).toBe("running");
+		});
 
-test("queued jobs with lock owner are not exhausted", () => {
-	const job = buildJob({
-		attempts: 3,
-		maxAttempts: 3,
-		state: "queued",
-		lockedBy: "worker_1",
+		it("returns false for queued jobs with a lock owner", () => {
+			const job = buildJob({
+				attempts: 3,
+				maxAttempts: 3,
+				state: "queued",
+				lockedBy: "worker_1",
+			});
+			expect(isQueueJobExhausted(job)).toBe(false);
+			expect(getQueueJobDerivedState(job)).toBe("queued");
+		});
 	});
-	assertEqual(isQueueJobExhausted(job), false);
-	assertEqual(getQueueJobDerivedState(job), "queued");
-});
 
-test("derived error uses lastError when present", () => {
-	const job = buildJob({
-		attempts: 3,
-		maxAttempts: 3,
-		lastError: "compose failed",
+	describe("getQueueJobDerivedError", () => {
+		it("uses lastError when present", () => {
+			const job = buildJob({
+				attempts: 3,
+				maxAttempts: 3,
+				lastError: "compose failed",
+			});
+			expect(getQueueJobDerivedError(job)).toBe("compose failed");
+		});
+
+		it("provides fallback for exhausted jobs without lastError", () => {
+			const job = buildJob({ attempts: 3, maxAttempts: 3, state: "queued" });
+			expect(getQueueJobDerivedError(job)).toBe(
+				"Job exhausted all retry attempts before it could be marked failed.",
+			);
+		});
+
+		it("returns null for non-exhausted jobs without lastError", () => {
+			const job = buildJob({ attempts: 1, maxAttempts: 3, state: "queued" });
+			expect(getQueueJobDerivedError(job)).toBeNull();
+		});
 	});
-	assertEqual(getQueueJobDerivedError(job), "compose failed");
 });
-
-test("derived error provides fallback for exhausted jobs", () => {
-	const job = buildJob({ attempts: 3, maxAttempts: 3, state: "queued" });
-	assertEqual(
-		getQueueJobDerivedError(job),
-		"Job exhausted all retry attempts before it could be marked failed.",
-	);
-});
-
-const passed = results.filter((result) => result.passed).length;
-const failed = results.length - passed;
-
-console.log(`\n${passed}/${results.length} tests passed`);
-
-if (failed > 0) {
-	process.exitCode = 1;
-}

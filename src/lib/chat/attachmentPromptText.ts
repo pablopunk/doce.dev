@@ -3,7 +3,7 @@ import type { PromptAttachmentPart } from "@/types/message";
 
 interface TextAttachmentInput {
 	filename: string;
-	textContent?: string;
+	textContent?: string | undefined;
 }
 
 export function formatTextAttachmentForPrompt({
