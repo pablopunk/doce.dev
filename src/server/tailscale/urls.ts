@@ -1,27 +1,22 @@
+import { getOrSet, invalidate } from "@/server/cache/memory";
 import { getTailscaleConfig } from "./config";
 
-let cachedConfig: {
-	enabled: boolean;
-	tailnetName: string | null;
-} | null = null;
-
-let cacheExpiry = 0;
-
+const URL_CONFIG_CACHE_KEY = "tailscale:url-config";
 const CACHE_TTL_MS = 30_000;
 
-async function getCachedConfig() {
-	const now = Date.now();
-	if (cachedConfig && now < cacheExpiry) {
-		return cachedConfig;
-	}
+interface UrlConfig {
+	enabled: boolean;
+	tailnetName: string | null;
+}
 
-	const config = await getTailscaleConfig();
-	cachedConfig = {
-		enabled: config.enabled,
-		tailnetName: config.tailnetName,
-	};
-	cacheExpiry = now + CACHE_TTL_MS;
-	return cachedConfig;
+function getCachedConfig(): Promise<UrlConfig> {
+	return getOrSet(URL_CONFIG_CACHE_KEY, { ttlMs: CACHE_TTL_MS }, async () => {
+		const config = await getTailscaleConfig();
+		return {
+			enabled: config.enabled,
+			tailnetName: config.tailnetName,
+		};
+	});
 }
 
 /**
@@ -64,6 +59,5 @@ export async function getTailscaleAppUrl(): Promise<string | null> {
 
 /** Invalidate the cached config (call after connect/disconnect). */
 export function invalidateTailscaleUrlCache(): void {
-	cachedConfig = null;
-	cacheExpiry = 0;
+	invalidate(URL_CONFIG_CACHE_KEY);
 }

@@ -1,5 +1,5 @@
 ---
-import { isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { MonitorWorkspace } from "@/components/monitor/MonitorWorkspace";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { db } from "@/server/db/client";
@@ -53,7 +53,7 @@ if (initialTab === "queue" && jobIdParam) {
 const allProjects = await db
 	.select({ id: projects.id, name: projects.name, icon: projects.icon })
 	.from(projects)
-	.where(isNull(projects.deletedAt));
+	.where(and(eq(projects.ownerUserId, user.id), isNull(projects.deletedAt)));
 ---
 
 <AppLayout title="Monitor">
