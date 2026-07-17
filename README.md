@@ -1,5 +1,14 @@
 # doce.dev - Self-Hosted AI Website Builder
 
+## Server startup
+
+Development starts the server bootstrap from Astro's `astro:server:setup` hook.
+With the pinned Astro/Node standalone adapter, the production entrypoint has no
+application runtime-start hook, so `node ./dist/server/entry.mjs` starts the
+same bootstrap when middleware is first resolved. That fallback is fire-and-
+forget: requests wait only for database readiness needed by setup/auth routing,
+never for Docker, OpenCode, or other background startup work.
+
 <p align="center">
   <img src="https://github.com/pablopunk/doce.dev/blob/main/public/icon-128.png?raw=true" alt="doce.dev logo" width="64" />
   <br />
