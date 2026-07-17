@@ -38,10 +38,13 @@ export const deploy = defineAction({
 			});
 		}
 
-		if (project.status !== "running") {
+		if (
+			project.desiredStatus !== "running" ||
+			project.observedStatus !== "healthy"
+		) {
 			throw new ActionError({
 				code: "BAD_REQUEST",
-				message: `Cannot deploy project while it's ${project.status}`,
+				message: `Cannot deploy project while desired=${project.desiredStatus} and observed=${project.observedStatus}`,
 			});
 		}
 

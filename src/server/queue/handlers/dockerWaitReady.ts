@@ -10,7 +10,7 @@ import { logger } from "@/server/logger";
 import { getProjectPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
-	updateProjectStatus,
+	updateProjectObservedStatus,
 } from "@/server/projects/projects.model";
 import { enqueueOpencodeSessionCreate } from "../enqueue";
 import { parsePayload } from "../types";
@@ -42,7 +42,7 @@ const shouldSkipDeletedProject = (
 	project: Project,
 ): Effect.Effect<boolean, never> =>
 	Effect.sync(() => {
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			logger.info(
 				{ projectId: project.id },
 				"Skipping docker.waitReady for deleting project",
@@ -68,11 +68,11 @@ const handleServicesReady = (
 ): Effect.Effect<void, never> =>
 	Effect.gen(function* () {
 		yield* Effect.tryPromise({
-			try: () => updateProjectStatus(project.id, "running"),
+			try: () => updateProjectObservedStatus(project.id, "healthy"),
 			catch: (error) => {
 				logger.error(
 					{ projectId: project.id, error },
-					"Failed to update project status to running",
+					"Failed to record healthy project observation",
 				);
 			},
 		}).pipe(Effect.orElse(() => Effect.void));
@@ -160,7 +160,7 @@ export const handleDockerWaitReady = (
 				errorMsg,
 			);
 			yield* Effect.tryPromise({
-				try: () => updateProjectStatus(project.id, "error"),
+				try: () => updateProjectObservedStatus(project.id, "unhealthy"),
 				catch: () => {},
 			}).pipe(Effect.orElse(() => Effect.void));
 			return;

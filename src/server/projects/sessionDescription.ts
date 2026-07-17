@@ -34,7 +34,7 @@ export async function updateProjectDescriptionFromSessionTitle(
 	if (!description) return false;
 
 	const project = await getProjectByIdIncludeDeleted(projectId);
-	if (!project || project.status === "deleting") return false;
+	if (!project || project.desiredStatus === "deleting") return false;
 	if (project.description === description) return true;
 
 	await updateProjectDescription(projectId, description);

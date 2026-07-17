@@ -46,7 +46,7 @@ export async function getDocePreviewStatus(
 	const previewReachable = await checkPreviewReady(projectId);
 
 	const summary = buildStatusSummary({
-		projectStatus: project.status,
+		projectStatus: `${project.desiredStatus}/${project.observedStatus}`,
 		previewReachable,
 		containers,
 	});
@@ -54,7 +54,7 @@ export async function getDocePreviewStatus(
 	return {
 		ok: true,
 		projectId,
-		projectStatus: project.status,
+		projectStatus: `${project.desiredStatus}/${project.observedStatus}`,
 		preview: {
 			reachable: previewReachable,
 		},

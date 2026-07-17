@@ -8,7 +8,8 @@ import { logger } from "@/server/logger";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
+	updateProjectObservedStatus,
 } from "@/server/projects/projects.model";
 import { enqueueDockerWaitReady } from "../enqueue";
 import { parsePayload } from "../types";
@@ -19,10 +20,18 @@ const fetchProjectById = (projectId: string) =>
 		catch: () => new ProjectNotFoundError({ projectId }),
 	});
 
-const setProjectStatus = (projectId: string, status: "starting" | "error") =>
+const setProjectDesiredStatus = (projectId: string) =>
 	Effect.tryPromise({
-		try: () => updateProjectStatus(projectId, status),
-		catch: (error) => new Error(`Failed to update project status: ${error}`),
+		try: () => updateProjectDesiredStatus(projectId, "running"),
+		catch: (error) =>
+			new Error(`Failed to update desired project status: ${error}`),
+	});
+
+const setProjectObservedStatus = (projectId: string, status: "unhealthy") =>
+	Effect.tryPromise({
+		try: () => updateProjectObservedStatus(projectId, status),
+		catch: (error) =>
+			new Error(`Failed to update observed project status: ${error}`),
 	});
 
 const setupGlobalPnpmVolume = () =>
@@ -75,14 +84,14 @@ export const handleDockerComposeUp = (
 			return;
 		}
 
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			yield* logInfo("Skipping docker.composeUp for deleting project", {
 				projectId: project.id,
 			});
 			return;
 		}
 
-		yield* setProjectStatus(project.id, "starting");
+		yield* setProjectDesiredStatus(project.id);
 
 		yield* ctx.throwIfCancelRequested();
 
@@ -100,7 +109,7 @@ export const handleDockerComposeUp = (
 				result.stderr || result.stdout || "Unknown docker error";
 			const diagnostic = classifyComposeFailure(errorDetails);
 			const errorMsg = `compose up failed: ${diagnostic.summary} (full logs: ${dockerLogPath})`;
-			yield* setProjectStatus(project.id, "error");
+			yield* setProjectObservedStatus(project.id, "unhealthy");
 			yield* Effect.fail(new Error(errorMsg));
 			return;
 		}

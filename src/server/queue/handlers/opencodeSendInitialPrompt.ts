@@ -38,7 +38,7 @@ export function handleOpencodeSendInitialPrompt(
 			return;
 		}
 
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			logger.info(
 				{ projectId: project.id },
 				"Skipping opencode.sendInitialPrompt for deleting project",

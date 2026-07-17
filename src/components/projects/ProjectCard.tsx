@@ -94,7 +94,10 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 		typeof window === "undefined"
 			? (productionUrls.preferred ?? project.productionUrl)
 			: getPreferredRuntimeUrl(productionUrls, baseUrl, window.location.origin);
-	const isPreviewRunning = project.status === "running" && !isStoppingPreview;
+	const isPreviewRunning =
+		project.desiredStatus === "running" &&
+		project.observedStatus === "healthy" &&
+		!isStoppingPreview;
 	const isProductionRunning =
 		project.productionStatus === "running" &&
 		Boolean(productionUrl) &&
@@ -290,7 +293,7 @@ export function ProjectCard({ project, onDeleted }: ProjectCardProps) {
 								size="icon"
 								className="h-8 w-8 bg-card/80 text-destructive backdrop-blur-sm hover:text-destructive hover:bg-destructive/10"
 								onClick={handleDeleteClick}
-								disabled={isDeleting || project.status === "deleting"}
+								disabled={isDeleting || project.desiredStatus === "deleting"}
 							>
 								{isDeleting ? (
 									<Loader2 className="h-4 w-4 animate-spin" />

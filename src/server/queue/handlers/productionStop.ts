@@ -66,7 +66,7 @@ export function handleProductionStop(
 		yield* removeDockerImages(project.id);
 		yield* removeProductionArtifacts(project.id);
 
-		if (project.status !== "deleting") {
+		if (project.desiredStatus !== "deleting") {
 			yield* Effect.tryPromise({
 				try: () =>
 					updateProductionStatus(project.id, "stopped", {

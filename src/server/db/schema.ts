@@ -68,20 +68,6 @@ export const projects = sqliteTable(
 		prompt: text("prompt").notNull(),
 		description: text("description").notNull().default(""),
 		devPort: integer("dev_port").notNull(),
-		// Deprecated: use desired_status instead. Kept for backward compatibility.
-		status: text("status", {
-			enum: [
-				"created",
-				"starting",
-				"running",
-				"stopping",
-				"stopped",
-				"error",
-				"deleting",
-			],
-		})
-			.notNull()
-			.default("created"),
 		// Desired state: what we want the project to be
 		desiredStatus: text("desired_status", {
 			enum: ["created", "running", "stopped", "deleting"],
