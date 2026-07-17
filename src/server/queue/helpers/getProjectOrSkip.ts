@@ -19,7 +19,7 @@ export async function getProjectOrSkip(
 		return null;
 	}
 
-	if (project.status === "deleting") {
+	if (project.desiredStatus === "deleting") {
 		logger.info(
 			{ projectId: project.id },
 			`Skipping ${handlerName} for deleting project`,

@@ -7,7 +7,8 @@ import {
 	getProjectById,
 	getProjectsByUserId,
 	hardDeleteProject,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
+	updateProjectObservedStatus,
 } from "./projects.model";
 
 export interface DeleteProjectResult {
@@ -164,24 +165,24 @@ export async function stopProject(
 	const projectPath = getProjectPath(projectId);
 
 	try {
-		await updateProjectStatus(projectId, "stopping");
+		await updateProjectDesiredStatus(projectId, "stopped");
 
 		const { composeStop } = await import("@/server/docker/compose");
 		const result = await composeStop(projectId, projectPath);
 
 		if (result.success) {
-			await updateProjectStatus(projectId, "stopped");
+			await updateProjectObservedStatus(projectId, "missing");
 			logger.info({ projectId }, "Project stopped");
 			return { success: true };
 		} else {
-			await updateProjectStatus(projectId, "error");
+			await updateProjectObservedStatus(projectId, "unhealthy");
 			return {
 				success: false,
 				error: `Docker compose stop failed: ${result.stderr.slice(0, 200)}`,
 			};
 		}
 	} catch (err) {
-		await updateProjectStatus(projectId, "error");
+		await updateProjectObservedStatus(projectId, "unhealthy");
 		logger.error({ error: err, projectId }, "Failed to stop project");
 		return {
 			success: false,

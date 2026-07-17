@@ -3,6 +3,7 @@ import react from "@astrojs/react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import { execSync } from "child_process";
+import { serverBootstrapIntegration } from "./src/server/bootstrap/astro-integration";
 
 const getGitVersion = (): string => {
 	try {
@@ -28,7 +29,7 @@ export default defineConfig({
 		host: true,
 		allowedHosts: true,
 	},
-	integrations: [react()],
+	integrations: [react(), serverBootstrapIntegration()],
 	vite: {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		plugins: [tailwindcss() as any],

@@ -4,7 +4,8 @@ import { type NewProject, type Project, projects } from "@/server/db/schema";
 import type { OpencodeDiagnostic } from "@/server/opencode/diagnostics";
 import { emitProjectEvent } from "./events";
 
-export type ProjectStatus = Project["status"];
+export type DesiredProjectStatus = NonNullable<Project["desiredStatus"]>;
+export type ObservedProjectStatus = NonNullable<Project["observedStatus"]>;
 
 /**
  * Create a new project in the database.
@@ -58,46 +59,29 @@ export async function getProjectsByUserId(userId: string): Promise<Project[]> {
 			and(
 				eq(projects.ownerUserId, userId),
 				isNull(projects.deletedAt),
-				ne(projects.status, "deleting"),
+				ne(projects.desiredStatus, "deleting"),
 			),
 		)
 		.orderBy(desc(projects.createdAt));
 }
 
-/**
- * Map legacy status to desired status for backward compatibility.
- */
-function statusToDesired(status: ProjectStatus): string {
-	switch (status) {
-		case "created":
-			return "created";
-		case "starting":
-			return "running";
-		case "running":
-			return "running";
-		case "stopping":
-			return "stopped";
-		case "stopped":
-			return "stopped";
-		case "error":
-			return "running"; // Assume user wants it running
-		case "deleting":
-			return "deleting";
-	}
+/** Update the state the user or lifecycle intends the project to reach. */
+export async function updateProjectDesiredStatus(
+	id: string,
+	desiredStatus: DesiredProjectStatus,
+): Promise<void> {
+	await db.update(projects).set({ desiredStatus }).where(eq(projects.id, id));
+	emitProjectEvent(id);
 }
 
-/**
- * Update a project's status.
- * Also updates desired_status for the new self-healing system.
- */
-export async function updateProjectStatus(
+/** Update the state observed from the project's runtime. */
+export async function updateProjectObservedStatus(
 	id: string,
-	status: ProjectStatus,
+	observedStatus: ObservedProjectStatus,
 ): Promise<void> {
-	const desiredStatus = statusToDesired(status) as Project["desiredStatus"];
 	await db
 		.update(projects)
-		.set({ status, desiredStatus })
+		.set({ observedStatus, lastReconciledAt: new Date() })
 		.where(eq(projects.id, id));
 	emitProjectEvent(id);
 }
@@ -191,7 +175,9 @@ export async function getRunningProjects(): Promise<Project[]> {
 	return db
 		.select()
 		.from(projects)
-		.where(and(eq(projects.status, "running"), isNull(projects.deletedAt)));
+		.where(
+			and(eq(projects.desiredStatus, "running"), isNull(projects.deletedAt)),
+		);
 }
 
 /**

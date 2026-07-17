@@ -42,7 +42,7 @@ export function handleProductionBuild(
 				return undefined as void;
 			}
 
-			if (project.status === "deleting") {
+			if (project.desiredStatus === "deleting") {
 				logger.info(
 					{ projectId: project.id },
 					"Skipping production.build for deleting project",

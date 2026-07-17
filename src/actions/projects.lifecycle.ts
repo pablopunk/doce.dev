@@ -67,7 +67,7 @@ export const restart = defineAction({
 			"@/server/queue/enqueue"
 		);
 
-		const { updateProjectStatus } = await import(
+		const { updateProjectDesiredStatus } = await import(
 			"@/server/projects/projects.model"
 		);
 
@@ -76,7 +76,7 @@ export const restart = defineAction({
 			reason: "user",
 		});
 
-		await updateProjectStatus(input.projectId, "starting");
+		await updateProjectDesiredStatus(input.projectId, "running");
 
 		return { success: true, jobId: job.id };
 	},

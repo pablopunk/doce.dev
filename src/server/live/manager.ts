@@ -20,7 +20,7 @@ import {
 } from "@/server/projects/health";
 import {
 	getProjectById,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
 } from "@/server/projects/projects.model";
 import { getProjectRuntimeUrls } from "@/server/projects/projectUrls";
 import {
@@ -204,13 +204,12 @@ async function ensureRunning(
 	const project = await getProjectById(projectId);
 	if (!project) return;
 	const needsStart =
-		project.status === "created" ||
-		project.status === "stopped" ||
-		project.status === "error";
+		project.desiredStatus === "created" || project.desiredStatus === "stopped";
 	if (!needsStart) return;
 
 	state.startedAt = Date.now();
 	try {
+		await updateProjectDesiredStatus(projectId, "running");
 		await enqueueDockerEnsureRunning({ projectId, reason: "presence" });
 	} catch (error) {
 		logger.error({ error, projectId }, "Failed to enqueue ensure-running");
@@ -273,42 +272,42 @@ async function buildState(
 		activeJobType: activeProductionJob?.type ?? null,
 	};
 
-	let status = project.status;
+	let status: ProjectLiveState["status"] = project.desiredStatus;
 	let message: string | null = null;
 
-	if (previewReady && opencodeReady) {
-		if (status !== "running") {
-			await updateProjectStatus(projectId, "running");
+	if (project.desiredStatus === "running") {
+		if (previewReady && opencodeReady) {
 			status = "running";
-		}
-		state.startedAt = null;
-	} else if (status === "running") {
-		await updateProjectStatus(projectId, "stopped");
-		status = "stopped";
-		state.startedAt = Date.now();
-		void enqueueDockerEnsureRunning({ projectId, reason: "presence" }).catch(
-			(error) => logger.error({ error, projectId }, "Recovery enqueue failed"),
-		);
-		message = `Restarting ${[!previewReady ? "preview" : null, !opencodeReady ? "opencode" : null].filter(Boolean).join(" and ")}...`;
-	} else if (
-		status === "starting" ||
-		status === "created" ||
-		status === "stopped"
-	) {
-		status = "starting";
-		if (!state.startedAt) state.startedAt = Date.now();
-		const elapsed = Date.now() - state.startedAt;
-		if (elapsed > START_TIMEOUT_MS) {
-			await updateProjectStatus(projectId, "error");
-			status = "error";
 			state.startedAt = null;
+		} else if (project.observedStatus === "healthy") {
+			status = "starting";
+			if (!state.startedAt) state.startedAt = Date.now();
+			void enqueueDockerEnsureRunning({ projectId, reason: "presence" }).catch(
+				(error) =>
+					logger.error({ error, projectId }, "Recovery enqueue failed"),
+			);
+			message = `Restarting ${[!previewReady ? "preview" : null, !opencodeReady ? "opencode" : null].filter(Boolean).join(" and ")}...`;
+		} else if (
+			project.observedStatus === "unhealthy" ||
+			project.observedStatus === "crashed"
+		) {
+			status = "error";
 			message = "Containers failed to start. Open terminal for details.";
-		} else if (!previewReady && !opencodeReady) {
-			message = "Starting containers...";
-		} else if (!previewReady) {
-			message = "Waiting for preview server...";
 		} else {
-			message = "Waiting for opencode...";
+			status = "starting";
+			if (!state.startedAt) state.startedAt = Date.now();
+			const elapsed = Date.now() - state.startedAt;
+			if (elapsed > START_TIMEOUT_MS) {
+				status = "error";
+				state.startedAt = null;
+				message = "Containers failed to start. Open terminal for details.";
+			} else if (!previewReady && !opencodeReady) {
+				message = "Starting containers...";
+			} else if (!previewReady) {
+				message = "Waiting for preview server...";
+			} else {
+				message = "Waiting for opencode...";
+			}
 		}
 	}
 

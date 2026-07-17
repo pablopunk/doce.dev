@@ -271,11 +271,11 @@ export class DatabaseService extends Context.Tag("DatabaseService")<
 		) => Effect.Effect<Project | null, ProjectOperationError>;
 
 		/**
-		 * Update project status
+		 * Update desired project status
 		 */
-		updateProjectStatus: (
+		updateProjectDesiredStatus: (
 			projectId: string,
-			status: Project["status"],
+			status: Project["desiredStatus"],
 		) => Effect.Effect<void, ProjectOperationError>;
 
 		/**
@@ -316,7 +316,7 @@ export const DatabaseServiceLive = Layer.succeed(
 	DatabaseService.of({
 		getProjectById: () =>
 			Effect.dieMessage("DatabaseServiceLive not implemented"),
-		updateProjectStatus: () =>
+		updateProjectDesiredStatus: () =>
 			Effect.dieMessage("DatabaseServiceLive not implemented"),
 		updateProjectProductionStatus: () =>
 			Effect.dieMessage("DatabaseServiceLive not implemented"),

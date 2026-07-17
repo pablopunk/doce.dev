@@ -43,7 +43,7 @@ export function handleProductionStart(
 			return;
 		}
 
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			logger.info(
 				{ projectId: project.id },
 				"Skipping production.start for deleting project",

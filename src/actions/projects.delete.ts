@@ -2,7 +2,7 @@ import { ActionError, defineAction } from "astro:actions";
 import { z } from "astro/zod";
 import {
 	isProjectOwnedByUser,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
 } from "@/server/projects/projects.model";
 import {
 	enqueueDeleteAllProjectsForUser,
@@ -31,7 +31,7 @@ export const deleteProject = defineAction({
 		}
 
 		try {
-			await updateProjectStatus(input.projectId, "deleting");
+			await updateProjectDesiredStatus(input.projectId, "deleting");
 		} catch {}
 
 		try {
