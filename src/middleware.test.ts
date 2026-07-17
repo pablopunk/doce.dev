@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	ensureDatabaseReady: vi.fn(),
 	selectUsers: vi.fn(),
-	startServerBootstrap: vi.fn(),
+	startServerBootstrap: vi.fn(() => new Promise(() => {})),
 	validateSession: vi.fn(),
 }));
 
@@ -71,6 +71,26 @@ describe("middleware bootstrap fallback", () => {
 		const response = await responsePromise;
 		if (!(response instanceof Response)) throw new Error("missing response");
 		expect(response.headers.get("location")).toBe("/setup");
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	it("keeps existing-user auth routing responsive while bootstrap remains pending", async () => {
+		const afterSetupCacheExpiry = Date.now() + 2_000;
+		vi.spyOn(Date, "now").mockReturnValue(afterSetupCacheExpiry);
+		mocks.ensureDatabaseReady.mockResolvedValueOnce(undefined);
+		mocks.selectUsers.mockResolvedValueOnce([{ id: "existing-user" }]);
+		const next = vi.fn(() => Promise.resolve(new Response("next")));
+		const context = {
+			url: new URL("http://doce.test/"),
+			cookies: { get: vi.fn(), delete: vi.fn() },
+			locals: {},
+			redirect: (location: string) =>
+				new Response(null, { status: 302, headers: { location } }),
+		};
+
+		const response = await onRequest(context as never, next);
+		if (!(response instanceof Response)) throw new Error("missing response");
+		expect(response.headers.get("location")).toBe("/login");
 		expect(next).not.toHaveBeenCalled();
 	});
 });
