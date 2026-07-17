@@ -151,10 +151,12 @@ async function checkProjectHealthSync(project: Project): Promise<{
 			break;
 	}
 
-	// Check for stuck starting
+	// A running project with no observation yet is still starting. Once an
+	// observation is unhealthy/crashed it is reported by the desired/observed
+	// mismatch above instead of relying on the removed transitional status.
 	if (
 		project.desiredStatus === "running" &&
-		project.status === "starting" &&
+		project.observedStatus === "unknown" &&
 		project.createdAt
 	) {
 		const age = now.getTime() - project.createdAt.getTime();

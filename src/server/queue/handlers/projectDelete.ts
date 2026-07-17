@@ -11,7 +11,7 @@ import {
 import {
 	getProjectByIdIncludeDeleted,
 	hardDeleteProject,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
 } from "@/server/projects/projects.model";
 import { spawnCommand } from "@/server/utils/execAsync";
 import { parsePayload } from "../types";
@@ -51,7 +51,7 @@ export const handleProjectDelete: LegacyHandler = async (ctx) => {
 	try {
 		// Step 1: Mark status as "deleting" (best-effort)
 		try {
-			await updateProjectStatus(project.id, "deleting");
+			await updateProjectDesiredStatus(project.id, "deleting");
 			logger.debug({ projectId: project.id }, "Project marked as deleting");
 		} catch (error) {
 			logger.warn(

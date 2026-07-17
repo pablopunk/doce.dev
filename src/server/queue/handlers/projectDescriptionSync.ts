@@ -36,7 +36,7 @@ export function handleProjectDescriptionSync(
 				}),
 		});
 
-		if (!project || project.status === "deleting") return;
+		if (!project || project.desiredStatus === "deleting") return;
 		const sessionId = project.bootstrapSessionId;
 		if (!sessionId) return;
 

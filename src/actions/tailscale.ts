@@ -8,7 +8,7 @@ import { composeDown } from "@/server/docker/compose";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectsByUserId,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
 } from "@/server/projects/projects.model";
 import { enqueueDockerEnsureRunning } from "@/server/queue/enqueue";
 import {
@@ -134,7 +134,7 @@ async function getPreviewProjectsNeedingTailscale(userId: string) {
 
 	const projects = await getProjectsByUserId(userId);
 	const runningProjects = projects.filter(
-		(project) => project.status === "running",
+		(project) => project.desiredStatus === "running",
 	);
 	const checks = await Promise.all(
 		runningProjects.map(async (project) => ({
@@ -256,7 +256,7 @@ export const tailscale = {
 
 			for (const project of projectsNeedingPreviewRestart) {
 				await composeDown(project.id, getProjectPreviewPath(project.id));
-				await updateProjectStatus(project.id, "starting");
+				await updateProjectDesiredStatus(project.id, "running");
 				await enqueueDockerEnsureRunning({
 					projectId: project.id,
 					reason: "user",

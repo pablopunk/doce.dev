@@ -13,7 +13,8 @@ import { checkPreviewReady } from "@/server/projects/health";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
+	updateProjectObservedStatus,
 } from "@/server/projects/projects.model";
 import { enqueueDockerWaitReady } from "../enqueue";
 import { parsePayload } from "../types";
@@ -51,16 +52,16 @@ export function handleDockerEnsureRunning(
 			return;
 		}
 
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			return;
 		}
 
 		yield* Effect.tryPromise({
-			try: () => updateProjectStatus(project.id, "starting"),
+			try: () => updateProjectDesiredStatus(project.id, "running"),
 			catch: (error) =>
 				new ProjectError({
 					projectId: project.id,
-					operation: "updateProjectStatus",
+					operation: "updateProjectDesiredStatus",
 					message: error instanceof Error ? error.message : String(error),
 					cause: error,
 				}),
@@ -122,11 +123,11 @@ export function handleDockerEnsureRunning(
 
 			if (!result.success) {
 				yield* Effect.tryPromise({
-					try: () => updateProjectStatus(project.id, "error"),
+					try: () => updateProjectObservedStatus(project.id, "unhealthy"),
 					catch: (error) =>
 						new ProjectError({
 							projectId: project.id,
-							operation: "updateProjectStatus",
+							operation: "updateProjectObservedStatus",
 							message: error instanceof Error ? error.message : String(error),
 							cause: error,
 						}),

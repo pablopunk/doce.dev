@@ -3,7 +3,8 @@ import type { LegacyHandler } from "@/server/effect/handler-adapter";
 import { getProjectPreviewPath } from "@/server/projects/paths";
 import {
 	getProjectByIdIncludeDeleted,
-	updateProjectStatus,
+	updateProjectDesiredStatus,
+	updateProjectObservedStatus,
 } from "@/server/projects/projects.model";
 import { parsePayload } from "../types";
 
@@ -15,11 +16,11 @@ export const handleDockerStop: LegacyHandler = async (ctx) => {
 		return;
 	}
 
-	if (project.status === "deleting") {
+	if (project.desiredStatus === "deleting") {
 		return;
 	}
 
-	await updateProjectStatus(project.id, "stopping");
+	await updateProjectDesiredStatus(project.id, "stopped");
 
 	await ctx.throwIfCancelRequested();
 
@@ -27,9 +28,9 @@ export const handleDockerStop: LegacyHandler = async (ctx) => {
 	const result = await composeStop(project.id, previewPath);
 
 	if (result.success) {
-		await updateProjectStatus(project.id, "stopped");
+		await updateProjectObservedStatus(project.id, "missing");
 	} else {
-		await updateProjectStatus(project.id, "error");
+		await updateProjectObservedStatus(project.id, "unhealthy");
 		throw new Error(`compose stop failed: ${result.stderr.slice(0, 500)}`);
 	}
 };

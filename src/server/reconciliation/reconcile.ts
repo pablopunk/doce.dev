@@ -73,6 +73,7 @@ export async function runReconciliation(): Promise<ReconciliationReport> {
 				violationsFound: allViolations.length,
 				actionsApplied: allActions.length,
 				durationMs: completedAt.getTime() - startedAt.getTime(),
+				projectCounts: metrics.projectCounts,
 			},
 			"Reconciliation completed",
 		);
@@ -125,6 +126,10 @@ interface HealthMetrics {
 	projectsTotal: number;
 	projectsRunning: number;
 	projectsError: number;
+	projectCounts: {
+		desired: Record<string, number>;
+		observed: Record<string, number>;
+	};
 	opencodeHealthy: boolean;
 }
 
@@ -145,18 +150,30 @@ async function gatherHealthMetrics(
 		queueStats.map((s) => [s.state, s.count]),
 	);
 
-	// Count projects by status
-	const projectStats = await db
+	// Desired and observed counts answer different operational questions and must
+	// not be collapsed back into the retired status field.
+	const desiredProjectStats = await db
 		.select({
-			status: projects.status,
+			status: projects.desiredStatus,
 			count: count(),
 		})
 		.from(projects)
 		.where(isNull(projects.deletedAt))
-		.groupBy(projects.status);
+		.groupBy(projects.desiredStatus);
+	const observedProjectStats = await db
+		.select({
+			status: projects.observedStatus,
+			count: count(),
+		})
+		.from(projects)
+		.where(isNull(projects.deletedAt))
+		.groupBy(projects.observedStatus);
 
-	const projectMap = Object.fromEntries(
-		projectStats.map((s) => [s.status, s.count]),
+	const desiredProjectMap = Object.fromEntries(
+		desiredProjectStats.map((s) => [s.status, s.count]),
+	);
+	const observedProjectMap = Object.fromEntries(
+		observedProjectStats.map((s) => [s.status, s.count]),
 	);
 
 	// Check OpenCode health
@@ -166,9 +183,14 @@ async function gatherHealthMetrics(
 		queueJobsQueued: queueMap.queued || 0,
 		queueJobsRunning: queueMap.running || 0,
 		queueJobsFailed: queueMap.failed || 0,
-		projectsTotal: Object.values(projectMap).reduce((a, b) => a + b, 0),
-		projectsRunning: projectMap.running || 0,
-		projectsError: projectMap.error || 0,
+		projectsTotal: Object.values(desiredProjectMap).reduce((a, b) => a + b, 0),
+		projectsRunning: desiredProjectMap.running || 0,
+		projectsError:
+			(observedProjectMap.unhealthy || 0) + (observedProjectMap.crashed || 0),
+		projectCounts: {
+			desired: desiredProjectMap,
+			observed: observedProjectMap,
+		},
 		opencodeHealthy,
 	};
 }

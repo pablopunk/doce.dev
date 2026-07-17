@@ -90,7 +90,7 @@ export function handleOpencodeSendUserPrompt(
 			return;
 		}
 
-		if (project.status === "deleting") {
+		if (project.desiredStatus === "deleting") {
 			logger.info(
 				{ projectId: project.id },
 				"Skipping opencode.sendUserPrompt for deleting project",
