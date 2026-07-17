@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   check:
@@ -12,6 +11,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -30,7 +31,7 @@ jobs:
 
   build-and-push:
     needs: check
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,6 +40,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -50,13 +53,28 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up date
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      - name: Set image tags
+        id: tags
+        env:
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          SHORT_SHA=${COMMIT_SHA::7}
 
-      - name: Set up short SHA
-        id: sha
-        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "version=$DATE-$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "ghcr.io/${{ github.repository_owner }}/doce.dev:pr-$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "ghcr.io/${{ github.repository_owner }}/doce.dev:pr-$PR_NUMBER-$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "ghcr.io/${{ github.repository_owner }}/doce.dev:latest" >> "$GITHUB_OUTPUT"
+            echo "ghcr.io/${{ github.repository_owner }}/doce.dev:$DATE-$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -64,10 +82,8 @@ jobs:
           context: .
           push: true
           build-args: |
-            VERSION=${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/doce.dev:latest
-            ghcr.io/${{ github.repository_owner }}/doce.dev:${{ steps.date.outputs.date }}-${{ steps.sha.outputs.short_sha }}
+            VERSION=${{ steps.tags.outputs.version }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: |
             type=${{ github.event_name }}
             branch=${{ github.ref_name }}
