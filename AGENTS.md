@@ -1,92 +1,32 @@
-# doce.dev
+# doce.dev agent guide
 
-> Delicious Open Code Environments
+## Working rules
 
-## About this project
+- Use `pnpm`; never use npm, Yarn, or Bun.
+- Inspect nearby implementations and follow established conventions before editing.
+- Use Biome through `pnpm format`; do not introduce ESLint or Prettier.
+- Keep types precise and avoid `any`. If `any` is necessary, explain why in a code comment.
+- Use `defineAction` with Zod `input` schemas for server actions.
+- Prefer React hooks or programmatic Astro-action fetches over HTML forms for CRUD.
+- Use `sonner` for action feedback instead of inline success, error, or info callouts.
 
-An open-source, self-hostable web UI for building and deploying websites with AI agents. Think v0, Lovable, or Bolt – but self-hosted and community-driven. Built on top of the OpenCode SDK to provide a full-featured AI development environment accessible anywhere.
+## Server, auth, and data
 
-## Rules for agentic development
+- Use `@/server/logger` (Pino), not `console.*`, in server code.
+- API routes must authenticate from cookies themselves; middleware authentication does not cover `/_actions` or `/api`.
+- Prefer client-side fetching and hydration for large or potentially unbounded payloads.
+- Use the existing Drizzle schema, migrations, and query patterns. Do not make destructive database changes for debugging.
+- Keep debugging read-only unless a mutation is explicitly required. Run servers and other long-lived commands in the foreground with a bounded execution; clean them up and collect logs and exit status before finishing rather than detaching or backgrounding them.
 
-* All code modifications/additions should adhere to clean code principles defined below
-* When changing code or introducing new code, Always explore similar implementations on the code base to adhere to the same conventions.
-* Always use `pnpm` for everything, never `npm` nor `yarn` nor `bun`
-* When debugging problems, be proactive (with read-only actions please), i.e. you can always get more info running DB queries yourself, checking docker logs from the CLI, running the server yourself in the background piping the logs to a file... Be creative, without making destructive operations just for debugging.
-* For CRUD operations, prefer React hooks or programmatic fetch calls (still, astro actions) over HTML forms.
-* Avoid success/error/info callouts in components, always use `sonner` component for feedback after actions.
-* Avoid `any` types when possible, everything should be typed correctly without much type duplication or casting. If there's a valid reason to use `any`, mention it in a comment.
-* Use Biome (`pnpm format`) for formatting/linting, not ESLint/Prettier.
-* Use `defineAction` with Zod `input` schemas for all server actions.
-* Use `@/server/logger` (Pino) instead of `console.*` in server code.
-* API routes handle their own auth via cookies; don't assume middleware auth for `/_actions` and `/api`.
-* Prefer client-side fetching/hydration for large or potentially unbounded payloads (e.g. chat history, logs, session/event data) when SSR would duplicate parsing or retain large in-memory structures on the server.
-* Keep heavy API/proxy paths as thin as possible: prefer streaming and pagination over server-side materialization of large payloads.
-* When changing database models, we should consider if we need to create a migration.
-* Polling in the Frontend is completely forbidden, use SSE instead, explore other use cases on the repo.
+## Server lifecycle changes
 
-## Clean code
+- Before moving initialization among middleware, Astro integrations, adapters, or entrypoints, inspect the installed Astro and adapter versions and their implementation or version-matched documentation.
+- Distinguish dev-server hooks, build-time hooks, module import timing, and standalone process startup. Never assume an Astro hook that runs in development or during build also runs when `pnpm start` launches `dist/server/entry.mjs`.
+- Preserve startup failure and retry behavior. Keep expensive subsystem orchestration outside request handling unless per-request execution is explicitly intended.
+- For startup changes, verify both `pnpm dev` and a freshly built standalone path (`pnpm build`, then `pnpm start`). In each runtime, capture startup failure behavior, retry with bounded execution, and make at least one request after readiness. Static inspection, `pnpm check`, or testing only one path is not sufficient evidence.
 
-* Separate domains with folders. Nest as much as you want/need.
-* Use abstractions for everything that's not in the domain of the file you're working on.
-* Functions should have one purpose only, and have as few lines as possible. When performing complex operations, or just several actions, break them into smaller functions. Again, nest as much as you want.
-* Function code should declare what it's doing, instead of how it's doing it, i.e. a function that calls 10 smaller functions in a row is more readable than a function that does 10 things with simple logic.
-* Related to the previous point, avoid unncessary comments before each function. Before creating a comment, think if it could be a function name. i.e. `if-block-else-block // handle case XXX` could just be `handleCaseXXX()`
-* Files should have one clear purpose, defined by the name of the file.
-* Avoid complex UI components, always break them into smaller components, in nested folders if needed.
-* Always think about the MVC pattern, but applied to our framework (model=db, view=components, controller=actions), to separate concerns.
+## Verification
 
-### Component Patterns
-
-* **Complex React components** should be split into custom hooks for logic and presentational components for UI. Put hooks in `src/hooks/` with the naming convention `use[Feature].ts`.
-* **Large model files** (e.g., `queue.model.ts`) should be split into focused modules: `queue.settings.ts`, `queue.crud.ts`, `queue.claim.ts`, `queue.lifecycle.ts`. The main model file should re-export from smaller modules for backward compatibility.
-* **API calls** should be abstracted into service functions rather than scattered directly in components.
-* **State management** should use `zustand` to create domain-specific stores for complex state on components, or custom hooks if a store is not needed.
-
-## Verification Commands
-
-Run these commands to verify your changes before pushing:
-
-| Command | Purpose |
-|---|---|
-| `pnpm dev` | Start the dev server |
-| `pnpm test` | Run vitest test suites (`src/**/*.test.ts`) |
-| `pnpm typecheck` | Run TypeScript type checking |
-| `pnpm check` | Full verification (biome lint + typecheck + tests + build) |
-| `pnpm format` | Auto-format and fix lint issues with Biome |
-| `pnpm build` | Production build |
-
-## Tech Stack
-
-### Package Manager
-**pnpm** - Fast, disk-efficient package manager. Always use `pnpm`, never `npm`, `yarn`, or `bun`.
-
-### Language
-**TypeScript** - Used throughout for type safety. Strict mode enabled.
-
-### Framework
-**Astro v6** - Full-stack framework providing:
-- Astro Pages for file-based routing
-- Astro Actions for type-safe server-side operations like CRUD
-- React integration for interactive components
-- SSR with on-demand rendering
-
-### UI
-**React** - Used for all interactive components within Astro pages.
-
-**shadcn/ui** - Component library providing accessible, customizable primitives.
-
-**Tailwind CSS** - Utility-first styling. Use only semantic color tokens defined in `globals.css` - no hardcoded colors or `dark:` prefixes. Theme switching is handled automatically via CSS custom properties.
-
-### Database
-**SQLite** - File-based database using WAL mode for concurrent access. Stored at `data/db.sqlite`.
-
-**Drizzle ORM** - Type-safe database abstraction with schema defined in `src/server/db/schema.ts`.
-
-### Validation
-**Zod** - Schema validation used for API inputs, queue job payloads, and configuration.
-
-### Logging
-**Pino** - Structured JSON logging. Logger configured in `src/server/logger.ts`.
-
-### Containerization
-**Docker Compose** - Each project runs in isolated containers (preview server + OpenCode agent).
+- Run targeted tests while developing.
+- Before finishing, run `pnpm check`, which covers Biome, type checking, tests, and the production build.
+- Report any check or runtime path that could not be exercised and why.
