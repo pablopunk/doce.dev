@@ -23,7 +23,7 @@
 - Before moving initialization among middleware, Astro integrations, adapters, or entrypoints, inspect the installed Astro and adapter versions and their implementation or version-matched documentation.
 - Distinguish dev-server hooks, build-time hooks, module import timing, and standalone process startup. Never assume an Astro hook that runs in development or during build also runs when `pnpm start` launches `dist/server/entry.mjs`.
 - Preserve startup failure and retry behavior. Keep expensive subsystem orchestration outside request handling unless per-request execution is explicitly intended.
-- For startup changes, verify both `pnpm dev` and a freshly built standalone path (`pnpm build`, then `pnpm start`). In each runtime, capture startup failure behavior and make at least one request after readiness. Static inspection, `pnpm check`, or testing only one path is not sufficient evidence.
+- For startup changes, verify both `pnpm dev` and a freshly built standalone path (`pnpm build`, then `pnpm start`). In each runtime, capture startup failure behavior, retry with bounded execution, and make at least one request after readiness. Static inspection, `pnpm check`, or testing only one path is not sufficient evidence.
 
 ## Verification
 
